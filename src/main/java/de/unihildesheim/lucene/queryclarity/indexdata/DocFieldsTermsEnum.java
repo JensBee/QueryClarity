@@ -203,7 +203,9 @@ public class DocFieldsTermsEnum {
         this.docTermEnum = termVector.iterator(this.docTermEnum);
         break;
       }
-      LOG.trace("Trying field field={} tv=false", targetField);
+      LOG.warn("No TermVector found for doc={} field={}."
+              + "Unable to get any term information for this docment field.",
+              this.docId, targetField);
     }
   }
 }

@@ -16,7 +16,7 @@
  */
 package de.unihildesheim.lucene.queryclarity;
 
-import de.unihildesheim.lucene.queryclarity.documentmodel.AbstractDocumentModel;
+import de.unihildesheim.lucene.queryclarity.documentmodel.DocumentModel;
 import de.unihildesheim.lucene.queryclarity.indexdata.AbstractIndexDataProvider;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,10 +61,6 @@ public class TestIndex extends AbstractIndexDataProvider {
    */
   private static final double RTFM_DOCUMENT = 0.6d;
   /**
-   * Multiplier for relative term frequency inside collection.
-   */
-  private static final double RTFM_COLLECTION = 0.4d;
-  /**
    * Prevent multiple index initializions.
    */
   private static boolean indexInitialized = false;
@@ -97,6 +93,8 @@ public class TestIndex extends AbstractIndexDataProvider {
    */
   private static Set<String> queryFields;
 
+  private static HashMap<Integer, DocumentModel> docModels;
+
   /**
    * Store (document-id -> field-name -> lower-cased term list)
    */
@@ -116,6 +114,7 @@ public class TestIndex extends AbstractIndexDataProvider {
     TestIndex.indexFields = fields;
     TestIndex.indexDocuments = documents;
     TestIndex.queryFields = new HashSet(Arrays.asList(queryFields));;
+    docModels = new HashMap(documents.size());
 
     if (!TestIndex.indexInitialized) {
       LOG.debug("[index] Initializing..");
@@ -147,9 +146,18 @@ public class TestIndex extends AbstractIndexDataProvider {
    * @param docId The document id to lookup
    * @return Calculated pdt for the given term and document
    */
-  protected static Double getDocumentProbability(final String term,
+  protected static double getDocumentProbability(final String term,
           final int docId) {
-    return TestIndex.docProbabilities.get(term).get(docId);
+    Map<Integer, Double> probMap = TestIndex.docProbabilities.get(term);
+    double probability;
+
+    // may be null, if term is invalid (e.g. not found in index)
+    if (probMap == null) {
+      probability = 0d;
+    } else {
+      probability = probMap.get(docId);
+    }
+    return probability;
   }
 
   @Override
@@ -240,9 +248,9 @@ public class TestIndex extends AbstractIndexDataProvider {
    * @param terms Terms to match against
    * @return List of document ids matching at least one of the given terms
    */
-  protected static Collection<Integer> getDocumentsMatching(
+  protected static Collection<DocumentModel> getDocumentModelsMatching(
           final Collection<String> terms) {
-    Collection<Integer> docIds = new HashSet(DOCUMENT_INDEX.size());
+    Collection<DocumentModel> docIds = new HashSet(DOCUMENT_INDEX.size());
 
     // iterate over all documents
     for (Integer docId : DOCUMENT_INDEX.keySet()) {
@@ -251,7 +259,7 @@ public class TestIndex extends AbstractIndexDataProvider {
       for (String term : terms) {
         if (docTerms.contains(term)) {
           // match - add doc and proceed with next document
-          docIds.add(docId);
+          docIds.add(docModels.get(docId));
           break;
         }
       }
@@ -261,12 +269,12 @@ public class TestIndex extends AbstractIndexDataProvider {
   }
 
   /**
-   * Get the ids for all documents in the index.
+   * Get the models for all documents in the index.
    *
-   * @return Ids of all documents in the index
+   * @return Models of all documents in the index
    */
-  protected static Collection<Integer> getDocumentIds() {
-    return DOCUMENT_INDEX.keySet();
+  protected static Collection<DocumentModel> getDocumentModels() {
+    return docModels.values();
   }
 
   /**
@@ -314,6 +322,7 @@ public class TestIndex extends AbstractIndexDataProvider {
       doc = indexDocuments.get(docId);
       docFieldTermMap = new HashMap(indexFields.length);
       DOCUMENT_INDEX.put(docId, docFieldTermMap);
+      docModels.put(docId, new TestDocumentModel(docId));
 
       // iterate over all fields in document
       for (int docFieldNum = 0; docFieldNum < doc.length; docFieldNum++) {
@@ -386,7 +395,7 @@ public class TestIndex extends AbstractIndexDataProvider {
     // iterate over all terms in index
     for (String term : getTerms()) {
       ft = getTermFrequency(term);
-      fc = ((double) ft / (double) f) * RTFM_COLLECTION;
+      fc = ((double) ft / (double) f) * (1 - RTFM_DOCUMENT);
       probMap = new HashMap(DOCUMENT_INDEX.size()); // init storage
       // iterate over all documents in index
       // and calculate pdt for the current term and document
@@ -436,15 +445,15 @@ public class TestIndex extends AbstractIndexDataProvider {
    */
   public static final double calcPQT(final Set<String> query,
           final String term,
-          final Collection<AbstractDocumentModel> docModels) {
+          final Collection<DocumentModel> docModels) {
     int docId;
     double pqt = 0d;
 
     // used for trace output
     final StringBuilder sb = new StringBuilder(200);
 
-    for (AbstractDocumentModel doc : docModels) {
-      docId = doc.getDocId();
+    for (DocumentModel doc : docModels) {
+      docId = doc.id();
       if (LOG.isTraceEnabled()) {
         sb.append("[pqt] term=").append(term).append(" doc=").append(docId).
                 append(" calc=");
@@ -504,7 +513,7 @@ public class TestIndex extends AbstractIndexDataProvider {
    */
   public final double calcClarity(final Set<String> terms,
           final Set<String> query,
-          final Collection<AbstractDocumentModel> docModels) {
+          final Collection<DocumentModel> docModels) {
     double pqt;
     double clarity = 0d;
     double log; // result of the logarithmic part of the calculation formular
@@ -566,5 +575,72 @@ public class TestIndex extends AbstractIndexDataProvider {
   public String[] getTargetFields() {
     return TestIndex.queryFields.toArray(
             new String[TestIndex.queryFields.size()]);
+  }
+
+  @Override
+  public long getTermFrequency(int documentId) {
+    Map<String, List<String>> docFieldTerms = DOCUMENT_INDEX.get(documentId);
+    long freq = 0l;
+    for (String fieldName : getTargetFields()) {
+      freq += docFieldTerms.get(fieldName).size();
+    }
+    return freq;
+  }
+
+  @Override
+  public long getTermFrequency(int documentId, String term) {
+    Map<String, List<String>> docFieldTerms = DOCUMENT_INDEX.get(documentId);
+    long freq = 0l;
+    for (String fieldName : getTargetFields()) {
+      for (String currentTerm : docFieldTerms.get(fieldName)) {
+        if (term.equals(currentTerm)) {
+          freq++;
+        }
+      }
+    }
+    return freq;
+  }
+
+  @Override
+  public DocumentModel getDocumentModel(int documentId) {
+    return docModels.get(documentId);
+  }
+
+  @Override
+  public double getDocumentTermProbability(int documentId, String term) {
+    Double prob = docModels.get(documentId).termProbability(term);
+    if (prob == 0) {
+      prob = (1 - RTFM_DOCUMENT) * relTermFreq.get(term);
+    }
+    return prob;
+  }
+
+  private class TestDocumentModel implements DocumentModel {
+
+    private final int docId;
+
+    public TestDocumentModel(final int documentId) {
+      this.docId = documentId;
+    }
+
+    @Override
+    public long termFrequency() {
+      return TestIndex.this.getTermFrequency(this.docId);
+    }
+
+    @Override
+    public long termFrequency(final String term) {
+      return TestIndex.this.getTermFrequency(this.docId, term);
+    }
+
+    @Override
+    public double termProbability(final String term) {
+      return TestIndex.this.getDocumentProbability(term, this.docId);
+    }
+
+    @Override
+    public int id() {
+      return this.docId;
+    }
   }
 }

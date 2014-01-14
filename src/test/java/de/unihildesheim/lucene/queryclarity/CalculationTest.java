@@ -16,11 +16,10 @@
  */
 package de.unihildesheim.lucene.queryclarity;
 
-import de.unihildesheim.lucene.queryclarity.documentmodel.AbstractDocumentModel;
-import de.unihildesheim.lucene.queryclarity.documentmodel.DocumentModelMap;
+import de.unihildesheim.lucene.queryclarity.documentmodel.DocumentModel;
 import de.unihildesheim.lucene.queryclarity.indexdata.AbstractIndexDataProvider;
+import de.unihildesheim.lucene.queryclarity.indexdata.DefaultIndexDataProvider;
 import de.unihildesheim.lucene.queryclarity.indexdata.DocFieldsTermsEnum;
-import de.unihildesheim.lucene.queryclarity.indexdata.SimpleIndexDataProvider;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -83,7 +82,7 @@ public class CalculationTest {
    */
   private static Set<Set<String>> randErrorQueries = new HashSet(5);
 
-  private static DocumentModelMap docMap;
+  private static Collection<DocumentModel> docMap;
 
   /**
    * Get a collection of document models for all documents in index matching one
@@ -96,24 +95,14 @@ public class CalculationTest {
    * one of the given terms
    * @throws java.io.IOException Thrown, if index could not be accessed
    */
-  private void updateDocMap(
-          final Collection<String> terms) throws IOException {
-    Collection<AbstractDocumentModel> docModels;
-    Collection<Integer> docIds;
-
+  private void updateDocMap(final Collection<String> terms) throws IOException {
     if (terms == null || terms.isEmpty()) {
       // no terms where specified - return all documents from index
       LOG.debug("(getDocModels) No terms where specified "
               + "- return all documents from index");
-      docIds = TestIndex.getDocumentIds();
+      this.docMap = TestIndex.getDocumentModels();
     } else {
-      docIds = TestIndex.getDocumentsMatching(terms);
-    }
-
-    // create document models for all matching documents
-    docMap.clear();
-    for (Integer docId : docIds) {
-      docMap.put(docId);
+      this.docMap = TestIndex.getDocumentModelsMatching(terms);
     }
   }
 
@@ -144,7 +133,7 @@ public class CalculationTest {
     // iterate over all terms in index
     for (String term : terms) {
       // iterate over all documents
-      for (AbstractDocumentModel docModel : docMap.values()) {
+      for (DocumentModel docModel : docMap) {
         // calculate
         docModel.termProbability(term);
       }
@@ -164,13 +153,12 @@ public class CalculationTest {
     CONF.setIndex(new TestIndex(fields, documents, fields));
     calcInstance = new Calculation(CONF.getIndex(), CONF.getIndex().getReader(),
             fields);
-    dataProv = new SimpleIndexDataProvider(CONF.getIndex().getReader(), fields);
+    dataProv = new DefaultIndexDataProvider(CONF.getIndex().getReader(), fields);
 
     docFieldsTermsEnum = new DocFieldsTermsEnum(CONF.getIndex().getReader(),
             fields);
 
-    docMap = new DocumentModelMap(dataProv, docFieldsTermsEnum, documents.
-            size());
+    docMap = new HashSet(documents.size());
 
     // generate random queries
     CalculationTest.randQueries = UTIL.generateRandomQueries(1);
@@ -259,12 +247,12 @@ public class CalculationTest {
     // iterate over all terms in index
     for (String term : CONF.getIndex().getTerms()) {
       // iterate over all documents
-      for (AbstractDocumentModel docModel : docMap.values()) {
+      for (DocumentModel docModel : docMap) {
         // calculation already done - check result
         result = docModel.termProbability(term);
-        expResult = TestIndex.getDocumentProbability(term, docModel.getDocId());
-        LOG.info("[pdt] docId={} term={} exp-pdt={} pdt={}", docModel.
-                getDocId(), term, expResult, result);
+        expResult = TestIndex.getDocumentProbability(term, docModel.id());
+        LOG.info("[pdt] docId={} term={} exp-pdt={} pdt={}", docModel.id(),
+                term, expResult, result);
         assertEquals("should be same value", expResult, result);
       }
     }
@@ -297,9 +285,9 @@ public class CalculationTest {
 
       // calculate pq for each term
       for (String qTerm : query) {
-        result = calcInstance.calculateQueryProbability(CalculationTest.docMap.
-                values(), query, qTerm);
-        expResult = TestIndex.calcPQT(query, qTerm, this.docMap.values());
+        result = calcInstance.calculateQueryProbability(CalculationTest.docMap,
+                query, qTerm);
+        expResult = TestIndex.calcPQT(query, qTerm, this.docMap);
 
         LOG.info("[pqt] query={} term={} docs=all exp-pqt={} pqt={}", query,
                 qTerm, expResult, result);
@@ -310,7 +298,7 @@ public class CalculationTest {
     }
 
     // second pass - use only matching documents from index
-    Collection<AbstractDocumentModel> docModelsMatch;
+    Collection<DocumentModel> docModelsMatch;
     // collect document ids for debug output
     final List<Integer> docModelsMatchIds = new ArrayList();
 
@@ -321,8 +309,8 @@ public class CalculationTest {
       // get document ids from all matching documents (for debug output)
       if (LOG.isDebugEnabled()) {
         docModelsMatchIds.clear();
-        for (AbstractDocumentModel docModel : docMap.values()) {
-          docModelsMatchIds.add(docModel.getDocId());
+        for (DocumentModel docModel : docMap) {
+          docModelsMatchIds.add(docModel.id());
         }
       }
 
@@ -334,9 +322,8 @@ public class CalculationTest {
 
       // calculate pq for each term
       for (String qTerm : query) {
-        result = calcInstance.calculateQueryProbability(docMap.values(),
-                query, qTerm);
-        expResult = CONF.getIndex().calcPQT(query, qTerm, docMap.values());
+        result = calcInstance.calculateQueryProbability(docMap, query, qTerm);
+        expResult = CONF.getIndex().calcPQT(query, qTerm, docMap);
 
         LOG.info("[pqt] query={} term={} docs={} exp-pqt={} pqt={}", query,
                 qTerm, docModelsMatchIds, expResult, result);
@@ -380,7 +367,7 @@ public class CalculationTest {
     }
 
     // ### second pass - use all documents in index
-    Collection<AbstractDocumentModel> docModelsMatch;
+    Collection<DocumentModel> docModelsMatch;
     // collect document ids for debug output
     final List<Integer> docModelsMatchIds = new ArrayList();
 
@@ -391,8 +378,8 @@ public class CalculationTest {
       // get document ids from all matching documents (for debug output)
       if (LOG.isDebugEnabled()) {
         docModelsMatchIds.clear();
-        for (AbstractDocumentModel docModel : docMap.values()) {
-          docModelsMatchIds.add(docModel.getDocId());
+        for (DocumentModel docModel : docMap) {
+          docModelsMatchIds.add(docModel.id());
         }
       }
       if (!CONF.getIndex().getTerms().containsAll(query)) {
@@ -408,8 +395,8 @@ public class CalculationTest {
       // get document ids from all matching documents (for debug output)
       if (LOG.isDebugEnabled()) {
         docModelsMatchIds.clear();
-        for (AbstractDocumentModel docModel : docMap.values()) {
-          docModelsMatchIds.add(docModel.getDocId());
+        for (DocumentModel docModel : docMap) {
+          docModelsMatchIds.add(docModel.id());
         }
       }
       this.runCalculateClarityScore(docModelsMatchIds, "all", query, CONF.
@@ -442,8 +429,8 @@ public class CalculationTest {
     // do needed calculations
     this.calculateDocumentProbabilities(terms);
 
-    result = calcInstance.calculateClarityScore(terms, query, docMap.values());
-    expResult = CONF.getIndex().calcClarity(terms, query, docMap.values());
+    result = calcInstance.calculateClarityScore(terms, query, docMap);
+    expResult = CONF.getIndex().calcClarity(terms, query, docMap);
 
     LOG.info("[clarity] query={} docs={} terms={} score={} exp-score={}",
             query, docsType, termType, result, expResult);

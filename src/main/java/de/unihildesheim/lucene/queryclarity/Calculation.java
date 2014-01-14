@@ -16,8 +16,7 @@
  */
 package de.unihildesheim.lucene.queryclarity;
 
-import de.unihildesheim.lucene.queryclarity.documentmodel.AbstractDocumentModel;
-import de.unihildesheim.lucene.queryclarity.documentmodel.DocumentModelMap;
+import de.unihildesheim.lucene.queryclarity.documentmodel.DocumentModel;
 import de.unihildesheim.lucene.queryclarity.indexdata.AbstractIndexDataProvider;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -52,14 +51,12 @@ public class Calculation {
   /**
    * Maximum number of result documents to include for calculation.
    */
-  private int feedbackDocCnt = 10;
+  private int feedbackDocCnt = -1;
 
   /**
    * Lucene index fields to operate on.
    */
   private String[] fields;
-
-  private DocumentModelMap docsMap;
 
   /**
    * Data provider for cacheable index statistics.
@@ -71,7 +68,6 @@ public class Calculation {
     this.dataProv = dataProvider;
     this.indexReader = reader;
     this.fields = fieldNames;
-    docsMap = new DocumentModelMap(this.indexReader, this.dataProv);
   }
 
   /**
@@ -90,25 +86,44 @@ public class Calculation {
    * and the query terms.
    *
    * @param docModels List of document models to use for calculation
-   * @param queryTerms All terms contained in the query, forming the list of
-   * document models
+   * @param collectionTerms All terms contained in the query, forming the list
+   * of document models
    * @param currentTerm Term to do the calculation for
    * @return Calculated query probability
    * @throws IOException Thrown if index could not be read
    */
   protected final Double calculateQueryProbability(
-          final Collection<AbstractDocumentModel> docModels,
-          final Set<String> queryTerms,
+          final Collection<DocumentModel> docModels,
+          final Set<String> collectionTerms,
           final String currentTerm) throws IOException {
     Double probability = 0d;
 
-    for (AbstractDocumentModel docModel : docModels) {
-      probability += docModel.termProbability(currentTerm) * docModel.
-              getProbabilityProduct(queryTerms);
+    // product of multiplication of document probaility values
+    // for all qery terms
+    double probabilityProduct = 1d;
+    double tProb; // probability value for a collection term
+    double ctProb; // probability value for the current term
+
+    for (DocumentModel docModel : docModels) {
+      probabilityProduct = 1d;
+      for (String term : collectionTerms) {
+        tProb = docModel.termProbability(term);
+        if (tProb == 0) {
+          // get the default probability value
+          tProb = dataProv.getDocumentTermProbability(docModel.id(), term);
+        }
+        probabilityProduct *= tProb;
+      }
+      ctProb = docModel.termProbability(currentTerm);
+      if (ctProb == 0) {
+        // get the default probability value
+        ctProb = dataProv.getDocumentTermProbability(docModel.id(), currentTerm);
+      }
+      probability += ctProb * probabilityProduct;
     }
 
     LOG.debug("[pQ(t)] Q={} t={} p={} (using {} feedback documents)",
-            queryTerms, currentTerm, probability, docModels.size());
+            collectionTerms, currentTerm, probability, docModels.size());
 
     return probability;
   }
@@ -126,10 +141,13 @@ public class Calculation {
    */
   public final double calculateClarityScore(final Set<String> terms,
           final Set<String> queryTerms,
-          final Collection<AbstractDocumentModel> docModels) throws IOException {
+          final Collection<DocumentModel> docModels) throws IOException {
     double qProb;
     double score = 0d;
     double log;
+
+    LOG.info("Calculating clarity score terms#={} query={}", terms.size(),
+            queryTerms);
 
     for (String term : terms) {
       qProb = calculateQueryProbability(docModels, queryTerms, term);
@@ -164,44 +182,44 @@ public class Calculation {
     final IndexSearcher searcher = new IndexSearcher(this.indexReader);
 
     LOG.info("Searching index query={}", query.toString());
-    final TopDocs results = searcher.search(query, this.feedbackDocCnt);
-    final int fbDocCnt = Math.min(results.totalHits, this.feedbackDocCnt);
+
+    TopDocs results;
+    int fbDocCnt;
+    if (this.feedbackDocCnt == -1) {
+      LOG.info("Feedback doc count is unlimited. "
+              + "Running pre query to get total hits.");
+      results = searcher.search(query, 1);
+      LOG.info("Running post query expecting {} results.", results.totalHits);
+      final int expResults = results.totalHits;
+      results = searcher.search(query, expResults);
+      fbDocCnt = results.totalHits;
+      LOG.info("Post query returned {} results.", results.totalHits);
+    } else {
+      results = searcher.search(query, this.feedbackDocCnt);
+      fbDocCnt = Math.min(results.totalHits, this.feedbackDocCnt);
+    }
+
     LOG.debug("Search results all={} maxDocs={}", results.totalHits,
             this.feedbackDocCnt);
 
     int docId;
-    AbstractDocumentModel docModel;
-
-    // remove previously calculated documents
-    this.docsMap.clear();
+    DocumentModel docModel;
+    final Set<DocumentModel> docModels = new HashSet(fbDocCnt);
 
     for (int i = 0; i < fbDocCnt; i++) {
       docId = results.scoreDocs[i].doc;
-      LOG.info("--- docId={}", docId);
+      LOG.info("Feedback document docId={}", docId);
 
-      // retrieve / create document model storage
-      docModel = this.docsMap.put(docId);
-
-      // loop to get document probabilities
-      for (String term : queryTerms) {
-        // get stemmed query term
-        docModel.termProbability(term);
-      }
-
-      // debug (only needed, if all documents are gathered)
-      if (LOG.isDebugEnabled()) {
-        // calculate query probability based on current document probabilities
-        for (String term : queryTerms) {
-          this.calculateQueryProbability(this.docsMap.values(), queryTerms,
-                  term);
-        }
-      }
+      // retrieve & store document model
+      docModel = this.dataProv.getDocumentModel(docId);
+      docModels.add(docModel);
     }
 
-    double clarityScore = this.calculateClarityScore(this.dataProv.getTerms(),
-            queryTerms, this.docsMap.values());
+    final double clarityScore = this.calculateClarityScore(this.dataProv.
+            getTerms(),
+            queryTerms, docModels);
     LOG.info("Clarity score query={} models={} score={} ({})", query.toString(),
-            this.docsMap.size(), clarityScore, BigDecimal.
+            docModels.size(), clarityScore, BigDecimal.
             valueOf(clarityScore).toPlainString());
   }
 }

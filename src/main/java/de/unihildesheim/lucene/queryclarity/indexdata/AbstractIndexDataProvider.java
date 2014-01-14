@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.lucene.queryclarity.indexdata;
 
+import de.unihildesheim.lucene.queryclarity.documentmodel.DocumentModel;
 import java.util.Set;
 
 /**
@@ -48,6 +49,23 @@ public abstract class AbstractIndexDataProvider {
   public abstract long getTermFrequency(final String term);
 
   /**
+   * Get the frequency of all terms in a specific document.
+   *
+   * @param documentId Target document-id
+   * @return Frequency of all terms in the specified document
+   */
+  public abstract long getTermFrequency(final int documentId);
+
+  /**
+   * Get the frequency of a single term in a specific document.
+   *
+   * @param documentId Target document-id
+   * @param term Term to lookup
+   * @return Frequency of the given term in the specified document
+   */
+  public abstract long getTermFrequency(final int documentId, final String term);
+
+  /**
    * Get the relative term frequency for a term in the index.
    *
    * @param term Term to lookup
@@ -76,16 +94,21 @@ public abstract class AbstractIndexDataProvider {
   public abstract Set<String> getTerms();
 
   /**
+   * Get a {@link DocumentModel} instance for the document with the given id.
+   * @param docId Lucene document-id
+   * @return Document model associated with the given lucene document-id
+   */
+  public abstract DocumentModel getDocumentModel(final int docId);
+
+  /**
    * Retrieve the probability value of term t modelling the document with the
-   * given id. This may be implemented to pre-cache those values.
+   * given id. 
    *
    * @param documentId Target document identified by lucene's document-id
    * @param term The term to lookup
    * @return Pre-calculated probability value of term t modelling the document
    * with the given id
    */
-  public double getDocumentTermProbability(final int documentId,
-          final String term) {
-    throw new UnsupportedOperationException("Not supported.");
-  }
+  public abstract double getDocumentTermProbability(final int documentId,
+          final String term);
 }
