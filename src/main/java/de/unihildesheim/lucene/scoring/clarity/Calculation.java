@@ -17,6 +17,7 @@
 package de.unihildesheim.lucene.scoring.clarity;
 
 import de.unihildesheim.lucene.document.DocumentModel;
+import de.unihildesheim.lucene.document.Feedback;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -24,7 +25,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.highlight.QueryTermExtractor;
@@ -182,25 +182,8 @@ public class Calculation {
       queryTerms.add(wTerm.getTerm());
     }
 
-    final IndexSearcher searcher = new IndexSearcher(this.indexReader);
-
-    LOG.info("Searching index query={}", query.toString());
-
-    TopDocs results;
-    int fbDocCnt;
-    if (this.FB_DOC_COUNT == -1) {
-      LOG.info("Feedback doc count is unlimited. "
-              + "Running pre query to get total hits.");
-      results = searcher.search(query, 1);
-      LOG.info("Running post query expecting {} results.", results.totalHits);
-      final int expResults = results.totalHits;
-      results = searcher.search(query, expResults);
-      fbDocCnt = results.totalHits;
-      LOG.info("Post query returned {} results.", results.totalHits);
-    } else {
-      results = searcher.search(query, this.FB_DOC_COUNT);
-      fbDocCnt = Math.min(results.totalHits, this.FB_DOC_COUNT);
-    }
+    final TopDocs results = Feedback.get(indexReader, query, FB_DOC_COUNT);
+    final int fbDocCnt = Math.min(results.totalHits, this.FB_DOC_COUNT);
 
     LOG.debug("Search results all={} maxDocs={}", results.totalHits,
             this.FB_DOC_COUNT);
