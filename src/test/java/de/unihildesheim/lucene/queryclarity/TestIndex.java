@@ -17,7 +17,7 @@
 package de.unihildesheim.lucene.queryclarity;
 
 import de.unihildesheim.lucene.queryclarity.documentmodel.DocumentModel;
-import de.unihildesheim.lucene.queryclarity.indexdata.AbstractIndexDataProvider;
+import de.unihildesheim.lucene.queryclarity.indexdata.IndexDataProvider;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,7 +46,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class TestIndex extends AbstractIndexDataProvider {
+public class TestIndex implements IndexDataProvider {
 
   /**
    * Logger instance for this class.
@@ -613,6 +613,11 @@ public class TestIndex extends AbstractIndexDataProvider {
       prob = (1 - RTFM_DOCUMENT) * relTermFreq.get(term);
     }
     return prob;
+  }
+
+  @Override
+  public void dispose() {
+    // empty
   }
 
   private class TestDocumentModel implements DocumentModel {

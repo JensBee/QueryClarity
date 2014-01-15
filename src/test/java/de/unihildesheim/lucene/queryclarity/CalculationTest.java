@@ -17,7 +17,7 @@
 package de.unihildesheim.lucene.queryclarity;
 
 import de.unihildesheim.lucene.queryclarity.documentmodel.DocumentModel;
-import de.unihildesheim.lucene.queryclarity.indexdata.AbstractIndexDataProvider;
+import de.unihildesheim.lucene.queryclarity.indexdata.IndexDataProvider;
 import de.unihildesheim.lucene.queryclarity.indexdata.DefaultIndexDataProvider;
 import de.unihildesheim.lucene.queryclarity.indexdata.DocFieldsTermsEnum;
 import java.io.IOException;
@@ -67,7 +67,7 @@ public class CalculationTest {
    */
   private static Calculation calcInstance = null;
 
-  private static AbstractIndexDataProvider dataProv;
+  private static IndexDataProvider dataProv;
 
   /**
    * Random generated queries run throughout a test single test run.

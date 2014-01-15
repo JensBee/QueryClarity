@@ -44,7 +44,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class DefaultIndexDataProvider extends AbstractIndexDataProvider {
+public class DefaultIndexDataProvider implements IndexDataProvider {
 
   /**
    * Logger instance for this class.
@@ -89,7 +89,7 @@ public class DefaultIndexDataProvider extends AbstractIndexDataProvider {
   private final Collection<String> targetFields;
 
   /**
-   * Create a new {@link AbstractIndexDataProvider} from an existing lucene
+   * Create a new {@link IndexDataProvider} from an existing lucene
    * index in the local file system.
    *
    * @param index Lucene index directory location

@@ -18,7 +18,7 @@ package de.unihildesheim.lucene.queryclarity;
 
 import de.unihildesheim.lucene.queryclarity.indexdata.IndexDataException;
 import de.unihildesheim.lucene.queryclarity.indexdata.DefaultIndexDataProvider;
-import de.unihildesheim.lucene.queryclarity.indexdata.AbstractIndexDataProvider;
+import de.unihildesheim.lucene.queryclarity.indexdata.IndexDataProvider;
 import java.io.File;
 import java.io.IOException;
 import org.apache.lucene.analysis.Analyzer;
@@ -98,7 +98,7 @@ public final class Main {
     final IndexReader reader = DirectoryReader.open(directory);
 
     // create data provider instance
-    AbstractIndexDataProvider dataProv = new DefaultIndexDataProvider(reader,
+    IndexDataProvider dataProv = new DefaultIndexDataProvider(reader,
             fields);
 
     final Calculation calculation = new Calculation(dataProv, reader, fields);

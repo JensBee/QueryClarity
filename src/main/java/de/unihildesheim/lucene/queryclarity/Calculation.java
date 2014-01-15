@@ -17,7 +17,7 @@
 package de.unihildesheim.lucene.queryclarity;
 
 import de.unihildesheim.lucene.queryclarity.documentmodel.DocumentModel;
-import de.unihildesheim.lucene.queryclarity.indexdata.AbstractIndexDataProvider;
+import de.unihildesheim.lucene.queryclarity.indexdata.IndexDataProvider;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Collection;
@@ -51,7 +51,7 @@ public class Calculation {
   /**
    * Maximum number of result documents to include for calculation.
    */
-  private int feedbackDocCnt = -1;
+  private int feedbackDocCnt = 20;
 
   /**
    * Lucene index fields to operate on.
@@ -61,9 +61,9 @@ public class Calculation {
   /**
    * Data provider for cacheable index statistics.
    */
-  private final AbstractIndexDataProvider dataProv;
+  private final IndexDataProvider dataProv;
 
-  public Calculation(final AbstractIndexDataProvider dataProvider,
+  public Calculation(final IndexDataProvider dataProvider,
           final IndexReader reader, final String[] fieldNames) {
     this.dataProv = dataProvider;
     this.indexReader = reader;
