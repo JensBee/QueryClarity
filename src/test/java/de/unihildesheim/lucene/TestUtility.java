@@ -14,8 +14,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.lucene.queryclarity;
+package de.unihildesheim.lucene;
 
+import de.unihildesheim.lucene.TestConfiguration;
+import de.unihildesheim.lucene.scoring.clarity.CalculationTest;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -50,7 +52,7 @@ public class TestUtility {
    * @param number Value to get the facorial for
    * @return Facorial of given value
    */
-  protected final long calcFactorial(final long number) {
+  public final long calcFactorial(final long number) {
     long factorial = 1;
     for (long i = 1; i <= number; ++i) {
       factorial *= i;
@@ -86,7 +88,7 @@ public class TestUtility {
    * @param log Logger instance to use
    * @param title the value of title
    */
-  protected static final void logHeader(final Logger log, final String title) {
+  public static final void logHeader(final Logger log, final String title) {
     log.info(">>\n##################################################\n### {}\n"
             + "##################################################", title);
   }
@@ -101,7 +103,7 @@ public class TestUtility {
    *
    * @param config Configuration to use
    */
-  protected TestUtility(final TestConfiguration config) {
+  public TestUtility(final TestConfiguration config) {
     this.conf = config;
   }
 
@@ -112,7 +114,7 @@ public class TestUtility {
    * @param desiredMinLength Desired minimum query length in terms
    * @return The possible maximum query length. Same as the input, if it's valid
    */
-  protected final int getMaxQueryLength(final Integer desiredMaxLength) {
+  public final int getMaxQueryLength(final Integer desiredMaxLength) {
     int maxLength;
 
     if (desiredMaxLength == null || desiredMaxLength > conf.getMaxQueryLength()) {
@@ -133,7 +135,7 @@ public class TestUtility {
    * @param desiredMinLength Desired minimum query length
    * @return The possible minimum query length. Same as the input, if it's valid
    */
-  protected final int getMinQueryLength(final Integer desiredMinLength) {
+  public final int getMinQueryLength(final Integer desiredMinLength) {
     int minLength = 1;
 
     if (desiredMinLength != null && desiredMinLength > 0) {
@@ -154,7 +156,7 @@ public class TestUtility {
    * @param maxLength Desired maximum query length in terms
    * @return Integer array with {min, max} length for a query
    */
-  protected final Integer[] validateQueryLengths(final Integer minLength,
+  public final Integer[] validateQueryLengths(final Integer minLength,
           final Integer maxLength) {
     final int minQueryLength = this.getMinQueryLength(minLength);
     final int maxQueryLength = this.getMaxQueryLength(maxLength);
@@ -176,7 +178,7 @@ public class TestUtility {
    *
    * @param queries Queries to dump
    */
-  protected static final void dumpQueries(final Set<Set<String>> queries) {
+  public static final void dumpQueries(final Set<Set<String>> queries) {
     final TreeSet<String> queryList = new TreeSet();
 
     for (final Set<String> query : queries) {
@@ -198,7 +200,7 @@ public class TestUtility {
    * {@link #MAX_QUERY_LENGTH}, if null
    * @return Random choosen terms for a query
    */
-  protected final Set<String> generateRandomQuery(final Integer minLength,
+  public final Set<String> generateRandomQuery(final Integer minLength,
           final Integer maxLength) {
     final Set<String> indexTermSet = conf.getIndex().getTerms();
     final String[] indexTerms = indexTermSet.toArray(new String[indexTermSet.
@@ -238,7 +240,7 @@ public class TestUtility {
    *
    * @return Random choosen terms for a query
    */
-  protected final Set<String> generateRandomQuery() {
+  public final Set<String> generateRandomQuery() {
     return this.generateRandomQuery(null, null);
   }
 
@@ -249,7 +251,7 @@ public class TestUtility {
    * @param query Query string
    * @return Unique set of query terms contained in the original query
    */
-  protected final Set<String> generateQuery(final String query) {
+  public final Set<String> generateQuery(final String query) {
     final Set<String> queryTerms = new HashSet();
     for (String term : Arrays.asList(query.toLowerCase().split("\\s+"))) {
       queryTerms.add(term);
@@ -266,7 +268,7 @@ public class TestUtility {
    * @param maxLength Maximum length of a query in terms
    * @return Generated queries
    */
-  protected final Set<Set<String>> generateRandomQueries(final Integer count,
+  public final Set<Set<String>> generateRandomQueries(final Integer count,
           Integer minLength, Integer maxLength) {
     // check desired values for query lengths
     final Integer[] queryLengths = this.validateQueryLengths(minLength,
@@ -313,7 +315,7 @@ public class TestUtility {
    * @param count Number of queries to generate
    * @return Random queries
    */
-  protected final Set<Set<String>> generateRandomQueries(final Integer count) {
+  public final Set<Set<String>> generateRandomQueries(final Integer count) {
     return this.generateRandomQueries(count, null, null);
   }
 
@@ -323,7 +325,7 @@ public class TestUtility {
    *
    * @return a random choosen char
    */
-  protected final char getRandomChar() {
+  public final char getRandomChar() {
     final int idx = (int) (Math.random() * RAND_TERM_LETTERS.length);
     return RAND_TERM_LETTERS[idx];
   }
@@ -337,7 +339,7 @@ public class TestUtility {
    * @return A random generated term
    *
    */
-  protected final String generateRandomTerm(final int minLength,
+  public final String generateRandomTerm(final int minLength,
           final int maxLength) {
     final int randTermLength = minLength + (int) (Math.random() * (maxLength
             - minLength) + 1);
@@ -349,7 +351,7 @@ public class TestUtility {
     return termSb.toString();
   }
 
-  protected final Set<String> generateRandomTermsQuery() {
+  public final Set<String> generateRandomTermsQuery() {
     final Integer[] queryLengths = validateQueryLengths(null, null);
     final int minQueryLength = queryLengths[0];
     final int maxQueryLength = queryLengths[1];
@@ -365,7 +367,7 @@ public class TestUtility {
     return query;
   }
 
-  protected final Set<Set<String>> generateRandomTermsQueries(
+  public final Set<Set<String>> generateRandomTermsQueries(
           final int queryCount) {
     final Set<Set<String>> queries = new HashSet(queryCount);
 

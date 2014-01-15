@@ -14,11 +14,12 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.lucene.queryclarity;
+package de.unihildesheim.lucene.scoring.clarity;
 
-import de.unihildesheim.lucene.queryclarity.indexdata.IndexDataException;
-import de.unihildesheim.lucene.queryclarity.indexdata.DefaultIndexDataProvider;
-import de.unihildesheim.lucene.queryclarity.indexdata.IndexDataProvider;
+import de.unihildesheim.lucene.scoring.clarity.Calculation;
+import de.unihildesheim.lucene.index.IndexDataException;
+import de.unihildesheim.lucene.index.DefaultIndexDataProvider;
+import de.unihildesheim.lucene.index.IndexDataProvider;
 import java.io.File;
 import java.io.IOException;
 import org.apache.lucene.analysis.Analyzer;

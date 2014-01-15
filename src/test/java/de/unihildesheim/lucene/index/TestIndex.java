@@ -14,10 +14,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.lucene.queryclarity;
+package de.unihildesheim.lucene.index;
 
-import de.unihildesheim.lucene.queryclarity.documentmodel.DocumentModel;
-import de.unihildesheim.lucene.queryclarity.indexdata.IndexDataProvider;
+import de.unihildesheim.lucene.document.DocumentModel;
+import de.unihildesheim.lucene.index.IndexDataProvider;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -153,7 +153,7 @@ public class TestIndex implements IndexDataProvider {
    * @param docId The document id to lookup
    * @return Calculated pdt for the given term and document
    */
-  protected static double getDocumentProbability(final String term,
+  public static double getDocumentProbability(final String term,
           final int docId) {
     Map<Integer, Double> probMap = TestIndex.docProbabilities.get(term);
     double probability;
@@ -225,7 +225,7 @@ public class TestIndex implements IndexDataProvider {
    *
    * @return The number of unique terms in the index
    */
-  protected int getTermCount() {
+  public int getTermCount() {
     return getTerms().size();
   }
 
@@ -255,7 +255,7 @@ public class TestIndex implements IndexDataProvider {
    * @param terms Terms to match against
    * @return List of document ids matching at least one of the given terms
    */
-  protected static Collection<DocumentModel> getDocumentModelsMatching(
+  public static Collection<DocumentModel> getDocumentModelsMatching(
           final Collection<String> terms) {
     Collection<DocumentModel> docIds = new HashSet(DOCUMENT_INDEX.size());
 
@@ -280,7 +280,7 @@ public class TestIndex implements IndexDataProvider {
    *
    * @return Models of all documents in the index
    */
-  protected static Collection<DocumentModel> getDocumentModels() {
+  public static Collection<DocumentModel> getDocumentModels() {
     return docModels.values();
   }
 

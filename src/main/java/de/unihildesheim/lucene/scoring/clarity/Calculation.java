@@ -14,10 +14,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.lucene.queryclarity;
+package de.unihildesheim.lucene.scoring.clarity;
 
-import de.unihildesheim.lucene.queryclarity.documentmodel.DocumentModel;
-import de.unihildesheim.lucene.queryclarity.indexdata.IndexDataProvider;
+import de.unihildesheim.lucene.document.DocumentModel;
+import de.unihildesheim.lucene.index.IndexDataProvider;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Collection;
