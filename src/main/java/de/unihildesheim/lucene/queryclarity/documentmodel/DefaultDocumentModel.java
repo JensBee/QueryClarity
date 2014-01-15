@@ -16,7 +16,6 @@
  */
 package de.unihildesheim.lucene.queryclarity.documentmodel;
 
-import de.unihildesheim.lucene.queryclarity.indexdata.DefaultIndexDataProvider;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
@@ -26,16 +25,20 @@ import java.util.Map;
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public class DefaultDocumentModel implements DocumentModel, Serializable {
+
   private static final long serialVersionUID = 7526472295622776147L;
   private final int docId;
   private final Map<String, Long> termFreq;
   private final Map<String, Double> termProb;
 
   /**
-   * Multiplier for relative term frequency inside documents.
+   * Creates a new DocumentModel for a specific document and the number of terms
+   * in the document.
+   *
+   * @param documentId Lucene's document-id
+   * @param termsCount Number of terms found in the document. This value is used
+   * to initialize the term storage to the proper size.
    */
-  private double langModelWeight = 0.6d;
-
   public DefaultDocumentModel(final int documentId, final int termsCount) {
     this.docId = documentId;
     this.termFreq = new HashMap(termsCount);
@@ -45,7 +48,7 @@ public class DefaultDocumentModel implements DocumentModel, Serializable {
   /**
    * Set the term frequency value for a specific term.
    *
-   * @param termIndex Term
+   * @param term Term
    * @param frequency Document frequency for the specific term
    */
   public void setTermFrequency(final String term, final long frequency) {

@@ -60,34 +60,38 @@ public final class Main {
    * @param args Command line parameters
    * @throws IOException If index could not be read
    * @throws org.apache.lucene.queryparser.classic.ParseException
-   * @throws de.unihildesheim.lucene.queryclarity.indexData.IndexDataException
+   * @throws de.unihildesheim.lucene.queryclarity.indexdata.IndexDataException
    * Thrown, if not all requested fields are present in the index
    */
   public static void main(final String[] args) throws IOException,
           ParseException, IndexDataException {
-    String index = null;
-    String queryString = "";
-    final String usage = "Usage:\t" + Main.class.getCanonicalName()
-            + " -index <dir> -query <query>.";
-
     LOG.debug("Starting");
     if (args.length == 0 || (args.length > 0 && ("-h".equals(args[0])
             || "-help".equals(args[0])))) {
+      final String usage = "Usage:\t" + Main.class.getCanonicalName()
+            + " -index <dir> -query <query>.";
       LOG.info(usage);
-      System.exit(0);
+      Runtime.getRuntime().exit(0);
     }
 
+    String index = ""; // NOPMD
+    String queryString = ""; // NOPMD
     for (int i = 0; i < args.length; i++) {
-      switch (args[i]) {
+      switch (args[i]) { // NOPMD
         case "-index":
           index = args[i + 1];
-          i++;
+          i++; // NOPMD
           break;
         case "-query":
           queryString = args[i + 1];
-          i++;
+          i++; // NOPMD
           break;
       }
+    }
+
+    if (index.isEmpty() || queryString.isEmpty()) {
+      LOG.error("No index or query specified.");
+      Runtime.getRuntime().exit(1);
     }
 
     // index field to operate on
@@ -98,10 +102,10 @@ public final class Main {
     final IndexReader reader = DirectoryReader.open(directory);
 
     // create data provider instance
-    IndexDataProvider dataProv = new DefaultIndexDataProvider(reader,
+    final IndexDataProvider dataProv = new DefaultIndexDataProvider(reader,
             fields);
 
-    final Calculation calculation = new Calculation(dataProv, reader, fields);
+    final Calculation calculation = new Calculation(dataProv, reader);
 
     final Analyzer analyzer = new StandardAnalyzer(Version.LUCENE_46);
 

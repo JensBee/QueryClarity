@@ -19,14 +19,12 @@ package de.unihildesheim.lucene.queryclarity.indexdata;
 import de.unihildesheim.lucene.queryclarity.documentmodel.DefaultDocumentModel;
 import de.unihildesheim.lucene.queryclarity.documentmodel.DocumentModel;
 import java.io.IOException;
-import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import jdbm.PrimaryHashMap;
 import jdbm.RecordManager;
@@ -65,7 +63,7 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
   /**
    * Multiplier for relative term frequency inside documents.
    */
-  private double langModelWeight = 0.6d;
+  private static final double LANG_MODEL_WEIGHT = 0.6d;
 
   /**
    * Store term -> relative term frequencies.
@@ -81,7 +79,7 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
    * Stores default values for Document->term probabilities, if the term could
    * not be found in the document.
    */
-  private final PrimaryHashMap<String, Double> defaultDocTermProbability;
+  private final PrimaryHashMap<String, Double> defDocTermProb;
 
   /**
    * Lucene fields to operate on.
@@ -89,10 +87,10 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
   private final Collection<String> targetFields;
 
   /**
-   * Create a new {@link IndexDataProvider} from an existing lucene
-   * index in the local file system.
+   * Create a new {@link IndexDataProvider} from an existing lucene index in the
+   * local file system.
    *
-   * @param index Lucene index directory location
+   * @param indexReader Lucene index directory location
    * @param fields Lucene fields to operate on
    * @throws IOException Thrown, if the index could not be opened
    * @throws de.unihildesheim.lucene.queryclarity.indexData.IndexDataException
@@ -119,14 +117,15 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
     }
 
     // try to create persitent disk backed storage
-    String fileName = "data/cache/DefaulIndexDataProviderCache";
+    final String fileName = "data/cache/DefaulIndexDataProviderCache";
     LOG.info("Initializing disk storage ({})", fileName);
-    RecordManager recMan = RecordManagerFactory.createRecordManager(fileName);
+    final RecordManager recMan = RecordManagerFactory.createRecordManager(
+            fileName);
 
     relativeTermFreq = recMan.hashMap("relativeTermFreq");
     docModels = recMan.hashMap("docModels");
     termFreq = recMan.hashMap("termFreq");
-    defaultDocTermProbability = recMan.hashMap("defaultDocTermProbability");
+    defDocTermProb = recMan.hashMap("defaultDocTermProbability");
 
     // storage created - check if we have values
     boolean needsCommit = false;
@@ -148,7 +147,7 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
     } else {
       LOG.info("Document models loaded from cache.");
     }
-    if (this.defaultDocTermProbability.size() == 0) {
+    if (this.defDocTermProb.size() == 0) {
       calculateDefaultDocumentTermProbability();
       needsCommit = true;
     } else {
@@ -159,22 +158,29 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
     }
   }
 
+  /**
+   * Calculate the default probability values for terms not found in a document.
+   */
   private final void calculateDefaultDocumentTermProbability() {
-    long startTime = System.nanoTime();
+    final long startTime = System.nanoTime();
     for (String term : this.termFreq.keySet()) {
-      final double defaultProb = (1 - langModelWeight) * relativeTermFreq.get(
+      final double defaultProb = (1 - LANG_MODEL_WEIGHT) * relativeTermFreq.get(
               term);
-      defaultDocTermProbability.put(term, defaultProb);
+      defDocTermProb.put(term, defaultProb);
     }
-    double estimatedTime = (double) (System.nanoTime() - startTime)
+    final double estimatedTime = (double) (System.nanoTime() - startTime)
             / 1000000000.0;
     LOG.info("Calculation of default document-term probabilities "
             + "for {} terms took {} seconds.", termFreq.size(),
             estimatedTime);
   }
 
+  /**
+   * Calculate the probability value for a term and document.
+   * @throws IOException Thrown, if the index could not be opened
+   */
   private final void calculateDocumentTermProbability() throws IOException {
-    long startTime = System.nanoTime();
+    final long startTime = System.nanoTime();
     // create an enumerator enumarating over all specified document fields
     final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(this.reader,
             this.targetFields.toArray(new String[this.targetFields.size()]));
@@ -184,13 +190,10 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
     Long termCount;
 
     for (int docId = 0; docId < this.reader.maxDoc(); docId++) {
-      BytesRef bytesRef;
-      int pointer;
-
       // get/create the document model for the current document
       DefaultDocumentModel docModel = docModels.get(docId);
       if (docModel == null) {
-        docModel = new DefaultDocumentModel(docId, termFreq.size());
+        docModel = new DefaultDocumentModel(docId, termFreq.size()); // NOPMD
         docModels.put(docId, docModel);
       }
       // clear previous cached document term values
@@ -198,7 +201,8 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
 
       // go through all fields..
       dftEnum.setDocument(docId);
-      while ((bytesRef = dftEnum.next()) != null) {
+      BytesRef bytesRef = dftEnum.next();
+      while (bytesRef != null) {
         // get the document frequency of the current term
         final long docTermFrequency = dftEnum.getTotalTermFreq();
 
@@ -214,33 +218,34 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
         }
 
         docTerms.put(term, termCount);
+        bytesRef = dftEnum.next();
       }
 
-      for (String docTerm : docTerms.keySet()) {
+      for (Entry<String, Long> entry : docTerms.entrySet()) {
         // store the document frequency of the current term to the model
-        docModel.setTermFrequency(docTerm, docTerms.get(docTerm));
+        docModel.setTermFrequency(entry.getKey(), entry.getValue());
       }
 
       // now overall document frequency is available
-      final double docTermCount = (double) docModel.termFrequency();
+      final double docTermCount = (double) docModel.termFrequency(); // NOPMD
 
       // calculate probability values
       for (String docTerm : docTerms.keySet()) {
         // document frequency of the current term
         final double docTermFreq = (double) docModel.termFrequency(docTerm);
         // relative document frequency of the current term
-        final double relDocTermFreq = docTermFreq / docTermFreq;
+        final double relDocTermFreq = docTermFreq / docTermCount;
 
         // calculate probability
-        final double probability = (langModelWeight * relDocTermFreq)
-                + ((1 - langModelWeight)
+        final double probability = (LANG_MODEL_WEIGHT * relDocTermFreq)
+                + ((1 - LANG_MODEL_WEIGHT)
                 * getRelativeTermFrequency(docTerm));
 
         // store calculated value to model
         docModel.setTermProbability(docTerm, probability);
       }
     }
-    double estimatedTime = (double) (System.nanoTime() - startTime)
+    final double estimatedTime = (double) (System.nanoTime() - startTime)
             / 1000000000.0;
     LOG.info("Calculation of term probabilities for "
             + "all {} terms and {} documents in index "
@@ -254,14 +259,13 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
    *
    * @throws IOException Thrown, if the index could not be opened
    */
-  private final void calculateTermFrequencies() throws IOException {
-    long startTime = System.nanoTime();
-    final Fields idxFields = MultiFields.getFields(this.reader);
+  private void calculateTermFrequencies() throws IOException {
+    final long startTime = System.nanoTime();
+    final Fields idxFields = MultiFields.getFields(this.reader); // NOPMD
 
     Terms fieldTerms;
-    TermsEnum fieldTermsEnum = null;
+    TermsEnum fieldTermsEnum = null; // NOPMD
     BytesRef bytesRef;
-    String term;
 
     // go through all fields..
     for (String field : this.targetFields) {
@@ -272,11 +276,13 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
         fieldTermsEnum = fieldTerms.iterator(fieldTermsEnum);
 
         // ..iterate over them,,
-        while ((bytesRef = fieldTermsEnum.next()) != null) {
-          term = bytesRef.utf8ToString();
+        bytesRef = fieldTermsEnum.next();
+        while (bytesRef != null) {
 
           // fast forward seek to term..
           if (fieldTermsEnum.seekExact(bytesRef)) {
+            final String term = bytesRef.utf8ToString();
+
             LOG.debug("term={}, freq={}", term, fieldTermsEnum.totalTermFreq());
 
             // ..and get the frequency value for term + field
@@ -287,22 +293,26 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
               termFreq.put(term, fieldTermsEnum.totalTermFreq());
             }
           }
+          bytesRef = fieldTermsEnum.next();
         }
       }
     }
-    double estimatedTime = (double) (System.nanoTime() - startTime)
+    final double estimatedTime = (double) (System.nanoTime() - startTime)
             / 1000000000.0;
     LOG.info("Calculation of term frequencies for all {} terms in index "
             + "took {} seconds.", termFreq.size(), estimatedTime);
   }
 
-  private void calculateRelativeTermFrequencies() {
+  /**
+   * Calculates the relative term frequency for each term in the index.
+   */
+  private final void calculateRelativeTermFrequencies() {
     double rTermFreq;
-    final long cFreq = getTermFrequency();
+    final double cFreq = (double) getTermFrequency(); // NOPMD
 
     for (String term : termFreq.keySet()) {
-      final long tFreq = getTermFrequency(term);
-      rTermFreq = (double) tFreq / (double) cFreq;
+      final double tFreq = (double) getTermFrequency(term);
+      rTermFreq = tFreq / cFreq;
       relativeTermFreq.put(term, rTermFreq);
       LOG.debug("[pC(t)] t={} p={}", term, rTermFreq);
     }
@@ -340,7 +350,7 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
   public long getTermFrequency(final int documentId) {
     long freq;
 
-    DefaultDocumentModel docModel = this.docModels.get(documentId);
+    final DefaultDocumentModel docModel = this.docModels.get(documentId);
     if (docModel == null) {
       freq = 0l;
     } else {
@@ -354,7 +364,7 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
   public long getTermFrequency(final int documentId, final String term) {
     long freq;
 
-    DefaultDocumentModel docModel = this.docModels.get(documentId);
+    final DefaultDocumentModel docModel = this.docModels.get(documentId);
     if (docModel == null) {
       freq = 0l;
     } else {
@@ -365,7 +375,7 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
   }
 
   @Override
-  public double getRelativeTermFrequency(String term) {
+  public double getRelativeTermFrequency(final String term) {
     Double rTermFreq = relativeTermFreq.get(term);
 
     // term was not found in the index
@@ -394,10 +404,11 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
   }
 
   @Override
-  public double getDocumentTermProbability(int documentId, String term) {
+  public double getDocumentTermProbability(final int documentId,
+          final String term) {
     Double prob = this.docModels.get(documentId).termProbability(term);
     if (prob == 0) {
-      prob = this.defaultDocTermProbability.get(term);
+      prob = this.defDocTermProb.get(term);
       if (prob == null) {
         prob = 0d;
       }

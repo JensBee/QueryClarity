@@ -80,10 +80,6 @@ public class TestIndex implements IndexDataProvider {
   private static final Map<String, Double> relTermFreq = new HashMap();
 
   /**
-   * Documents forming the index.
-   */
-  private static ArrayList<String[]> indexDocuments;
-  /**
    * Fields names of the test lucene index.
    */
   private static String[] indexFields;
@@ -109,23 +105,34 @@ public class TestIndex implements IndexDataProvider {
    * @param queryFields Fields to run queries on
    * @throws IOException If there is a low-level I/O error
    */
-  protected TestIndex(final String[] fields, final ArrayList<String[]> documents,
+  public TestIndex(final String[] fields, final ArrayList<String[]> documents,
           final String[] queryFields) throws IOException {
-    TestIndex.indexFields = fields;
-    TestIndex.indexDocuments = documents;
-    TestIndex.queryFields = new HashSet(Arrays.asList(queryFields));;
-    docModels = new HashMap(documents.size());
+    setFields(fields.clone());
+    setQueryFields(new HashSet(Arrays.asList(queryFields)));
+    initDocModelStore(documents.size());
 
     if (!TestIndex.indexInitialized) {
       LOG.debug("[index] Initializing..");
-      this.createIndex();
-      this.gatherTestData();
+      this.createIndex(documents);
+      this.gatherTestData(documents);
       this.calculateTestData();
       LOG.debug("[index] Initialization finished");
       TestIndex.indexInitialized = true;
     } else {
       LOG.trace("[index] Initialization already done");
     }
+  }
+
+  private synchronized void initDocModelStore(int size) {
+    TestIndex.docModels = new HashMap(size);
+  }
+
+  private synchronized void setQueryFields(final Set<String> fields) {
+    TestIndex.queryFields = fields;
+  }
+
+  private synchronized void setFields(final String[] fields) {
+    TestIndex.indexFields = fields;
   }
 
   /**
@@ -280,7 +287,7 @@ public class TestIndex implements IndexDataProvider {
   /**
    * Create the simple in-memory test index.
    */
-  private void createIndex() throws IOException {
+  private void createIndex(final ArrayList<String[]> documents) throws IOException {
     final StandardAnalyzer analyzer = new StandardAnalyzer(
             Version.LUCENE_46, CharArraySet.EMPTY_SET);
     final IndexWriterConfig config
@@ -289,13 +296,13 @@ public class TestIndex implements IndexDataProvider {
     // index documents
     int newIdx = 0;
     try (IndexWriter writer = new IndexWriter(INDEX, config)) {
-      for (String[] doc : indexDocuments) {
+      for (String[] doc : documents) {
         LOG.info("[index] Adding document"
                 + " docId={} content='{}'", newIdx++, doc);
         addDoc(writer, doc);
       }
       writer.close();
-      LOG.info("[index] Added {} documents to index", indexDocuments.size());
+      LOG.info("[index] Added {} documents to index", documents.size());
     }
   }
 
@@ -304,7 +311,7 @@ public class TestIndex implements IndexDataProvider {
    * be calculated for all available fields regardless if they're queried. The
    * decision, which data to use is up to the higher level functions.
    */
-  private void gatherTestData() {
+  private void gatherTestData(final ArrayList<String[]> documents) {
     String fieldTokens[]; // raw tokens of a field
     String fieldName; // name of the current field
     String doc[]; // fields of the current document
@@ -318,8 +325,8 @@ public class TestIndex implements IndexDataProvider {
     Map<String, Integer> idxFieldTermFreq;
 
     // iterate over all documents in index
-    for (int docId = 0; docId < indexDocuments.size(); docId++) {
-      doc = indexDocuments.get(docId);
+    for (int docId = 0; docId < documents.size(); docId++) {
+      doc = documents.get(docId);
       docFieldTermMap = new HashMap(indexFields.length);
       DOCUMENT_INDEX.put(docId, docFieldTermMap);
       docModels.put(docId, new TestDocumentModel(docId));
@@ -610,7 +617,12 @@ public class TestIndex implements IndexDataProvider {
   public double getDocumentTermProbability(int documentId, String term) {
     Double prob = docModels.get(documentId).termProbability(term);
     if (prob == 0) {
-      prob = (1 - RTFM_DOCUMENT) * relTermFreq.get(term);
+      Double rTermFreq = relTermFreq.get(term);
+      if (rTermFreq == null) {
+        prob = 0d;
+      } else {
+        prob = (1 - RTFM_DOCUMENT) * relTermFreq.get(term);
+      }
     }
     return prob;
   }

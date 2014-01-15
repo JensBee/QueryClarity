@@ -38,7 +38,7 @@ public interface IndexDataProvider {
    *
    * @return The frequency of all terms in the index
    */
-  public long getTermFrequency();
+  long getTermFrequency();
 
   /**
    * Get the term frequency of a single term in the index.
@@ -46,7 +46,7 @@ public interface IndexDataProvider {
    * @param term Term to lookup
    * @return The frequency of the term in the index
    */
-  public long getTermFrequency(final String term);
+  long getTermFrequency(final String term);
 
   /**
    * Get the frequency of all terms in a specific document.
@@ -54,7 +54,7 @@ public interface IndexDataProvider {
    * @param documentId Target document-id
    * @return Frequency of all terms in the specified document
    */
-  public long getTermFrequency(final int documentId);
+  long getTermFrequency(final int documentId);
 
   /**
    * Get the frequency of a single term in a specific document.
@@ -63,7 +63,7 @@ public interface IndexDataProvider {
    * @param term Term to lookup
    * @return Frequency of the given term in the specified document
    */
-  public long getTermFrequency(final int documentId, final String term);
+  long getTermFrequency(final int documentId, final String term);
 
   /**
    * Get the relative term frequency for a term in the index.
@@ -71,42 +71,42 @@ public interface IndexDataProvider {
    * @param term Term to lookup
    * @return Relative term frequency for the given term
    */
-  public double getRelativeTermFrequency(final String term);
+  double getRelativeTermFrequency(final String term);
 
   /**
    * Close this instance. This is meant for handling cleanups after using this
    * instance. The behaviour of functions called after this is undefined.
    */
-  public void dispose();
+  void dispose();
 
   /**
    * Get the index-fields this dataprovider operates on.
    */
-  public String[] getTargetFields();
+  String[] getTargetFields();
 
   /**
    * Get a unique set of all terms in the index.
    *
    * @return Set of all terms in the index
    */
-  public Set<String> getTerms();
+  Set<String> getTerms();
 
   /**
    * Get a {@link DocumentModel} instance for the document with the given id.
+   *
    * @param docId Lucene document-id
    * @return Document model associated with the given lucene document-id
    */
-  public DocumentModel getDocumentModel(final int docId);
+  DocumentModel getDocumentModel(final int docId);
 
   /**
    * Retrieve the probability value of term t modelling the document with the
-   * given id. 
+   * given id.
    *
    * @param documentId Target document identified by lucene's document-id
    * @param term The term to lookup
    * @return Pre-calculated probability value of term t modelling the document
    * with the given id
    */
-  public double getDocumentTermProbability(final int documentId,
-          final String term);
+  double getDocumentTermProbability(final int documentId, final String term);
 }

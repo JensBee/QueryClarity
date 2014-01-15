@@ -46,17 +46,12 @@ public class Calculation {
   /**
    * Shared index reader instance.
    */
-  private final IndexReader indexReader;
+  private IndexReader indexReader;
 
   /**
    * Maximum number of result documents to include for calculation.
    */
-  private int feedbackDocCnt = 20;
-
-  /**
-   * Lucene index fields to operate on.
-   */
-  private String[] fields;
+  private static final int FB_DOC_COUNT = 20;
 
   /**
    * Data provider for cacheable index statistics.
@@ -64,10 +59,17 @@ public class Calculation {
   private final IndexDataProvider dataProv;
 
   public Calculation(final IndexDataProvider dataProvider,
-          final IndexReader reader, final String[] fieldNames) {
+          final IndexReader reader) {
     this.dataProv = dataProvider;
     this.indexReader = reader;
-    this.fields = fieldNames;
+  }
+
+  public final IndexReader getIndexReader() {
+    return this.indexReader;
+  }
+
+  public final void setIndexReader(final IndexReader reader) {
+    this.indexReader = reader;
   }
 
   /**
@@ -100,7 +102,7 @@ public class Calculation {
 
     // product of multiplication of document probaility values
     // for all qery terms
-    double probabilityProduct = 1d;
+    double probabilityProduct = 1d; // NOPMD
     double tProb; // probability value for a collection term
     double ctProb; // probability value for the current term
 
@@ -117,7 +119,8 @@ public class Calculation {
       ctProb = docModel.termProbability(currentTerm);
       if (ctProb == 0) {
         // get the default probability value
-        ctProb = dataProv.getDocumentTermProbability(docModel.id(), currentTerm);
+        ctProb = dataProv.getDocumentTermProbability(docModel.id(),
+                currentTerm);
       }
       probability += ctProb * probabilityProduct;
     }
@@ -168,14 +171,14 @@ public class Calculation {
     final Query rwQuery = query.rewrite(this.indexReader);
 
     // get all terms from the query
-    final WeightedTerm[] weightedQueryTerms = QueryTermExtractor.getTerms(
+    final WeightedTerm[] wqTerms = QueryTermExtractor.getTerms(
             rwQuery, true);
 
     // stores all plain terms from the weighted query terms
-    final Set<String> queryTerms = new HashSet(weightedQueryTerms.length);
+    final Set<String> queryTerms = new HashSet(wqTerms.length);
 
     // store all plain query terms
-    for (WeightedTerm wTerm : weightedQueryTerms) {
+    for (WeightedTerm wTerm : wqTerms) {
       queryTerms.add(wTerm.getTerm());
     }
 
@@ -185,7 +188,7 @@ public class Calculation {
 
     TopDocs results;
     int fbDocCnt;
-    if (this.feedbackDocCnt == -1) {
+    if (this.FB_DOC_COUNT == -1) {
       LOG.info("Feedback doc count is unlimited. "
               + "Running pre query to get total hits.");
       results = searcher.search(query, 1);
@@ -195,12 +198,12 @@ public class Calculation {
       fbDocCnt = results.totalHits;
       LOG.info("Post query returned {} results.", results.totalHits);
     } else {
-      results = searcher.search(query, this.feedbackDocCnt);
-      fbDocCnt = Math.min(results.totalHits, this.feedbackDocCnt);
+      results = searcher.search(query, this.FB_DOC_COUNT);
+      fbDocCnt = Math.min(results.totalHits, this.FB_DOC_COUNT);
     }
 
     LOG.debug("Search results all={} maxDocs={}", results.totalHits,
-            this.feedbackDocCnt);
+            this.FB_DOC_COUNT);
 
     int docId;
     DocumentModel docModel;

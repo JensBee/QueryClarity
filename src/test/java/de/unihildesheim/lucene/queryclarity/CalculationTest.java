@@ -151,8 +151,7 @@ public class CalculationTest {
 
     // create needed instances
     CONF.setIndex(new TestIndex(fields, documents, fields));
-    calcInstance = new Calculation(CONF.getIndex(), CONF.getIndex().getReader(),
-            fields);
+    calcInstance = new Calculation(CONF.getIndex(), CONF.getIndex().getReader());
     dataProv = new DefaultIndexDataProvider(CONF.getIndex().getReader(), fields);
 
     docFieldsTermsEnum = new DocFieldsTermsEnum(CONF.getIndex().getReader(),
@@ -445,10 +444,10 @@ public class CalculationTest {
   @Test
   @Ignore
   public void calculateClarity() throws Exception {
-    System.out.println("calculateClarity");
-    Query query = null;
-    Calculation instance = null;
-    instance.calculateClarity(query);
+    LOG.info("calculateClarity");
+//    Query query = null;
+//    Calculation instance = null;
+//    instance.calculateClarity(query);
     // TODO review the generated test code and remove the default call to fail.
     fail("The test case is a prototype.");
   }

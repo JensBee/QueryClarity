@@ -39,7 +39,7 @@ public class TestUtility {
   /**
    * Character source for random query term generation.
    */
-  private static final char[] randTermLetters = new char[]{'a', 'b', 'c', 'd',
+  private static final char[] RAND_TERM_LETTERS = new char[]{'a', 'b', 'c', 'd',
     'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
     't', 'u', 'v', 'w', 'x', 'y', 'z', '1', '2', '3', '4', '5', '6', '7', '8',
     '9', '0'};
@@ -318,18 +318,18 @@ public class TestUtility {
   }
 
   /**
-   * Get a random char from the list of chars {@link #randTermLetters} allowed
+   * Get a random char from the list of chars {@link #RAND_TERM_LETTERS} allowed
    * for random term generation.
    *
    * @return a random choosen char
    */
   protected final char getRandomChar() {
-    final int idx = (int) (Math.random() * randTermLetters.length);
-    return randTermLetters[idx];
+    final int idx = (int) (Math.random() * RAND_TERM_LETTERS.length);
+    return RAND_TERM_LETTERS[idx];
   }
 
   /**
-   * Generate a random term based on the list of chars {@link #randTermLetters}
+   * Generate a random term based on the list of chars {@link #RAND_TERM_LETTERS}
    * allowed for random term generation.
    *
    * @param minLength Minimum length of the term

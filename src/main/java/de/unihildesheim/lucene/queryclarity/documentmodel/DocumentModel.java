@@ -27,14 +27,14 @@ public interface DocumentModel {
    *
    * @return Id of the associated lucene document
    */
-  public int id();
+  int id();
 
   /**
    * Get the overall frequency of all terms in the document.
    *
    * @return Summed frequency of all terms in the document
    */
-  public long termFrequency();
+  long termFrequency();
 
   /**
    * Get the frequency of the given term in the document.
@@ -42,7 +42,7 @@ public interface DocumentModel {
    * @param term Term to lookup
    * @return Frequency of the given term in the document
    */
-  public long termFrequency(final String term);
+  long termFrequency(final String term);
 
   /**
    * Get the calculated probability value for the given term. If the returned
@@ -53,5 +53,5 @@ public interface DocumentModel {
    * @return Calculated probability value for the given term. The result is
    * <code>0</code> if the term was not found in the document.
    */
-  public double termProbability(final String term);
+  double termProbability(final String term);
 }

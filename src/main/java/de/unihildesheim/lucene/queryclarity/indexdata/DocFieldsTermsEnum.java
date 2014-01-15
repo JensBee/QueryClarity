@@ -18,8 +18,6 @@ package de.unihildesheim.lucene.queryclarity.indexdata;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Set;
@@ -27,7 +25,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -164,12 +161,13 @@ public class DocFieldsTermsEnum {
    * @throws IOException If there is a low-level I/O error
    */
   private BytesRef getNextValue() throws IOException {
-    BytesRef nextValue;
 
     // try to get an iterator which has a value
-    while ((nextValue = this.docTermEnum.next()) == null && !this.currentFields.
+    BytesRef nextValue = this.docTermEnum.next();
+    while (nextValue == null && !this.currentFields.
             isEmpty()) {
       updateCurrentEnum();
+      nextValue = this.docTermEnum.next();
     }
 
     return nextValue;
