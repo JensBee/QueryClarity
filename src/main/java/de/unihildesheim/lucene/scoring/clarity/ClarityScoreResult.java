@@ -17,7 +17,7 @@
 package de.unihildesheim.lucene.scoring.clarity;
 
 /**
- *
+ * Wrapper class enclosing the results of a clarity sscore calculation.
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public class ClarityScoreResult {

@@ -89,7 +89,7 @@ public class DefaultDocumentModel implements DocumentModel, Serializable {
     if (idx == -1 && add) {
       this.termIdx.add(term);
       idx = this.termIdx.size() - 1;
-//      LOG.debug("Add term t={} idx={}", term, idx);
+      LOG.trace("Add term t={} idx={}", term, idx);
       // reserve space for data in other lists
       this.termFreq.add(idx, null);
       this.termData.add(idx, null);
@@ -182,8 +182,6 @@ public class DefaultDocumentModel implements DocumentModel, Serializable {
   public final void setTermFrequency(final String term, final long frequency) {
     final int idx = getTermIdx(term, true);
     this.termFreq.add(idx, frequency);
-//    LOG.debug("Set term freq t={} f={} i={} got={}", term, frequency, idx,
-//            this.termFreq.get(idx));
   }
 
   @Override

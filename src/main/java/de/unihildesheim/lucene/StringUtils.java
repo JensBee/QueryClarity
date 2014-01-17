@@ -17,7 +17,7 @@
 package de.unihildesheim.lucene;
 
 /**
- *
+ * Utility class for string operations.
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public class StringUtils {

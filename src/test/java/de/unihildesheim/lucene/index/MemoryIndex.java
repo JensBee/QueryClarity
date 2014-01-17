@@ -37,6 +37,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * Testing index that keeps all data in memory and provides utility functions to
+ * test data retrieval.
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
@@ -71,6 +73,7 @@ public class MemoryIndex {
 
   /**
    * Get field names available in this index.
+   *
    * @return Available field names
    */
   public String[] getIdxFields() {
@@ -97,10 +100,10 @@ public class MemoryIndex {
     for (int docId = 0; docId < this.reader.maxDoc(); docId++) {
       // check if document is deleted
       if (liveDocs == null) {
-          ids.add(docId);
-        } else if (liveDocs.get(docId)) {
-          ids.add(docId);
-        }
+        ids.add(docId);
+      } else if (liveDocs.get(docId)) {
+        ids.add(docId);
+      }
     }
     return ids;
   }

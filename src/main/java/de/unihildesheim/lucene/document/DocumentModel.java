@@ -19,7 +19,7 @@ package de.unihildesheim.lucene.document;
 import java.io.Serializable;
 
 /**
- *
+ * General document model storing basic values needed for calculation.
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public interface DocumentModel extends Serializable {

@@ -150,7 +150,8 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * @param value Value to overwrite any previously stored value. If there's no
    * value stored, then it will be set to the specified value.
    */
-  protected void updateTermFreqValue(final String term, final double value) {
+  protected final void updateTermFreqValue(final String term,
+          final double value) {
     TermFreqData freq = this.getTermFreq().remove(term);
 
     if (freq == null) {

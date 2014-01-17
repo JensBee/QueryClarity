@@ -32,7 +32,7 @@ import org.apache.lucene.util.Bits;
 import org.slf4j.LoggerFactory;
 
 /**
- *
+ * Utility class to get feedback documents needed for calculations.
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public class Feedback {
