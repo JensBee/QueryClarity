@@ -30,5 +30,5 @@ public interface ClarityScoreCalculation {
    * @param query Query used for term extraction
    * @return Calculated clarity score for the given terms
    */
-  double calculateClarity(final Query query);
+  ClarityScoreResult calculateClarity(final Query query);
 }

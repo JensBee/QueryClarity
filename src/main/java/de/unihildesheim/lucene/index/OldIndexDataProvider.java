@@ -16,20 +16,20 @@
  */
 package de.unihildesheim.lucene.index;
 
-import de.unihildesheim.lucene.document.DefaultDocumentModel;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.DocFieldsTermsEnum;
+import de.unihildesheim.lucene.document.DefaultDocumentModel;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
-import jdbm.PrimaryHashMap;
-import jdbm.RecordManager;
-import jdbm.RecordManagerFactory;
+//import jdbm.PrimaryHashMap;
+//import jdbm.RecordManager;
+//import jdbm.RecordManagerFactory;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
@@ -43,13 +43,13 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class DefaultIndexDataProvider implements IndexDataProvider {
+public class OldIndexDataProvider implements IndexDataProvider {
 
   /**
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(
-          DefaultIndexDataProvider.class);
+          OldIndexDataProvider.class);
 
   /**
    * Reader instance for the target lucene index.
@@ -59,7 +59,7 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
   /**
    * Store term -> frequency in Lucene's index.
    */
-  private final PrimaryHashMap<String, Long> termFreq;
+//  private final PrimaryHashMap<String, Long> termFreq;
 
   /**
    * Multiplier for relative term frequency inside documents.
@@ -69,18 +69,18 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
   /**
    * Store term -> relative term frequencies.
    */
-  private final PrimaryHashMap<String, Double> relativeTermFreq;
+//  private final PrimaryHashMap<String, Double> relativeTermFreq;
 
   /**
    * Store document-id -> document model
    */
-  private final PrimaryHashMap<Integer, DefaultDocumentModel> docModels;
+//  private final PrimaryHashMap<Integer, DocumentModel> docModels;
 
   /**
    * Stores default values for Document->term probabilities, if the term could
    * not be found in the document.
    */
-  private final PrimaryHashMap<String, Double> defDocTermProb;
+//  private final PrimaryHashMap<String, Double> defDocTermProb;
 
   /**
    * Lucene fields to operate on.
@@ -97,7 +97,7 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
    * @throws de.unihildesheim.lucene.queryclarity.indexData.IndexDataException
    * Thrown, if not all requested fields are present in the index
    */
-  public DefaultIndexDataProvider(final IndexReader indexReader,
+  public OldIndexDataProvider(final IndexReader indexReader,
           final String[] fields) throws IOException, IndexDataException {
     super();
     // HashSet removes any possible duplicates
@@ -120,43 +120,43 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
     // try to create persitent disk backed storage
     final String fileName = "data/cache/DefaulIndexDataProviderCache";
     LOG.info("Initializing disk storage ({})", fileName);
-    final RecordManager recMan = RecordManagerFactory.createRecordManager(
-            fileName);
+//    final RecordManager recMan = RecordManagerFactory.createRecordManager(
+//            fileName);
 
-    relativeTermFreq = recMan.hashMap("relativeTermFreq");
-    docModels = recMan.hashMap("docModels");
-    termFreq = recMan.hashMap("termFreq");
-    defDocTermProb = recMan.hashMap("defaultDocTermProbability");
+//    relativeTermFreq = recMan.hashMap("relativeTermFreq");
+//    docModels = recMan.hashMap("docModels");
+//    termFreq = recMan.hashMap("termFreq");
+//    defDocTermProb = recMan.hashMap("defaultDocTermProbability");
 
     // storage created - check if we have values
     boolean needsCommit = false;
-    if (termFreq.size() == 0) {
-      calculateTermFrequencies();
-      needsCommit = true;
-    } else {
-      LOG.info("Term frequency values loaded from cache.");
-    }
-    if (relativeTermFreq.size() == 0) {
-      calculateRelativeTermFrequencies();
-      needsCommit = true;
-    } else {
-      LOG.info("Relative term frequency values loaded from cache.");
-    }
-    if (this.docModels.size() == 0) {
-      calculateDocumentTermProbability();
-      needsCommit = true;
-    } else {
-      LOG.info("Document models loaded from cache.");
-    }
-    if (this.defDocTermProb.size() == 0) {
-      calculateDefaultDocumentTermProbability();
-      needsCommit = true;
-    } else {
-      LOG.info("Default document-term probabilities loaded from cache.");
-    }
-    if (needsCommit) {
-      recMan.commit();
-    }
+//    if (termFreq.size() == 0) {
+//      calculateTermFrequencies();
+//      needsCommit = true;
+//    } else {
+//      LOG.info("Term frequency values loaded from cache.");
+//    }
+//    if (relativeTermFreq.size() == 0) {
+//      calculateRelativeTermFrequencies();
+//      needsCommit = true;
+//    } else {
+//      LOG.info("Relative term frequency values loaded from cache.");
+//    }
+//    if (this.docModels.size() == 0) {
+//      calculateDocumentTermProbability();
+//      needsCommit = true;
+//    } else {
+//      LOG.info("Document models loaded from cache.");
+//    }
+//    if (this.defDocTermProb.size() == 0) {
+//      calculateDefaultDocumentTermProbability();
+//      needsCommit = true;
+//    } else {
+//      LOG.info("Default document-term probabilities loaded from cache.");
+//    }
+//    if (needsCommit) {
+//      recMan.commit();
+//    }
   }
 
   /**
@@ -164,16 +164,16 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
    */
   private final void calculateDefaultDocumentTermProbability() {
     final long startTime = System.nanoTime();
-    for (String term : this.termFreq.keySet()) {
-      final double defaultProb = (1 - LANG_MODEL_WEIGHT) * relativeTermFreq.get(
-              term);
-      defDocTermProb.put(term, defaultProb);
-    }
+//    for (String term : this.termFreq.keySet()) {
+//      final double defaultProb = (1 - LANG_MODEL_WEIGHT) * relativeTermFreq.get(
+//              term);
+//      defDocTermProb.put(term, defaultProb);
+//    }
     final double estimatedTime = (double) (System.nanoTime() - startTime)
             / 1000000000.0;
-    LOG.info("Calculation of default document-term probabilities "
-            + "for {} terms took {} seconds.", termFreq.size(),
-            estimatedTime);
+//    LOG.info("Calculation of default document-term probabilities "
+//            + "for {} terms took {} seconds.", termFreq.size(),
+//            estimatedTime);
   }
 
   /**
@@ -192,11 +192,11 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
 
     for (int docId = 0; docId < this.reader.maxDoc(); docId++) {
       // get/create the document model for the current document
-      DefaultDocumentModel docModel = docModels.get(docId);
-      if (docModel == null) {
-        docModel = new DefaultDocumentModel(docId, termFreq.size()); // NOPMD
-        docModels.put(docId, docModel);
-      }
+//      DocumentModel docModel = docModels.get(docId);
+//      if (docModel == null) {
+//        docModel = new DefaultDocumentModel(docId, termFreq.size()); // NOPMD
+//        docModels.put(docId, docModel);
+//      }
       // clear previous cached document term values
       docTerms.clear();
 
@@ -224,34 +224,34 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
 
       for (Entry<String, Long> entry : docTerms.entrySet()) {
         // store the document frequency of the current term to the model
-        docModel.setTermFrequency(entry.getKey(), entry.getValue());
+//        docModel.setTermFrequency(entry.getKey(), entry.getValue());
       }
 
       // now overall document frequency is available
-      final double docTermCount = (double) docModel.termFrequency(); // NOPMD
+//      final double docTermCount = (double) docModel.getTermFrequency(); // NOPMD
 
       // calculate probability values
       for (String docTerm : docTerms.keySet()) {
         // document frequency of the current term
-        final double docTermFreq = (double) docModel.termFrequency(docTerm);
+//        final double docTermFreq = (double) docModel.getTermFrequency(docTerm);
         // relative document frequency of the current term
-        final double relDocTermFreq = docTermFreq / docTermCount;
+//        final double relDocTermFreq = docTermFreq / docTermCount;
 
-        // calculate probability
-        final double probability = (LANG_MODEL_WEIGHT * relDocTermFreq)
-                + ((1 - LANG_MODEL_WEIGHT)
-                * getRelativeTermFrequency(docTerm));
+//        // calculate probability
+//        final double probability = (LANG_MODEL_WEIGHT * relDocTermFreq)
+//                + ((1 - LANG_MODEL_WEIGHT)
+//                * getRelativeTermFrequency(docTerm));
 
         // store calculated value to model
-        docModel.setTermProbability(docTerm, probability);
+//        docModel.setTermProbability(docTerm, probability);
       }
     }
     final double estimatedTime = (double) (System.nanoTime() - startTime)
             / 1000000000.0;
-    LOG.info("Calculation of term probabilities for "
-            + "all {} terms and {} documents in index "
-            + "took {} seconds.", termFreq.size(), this.reader.maxDoc(),
-            estimatedTime);
+//    LOG.info("Calculation of term probabilities for "
+//            + "all {} terms and {} documents in index "
+//            + "took {} seconds.", termFreq.size(), this.reader.maxDoc(),
+//            estimatedTime);
   }
 
   /**
@@ -286,13 +286,13 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
 
             LOG.debug("term={}, freq={}", term, fieldTermsEnum.totalTermFreq());
 
-            // ..and get the frequency value for term + field
-            if (termFreq.containsKey(term)) {
-              termFreq.put(term, termFreq.get(term) + fieldTermsEnum.
-                      totalTermFreq());
-            } else {
-              termFreq.put(term, fieldTermsEnum.totalTermFreq());
-            }
+//            // ..and get the frequency value for term + field
+//            if (termFreq.containsKey(term)) {
+//              termFreq.put(term, termFreq.get(term) + fieldTermsEnum.
+//                      totalTermFreq());
+//            } else {
+//              termFreq.put(term, fieldTermsEnum.totalTermFreq());
+//            }
           }
           bytesRef = fieldTermsEnum.next();
         }
@@ -300,8 +300,8 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
     }
     final double estimatedTime = (double) (System.nanoTime() - startTime)
             / 1000000000.0;
-    LOG.info("Calculation of term frequencies for all {} terms in index "
-            + "took {} seconds.", termFreq.size(), estimatedTime);
+//    LOG.info("Calculation of term frequencies for all {} terms in index "
+//            + "took {} seconds.", termFreq.size(), estimatedTime);
   }
 
   /**
@@ -311,80 +311,80 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
     double rTermFreq;
     final double cFreq = (double) getTermFrequency(); // NOPMD
 
-    for (String term : termFreq.keySet()) {
-      final double tFreq = (double) getTermFrequency(term);
-      rTermFreq = tFreq / cFreq;
-      relativeTermFreq.put(term, rTermFreq);
-      LOG.debug("[pC(t)] t={} p={}", term, rTermFreq);
-    }
+//    for (String term : termFreq.keySet()) {
+//      final double tFreq = (double) getTermFrequency(term);
+//      rTermFreq = tFreq / cFreq;
+//      relativeTermFreq.put(term, rTermFreq);
+//      LOG.debug("[pC(t)] t={} p={}", term, rTermFreq);
+//    }
   }
 
   @Override
   public DocumentModel getDocumentModel(final int documentId) {
-    return this.docModels.get(documentId);
+    return null;//this.docModels.get(documentId);
   }
 
   @Override
-  public Set<String> getTerms() {
-    return termFreq.keySet();
+  public Iterator<String> getTermsIterator() {
+    return null;//termFreq.keySet().iterator();
   }
 
   @Override
   public long getTermFrequency() {
     long termFrequency = 0L;
-    for (long freq : termFreq.values()) {
-      termFrequency += freq;
-    }
+//    for (long freq : termFreq.values()) {
+//      termFrequency += freq;
+//    }
     return termFrequency;
   }
 
   @Override
   public long getTermFrequency(final String term) {
-    Long freq = termFreq.get(term);
-    if (freq == null) {
-      freq = 0L;
-    }
-    return freq;
+//    Long freq = termFreq.get(term);
+//    if (freq == null) {
+//      freq = 0L;
+//    }
+    return 0L;//freq;
   }
 
-  @Override
-  public long getTermFrequency(final int documentId) {
-    long freq;
+//  @Override
+//  public long getTermFrequency(final int documentId) {
+//    long freq;
+//
+//    final DocumentModel docModel = this.docModels.get(documentId);
+//    if (docModel == null) {
+//      freq = 0l;
+//    } else {
+//      freq = docModel.getTermFrequency();
+//    }
+//
+//    return freq;
+//  }
 
-    final DefaultDocumentModel docModel = this.docModels.get(documentId);
-    if (docModel == null) {
-      freq = 0l;
-    } else {
-      freq = docModel.termFrequency();
-    }
-
-    return freq;
-  }
-
-  @Override
-  public long getTermFrequency(final int documentId, final String term) {
-    long freq;
-
-    final DefaultDocumentModel docModel = this.docModels.get(documentId);
-    if (docModel == null) {
-      freq = 0l;
-    } else {
-      freq = docModel.termFrequency(term);
-    }
-
-    return freq;
-  }
+//  @Override
+//  public long getTermFrequency(final int documentId, final String term) {
+//    long freq;
+//
+//    final DocumentModel docModel = this.docModels.get(documentId);
+//    if (docModel == null) {
+//      freq = 0l;
+//    } else {
+//      freq = docModel.getTermFrequency(term);
+//    }
+//
+//    return freq;
+//  }
 
   @Override
   public double getRelativeTermFrequency(final String term) {
-    Double rTermFreq = relativeTermFreq.get(term);
+//    Double rTermFreq = relativeTermFreq.get(term);
 
     // term was not found in the index
-    if (rTermFreq == null) {
-      rTermFreq = 0d;
-    }
+//    if (rTermFreq == null) {
+//      rTermFreq = 0d;
+//    }
 
-    return rTermFreq;
+    return 0d;//rTermFreq;
   }
 
   /**
@@ -404,16 +404,21 @@ public class DefaultIndexDataProvider implements IndexDataProvider {
     return this.targetFields.toArray(new String[this.targetFields.size()]);
   }
 
+//  @Override
+//  public double getDocumentTermProbability(final int documentId,
+//          final String term) {
+//    Double prob = this.docModels.get(documentId).termProbability(term);
+//    if (prob == 0) {
+//      prob = this.defDocTermProb.get(term);
+//      if (prob == null) {
+//        prob = 0d;
+//      }
+//    }
+//    return prob;
+//  }
+
   @Override
-  public double getDocumentTermProbability(final int documentId,
-          final String term) {
-    Double prob = this.docModels.get(documentId).termProbability(term);
-    if (prob == 0) {
-      prob = this.defDocTermProb.get(term);
-      if (prob == null) {
-        prob = 0d;
-      }
-    }
-    return prob;
+  public Iterator<DocumentModel> getDocModelIterator() {
+    throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
   }
 }

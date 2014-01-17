@@ -17,7 +17,6 @@
 package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.lucene.document.DocumentModel;
-import de.unihildesheim.lucene.index.IndexDataProvider;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,6 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -97,30 +97,25 @@ public class TestIndex implements IndexDataProvider {
   private static final Map<Integer, Map<String, List<String>>> DOCUMENT_INDEX
           = new HashMap();
 
-  /**
-   * Create a new test index.
-   *
-   * @param fields Index-fields to create
-   * @param documents Index documents assigned to the given fields
-   * @param queryFields Fields to run queries on
-   * @throws IOException If there is a low-level I/O error
-   */
-  public TestIndex(final String[] fields, final ArrayList<String[]> documents,
-          final String[] queryFields) throws IOException {
-    setFields(fields.clone());
+  public TestIndex() throws IOException {
+    // index setup
+    final String[] fields = new String[]{"text"};
+    final ArrayList<String[]> documents = new ArrayList<String[]>(4);
+    documents.add(new String[]{"Lucene in Action"});
+    documents.add(new String[]{"Lucene for Dummies"});
+    documents.add(new String[]{"Managing Gigabytes"});
+    documents.add(new String[]{"The Art of Computer Science"});
+
+    setFields(fields);
     setQueryFields(new HashSet(Arrays.asList(queryFields)));
     initDocModelStore(documents.size());
 
-    if (!TestIndex.indexInitialized) {
-      LOG.debug("[index] Initializing..");
-      this.createIndex(documents);
-      this.gatherTestData(documents);
-      this.calculateTestData();
-      LOG.debug("[index] Initialization finished");
-      TestIndex.indexInitialized = true;
-    } else {
-      LOG.trace("[index] Initialization already done");
-    }
+    LOG.debug("[index] Initializing..");
+    this.createIndex(documents);
+    this.gatherTestData(documents);
+    this.calculateTestData();
+    LOG.debug("[index] Initialization finished");
+    TestIndex.indexInitialized = true;
   }
 
   private synchronized void initDocModelStore(int size) {
@@ -203,8 +198,7 @@ public class TestIndex implements IndexDataProvider {
     return overallFreq;
   }
 
-  @Override
-  public final Set<String> getTerms() {
+  public final Set<String> getTermsSet() {
     Set<String> uniqueTerms = new HashSet();
 
     // iterate over all stored frequency values by field-name
@@ -219,6 +213,11 @@ public class TestIndex implements IndexDataProvider {
     return uniqueTerms;
   }
 
+  @Override
+  public final Iterator<String> getTermsIterator() {
+    return getTermsSet().iterator();
+  }
+
   /**
    * Get the number of unique terms in the index. This takes into account the
    * currently set query fields.
@@ -226,7 +225,7 @@ public class TestIndex implements IndexDataProvider {
    * @return The number of unique terms in the index
    */
   public int getTermCount() {
-    return getTerms().size();
+    return getTermsSet().size();
   }
 
   /**
@@ -287,7 +286,8 @@ public class TestIndex implements IndexDataProvider {
   /**
    * Create the simple in-memory test index.
    */
-  private void createIndex(final ArrayList<String[]> documents) throws IOException {
+  private void createIndex(final ArrayList<String[]> documents) throws
+          IOException {
     final StandardAnalyzer analyzer = new StandardAnalyzer(
             Version.LUCENE_46, CharArraySet.EMPTY_SET);
     final IndexWriterConfig config
@@ -374,7 +374,7 @@ public class TestIndex implements IndexDataProvider {
     }
 
     if (LOG.isTraceEnabled()) {
-      for (String term : getTerms()) {
+      for (String term : getTermsSet()) {
         LOG.trace("[index] Frequency term={} freq={}", term,
                 getTermFrequency(term));
       }
@@ -400,7 +400,7 @@ public class TestIndex implements IndexDataProvider {
     // store term-related probability values for each document
     HashMap<Integer, Double> probMap;
     // iterate over all terms in index
-    for (String term : getTerms()) {
+    for (String term : getTermsSet()) {
       ft = getTermFrequency(term);
       fc = ((double) ft / (double) f) * (1 - RTFM_DOCUMENT);
       probMap = new HashMap(DOCUMENT_INDEX.size()); // init storage
@@ -432,7 +432,7 @@ public class TestIndex implements IndexDataProvider {
     final Long f = getTermFrequency(); // frequency of all terms in index
     double pct; // collection probability for a term
 
-    for (String term : getTerms()) {
+    for (String term : getTermsSet()) {
       ft = getTermFrequency(term);
       pct = (double) ft / (double) f;
       relTermFreq.put(term, pct);
@@ -460,7 +460,7 @@ public class TestIndex implements IndexDataProvider {
     final StringBuilder sb = new StringBuilder(200);
 
     for (DocumentModel doc : docModels) {
-      docId = doc.id();
+      docId = doc.getDocId();
       if (LOG.isTraceEnabled()) {
         sb.append("[pqt] term=").append(term).append(" doc=").append(docId).
                 append(" calc=");
@@ -584,8 +584,7 @@ public class TestIndex implements IndexDataProvider {
             new String[TestIndex.queryFields.size()]);
   }
 
-  @Override
-  public long getTermFrequency(int documentId) {
+  private long getTermFrequency(int documentId) {
     Map<String, List<String>> docFieldTerms = DOCUMENT_INDEX.get(documentId);
     long freq = 0l;
     for (String fieldName : getTargetFields()) {
@@ -594,8 +593,7 @@ public class TestIndex implements IndexDataProvider {
     return freq;
   }
 
-  @Override
-  public long getTermFrequency(int documentId, String term) {
+  private long getTermFrequency(int documentId, String term) {
     Map<String, List<String>> docFieldTerms = DOCUMENT_INDEX.get(documentId);
     long freq = 0l;
     for (String fieldName : getTargetFields()) {
@@ -613,23 +611,27 @@ public class TestIndex implements IndexDataProvider {
     return docModels.get(documentId);
   }
 
-  @Override
-  public double getDocumentTermProbability(int documentId, String term) {
-    Double prob = docModels.get(documentId).termProbability(term);
-    if (prob == 0) {
-      Double rTermFreq = relTermFreq.get(term);
-      if (rTermFreq == null) {
-        prob = 0d;
-      } else {
-        prob = (1 - RTFM_DOCUMENT) * relTermFreq.get(term);
-      }
-    }
-    return prob;
-  }
+//  public double getDocumentTermProbability(int documentId, String term) {
+//    Double prob = docModels.get(documentId).termProbability(term);
+//    if (prob == 0) {
+//      Double rTermFreq = relTermFreq.get(term);
+//      if (rTermFreq == null) {
+//        prob = 0d;
+//      } else {
+//        prob = (1 - RTFM_DOCUMENT) * relTermFreq.get(term);
+//      }
+//    }
+//    return prob;
+//  }
 
   @Override
   public void dispose() {
     // empty
+  }
+
+  @Override
+  public Iterator<DocumentModel> getDocModelIterator() {
+    throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
   }
 
   private class TestDocumentModel implements DocumentModel {
@@ -641,23 +643,53 @@ public class TestIndex implements IndexDataProvider {
     }
 
     @Override
-    public long termFrequency() {
+    public long getTermFrequency() {
       return TestIndex.this.getTermFrequency(this.docId);
     }
 
     @Override
-    public long termFrequency(final String term) {
+    public long getTermFrequency(final String term) {
       return TestIndex.this.getTermFrequency(this.docId, term);
     }
 
+//    @Override
+//    public double termProbability(final String term) {
+//      return TestIndex.this.getDocumentProbability(term, this.docId);
+//    }
+
     @Override
-    public double termProbability(final String term) {
-      return TestIndex.this.getDocumentProbability(term, this.docId);
+    public int getDocId() {
+      return this.docId;
     }
 
     @Override
-    public int id() {
-      return this.docId;
+    public boolean containsTerm(String term) {
+      throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public void setTermFrequency(String term, long frequency) {
+      throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public Object getTermData(String term, String key) {
+      throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public <T> T getTermData(Class<T> cls, String term, String key) {
+      throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public void setTermData(String term, String key, Object value) {
+      throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public void clearTermData(String key) {
+      throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
   }
 }

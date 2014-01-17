@@ -17,7 +17,7 @@
 package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.lucene.document.DocumentModel;
-import java.util.Set;
+import java.util.Iterator;
 
 /**
  * IndexDataProvider provides statistical data from the underlying lucene index.
@@ -49,23 +49,6 @@ public interface IndexDataProvider {
   long getTermFrequency(final String term);
 
   /**
-   * Get the frequency of all terms in a specific document.
-   *
-   * @param documentId Target document-id
-   * @return Frequency of all terms in the specified document
-   */
-  long getTermFrequency(final int documentId);
-
-  /**
-   * Get the frequency of a single term in a specific document.
-   *
-   * @param documentId Target document-id
-   * @param term Term to lookup
-   * @return Frequency of the given term in the specified document
-   */
-  long getTermFrequency(final int documentId, final String term);
-
-  /**
    * Get the relative term frequency for a term in the index.
    *
    * @param term Term to lookup
@@ -81,15 +64,23 @@ public interface IndexDataProvider {
 
   /**
    * Get the index-fields this dataprovider operates on.
+   * @return Index field names
    */
   String[] getTargetFields();
 
   /**
-   * Get a unique set of all terms in the index.
+   * Get an {@link Iterator] over a unique set of all terms from the index.
    *
-   * @return Set of all terms in the index
+   * @return Unique terms iterator
    */
-  Set<String> getTerms();
+  Iterator<String> getTermsIterator();
+
+  /**
+   * Get an {@link Iterator] over all known {@link DocumentModel} instances.
+   *
+   * @return Iterator over all {@link DocumentModel} instances
+   */
+  Iterator<DocumentModel> getDocModelIterator();
 
   /**
    * Get a {@link DocumentModel} instance for the document with the given id.
@@ -98,15 +89,4 @@ public interface IndexDataProvider {
    * @return Document model associated with the given lucene document-id
    */
   DocumentModel getDocumentModel(final int docId);
-
-  /**
-   * Retrieve the probability value of term t modelling the document with the
-   * given id.
-   *
-   * @param documentId Target document identified by lucene's document-id
-   * @param term The term to lookup
-   * @return Pre-calculated probability value of term t modelling the document
-   * with the given id
-   */
-  double getDocumentTermProbability(final int documentId, final String term);
 }

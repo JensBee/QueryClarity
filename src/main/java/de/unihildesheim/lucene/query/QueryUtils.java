@@ -28,7 +28,7 @@ import org.apache.lucene.search.highlight.WeightedTerm;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class QueryTools {
+public class QueryUtils {
 
   /**
    * Extract all terms of the given {@link Query}.

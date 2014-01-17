@@ -16,10 +16,7 @@
  */
 package de.unihildesheim.lucene.scoring.clarity;
 
-import de.unihildesheim.lucene.scoring.clarity.Calculation;
-import de.unihildesheim.lucene.index.IndexDataException;
-import de.unihildesheim.lucene.index.DefaultIndexDataProvider;
-import de.unihildesheim.lucene.index.IndexDataProvider;
+import de.unihildesheim.lucene.index.CachedIndexDataProvider;
 import java.io.File;
 import java.io.IOException;
 import org.apache.lucene.analysis.Analyzer;
@@ -61,16 +58,14 @@ public final class Main {
    * @param args Command line parameters
    * @throws IOException If index could not be read
    * @throws org.apache.lucene.queryparser.classic.ParseException
-   * @throws de.unihildesheim.lucene.queryclarity.indexdata.IndexDataException
-   * Thrown, if not all requested fields are present in the index
    */
   public static void main(final String[] args) throws IOException,
-          ParseException, IndexDataException {
+          ParseException {
     LOG.debug("Starting");
     if (args.length == 0 || (args.length > 0 && ("-h".equals(args[0])
             || "-help".equals(args[0])))) {
       final String usage = "Usage:\t" + Main.class.getCanonicalName()
-            + " -index <dir> -query <query>.";
+              + " -index <dir> -query <query>.";
       LOG.info(usage);
       Runtime.getRuntime().exit(0);
     }
@@ -100,25 +95,29 @@ public final class Main {
 
     // open index
     final Directory directory = FSDirectory.open(new File(index));
-    final IndexReader reader = DirectoryReader.open(directory);
+    try (IndexReader reader = DirectoryReader.open(directory)) {
+      final String cachePath = "data/cache/";
+      final String storageId = "clef";
+      final CachedIndexDataProvider dataProv = new CachedIndexDataProvider(cachePath,
+              storageId);
+      if (!dataProv.tryGetStoredData()) {
+        dataProv.recalculateData(reader, fields, false);
+      }
 
-    // create data provider instance
-    final IndexDataProvider dataProv = new DefaultIndexDataProvider(reader,
-            fields);
+      final Calculation calculation = new Calculation(dataProv, reader);
 
-    final Calculation calculation = new Calculation(dataProv, reader);
+      final Analyzer analyzer = new StandardAnalyzer(Version.LUCENE_46);
 
-    final Analyzer analyzer = new StandardAnalyzer(Version.LUCENE_46);
+      LOG.debug("Building query ({}).", queryString);
+      final QueryParser parser = new QueryParser(Version.LUCENE_46, QUERY_FIELD,
+              analyzer);
+      final Query query = parser.parse(queryString);
 
-    LOG.debug("Building query ({}).", queryString);
-    final QueryParser parser = new QueryParser(Version.LUCENE_46, QUERY_FIELD,
-            analyzer);
-    final Query query = parser.parse(queryString);
+      calculation.calculateClarity(query);
 
-    calculation.calculateClarity(query);
-
-    LOG.debug("Closing lucene index ({}).", index);
-    calculation.dispose();
+      LOG.debug("Closing lucene index ({}).", index);
+      dataProv.dispose();
+    }
 
     LOG.debug("Finished");
   }

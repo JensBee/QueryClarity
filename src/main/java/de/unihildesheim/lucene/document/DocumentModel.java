@@ -16,25 +16,36 @@
  */
 package de.unihildesheim.lucene.document;
 
+import java.io.Serializable;
+
 /**
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public interface DocumentModel {
+public interface DocumentModel extends Serializable {
+
+  final long serialVersionUID = 7526432295122736147L;
 
   /**
    * Get the id of the associated lucene document.
    *
    * @return Id of the associated lucene document
    */
-  int id();
+  int getDocId();
 
   /**
    * Get the overall frequency of all terms in the document.
    *
    * @return Summed frequency of all terms in the document
    */
-  long termFrequency();
+  long getTermFrequency();
+
+  /**
+   * Cheack if the document contains the given term.
+   * @param term Term to lookup
+   * @return True if term is contained in document, false otherwise
+   */
+  boolean containsTerm(final String term);
 
   /**
    * Get the frequency of the given term in the document.
@@ -42,16 +53,55 @@ public interface DocumentModel {
    * @param term Term to lookup
    * @return Frequency of the given term in the document
    */
-  long termFrequency(final String term);
+  long getTermFrequency(final String term);
 
   /**
-   * Get the calculated probability value for the given term. If the returned
-   * value is <code>0</code> this means the term was not found in the document
-   * and further calculations should be done to get a meaningful value.
+   * Set the term frequency value for a specific term.
    *
-   * @param term Term to lookup
-   * @return Calculated probability value for the given term. The result is
-   * <code>0</code> if the term was not found in the document.
+   * @param term Term
+   * @param frequency Document frequency for the specific term
    */
-  double termProbability(final String term);
+  void setTermFrequency(final String term, final long frequency);
+
+  /**
+   * Get a specific value stored for a term by a given key.
+   *
+   * @param term Term whose value should be retrieved
+   * @param key Key under wich the data is stored
+   * @return Stored value, or <tt>null</tt> if no value was stored under the
+   * specified key.
+   */
+  Object getTermData(final String term, final String key);
+
+  /**
+   * Get a specific value stored for a term by a given key. This method allows
+   * to define the expected return type. No type conversion will be done.
+   *
+   * This method throws a {@link ClassCastException} if the stored value was not
+   * of the expected type.
+   *
+   * @param <T> Expected value type
+   * @param cls Expected value type
+   * @param term Term whose value should be retrieved
+   * @param key Key under wich the data is stored
+   * @return The stored value, or null if no value was stored
+   */
+  <T> T getTermData(final Class<T> cls, final String term, final String key);
+
+  /**
+   * Store a value for a term in this document. This will silently overwrite any
+   * previously stored value.
+   *
+   * @param term Term to store a value for
+   * @param key Key to identify the value
+   * @param value Value to store
+   */
+  void setTermData(final String term, final String key, final Object value);
+
+  /**
+   * Removes the stored data for all terms which are stored under the given key.
+   *
+   * @param key Key whose values should be removed for all terms
+   */
+  void clearTermData(final String key);
 }

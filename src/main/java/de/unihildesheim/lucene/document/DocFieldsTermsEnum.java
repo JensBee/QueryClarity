@@ -68,11 +68,6 @@ public class DocFieldsTermsEnum {
   private Integer docId = null;
 
   /**
-   * Reusable enumerator for terms of the current document.
-   */
-  private TermsEnum docTermEnum = null;
-
-  /**
    * Generic reusable {@link DocFieldsTermEnum} instance. To actally reuse this
    * instance the {@link setDocument} function must be called before
    * {@link next} can be used, to set the document to operate on.
@@ -94,6 +89,12 @@ public class DocFieldsTermsEnum {
    */
   public DocFieldsTermsEnum(final IndexReader indexReader, final String[] fields,
           final Integer documentId) {
+    if (indexReader == null) {
+      throw new IllegalArgumentException("IndexReader was null.");
+    }
+    if (fields == null || fields.length == 0) {
+      throw new IllegalArgumentException("No target fields were specified.");
+    }
     this.targetFields = new HashSet(Arrays.asList(fields));
     this.currentFields = new LinkedList(this.targetFields);
     this.reader = indexReader;
@@ -139,7 +140,6 @@ public class DocFieldsTermsEnum {
     }
 
     nextValue = getNextValue();
-
     return nextValue;
   }
 
@@ -150,7 +150,7 @@ public class DocFieldsTermsEnum {
    * @throws IOException If there is a low-level I/O error
    */
   public long getTotalTermFreq() throws IOException {
-    return this.docTermEnum.totalTermFreq();
+    return this.currentEnum.totalTermFreq();
   }
 
   /**
@@ -161,13 +161,13 @@ public class DocFieldsTermsEnum {
    * @throws IOException If there is a low-level I/O error
    */
   private BytesRef getNextValue() throws IOException {
-
     // try to get an iterator which has a value
-    BytesRef nextValue = this.docTermEnum.next();
+    BytesRef nextValue = this.currentEnum.next();
+
     while (nextValue == null && !this.currentFields.
             isEmpty()) {
       updateCurrentEnum();
-      nextValue = this.docTermEnum.next();
+      nextValue = this.currentEnum.next();
     }
 
     return nextValue;
@@ -198,7 +198,7 @@ public class DocFieldsTermsEnum {
       // check if we have TermVectors set
       if (termVector != null) {
         LOG.trace("Trying field field={} tv=true", targetField);
-        this.docTermEnum = termVector.iterator(this.docTermEnum);
+        this.currentEnum = termVector.iterator(null);
         break;
       }
       LOG.warn("No TermVector found for doc={} field={}."

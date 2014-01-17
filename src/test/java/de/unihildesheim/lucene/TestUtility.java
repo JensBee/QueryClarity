@@ -16,8 +16,6 @@
  */
 package de.unihildesheim.lucene;
 
-import de.unihildesheim.lucene.TestConfiguration;
-import de.unihildesheim.lucene.scoring.clarity.CalculationTest;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -36,7 +34,7 @@ public class TestUtility {
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(
-          CalculationTest.class);
+          TestUtility.class);
 
   /**
    * Character source for random query term generation.
@@ -105,6 +103,16 @@ public class TestUtility {
    */
   public TestUtility(final TestConfiguration config) {
     this.conf = config;
+  }
+
+  /**
+   * Get a random int vale in the given range.
+   * @param min Minimum value
+   * @param max Maximum value
+   * @return Pseudo-random int in the given range
+   */
+  public static int getRandInt(final int min, final int max) {
+    return min + (int) (Math.random() * max);
   }
 
   /**
@@ -202,7 +210,7 @@ public class TestUtility {
    */
   public final Set<String> generateRandomQuery(final Integer minLength,
           final Integer maxLength) {
-    final Set<String> indexTermSet = conf.getIndex().getTerms();
+    final Set<String> indexTermSet = conf.getIndex().getTermsSet();
     final String[] indexTerms = indexTermSet.toArray(new String[indexTermSet.
             size()]);
 
@@ -331,8 +339,8 @@ public class TestUtility {
   }
 
   /**
-   * Generate a random term based on the list of chars {@link #RAND_TERM_LETTERS}
-   * allowed for random term generation.
+   * Generate a random term based on the list of chars
+   * {@link #RAND_TERM_LETTERS} allowed for random term generation.
    *
    * @param minLength Minimum length of the term
    * @param maxLength Maximum length of the term
