@@ -51,7 +51,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   /**
    * Store mapping of <tt>term</tt> -> <tt>frequency values</tt>
    */
-  private Map<String, TermFreq> termFreq;
+  private Map<String, TermFreqData> termFreq;
 
   /**
    * Store mapping of <tt>document-id</tt> -> {@link DocumentModel}.
@@ -125,10 +125,10 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    */
   protected final void updateTermFreqValue(final String term,
           final long value) {
-    TermFreq freq = this.getTermFreq().remove(term);
+    TermFreqData freq = this.getTermFreq().remove(term);
 
     if (freq == null) {
-      freq = new TermFreq(value);
+      freq = new TermFreqData(value);
     } else {
       // add new value to the already stored value
       freq.addFreq(value);
@@ -151,10 +151,10 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * value stored, then it will be set to the specified value.
    */
   protected void updateTermFreqValue(final String term, final double value) {
-    TermFreq freq = this.getTermFreq().remove(term);
+    TermFreqData freq = this.getTermFreq().remove(term);
 
     if (freq == null) {
-      freq = new TermFreq(value);
+      freq = new TermFreqData(value);
     } else {
       // overwrite relative term freqency value
       freq.setRelFreq(value);
@@ -275,7 +275,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   public final long getTermFrequency() {
     if (this.overallTermFreq == null) {
       this.overallTermFreq = 0L;
-      for (TermFreq freq : this.termFreq.values()) {
+      for (TermFreqData freq : this.termFreq.values()) {
         if (freq == null) {
           // value should never be null
           throw new IllegalStateException("Frequency value was null.");
@@ -291,7 +291,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
 
   @Override
   public final long getTermFrequency(final String term) {
-    final TermFreq freq = this.termFreq.get(term);
+    final TermFreqData freq = this.termFreq.get(term);
     long value;
 
     if (freq == null) {
@@ -306,7 +306,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
 
   @Override
   public final double getRelativeTermFrequency(final String term) {
-    final TermFreq freq = this.termFreq.get(term);
+    final TermFreqData freq = this.termFreq.get(term);
     double value;
 
     if (freq == null) {
@@ -365,7 +365,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * @return Immutable map with <tt>Term->(Long) overall index frequency,
    * (Double) relative index frequency</tt> mapping for every term in the index
    */
-  public final Map<String, TermFreq> getTermFreq() {
+  public final Map<String, TermFreqData> getTermFreq() {
     return termFreq;
   }
 
@@ -376,7 +376,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * @param newTermFreq Mapping of <tt>Term->(Long) overall index frequency,
    * (Double) relative index frequency</tt> for every term in the index
    */
-  public final void setTermFreq(final Map<String, TermFreq> newTermFreq) {
+  public final void setTermFreq(final Map<String, TermFreqData> newTermFreq) {
     this.termFreq = newTermFreq;
   }
 

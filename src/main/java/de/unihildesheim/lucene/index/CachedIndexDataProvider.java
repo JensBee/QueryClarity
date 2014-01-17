@@ -147,7 +147,7 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
     final long startTime = System.nanoTime();
     Map<Integer, DocumentModel> docModels = this.db.getHashMap("docModels");
     this.setDocModels(docModels);
-    Map<String, TermFreq> termFreq = this.db.getHashMap("termFreq");
+    Map<String, TermFreqData> termFreq = this.db.getHashMap("termFreq");
     this.setTermFreq(termFreq);
     final double estimatedTime = (double) (System.nanoTime() - startTime)
             / 1000000000.0;
@@ -169,7 +169,7 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
         }
         // debug
         if (LOG.isTraceEnabled()) {
-          for (Entry<String, TermFreq> data : this.getTermFreq().entrySet()) {
+          for (Entry<String, TermFreqData> data : this.getTermFreq().entrySet()) {
             LOG.trace("load: t={} f={} rf={}", data.getKey(), data.getValue().
                     getTotalFreq(), data.getValue().getRelFreq());
           }
@@ -237,7 +237,7 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
 
     // debug
     if (LOG.isTraceEnabled()) {
-      for (Entry<String, TermFreq> data : this.getTermFreq().entrySet()) {
+      for (Entry<String, TermFreqData> data : this.getTermFreq().entrySet()) {
         LOG.trace("new: t={} f={} rf={}", data.getKey(), data.getValue().
                 getTotalFreq(), data.getValue().getRelFreq());
       }
@@ -262,7 +262,7 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
   public void dispose() {
     // debug
     if (LOG.isTraceEnabled()) {
-      for (Entry<String, TermFreq> data : this.getTermFreq().entrySet()) {
+      for (Entry<String, TermFreqData> data : this.getTermFreq().entrySet()) {
         LOG.trace("store: t={} f={} rf={}", data.getKey(), data.getValue().
                 getTotalFreq(), data.getValue().getRelFreq());
       }
