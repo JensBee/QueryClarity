@@ -66,7 +66,7 @@ public class MemoryIndex {
 
   public MemoryIndex(final String[] fields, final List<String[]> documents)
           throws IOException {
-    this.idxFields = fields;
+    this.idxFields = fields.clone();
     createIndex(documents);
     this.reader = getReader();
   }
@@ -92,6 +92,8 @@ public class MemoryIndex {
 
   /**
    * Get the ids of all available docments.
+   *
+   * @return Ids of all available documents. Deleted documents are not included.
    */
   public final Collection<Integer> getDocumentIds() {
     final Bits liveDocs = MultiFields.getLiveDocs(this.reader); // NOPMD
