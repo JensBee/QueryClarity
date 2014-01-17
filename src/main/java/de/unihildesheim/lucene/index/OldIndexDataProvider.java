@@ -18,7 +18,6 @@ package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.DocFieldsTermsEnum;
-import de.unihildesheim.lucene.document.DefaultDocumentModel;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -98,7 +97,7 @@ public class OldIndexDataProvider implements IndexDataProvider {
    * Thrown, if not all requested fields are present in the index
    */
   public OldIndexDataProvider(final IndexReader indexReader,
-          final String[] fields) throws IOException, IndexDataException {
+          final String[] fields) throws IOException {
     super();
     // HashSet removes any possible duplicates
     this.targetFields = new HashSet(Arrays.asList(fields));
@@ -113,8 +112,8 @@ public class OldIndexDataProvider implements IndexDataProvider {
 
     // pre-check if all requested fields are available
     if (!indexedFields.containsAll(this.targetFields)) {
-      throw new IndexDataException(IndexDataException.Type.FIELD_NOT_PRESENT,
-              this.targetFields, indexedFields);
+//      throw new IndexDataException(IndexDataException.Type.FIELD_NOT_PRESENT,
+//              this.targetFields, indexedFields);
     }
 
     // try to create persitent disk backed storage
