@@ -390,7 +390,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   }
 
   /**
-   * Set the document fields this {link IndexDataProvider} accesses for statics
+   * Set the document fields this {@link IndexDataProvider} accesses for statics
    * calculation. Note that changing fields while the values are calculated may
    * render the calculation results invalid. You should call
    * {@link AbstractIndexDataProvider#clearData()} to remove any pre-calculated

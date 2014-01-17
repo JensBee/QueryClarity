@@ -69,14 +69,14 @@ public interface IndexDataProvider {
   String[] getTargetFields();
 
   /**
-   * Get an {@link Iterator] over a unique set of all terms from the index.
+   * Get an {@link Iterator} over a unique set of all terms from the index.
    *
    * @return Unique terms iterator
    */
   Iterator<String> getTermsIterator();
 
   /**
-   * Get an {@link Iterator] over all known {@link DocumentModel} instances.
+   * Get an {@link Iterator} over all known {@link DocumentModel} instances.
    *
    * @return Iterator over all {@link DocumentModel} instances
    */

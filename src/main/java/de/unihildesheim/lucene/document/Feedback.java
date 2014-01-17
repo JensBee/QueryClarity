@@ -85,7 +85,7 @@ public class Feedback {
   }
 
   /**
-   * Same as {@link Feedback#get(IndexReader, Query, int), except that, if the
+   * Same as {@link Feedback#get(IndexReader, Query, int)}, except that, if the
    * maximum number of feedback documents matching the query is not reached,
    * then random documents will be picked from the index to reach this value.
    *

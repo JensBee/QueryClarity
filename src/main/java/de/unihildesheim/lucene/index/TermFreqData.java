@@ -83,7 +83,7 @@ class TermFreqData implements Serializable {
    * Set the total frequency value
    * @param tFreq Total frequency value
    */
-  public void setTotalFreq(final long tFreq) {
+  public void setTotalFreq(long tFreq) {
     this.totalFreq = tFreq;
   }
 
