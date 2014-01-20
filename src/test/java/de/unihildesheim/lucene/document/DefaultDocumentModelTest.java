@@ -113,7 +113,7 @@ public class DefaultDocumentModelTest {
    */
   private void addTermsToModel(DefaultDocumentModel docModel) {
     for (Entry<String, Long> entry : DefaultDocumentModelTest.terms.entrySet()) {
-      docModel.setTermFrequency(entry.getKey(), entry.getValue());
+      docModel.addTermFrequency(entry.getKey(), entry.getValue());
     }
   }
 
@@ -145,7 +145,7 @@ public class DefaultDocumentModelTest {
 
     final DefaultDocumentModel instance = createModelInstance();
 
-    instance.setTermData(entry.getKey(), key, value);
+    instance.addTermData(entry.getKey(), key, value);
   }
 
   /**
@@ -161,7 +161,7 @@ public class DefaultDocumentModelTest {
 
     final DefaultDocumentModel instance = createModelInstance();
 
-    instance.setTermData(entry.getKey(), key, value);
+    instance.addTermData(entry.getKey(), key, value);
     final Object result = instance.getTermData(entry.getKey(), key);
 
     final Object expResult = value;
@@ -182,7 +182,7 @@ public class DefaultDocumentModelTest {
 
     final DefaultDocumentModel instance = createModelInstance();
 
-    instance.setTermData(entry.getKey(), key, value);
+    instance.addTermData(entry.getKey(), key, value);
     final String result = instance.
             getTermData(String.class, entry.getKey(), key);
 
@@ -204,9 +204,9 @@ public class DefaultDocumentModelTest {
 
     final DefaultDocumentModel instance = createModelInstance();
 
-    instance.setTermData(set1[0], set1[1], set1[2]);
-    instance.setTermData(set2[0], set2[1], set2[2]);
-    instance.setTermData(set3[0], set3[1], set3[2]);
+    instance.addTermData(set1[0], set1[1], set1[2]);
+    instance.addTermData(set2[0], set2[1], set2[2]);
+    instance.addTermData(set3[0], set3[1], set3[2]);
 
     LOG.info("Checking if all data is set.");
     assertEquals(set1[2], instance.getTermData(set1[0], set1[1]));
@@ -241,7 +241,7 @@ public class DefaultDocumentModelTest {
     assertEquals(false, instance.containsTerm(entry.getKey()));
 
     // add term
-    instance.setTermFrequency(entry.getKey(), entry.getValue());
+    instance.addTermFrequency(entry.getKey(), entry.getValue());
     // must be found
     assertEquals(true, instance.containsTerm(entry.getKey()));
   }
@@ -256,7 +256,7 @@ public class DefaultDocumentModelTest {
     final Entry<String, Long> entry = getRandomTermEntry();
     final DefaultDocumentModel instance = createModelInstance();
 
-    instance.setTermFrequency(entry.getKey(), entry.getValue());
+    instance.addTermFrequency(entry.getKey(), entry.getValue());
   }
 
   /**

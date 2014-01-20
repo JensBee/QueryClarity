@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Utility class to get feedback documents needed for calculations.
+ *
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public class Feedback {
@@ -57,6 +58,7 @@ public class Feedback {
    */
   public static TopDocs get(final IndexReader reader, final Query query,
           final int maxDocCount) throws IOException {
+    final long startTime = System.nanoTime();
     LOG.debug("Getting feedback documents...");
 
     final IndexSearcher searcher = new IndexSearcher(reader);
@@ -81,6 +83,10 @@ public class Feedback {
               fbDocCnt, results.totalHits);
     }
 
+    final double estimatedTime = (double) (System.nanoTime() - startTime)
+            / 1000000000.0;
+    LOG.debug("Getting {} feedback documents for query {} "
+            + "took {} seconds.", fbDocCnt, query, estimatedTime);
     return results;
   }
 
@@ -89,15 +95,16 @@ public class Feedback {
    * maximum number of feedback documents matching the query is not reached,
    * then random documents will be picked from the index to reach this value.
    *
-   * @param reader Reader to access lucene's index
+   * @param reader Reader to access Lucene's index
    * @param query Query to get matching documents
    * @param docCount Number of documents to return.
-   * @return List of lucene document ids
+   * @return List of Lucene document ids
    * @throws java.io.IOException Thrown on low-level I/O errors
    */
   public static Integer[] getFixed(final IndexReader reader,
           final Query query,
           final int docCount) throws IOException {
+    final long startTime = System.nanoTime();
     LOG.debug("Getting {} feedback documents...", docCount);
     // number of documents in index
     final int maxIdxDocs = reader.maxDoc();
@@ -166,6 +173,10 @@ public class Feedback {
       }
     }
 
+    final double estimatedTime = (double) (System.nanoTime() - startTime)
+            / 1000000000.0;
+    LOG.debug("Getting {} feedback documents for query {} "
+            + "took {} seconds.", maxRetDocs, query, estimatedTime);
     return docIds.toArray(new Integer[docIds.size()]);
   }
 }

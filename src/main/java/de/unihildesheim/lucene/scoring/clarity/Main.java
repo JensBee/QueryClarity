@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.lucene.scoring.clarity;
 
+import de.unihildesheim.lucene.document.DocumentModelException;
 import de.unihildesheim.lucene.index.CachedIndexDataProvider;
 import java.io.File;
 import java.io.IOException;
@@ -60,7 +61,8 @@ public final class Main {
    * @throws org.apache.lucene.queryparser.classic.ParseException
    */
   public static void main(final String[] args) throws IOException,
-          ParseException {
+          ParseException,
+          DocumentModelException {
     LOG.debug("Starting");
     if (args.length == 0 || (args.length > 0 && ("-h".equals(args[0])
             || "-help".equals(args[0])))) {
@@ -95,11 +97,12 @@ public final class Main {
 
     // open index
     final Directory directory = FSDirectory.open(new File(index));
+
     try (IndexReader reader = DirectoryReader.open(directory)) {
       final String cachePath = "data/cache/";
       final String storageId = "clef";
-      final CachedIndexDataProvider dataProv = new CachedIndexDataProvider(cachePath,
-              storageId);
+      final CachedIndexDataProvider dataProv = new CachedIndexDataProvider(
+              cachePath, storageId);
       if (!dataProv.tryGetStoredData()) {
         dataProv.recalculateData(reader, fields, false);
       }

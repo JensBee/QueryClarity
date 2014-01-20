@@ -17,7 +17,9 @@
 package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.lucene.StringUtils;
+import de.unihildesheim.lucene.document.DefaultDocumentModel;
 import de.unihildesheim.lucene.document.DocumentModel;
+import de.unihildesheim.lucene.document.DocumentModelException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -49,7 +51,7 @@ import org.slf4j.LoggerFactory;
 public class CachedIndexDataProvider extends AbstractIndexDataProvider {
 
   /**
-   * Seperator to store field names.
+   * Separator to store field names.
    */
   private static final String filedNameSep = "|";
 
@@ -91,14 +93,19 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
     this.storagePath = newStoragePath;
     this.storageId = newStorageId;
     // create the manager for disk storage
-    this.db = DBMaker.newFileDB(new File(this.storagePath, this.storageId)).
-            make();
+    try {
+      this.db = DBMaker.newFileDB(new File(this.storagePath, this.storageId)).
+              make();
+    } catch (RuntimeException ex) {
+      LOG.error("Caught runtime exception. Maybe your classes have changed."
+              + "You may want to delete the cache, because it's invalid now.");
+    }
 
     getStorageInfo();
   }
 
   /**
-   * Try to read the properties file stored alongside with the chached data.
+   * Try to read the properties file stored alongside with the cached data.
    *
    * @return True, if the file is there, false otherwise
    * @throws IOException Thrown on low-level I/O errors
@@ -135,10 +142,10 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
    *
    * @return True, if all data could be read, false if recalculation is needed
    * and automatic recalculation was not enabled
-   * @throws IOException Thrown, on low-level errors while accessing the chached
+   * @throws IOException Thrown, on low-level errors while accessing the cached
    * data
    */
-  public boolean tryGetStoredData() throws IOException {
+  public final boolean tryGetStoredData() throws IOException {
     LOG.info("Trying to get disk storage ({})", this.storagePath);
 
     boolean needsRecalc;
@@ -146,9 +153,9 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
     // try load cached data
     final long startTime = System.nanoTime();
     Map<Integer, DocumentModel> docModels = this.db.getHashMap("docModels");
-    this.setDocModels(docModels);
+    this.setDocModelMap(docModels);
     Map<String, TermFreqData> termFreq = this.db.getHashMap("termFreq");
-    this.setTermFreq(termFreq);
+    this.setTermFreqMap(termFreq);
     final double estimatedTime = (double) (System.nanoTime() - startTime)
             / 1000000000.0;
 
@@ -160,16 +167,17 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
         needsRecalc = true;
       } else {
         // check if data was loaded
-        needsRecalc = this.getDocModels().isEmpty() || this.getTermFreq().
+        needsRecalc = this.getDocModelMap().isEmpty() || this.getTermFreqMap().
                 isEmpty();
         if (!needsRecalc) {
           LOG.info("Loading docModels={} termFreq={} from cache "
-                  + "took {} seconds.", this.getDocModels().size(), this.
-                  getTermFreq().size(), estimatedTime);
+                  + "took {} seconds.", this.getDocModelMap().size(), this.
+                  getTermFreqMap().size(), estimatedTime);
         }
         // debug
         if (LOG.isTraceEnabled()) {
-          for (Entry<String, TermFreqData> data : this.getTermFreq().entrySet()) {
+          for (Entry<String, TermFreqData> data : this.getTermFreqMap().
+                  entrySet()) {
             LOG.trace("load: t={} f={} rf={}", data.getKey(), data.getValue().
                     getTotalFreq(), data.getValue().getRelFreq());
           }
@@ -211,9 +219,12 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
    * @param all If true, all data will be recalculated. If false, only missing
    * data will be recalculated.
    * @throws java.io.IOException IOException Thrown, on low-level errors
+   * @throws de.unihildesheim.lucene.document.DocumentModelException Thrown, if
+   * the {@link DocumentModel} of the requested type could not be instantiated
    */
-  public void recalculateData(final IndexReader indexReader,
-          final String[] targetFields, final boolean all) throws IOException {
+  public final void recalculateData(final IndexReader indexReader,
+          final String[] targetFields, final boolean all) throws IOException,
+          DocumentModelException {
     // check parameter sanity
     if (targetFields.length == 0) {
       throw new IllegalArgumentException("Empty list of target fields given.");
@@ -233,11 +244,11 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
     // oder of calculation steps matters!
     calculateTermFrequencies(indexReader);
     calculateRelativeTermFrequencies();
-    createDocumentModels(indexReader, targetFields);
+    createDocumentModels(DefaultDocumentModel.class, indexReader);
 
     // debug
     if (LOG.isTraceEnabled()) {
-      for (Entry<String, TermFreqData> data : this.getTermFreq().entrySet()) {
+      for (Entry<String, TermFreqData> data : this.getTermFreqMap().entrySet()) {
         LOG.trace("new: t={} f={} rf={}", data.getKey(), data.getValue().
                 getTotalFreq(), data.getValue().getRelFreq());
       }
@@ -259,14 +270,14 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
   }
 
   @Override
-  public void dispose() {
+  public final void dispose() {
     // debug
-    if (LOG.isTraceEnabled()) {
-      for (Entry<String, TermFreqData> data : this.getTermFreq().entrySet()) {
-        LOG.trace("store: t={} f={} rf={}", data.getKey(), data.getValue().
-                getTotalFreq(), data.getValue().getRelFreq());
-      }
-    }
+//    if (LOG.isTraceEnabled()) {
+//      for (Entry<String, TermFreqData> data : this.getTermFreqMap().entrySet()) {
+//        LOG.trace("store: t={} f={} rf={}", data.getKey(), data.getValue().
+//                getTotalFreq(), data.getValue().getRelFreq());
+//      }
+//    }
 
     // commit changes & close storage
     this.db.commit();

@@ -52,10 +52,10 @@ public class MemoryIndex {
   /**
    * Lucene index.
    */
-  private final Directory INDEX = new RAMDirectory();
+  private final Directory index = new RAMDirectory();
 
   /**
-   * Internaly used reader for the index.
+   * internally used reader for the index.
    */
   private final IndexReader reader;
 
@@ -64,6 +64,12 @@ public class MemoryIndex {
    */
   private final String[] idxFields;
 
+  /**
+   * Create a new in-memory index.
+   * @param fields Per-document fields to generate
+   * @param documents Documents to add
+   * @throws IOException Thrown on low-level I/O-errors
+   */
   public MemoryIndex(final String[] fields, final List<String[]> documents)
           throws IOException {
     this.idxFields = fields.clone();
@@ -76,7 +82,7 @@ public class MemoryIndex {
    *
    * @return Available field names
    */
-  public String[] getIdxFields() {
+  public final String[] getIdxFields() {
     return this.idxFields.clone();
   }
 
@@ -87,7 +93,7 @@ public class MemoryIndex {
    * @throws IOException Thrown on low-level I/O errors
    */
   public final IndexReader getReader() throws IOException {
-    return DirectoryReader.open(INDEX);
+    return DirectoryReader.open(index);
   }
 
   /**
@@ -125,7 +131,7 @@ public class MemoryIndex {
 
     // index documents
     int newIdx = 0;
-    try (IndexWriter writer = new IndexWriter(INDEX, config)) {
+    try (IndexWriter writer = new IndexWriter(index, config)) {
       for (String[] doc : documents) {
         LOG.info("Adding document docId={} content='{}'", newIdx++, doc);
         addDoc(writer, doc);
@@ -136,11 +142,10 @@ public class MemoryIndex {
   }
 
   /**
-   * Add a document to the index
+   * Add a document to the index.
    *
    * @param writer Index writer instance
-   * @param text Content of the document
-   * @param id Id to identify this document
+   * @param content Content of the document
    * @throws IOException Thrown, if index could not be accessed
    */
   private void addDoc(final IndexWriter writer, final String[] content)

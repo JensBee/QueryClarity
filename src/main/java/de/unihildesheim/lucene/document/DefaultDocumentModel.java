@@ -26,80 +26,69 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Default implementation of the {@link DocumentModel} interface.
+ * Default implementation of the {@link DocumentModel} interface. Immutable
+ * document model.
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class DefaultDocumentModel implements DocumentModel, Serializable {
-
-  private static final long serialVersionUID = 7526472295622776147L;
+public final class DefaultDocumentModel implements DocumentModel, Serializable {
 
   /**
    * Logger instance for this class.
    */
-  private static transient final Logger LOG = LoggerFactory.getLogger(
+  private static final transient Logger LOG = LoggerFactory.getLogger(
           DefaultDocumentModel.class);
 
   /**
    * Id of the document associated with this model.
    */
-  private int docId;
+  private final Integer docId;
+
   /**
-   * List of all terms known by this model. The list index is used as pointer
-   * for other term related data lists.
+   * Stores the document frequency for each known term.
    */
-  private final List<String> termIdx;
-  /**
-   * Stores the document frequncy for each known term.
-   */
-  private final List<Long> termFreq;
+  private final Map<String, Long> termFreqMap;
+
   /**
    * Stores arbitrary key-value data for each term.
    */
-  private final List<Map<String, Object>> termData;
-
-  private final int initialTermDataSize = 10;
+  private final List<TermData<String, Number>> termData;
 
   /**
-   * Creates a new DocumentModel for a specific document and the number of terms
-   * in the document.
+   * Creates a new DocumentModel for a specific document denoted by it's Lucene
+   * document id.
    *
    * @param documentId Lucene's document-id
-   * @param termsCount Number of terms found in the document. This value is used
-   * to initialize the term storage to the proper size.
    */
-  public DefaultDocumentModel(final int documentId, final int termsCount) {
+  public DefaultDocumentModel(final int documentId) {
     this.docId = documentId;
-    this.termIdx = new ArrayList(termsCount);
-    this.termFreq = new ArrayList(termsCount);
-    this.termData = new ArrayList(termsCount);
+    this.termData = null;
+    this.termFreqMap = null;
   }
 
   /**
-   * Get the pointer index value for the given term. Optional adds the term to
-   * the list, if it's not already there.
-   *
-   * @param term Term to lookup
-   * @param add If true, the term will be added to the list
-   * @return The pointer index of the given term or <tt>-1</tt> if it could not
-   * be found and should not be added.
+   * Creates a new empty DocumentModel.
    */
-  private int getTermIdx(final String term, final boolean add) {
-    int idx = this.termIdx.indexOf(term);
-    if (idx == -1 && add) {
-      this.termIdx.add(term);
-      idx = this.termIdx.size() - 1;
-      LOG.trace("Add term t={} idx={}", term, idx);
-      // reserve space for data in other lists
-      this.termFreq.add(idx, null);
-      this.termData.add(idx, null);
-    }
-    // check error case
-    if (add && idx == -1) {
-      throw new IllegalStateException(
-              "Error while adding new term to document model index.");
-    }
-    return idx;
+  public DefaultDocumentModel() {
+    // empty constructor
+    this.docId = null;
+    this.termData = null;
+    this.termFreqMap = null;
+  }
+
+  /**
+   * Internal constructor used to create new instances.
+   *
+   * @param documentId Lucene document-id
+   * @param newTermFreqMap Term->frequency mapping
+   * @param newTermData Term->advanced data mapping
+   */
+  private DefaultDocumentModel(final int documentId,
+          final Map<String, Long> newTermFreqMap,
+          final List<TermData<String, Number>> newTermData) {
+    this.docId = documentId;
+    this.termFreqMap = newTermFreqMap;
+    this.termData = newTermData;
   }
 
   /**
@@ -107,71 +96,42 @@ public class DefaultDocumentModel implements DocumentModel, Serializable {
    * already known.
    */
   @Override
-  public final void setTermData(final String term, final String key,
+  public DocumentModel addTermData(final String term, final String key,
           final Object value) {
-    final int idx = getTermIdx(term, true);
-    Map<String, Object> dataMap = this.termData.get(idx);
 
-    // create new data-map if needed
-    if (dataMap == null) {
-      dataMap = new HashMap(initialTermDataSize);
-      this.termData.add(idx, dataMap);
-    }
-
-    dataMap.put(key, value);
-  }
-
-  @Override
-  public final Object getTermData(final String term, final String key) {
-    final int idx = getTermIdx(term, false);
-    Object data;
-
-    if (idx > -1) {
-      final Map<String, Object> dataMap = this.termData.get(idx);
-
-      if (dataMap != null) {
-        data = dataMap.get(key);
-      } else {
-        data = null;
-      }
+    final List<TermData<String, Number>> newTermData;
+    if (this.termData == null) {
+      newTermData = new ArrayList();
     } else {
-      // term not found in document model index
-      data = null;
+      newTermData = (List) ((ArrayList)this.termData).clone();
     }
-
-    return data;
+    newTermData.add(new TermData(term, key, value));
+    return new DefaultDocumentModel(this.docId, this.termFreqMap, newTermData);
   }
 
   @Override
-  public final <T> T getTermData(final Class<T> cls, final String term,
-          final String key) {
-    final Object value = getTermData(term, key);
-    T returnValue;
-    if (value == null) {
-      returnValue = null; // NOPMD
-    } else {
-      if (cls.isInstance(value)) {
-        returnValue = cls.cast(value);
-      } else {
-        throw new ClassCastException("Expected " + cls.getClass()
-                + ", but got " + value.getClass() + ".");
-      }
-    }
-    return returnValue;
-  }
+  public Object getTermData(final String term, final String key) {
+    Number retVal = null;
 
-  @Override
-  public final void clearTermData(final String key) {
-    for (Map<String, Object> dataMap : this.termData) {
-      if (dataMap != null) {
-        dataMap.remove(key);
+    if (this.termData != null) {
+      for (TermData<String, Number> data : this.termData) {
+        if (data != null && data.getTerm() != null && data.getKey() != null
+                && data.getTerm().equals(term) && data.getKey().equals(key)) {
+          retVal = data.getValue();
+          break;
+        }
       }
     }
+
+    return retVal;
   }
 
   @Override
   public boolean containsTerm(final String term) {
-    return termIdx.contains(term);
+    if (term == null || this.termFreqMap == null) {
+      return false;
+    }
+    return termFreqMap.keySet().contains(term);
   }
 
   /**
@@ -179,52 +139,63 @@ public class DefaultDocumentModel implements DocumentModel, Serializable {
    * already known.
    */
   @Override
-  public final void setTermFrequency(final String term, final long frequency) {
-    final int idx = getTermIdx(term, true);
-    this.termFreq.add(idx, frequency);
+  public DocumentModel addTermFrequency(final String term,
+          final long frequency) {
+    final Map<String, Long> newTermFreq;
+    if (this.termFreqMap == null) {
+      newTermFreq = new HashMap();
+    } else {
+      newTermFreq = (Map) ((HashMap) this.termFreqMap).clone();
+    }
+
+    newTermFreq.put(term, frequency);
+    return new DefaultDocumentModel(this.docId, newTermFreq, this.termData);
   }
 
   @Override
-  public final int getDocId() {
+  public int getDocId() {
+    if (this.docId == null) {
+      throw new IllegalStateException(
+              "Document id have not been initialized.");
+    }
     return this.docId;
   }
 
-  /**
-   * Set the lucene document id for the document referenced by this model.
-   *
-   * @param documentId Lcene document id
-   */
-  public final void setDocId(final int documentId) {
-    this.docId = documentId;
+  @Override
+  public DocumentModel setDocId(final int documentId) {
+    return new DefaultDocumentModel(documentId, this.termFreqMap, this.termData);
   }
 
   @Override
-  public final long getTermFrequency() {
+  public long getTermFrequency() {
     long value = 0L;
-    final Iterator<Long> termFreqIt = termFreq.iterator();
-    while (termFreqIt.hasNext()) {
-      final Long freq = termFreqIt.next();
-      if (freq != null) {
-        value += freq;
+
+    if (this.termFreqMap != null) {
+      final Iterator<Long> termFreqIt = termFreqMap.values().iterator();
+      while (termFreqIt.hasNext()) {
+        final Long freq = termFreqIt.next();
+        if (freq != null) {
+          value += freq;
+        }
       }
     }
     return value;
   }
 
   @Override
-  public final long getTermFrequency(final String term) {
-    final int idx = getTermIdx(term, false);
+  public long getTermFrequency(final String term) {
+    if (term == null) {
+      throw new IllegalArgumentException("Term must not be null.");
+    }
+
     Long value;
-
-    if (idx > -1) {
-      value = this.termFreq.get(idx);
-
-      if (value == null || value == 0) {
+    if (this.termFreqMap == null) {
+      value = 0L;
+    } else {
+      value = this.termFreqMap.get(term);
+      if (value == null) {
         value = 0L;
       }
-    } else {
-      // term not found in document model index
-      value = 0L;
     }
 
     return value;

@@ -17,10 +17,11 @@
 package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.lucene.document.DocumentModel;
+import java.util.Collection;
 import java.util.Iterator;
 
 /**
- * IndexDataProvider provides statistical data from the underlying lucene index.
+ * IndexDataProvider provides statistical data from the underlying Lucene index.
  *
  * Calculated values may be cached. So any call to those functions may not
  * trigger a recalculation of the values. If this is not desired, then needed
@@ -63,7 +64,8 @@ public interface IndexDataProvider {
   void dispose();
 
   /**
-   * Get the index-fields this dataprovider operates on.
+   * Get the index-fields this DataProvider operates on.
+   *
    * @return Index field names
    */
   String[] getTargetFields();
@@ -84,9 +86,36 @@ public interface IndexDataProvider {
 
   /**
    * Get a {@link DocumentModel} instance for the document with the given id.
+   * The returned {@link DocumentModel} should be immutable and for reading
+   * only. It's advised to use a {@link ImmutableDocumentModel} for returning.
+   *
+   * To actually modify a document model you should use the
+   * {@link IndexDataProvider#removeDocumentModel(int)} and
+   * {@link IndexDataProvider#addDocumentModel(DocumentModel)} methods.
    *
    * @param docId Lucene document-id
-   * @return Document model associated with the given lucene document-id
+   * @return Document model associated with the given Lucene document-id
    */
   DocumentModel getDocumentModel(final int docId);
+
+  /**
+   * Get (remove) a document model from the list of known models. This is a safe
+   * way to get a {@link DocumentModel} for doing modifications to the model.
+   *
+   * @param docId Id of the document model to remove
+   * @return The document model associated with the given id, or <tt>null</tt>
+   * if none was stored under the given id.
+   */
+  DocumentModel removeDocumentModel(final int docId);
+
+  /**
+   * Adds a {@link DocumentModel} to the list of known models. This should only
+   * be used to re-add models that have previously been removed from the list to
+   * apply any modifications.
+   *
+   * @param documentModel Document model to add to the list of known models
+   */
+  void addDocumentModel(final DocumentModel documentModel);
+
+  Collection<DocumentModel> getDocModels();
 }

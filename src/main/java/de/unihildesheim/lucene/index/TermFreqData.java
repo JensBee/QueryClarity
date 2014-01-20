@@ -23,20 +23,21 @@ import java.io.Serializable;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-class TermFreqData implements Serializable {
+public final class TermFreqData implements Serializable {
 
   private static final long serialVersionUID = 7526472295328776147L;
   /**
    * Total frequency value of a term in relation to the whole index.
    */
-  private long totalFreq = 0L;
+  private final long totalFreq;
   /**
    * Relative frequency value of a term in relation to the whole index.
    */
-  private Double relFreq = 0d;
+  private final Double relFreq;
 
   /**
    * Constructor taking both values ass initial parameter.
+   *
    * @param tFreq Total frequency
    * @param rFreq Relative frequency
    */
@@ -47,32 +48,37 @@ class TermFreqData implements Serializable {
 
   /**
    * Constructor passing the relative frequency only.
+   *
    * @param rFreq Relative frequency
    */
   TermFreqData(final double rFreq) {
     this.relFreq = rFreq;
+    this.totalFreq = 0L;
   }
 
   /**
    * Constructor passing the total frequency only.
+   *
    * @param tFreq Total frequency
    */
   TermFreqData(final long tFreq) {
     this.totalFreq = tFreq;
+    this.relFreq = 0d;
   }
 
   /**
    * Add the given value to the total frequency value.
+   *
    * @param tFreq Value to add total frequency
    * @return The updated total frequency value
    */
-  public long addFreq(final long tFreq) {
-    this.totalFreq += tFreq;
-    return this.totalFreq;
+  public TermFreqData addToTotalFreq(final long tFreq) {
+    return new TermFreqData(this.totalFreq + tFreq, this.relFreq);
   }
 
   /**
-   * Get the currently set total frequency value
+   * Get the currently set total frequency value.
+   *
    * @return Total frequency value
    */
   public long getTotalFreq() {
@@ -80,15 +86,8 @@ class TermFreqData implements Serializable {
   }
 
   /**
-   * Set the total frequency value
-   * @param tFreq Total frequency value
-   */
-  public void setTotalFreq(long tFreq) {
-    this.totalFreq = tFreq;
-  }
-
-  /**
-   * Get the relative frequency value
+   * Get the relative frequency value.
+   *
    * @return Relative frequency value
    */
   public double getRelFreq() {
@@ -96,10 +95,12 @@ class TermFreqData implements Serializable {
   }
 
   /**
-   * Set the relative frequency value
+   * Set the relative frequency value.
+   *
+   * @param rFreq Relative frequency value
    * @return Relative frequency value
    */
-  public void setRelFreq(final double rFreq) {
-    this.relFreq = rFreq;
+  public TermFreqData setRelFreq(final double rFreq) {
+    return new TermFreqData(this.totalFreq, rFreq);
   }
 }

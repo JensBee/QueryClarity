@@ -18,6 +18,7 @@ package de.unihildesheim.lucene.scoring.clarity;
 
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.Feedback;
+import de.unihildesheim.lucene.document.TermDataManager;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.query.QueryUtils;
 import java.io.IOException;
@@ -44,7 +45,12 @@ import org.slf4j.LoggerFactory;
  */
 public class DefaultClarityScore implements ClarityScoreCalculation {
 
-  public enum TermDataKeys {
+  /**
+   * Prefix to use to store calculated term-data values in cache.
+   */
+  private static final String TD_PREFIX = "DCS";
+
+  private enum TermDataKeys {
 
     /**
      * Stores the document model for a specific term.
@@ -80,6 +86,12 @@ public class DefaultClarityScore implements ClarityScoreCalculation {
   private IndexReader reader;
 
   /**
+   * {@link TermDataManager} to access to extended data storage for
+   * {@link DocumentModel} data storage.
+   */
+  private TermDataManager tdMan;
+
+  /**
    * Default constructor using the {@link IndexDataProvider} for statistical
    * index data.
    *
@@ -91,10 +103,11 @@ public class DefaultClarityScore implements ClarityScoreCalculation {
     super();
     this.reader = indexReader;
     this.dataProv = dataProvider;
+    this.tdMan = new TermDataManager(TD_PREFIX, this.dataProv);
   }
 
   /**
-   * Calculate the document langage model for a given term
+   * Calculate the document language model for a given term.
    *
    * @param docModel Document model to do the calculation for
    * @param term Term to do the calculation for
@@ -110,13 +123,18 @@ public class DefaultClarityScore implements ClarityScoreCalculation {
 
     if (docModel.containsTerm(term)) {
       // try to get the already calculated value
-      model = docModel.getTermData(Double.class, term,
-              TermDataKeys.DOC_MODEL.toString());
+//      model = this.tdMan.getTermData(docModel, Double.class, term,
+//              TermDataKeys.DOC_MODEL.toString());
+      model = (Double)docModel.getTermData(term, TermDataKeys.DOC_MODEL.toString());
 
+//      LOG.debug("value stored: {}", model);
       if (model == null) {
         // no value was stored, so calculate it
-        model = langmodelWeight * (docModel.getTermFrequency(term) / docModel.
-                getTermFrequency()) + defaultValue;
+        model = langmodelWeight * ((double) docModel.getTermFrequency(term)
+                / (double) docModel.getTermFrequency()) + defaultValue;
+        // update document model
+        this.tdMan.setTermData(docModel, term,
+                TermDataKeys.DOC_MODEL.toString(), model);
       }
     } else {
       // term not in document
@@ -157,9 +175,20 @@ public class DefaultClarityScore implements ClarityScoreCalculation {
     return prob;
   }
 
+//  private void precalcDocumentModels() {
+//    final Iterator<String> idxTermsIt = this.dataProv.getTermsIterator();
+//
+//    while (idxTermsIt.hasNext()) {
+//      for (DocumentModel docModel : this.dataProv.getDocModels()) {
+//
+//      }
+//    }
+//  }
+
   private ClarityScoreResult calculateClarity(
           final Set<DocumentModel> docModels, final Iterator<String> idxTermsIt,
           final String[] queryTerms) {
+    final long startTime = System.nanoTime();
     final ClarityScoreResult result = new ClarityScoreResult(this.getClass());
     double score = 0d;
     double log;
@@ -184,6 +213,11 @@ public class DefaultClarityScore implements ClarityScoreCalculation {
             toPlainString());
 
     result.setScore(score);
+    final double estimatedTime = (double) (System.nanoTime() - startTime)
+            / 1000000000.0;
+    LOG.debug("Calculating default clarity score for query {} "
+            + "with {} document models took {} seconds.", queryTerms, docModels.
+            size(), estimatedTime);
     return result;
   }
 
@@ -286,7 +320,7 @@ public class DefaultClarityScore implements ClarityScoreCalculation {
    *
    * @return Weighting value
    */
-  public double getLangmodelWeight() {
+  public final double getLangmodelWeight() {
     return langmodelWeight;
   }
 
@@ -298,22 +332,22 @@ public class DefaultClarityScore implements ClarityScoreCalculation {
    *
    * @param newLangmodelWeight New weighting value
    */
-  public void setLangmodelWeight(double newLangmodelWeight) {
-    // check, if weight has changed
-    if (newLangmodelWeight != this.langmodelWeight) {
-      LOG.info("Language model weight has changed. "
-              + "Removing all calculated values from document models.");
-
-      final Iterator<DocumentModel> docModelIt = this.dataProv.
-              getDocModelIterator();
-
-      // remove calculated values for each documentModel
-      while (docModelIt.hasNext()) {
-        final DocumentModel docModel = docModelIt.next();
-        docModel.clearTermData(TermDataKeys.DOC_MODEL.toString());
-      }
-    }
-
-    this.langmodelWeight = newLangmodelWeight;
-  }
+//  public final void setLangmodelWeight(double newLangmodelWeight) {
+//    // check, if weight has changed
+//    if (newLangmodelWeight != this.langmodelWeight) {
+//      LOG.info("Language model weight has changed. "
+//              + "Removing all calculated values from document models.");
+//
+//      final Iterator<DocumentModel> docModelIt = this.dataProv.
+//              getDocModelIterator();
+//
+//      // remove calculated values for each documentModel
+//      while (docModelIt.hasNext()) {
+//        final DocumentModel docModel = docModelIt.next();
+//        docModel.clearTermData(TermDataKeys.DOC_MODEL.toString());
+//      }
+//    }
+//
+//    this.langmodelWeight = newLangmodelWeight;
+//  }
 }

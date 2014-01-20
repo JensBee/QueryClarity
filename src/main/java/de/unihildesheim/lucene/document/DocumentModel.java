@@ -27,9 +27,21 @@ public interface DocumentModel extends Serializable {
   final long serialVersionUID = 7526432295122736147L;
 
   /**
-   * Get the id of the associated lucene document.
+   * Set the number of terms the associated document contains.
+   * @param termCount Number of terms the associated document contains
+   */
+//  void setTermCount(final long termCount);
+
+  /**
+   * Set the id of the associated Lucene document.
+   * @param documentId Id of the associated Lucene document.
+   */
+  DocumentModel setDocId(final int documentId);
+
+  /**
+   * Get the id of the associated Lucene document.
    *
-   * @return Id of the associated lucene document
+   * @return Id of the associated Lucene document
    */
   int getDocId();
 
@@ -41,7 +53,7 @@ public interface DocumentModel extends Serializable {
   long getTermFrequency();
 
   /**
-   * Cheack if the document contains the given term.
+   * Check if the document contains the given term.
    * @param term Term to lookup
    * @return True if term is contained in document, false otherwise
    */
@@ -50,7 +62,7 @@ public interface DocumentModel extends Serializable {
   /**
    * Get the frequency of the given term in the document.
    *
-   * @param term Term to lookup
+   * @param term Non <tt>null</tt> term to lookup
    * @return Frequency of the given term in the document
    */
   long getTermFrequency(final String term);
@@ -58,16 +70,16 @@ public interface DocumentModel extends Serializable {
   /**
    * Set the term frequency value for a specific term.
    *
-   * @param term Term
+   * @param term Non <tt>null</tt> term
    * @param frequency Document frequency for the specific term
    */
-  void setTermFrequency(final String term, final long frequency);
+  DocumentModel addTermFrequency(final String term, final long frequency);
 
   /**
    * Get a specific value stored for a term by a given key.
    *
    * @param term Term whose value should be retrieved
-   * @param key Key under wich the data is stored
+   * @param key Key under which the data is stored
    * @return Stored value, or <tt>null</tt> if no value was stored under the
    * specified key.
    */
@@ -82,26 +94,26 @@ public interface DocumentModel extends Serializable {
    *
    * @param <T> Expected value type
    * @param cls Expected value type
-   * @param term Term whose value should be retrieved
-   * @param key Key under wich the data is stored
+   * @param term Non <tt>null</tt> term whose value should be retrieved
+   * @param key Non <tt>null</tt> key under which the data is stored
    * @return The stored value, or null if no value was stored
    */
-  <T> T getTermData(final Class<T> cls, final String term, final String key);
+//  <T> T getTermData(final Class<T> cls, final String term, final String key);
 
   /**
    * Store a value for a term in this document. This will silently overwrite any
    * previously stored value.
    *
-   * @param term Term to store a value for
-   * @param key Key to identify the value
+   * @param term Non <tt>null</tt> term to store a value for
+   * @param key Non <tt>null</tt> key to identify the value
    * @param value Value to store
    */
-  void setTermData(final String term, final String key, final Object value);
+  DocumentModel addTermData(final String term, final String key, final Object value);
 
   /**
    * Removes the stored data for all terms which are stored under the given key.
    *
    * @param key Key whose values should be removed for all terms
    */
-  void clearTermData(final String key);
+//  void clearTermData(final String key);
 }

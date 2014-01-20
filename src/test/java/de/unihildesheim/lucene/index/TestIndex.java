@@ -668,7 +668,7 @@ public class TestIndex implements IndexDataProvider {
     }
 
     @Override
-    public void setTermFrequency(String term, long frequency) {
+    public void addTermFrequency(String term, long frequency) {
       throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
@@ -683,7 +683,7 @@ public class TestIndex implements IndexDataProvider {
     }
 
     @Override
-    public void setTermData(String term, String key, Object value) {
+    public void addTermData(String term, String key, Object value) {
       throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
