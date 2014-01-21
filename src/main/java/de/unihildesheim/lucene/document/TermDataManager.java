@@ -17,7 +17,6 @@
 package de.unihildesheim.lucene.document;
 
 import de.unihildesheim.lucene.index.IndexDataProvider;
-import de.unihildesheim.lucene.scoring.clarity.DefaultClarityScore;
 
 /**
  * Wrapper around the term data storage in {@link DocumentModel}s that allows to

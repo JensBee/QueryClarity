@@ -117,5 +117,9 @@ public interface IndexDataProvider {
    */
   void addDocumentModel(final DocumentModel documentModel);
 
+  /**
+   * Get all document models known to this {@link IndexDataProvider}.
+   * @return All document models known to this instance
+   */
   Collection<DocumentModel> getDocModels();
 }

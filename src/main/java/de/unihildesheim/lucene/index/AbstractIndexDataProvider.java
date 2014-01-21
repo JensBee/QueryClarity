@@ -213,8 +213,6 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
           LOG.error("Error creating document model.", ex);
           throw new DocumentModelException(ex);
         }
-//        docModel.setDocId(docId);
-//        docModel.setTermCount(this.termFreqMap.size());
       }
 
       // clear previous cached document term values
@@ -376,37 +374,13 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
 
   @Override
   public final Iterator<DocumentModel> getDocModelIterator() {
-    return this.docModelMap.values().iterator();
-//    return new Iterator<DocumentModel>() {
-//      private final Iterator<DocumentModel> dmIt;
-//
-//      {
-//        this.dmIt = AbstractIndexDataProvider.this.docModelMap.values().
-//                iterator();
-//      }
-//
-//      @Override
-//      public boolean hasNext() {
-//        return dmIt.hasNext();
-//      }
-//
-//      @Override
-//      public DocumentModel next() {
-//        return new ImmutableDocumentModel(dmIt.next());
-//      }
-//
-//      @Override
-//      public void remove() {
-//        throw new UnsupportedOperationException("Not supported.");
-//      }
-//    };
+    return Collections.unmodifiableCollection(this.docModelMap.values()).
+            iterator();
   }
 
   /**
    * Get the document models known by this instance. This map may be huge. You
    * should use {@link AbstractIndexDataProvider#getDocModelIterator()} instead.
-   *
-   * FIXME: map objects should be immutable too.
    *
    * @return Immutable map with <tt>document-id -> {@link DocumentModel}</tt>
    * mapping
@@ -434,8 +408,6 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
 
   /**
    * Get the calculated frequency values for each term in the index.
-   *
-   * FIXME: map objects should be immutable too.
    *
    * @return Immutable map with <tt>Term->(Long) overall index frequency,
    * (Double) relative index frequency</tt> mapping for every term in the index
@@ -497,14 +469,14 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   }
 
   @Override
-  public void addDocumentModel(final DocumentModel docModel) {
+  public final void addDocumentModel(final DocumentModel docModel) {
     if (docModel != null) {
       this.docModelMap.put(docModel.getDocId(), docModel);
     }
   }
 
   @Override
-  public DocumentModel removeDocumentModel(final int docId) {
+  public final DocumentModel removeDocumentModel(final int docId) {
     return this.docModelMap.remove(docId);
   }
 }

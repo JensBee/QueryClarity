@@ -19,22 +19,25 @@ package de.unihildesheim.lucene.document;
 import java.io.Serializable;
 
 /**
- * General document model storing basic values needed for calculation.
+ * General document model storing basic values needed for calculation. All
+ * classes implementing this interface should be immutable, since the document
+ * models should be easy cacheable.
+ *
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public interface DocumentModel extends Serializable {
 
-  final long serialVersionUID = 7526432295122736147L;
-
   /**
-   * Set the number of terms the associated document contains.
-   * @param termCount Number of terms the associated document contains
+   * Serialization class version id.
    */
-//  void setTermCount(final long termCount);
+  long serialVersionUID = 0L;
 
   /**
    * Set the id of the associated Lucene document.
+   *
    * @param documentId Id of the associated Lucene document.
+   * @return New {@link DocumentModel} with all properties of the current object
+   * and the given id set.
    */
   DocumentModel setDocId(final int documentId);
 
@@ -54,6 +57,7 @@ public interface DocumentModel extends Serializable {
 
   /**
    * Check if the document contains the given term.
+   *
    * @param term Term to lookup
    * @return True if term is contained in document, false otherwise
    */
@@ -72,6 +76,8 @@ public interface DocumentModel extends Serializable {
    *
    * @param term Non <tt>null</tt> term
    * @param frequency Document frequency for the specific term
+   * @return New {@link DocumentModel} with all properties of the current object
+   * and the given frequency value set.
    */
   DocumentModel addTermFrequency(final String term, final long frequency);
 
@@ -86,34 +92,15 @@ public interface DocumentModel extends Serializable {
   Object getTermData(final String term, final String key);
 
   /**
-   * Get a specific value stored for a term by a given key. This method allows
-   * to define the expected return type. No type conversion will be done.
-   *
-   * This method throws a {@link ClassCastException} if the stored value was not
-   * of the expected type.
-   *
-   * @param <T> Expected value type
-   * @param cls Expected value type
-   * @param term Non <tt>null</tt> term whose value should be retrieved
-   * @param key Non <tt>null</tt> key under which the data is stored
-   * @return The stored value, or null if no value was stored
-   */
-//  <T> T getTermData(final Class<T> cls, final String term, final String key);
-
-  /**
    * Store a value for a term in this document. This will silently overwrite any
    * previously stored value.
    *
    * @param term Non <tt>null</tt> term to store a value for
    * @param key Non <tt>null</tt> key to identify the value
    * @param value Value to store
+   * @return New {@link DocumentModel} with all properties of the current object
+   * and the given key-value data set.
    */
-  DocumentModel addTermData(final String term, final String key, final Object value);
-
-  /**
-   * Removes the stored data for all terms which are stored under the given key.
-   *
-   * @param key Key whose values should be removed for all terms
-   */
-//  void clearTermData(final String key);
+  DocumentModel addTermData(final String term, final String key,
+          final Object value);
 }

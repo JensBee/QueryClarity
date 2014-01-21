@@ -20,16 +20,23 @@ package de.unihildesheim.lucene;
  * Utility class for string operations.
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class StringUtils {
+public final class StringUtils {
 
   /**
-   * Join a string array using a given speperator string.
+   * Private empty constructor for utility class.
+   */
+  private StringUtils() {
+    // empty constructor for utility class
+  }
+
+  /**
+   * Join a string array using a given separator string.
    *
    * @param strings Strings to join
-   * @param seperator Seperator char
+   * @param seperator Separator char
    * @return Joined string
    */
-  public static String join(String[] strings, String seperator) {
+  public static String join(final String[] strings, final String seperator) {
     final StringBuilder joinedStr = new StringBuilder(strings.toString().
             length());
     for (int i = 0, il = strings.length; i < il; i++) {

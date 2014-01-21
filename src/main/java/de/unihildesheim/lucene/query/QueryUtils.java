@@ -28,7 +28,14 @@ import org.apache.lucene.search.highlight.WeightedTerm;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class QueryUtils {
+public final class QueryUtils {
+
+  /**
+   * Private constructor for utility class.
+   */
+  private QueryUtils() {
+    // empty private constructor for utility class
+  }
 
   /**
    * Extract all terms of the given {@link Query}.
@@ -37,7 +44,7 @@ public class QueryUtils {
    * @return Terms of the rewritten {@link Query}
    * @throws IOException Thrown on low-level I/O errors
    */
-  public static final String[] getQueryTerms(final IndexReader reader,
+  public static String[] getQueryTerms(final IndexReader reader,
           final Query query) throws IOException {
     final Query rwQuery = query.rewrite(reader);
 

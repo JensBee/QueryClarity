@@ -103,7 +103,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
     if (this.termData == null) {
       newTermData = new ArrayList();
     } else {
-      newTermData = (List) ((ArrayList)this.termData).clone();
+      newTermData = (List) ((ArrayList) this.termData).clone();
     }
     newTermData.add(new TermData(term, key, value));
     return new DefaultDocumentModel(this.docId, this.termFreqMap, newTermData);
@@ -163,7 +163,8 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
 
   @Override
   public DocumentModel setDocId(final int documentId) {
-    return new DefaultDocumentModel(documentId, this.termFreqMap, this.termData);
+    return new DefaultDocumentModel(documentId, this.termFreqMap,
+            this.termData);
   }
 
   @Override

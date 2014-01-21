@@ -58,7 +58,10 @@ public final class Main {
   /**
    * @param args Command line parameters
    * @throws IOException If index could not be read
-   * @throws org.apache.lucene.queryparser.classic.ParseException
+   * @throws org.apache.lucene.queryparser.classic.ParseException If the
+   * {@link Query} could not be parsed
+   * @throws de.unihildesheim.lucene.document.DocumentModelException If a
+   * requested document model needed for calculation could not be created
    */
   public static void main(final String[] args) throws IOException,
           ParseException,

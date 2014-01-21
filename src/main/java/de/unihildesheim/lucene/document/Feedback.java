@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.Set;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.search.IndexSearcher;
@@ -36,7 +35,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class Feedback {
+public final class Feedback {
 
   /**
    * Logger instance for this class.
@@ -45,9 +44,16 @@ public class Feedback {
           Feedback.class);
 
   /**
+   * Private constructor for utility class.
+   */
+  private Feedback() {
+    // empty private constructor for utility class
+  }
+
+  /**
    * Get a number of feedback documents matching a query.
    *
-   * @param reader Reader to access lucene's index
+   * @param reader Reader to access Lucene's index
    * @param query Query to get matching documents
    * @param maxDocCount Maximum number of documents to get. The number of
    * results may be lower, if there were less matching documents. If <tt>-1</tt>

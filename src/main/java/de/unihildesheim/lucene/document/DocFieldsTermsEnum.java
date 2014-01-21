@@ -34,7 +34,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class DocFieldsTermsEnum {
+public final class DocFieldsTermsEnum {
 
   /**
    * Logger instance for this class.
@@ -53,7 +53,7 @@ public class DocFieldsTermsEnum {
   private LinkedList<String> currentFields;
 
   /**
-   * Currently active enumerator
+   * Currently active enumerator.
    */
   private TermsEnum currentEnum = null;
 
@@ -63,19 +63,20 @@ public class DocFieldsTermsEnum {
   private final IndexReader reader;
 
   /**
-   * Lucenes document-id for the target document to enumerate over.
+   * Lucene document-id for the target document to enumerate over.
    */
   private Integer docId = null;
 
   /**
-   * Generic reusable {@link DocFieldsTermEnum} instance. To actally reuse this
+   * Generic reusable {@link DocFieldsTermEnum} instance. To actually reuse this
    * instance the {@link setDocument} function must be called before
    * {@link next} can be used, to set the document to operate on.
    *
    * @param indexReader {@link IndexReader} instance to use
    * @param fields Lucene index fields to operate on
    */
-  public DocFieldsTermsEnum(final IndexReader indexReader, final String[] fields) {
+  public DocFieldsTermsEnum(final IndexReader indexReader,
+          final String[] fields) {
     this(indexReader, fields, null);
   }
 
@@ -87,8 +88,8 @@ public class DocFieldsTermsEnum {
    * @param indexReader {@link IndexReader} instance to use
    * @param fields Lucene index fields to operate on
    */
-  public DocFieldsTermsEnum(final IndexReader indexReader, final String[] fields,
-          final Integer documentId) {
+  public DocFieldsTermsEnum(final IndexReader indexReader,
+          final String[] fields, final Integer documentId) {
     if (indexReader == null) {
       throw new IllegalArgumentException("IndexReader was null.");
     }
@@ -106,7 +107,7 @@ public class DocFieldsTermsEnum {
    *
    * @param documentId Lucene document id
    */
-  public final void setDocument(final int documentId) {
+  public void setDocument(final int documentId) {
     this.docId = documentId;
     reset();
   }
@@ -114,13 +115,13 @@ public class DocFieldsTermsEnum {
   /**
    * Resets the iterator keeping the current document-id.
    */
-  public final void reset() {
+  public void reset() {
     this.currentFields = new LinkedList(this.targetFields);
     this.currentEnum = null;
   }
 
   /**
-   * Steps through all fields and provides acces to the {@link TermsEnum} for
+   * Steps through all fields and provides access to the {@link TermsEnum} for
    * each field. You have to specify a document-id by calling
    * {@link setDocument} before calling this function.
    *
@@ -128,7 +129,7 @@ public class DocFieldsTermsEnum {
    * the all field iterators is reached
    * @throws IOException If there is a low-level I/O error
    */
-  public final BytesRef next() throws IOException {
+  public BytesRef next() throws IOException {
     BytesRef nextValue;
 
     if (this.docId == null) {

@@ -16,19 +16,10 @@
  */
 package de.unihildesheim.lucene.scoring.clarity;
 
-import de.unihildesheim.lucene.document.DocumentModel;
-import de.unihildesheim.lucene.document.Feedback;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.highlight.QueryTermExtractor;
-import org.apache.lucene.search.highlight.WeightedTerm;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,20 +29,15 @@ import org.slf4j.LoggerFactory;
  */
 public class Calculation {
 
-  /**
-   * Logger instance for this class.
-   */
-  private static final Logger LOG = LoggerFactory.getLogger(Calculation.class);
+//  /**
+//   * Logger instance for this class.
+//   */
+//  private static final Logger LOG = LoggerFactory.getLogger(Calculation.class);
 
   /**
    * Shared index reader instance.
    */
   private IndexReader indexReader;
-
-  /**
-   * Maximum number of result documents to include for calculation.
-   */
-  private static final int FB_DOC_COUNT = -1;
 
   /**
    * Data provider for cacheable index statistics.

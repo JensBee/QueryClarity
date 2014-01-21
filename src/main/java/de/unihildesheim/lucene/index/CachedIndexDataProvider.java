@@ -53,7 +53,7 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
   /**
    * Separator to store field names.
    */
-  private static final String filedNameSep = "|";
+  private static final String FIELD_NAME_SEP = "|";
 
   /**
    * Directory where cached data should be stored.
@@ -65,6 +65,9 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
    */
   private final String storageId;
 
+  /**
+   * Storage meta data.
+   */
   private transient Properties storageProp = null;
 
   /**
@@ -125,7 +128,7 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
         // no fields specified
         this.setFields(new String[0]);
       } else {
-        this.setFields(targetFields.split(filedNameSep));
+        this.setFields(targetFields.split(FIELD_NAME_SEP));
       }
 
       hasProp = true;
@@ -259,7 +262,7 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
 
     // update meta data
     this.storageProp.setProperty("fields", StringUtils.join(targetFields,
-            filedNameSep));
+            FIELD_NAME_SEP));
     this.storageProp.setProperty("timestamp", new SimpleDateFormat(
             "MM/dd/yyyy h:mm:ss a").format(new Date()));
     final File propFile = new File(this.storagePath, this.storageId
@@ -272,12 +275,12 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
   @Override
   public final void dispose() {
     // debug
-//    if (LOG.isTraceEnabled()) {
-//      for (Entry<String, TermFreqData> data : this.getTermFreqMap().entrySet()) {
-//        LOG.trace("store: t={} f={} rf={}", data.getKey(), data.getValue().
-//                getTotalFreq(), data.getValue().getRelFreq());
-//      }
-//    }
+    if (LOG.isTraceEnabled()) {
+      for (Entry<String, TermFreqData> data : this.getTermFreqMap().entrySet()) {
+        LOG.trace("store: t={} f={} rf={}", data.getKey(), data.getValue().
+                getTotalFreq(), data.getValue().getRelFreq());
+      }
+    }
 
     // commit changes & close storage
     this.db.commit();

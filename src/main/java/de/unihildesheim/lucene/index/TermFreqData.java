@@ -25,11 +25,16 @@ import java.io.Serializable;
  */
 public final class TermFreqData implements Serializable {
 
-  private static final long serialVersionUID = 7526472295328776147L;
+  /**
+   * Serialization class version id.
+   */
+  private static final long serialVersionUID = 0L;
+
   /**
    * Total frequency value of a term in relation to the whole index.
    */
   private final long totalFreq;
+
   /**
    * Relative frequency value of a term in relation to the whole index.
    */
@@ -70,7 +75,8 @@ public final class TermFreqData implements Serializable {
    * Add the given value to the total frequency value.
    *
    * @param tFreq Value to add total frequency
-   * @return The updated total frequency value
+   * @return New {@link TermFreqData} object with all properties of the current
+   * object and the given value added to the total term frequency value.
    */
   public TermFreqData addToTotalFreq(final long tFreq) {
     return new TermFreqData(this.totalFreq + tFreq, this.relFreq);
@@ -98,7 +104,8 @@ public final class TermFreqData implements Serializable {
    * Set the relative frequency value.
    *
    * @param rFreq Relative frequency value
-   * @return Relative frequency value
+   * @return New {@link TermFreqData} object with all properties of the current
+   * object and the given value set for the relative term frequency.
    */
   public TermFreqData setRelFreq(final double rFreq) {
     return new TermFreqData(this.totalFreq, rFreq);

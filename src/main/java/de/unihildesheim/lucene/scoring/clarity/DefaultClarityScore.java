@@ -50,6 +50,9 @@ public class DefaultClarityScore implements ClarityScoreCalculation {
    */
   private static final String TD_PREFIX = "DCS";
 
+  /**
+   * Keys to store calculation results in document models.
+   */
   private enum TermDataKeys {
 
     /**
@@ -123,11 +126,9 @@ public class DefaultClarityScore implements ClarityScoreCalculation {
 
     if (docModel.containsTerm(term)) {
       // try to get the already calculated value
-//      model = this.tdMan.getTermData(docModel, Double.class, term,
-//              TermDataKeys.DOC_MODEL.toString());
-      model = (Double)docModel.getTermData(term, TermDataKeys.DOC_MODEL.toString());
+      model = (Double) this.tdMan.getTermData(docModel, term,
+              TermDataKeys.DOC_MODEL.toString());
 
-//      LOG.debug("value stored: {}", model);
       if (model == null) {
         // no value was stored, so calculate it
         model = langmodelWeight * ((double) docModel.getTermFrequency(term)
@@ -175,21 +176,23 @@ public class DefaultClarityScore implements ClarityScoreCalculation {
     return prob;
   }
 
-//  private void precalcDocumentModels() {
-//    final Iterator<String> idxTermsIt = this.dataProv.getTermsIterator();
-//
-//    while (idxTermsIt.hasNext()) {
-//      for (DocumentModel docModel : this.dataProv.getDocModels()) {
-//
-//      }
-//    }
-//  }
+  /**
+   * Pre-calculate all document models for all terms known from the index.
+   */
+  public void precalcDocumentModels() {
+    final Iterator<String> idxTermsIt = this.dataProv.getTermsIterator();
+
+    while (idxTermsIt.hasNext()) {
+      for (DocumentModel docModel : this.dataProv.getDocModels()) {
+
+      }
+    }
+  }
 
   private ClarityScoreResult calculateClarity(
           final Set<DocumentModel> docModels, final Iterator<String> idxTermsIt,
           final String[] queryTerms) {
     final long startTime = System.nanoTime();
-    final ClarityScoreResult result = new ClarityScoreResult(this.getClass());
     double score = 0d;
     double log;
     double qLangMod;
@@ -212,7 +215,8 @@ public class DefaultClarityScore implements ClarityScoreCalculation {
             queryTerms, docModels.size(), score, BigDecimal.valueOf(score).
             toPlainString());
 
-    result.setScore(score);
+    final ClarityScoreResult result = new ClarityScoreResult(this.getClass(),
+            score);
     final double estimatedTime = (double) (System.nanoTime() - startTime)
             / 1000000000.0;
     LOG.debug("Calculating default clarity score for query {} "

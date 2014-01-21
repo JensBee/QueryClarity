@@ -17,29 +17,20 @@
 package de.unihildesheim.lucene.scoring.clarity;
 
 /**
- * Wrapper class enclosing the results of a clarity sscore calculation.
+ * Wrapper class enclosing the results of a clarity score calculation.
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class ClarityScoreResult {
+public final class ClarityScoreResult {
 
   /**
    * Calculated clarity score.
    */
-  private double score = 0d;
+  private final Double score;
 
   /**
    * Used implementation of {@link ClarityScoreCalculation}.
    */
-  private Class<? extends ClarityScoreCalculation> type;
-
-  /**
-   * Create a new calculation result of the given type.
-   *
-   * @param cscType Class implementing {@link ClarityScoreCalculation}
-   */
-  ClarityScoreResult(final Class<? extends ClarityScoreCalculation> cscType) {
-    this.type = cscType;
-  }
+  private final Class<? extends ClarityScoreCalculation> type;
 
   /**
    * Create a new calculation result of the given type with the given value.
@@ -50,12 +41,17 @@ public class ClarityScoreResult {
   ClarityScoreResult(final Class<? extends ClarityScoreCalculation> cscType,
           final double clarityScore) {
     this.type = cscType;
-    setScore(clarityScore);
+    this.score = clarityScore;
   }
 
-  public final void clear() {
-    // reset score
-    setScore(0d);
+  /**
+   * Create a new calculation result of the given type with no result.
+   *
+   * @param cscType Class implementing {@link ClarityScoreCalculation}
+   */
+  ClarityScoreResult(final Class<? extends ClarityScoreCalculation> cscType) {
+    this.type = cscType;
+    this.score = null;
   }
 
   /**
@@ -63,17 +59,8 @@ public class ClarityScoreResult {
    *
    * @return Calculated clarity score
    */
-  public final double getScore() {
+  public double getScore() {
     return this.score;
-  }
-
-  /**
-   * Set the calculated clarity score.
-   *
-   * @param clarityScore Calculated clarity score
-   */
-  public final void setScore(final double clarityScore) {
-    this.score = clarityScore;
   }
 
   /**
@@ -82,24 +69,7 @@ public class ClarityScoreResult {
    * @return Class implementing {@link ClarityScoreCalculation} that created
    * this result instance
    */
-  public final Class<? extends ClarityScoreCalculation> getType() {
+  public Class<? extends ClarityScoreCalculation> getType() {
     return type;
-  }
-
-  /**
-   * Set the type of calculation that created this result. If the new
-   * <tt>class</tt> is not the same as the previously set <tt>class</tt> and the
-   * currently set type is not <tt>null</tt> then all previously stored results
-   * will be reset. This is done by calling the
-   * {@link ClarityScoreResult#clear()} method.
-   *
-   * @param cscType Class implementing {@link ClarityScoreCalculation}
-   */
-  public final void setType(
-          final Class<? extends ClarityScoreCalculation> cscType) {
-    if (this.type != null && !cscType.equals(this.type)) {
-      clear();
-    }
-    this.type = cscType;
   }
 }

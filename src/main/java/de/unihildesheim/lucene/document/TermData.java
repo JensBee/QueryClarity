@@ -14,35 +14,88 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 package de.unihildesheim.lucene.document;
 
 import java.io.Serializable;
+import java.util.AbstractMap;
+import java.util.Map.Entry;
 
 /**
+ * Simple triple object to store data associated to a term by specifying key and
+ * value pairs.
  *
  * @author Jens Bertram <code@jens-bertram.net>
+ * @param <K> Key type
+ * @param <V> Value type
  */
-public class TermData<K, V> implements Serializable {
-  final String term;
-  final K key;
-  final V value;
+public final class TermData<K, V> implements Serializable {
 
-  public TermData(String term, K key, V value) {
-    this.term = term;
-    this.key = key;
-    this.value = value;
+  /**
+   * Serialization class version id.
+   */
+  private static final long serialVersionUID = 0L;
+
+  /**
+   * Term to which the data is related to.
+   */
+  private final String term;
+
+  /**
+   * Key to identify the data part.
+   */
+  private final K key;
+
+  /**
+   * Data to store under a specific key.
+   */
+  private final V value;
+
+  /**
+   * Creates a new {@link TermData} triple.
+   *
+   * @param newTerm Term to which the data is related to
+   * @param newKey Key to identify the data part
+   * @param newValue Data to store under a specific key
+   */
+  public TermData(final String newTerm, final K newKey, final V newValue) {
+    this.term = newTerm;
+    this.key = newKey;
+    this.value = newValue;
   }
 
+  /**
+   * Get the term part of this triple.
+   *
+   * @return Term value
+   */
   public String getTerm() {
     return this.term;
   }
 
+  /**
+   * Get the key part of this triple.
+   *
+   * @return Key object
+   */
   public K getKey() {
     return this.key;
   }
 
+  /**
+   * Get the value part of this triple.
+   *
+   * @return Stored value
+   */
   public V getValue() {
     return this.value;
+  }
+
+  /**
+   * Get the <tt>key, value</tt> touple stored in this triple.
+   *
+   * @return <tt>key, value</tt> touple stored in this triple
+   */
+  public Entry<K, V> getEntry() {
+    return new AbstractMap.SimpleEntry(getKey(), getValue());
   }
 }
