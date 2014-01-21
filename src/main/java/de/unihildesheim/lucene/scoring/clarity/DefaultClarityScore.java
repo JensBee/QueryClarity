@@ -21,6 +21,7 @@ import de.unihildesheim.lucene.document.Feedback;
 import de.unihildesheim.lucene.document.TermDataManager;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.query.QueryUtils;
+import de.unihildesheim.util.TimeMeasure;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.HashSet;
@@ -192,7 +193,7 @@ public class DefaultClarityScore implements ClarityScoreCalculation {
   private ClarityScoreResult calculateClarity(
           final Set<DocumentModel> docModels, final Iterator<String> idxTermsIt,
           final String[] queryTerms) {
-    final long startTime = System.nanoTime();
+    final TimeMeasure timeMeasure = new TimeMeasure().start();
     double score = 0d;
     double log;
     double qLangMod;
@@ -217,11 +218,12 @@ public class DefaultClarityScore implements ClarityScoreCalculation {
 
     final ClarityScoreResult result = new ClarityScoreResult(this.getClass(),
             score);
-    final double estimatedTime = (double) (System.nanoTime() - startTime)
-            / 1000000000.0;
+
+    timeMeasure.stop();
     LOG.debug("Calculating default clarity score for query {} "
             + "with {} document models took {} seconds.", queryTerms, docModels.
-            size(), estimatedTime);
+            size(), timeMeasure.getElapsedSeconds());
+    
     return result;
   }
 

@@ -16,10 +16,11 @@
  */
 package de.unihildesheim.lucene.index;
 
-import de.unihildesheim.lucene.StringUtils;
+import de.unihildesheim.util.StringUtils;
 import de.unihildesheim.lucene.document.DefaultDocumentModel;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.DocumentModelException;
+import de.unihildesheim.util.TimeMeasure;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -154,13 +155,12 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
     boolean needsRecalc;
 
     // try load cached data
-    final long startTime = System.nanoTime();
+    final TimeMeasure timeMeasure = new TimeMeasure().start();
     Map<Integer, DocumentModel> docModels = this.db.getHashMap("docModels");
     this.setDocModelMap(docModels);
     Map<String, TermFreqData> termFreq = this.db.getHashMap("termFreq");
     this.setTermFreqMap(termFreq);
-    final double estimatedTime = (double) (System.nanoTime() - startTime)
-            / 1000000000.0;
+    timeMeasure.stop();
 
     // check if storage meta information is there and fields are defined
     if (getStorageInfo()) {
@@ -175,7 +175,7 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
         if (!needsRecalc) {
           LOG.info("Loading docModels={} termFreq={} from cache "
                   + "took {} seconds.", this.getDocModelMap().size(), this.
-                  getTermFreqMap().size(), estimatedTime);
+                  getTermFreqMap().size(), timeMeasure.getElapsedSeconds());
         }
         // debug
         if (LOG.isTraceEnabled()) {

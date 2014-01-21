@@ -19,6 +19,7 @@ package de.unihildesheim.lucene.index;
 import de.unihildesheim.lucene.document.DocFieldsTermsEnum;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.DocumentModelException;
+import de.unihildesheim.util.TimeMeasure;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
@@ -85,7 +86,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    */
   protected final void calculateTermFrequencies(final IndexReader reader) throws
           IOException {
-    final long startTime = System.nanoTime();
+    final TimeMeasure timeMeasure = new TimeMeasure().start();
     final Fields idxFields = MultiFields.getFields(reader); // NOPMD
 
     Terms fieldTerms;
@@ -115,10 +116,10 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
         }
       }
     }
-    final double estimatedTime = (double) (System.nanoTime() - startTime)
-            / 1000000000.0;
+    timeMeasure.stop();
     LOG.info("Calculation of term frequencies for {} terms in index "
-            + "took {} seconds.", termFreqMap.size(), estimatedTime);
+            + "took {} seconds.", termFreqMap.size(), timeMeasure.
+            getElapsedSeconds());
   }
 
   /**
@@ -186,7 +187,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   protected final void createDocumentModels(
           final Class<? extends DocumentModel> modelType,
           final IndexReader reader) throws DocumentModelException {
-    final long startTime = System.nanoTime();
+    final TimeMeasure timeMeasure = new TimeMeasure().start();
     // create an enumerator enumarating over all specified document fields
     final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(reader,
             this.fields);
@@ -252,10 +253,9 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
       this.docModelMap.put(docId, docModel);
     }
 
-    final double estimatedTime = (double) (System.nanoTime() - startTime)
-            / 1000000000.0;
+    timeMeasure.stop();
     LOG.info("Calculation of document models for {} documents took {} seconds.",
-            this.docModelMap.size(), estimatedTime);
+            this.docModelMap.size(), timeMeasure.getElapsedSeconds());
   }
 
   /**
@@ -292,7 +292,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * {@link AbstractIndexDataProvider#calculateTermFrequencies(IndexReader)}.
    */
   protected final void calculateRelativeTermFrequencies() {
-    final long startTime = System.nanoTime();
+    final TimeMeasure timeMeasure = new TimeMeasure().start();
 
     final double cFreq = (double) getTermFrequency(); // NOPMD
 
@@ -302,11 +302,10 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
       updateTermFreqValue(term, rTermFreq);
     }
 
-    final double estimatedTime = (double) (System.nanoTime() - startTime)
-            / 1000000000.0;
+    timeMeasure.stop();
     LOG.info("Calculation of relative term frequencies "
             + "for {} terms in index took {} seconds.", termFreqMap.size(),
-            estimatedTime);
+            timeMeasure.getElapsedSeconds());
   }
 
   @Override
@@ -397,13 +396,16 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   }
 
   /**
-   * Set the document models known by this instance.
+   * Set the document models known by this instance. The passed in map will be
+   * used directly to allow specific map implementations and should not be
+   * modified externally in any way.
    *
-   * @param newDocModels Document models
+   * @param newDocModelMap Document model map
    */
+  @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
   protected final void setDocModelMap(
-          final Map<Integer, DocumentModel> newDocModels) {
-    this.docModelMap = newDocModels;
+          final Map<Integer, DocumentModel> newDocModelMap) {
+    this.docModelMap = newDocModelMap;
   }
 
   /**
@@ -418,11 +420,14 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
 
   /**
    * Set the calculated frequency values for each term in the index. Note that
-   * <tt>null</tt> is not allowed for any value.
+   * <tt>null</tt> is not allowed for any value. The passed in map will be used
+   * directly to allow specific map implementations and should not be modified
+   * externally in any way.
    *
    * @param newTermFreq Mapping of <tt>Term->(Long) overall index frequency,
    * (Double) relative index frequency</tt> for every term in the index
    */
+  @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
   protected final void setTermFreqMap(
           final Map<String, TermFreqData> newTermFreq) {
     this.termFreqMap = newTermFreq;

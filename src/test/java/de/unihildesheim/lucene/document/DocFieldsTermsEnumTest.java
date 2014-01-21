@@ -16,7 +16,7 @@
  */
 package de.unihildesheim.lucene.document;
 
-import de.unihildesheim.lucene.StringUtils;
+import de.unihildesheim.util.StringUtils;
 import de.unihildesheim.lucene.TestUtility;
 import de.unihildesheim.lucene.index.MemoryIndex;
 import java.io.IOException;

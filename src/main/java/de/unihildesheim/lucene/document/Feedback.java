@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.lucene.document;
 
+import de.unihildesheim.util.TimeMeasure;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -64,7 +65,7 @@ public final class Feedback {
    */
   public static TopDocs get(final IndexReader reader, final Query query,
           final int maxDocCount) throws IOException {
-    final long startTime = System.nanoTime();
+    final TimeMeasure timeMeasure = new TimeMeasure().start();
     LOG.debug("Getting feedback documents...");
 
     final IndexSearcher searcher = new IndexSearcher(reader);
@@ -89,10 +90,10 @@ public final class Feedback {
               fbDocCnt, results.totalHits);
     }
 
-    final double estimatedTime = (double) (System.nanoTime() - startTime)
-            / 1000000000.0;
+    timeMeasure.stop();
     LOG.debug("Getting {} feedback documents for query {} "
-            + "took {} seconds.", fbDocCnt, query, estimatedTime);
+            + "took {} seconds.", fbDocCnt, query, timeMeasure.
+            getElapsedSeconds());
     return results;
   }
 
@@ -110,7 +111,7 @@ public final class Feedback {
   public static Integer[] getFixed(final IndexReader reader,
           final Query query,
           final int docCount) throws IOException {
-    final long startTime = System.nanoTime();
+    final TimeMeasure timeMeasure = new TimeMeasure().start();
     LOG.debug("Getting {} feedback documents...", docCount);
     // number of documents in index
     final int maxIdxDocs = reader.maxDoc();
@@ -179,10 +180,10 @@ public final class Feedback {
       }
     }
 
-    final double estimatedTime = (double) (System.nanoTime() - startTime)
-            / 1000000000.0;
+    timeMeasure.stop();
     LOG.debug("Getting {} feedback documents for query {} "
-            + "took {} seconds.", maxRetDocs, query, estimatedTime);
+            + "took {} seconds.", maxRetDocs, query, timeMeasure.
+            getElapsedSeconds());
     return docIds.toArray(new Integer[docIds.size()]);
   }
 }
