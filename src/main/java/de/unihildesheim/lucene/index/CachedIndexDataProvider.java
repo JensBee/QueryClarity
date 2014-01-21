@@ -34,6 +34,7 @@ import java.util.Date;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
+import java.util.logging.Level;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.mapdb.DB;
@@ -49,7 +50,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class CachedIndexDataProvider extends AbstractIndexDataProvider {
+public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
 
   /**
    * Separator to store field names.
@@ -149,7 +150,7 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
    * @throws IOException Thrown, on low-level errors while accessing the cached
    * data
    */
-  public final boolean tryGetStoredData() throws IOException {
+  public boolean tryGetStoredData() throws IOException {
     LOG.info("Trying to get disk storage ({})", this.storagePath);
 
     boolean needsRecalc;
@@ -225,7 +226,7 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
    * @throws de.unihildesheim.lucene.document.DocumentModelException Thrown, if
    * the {@link DocumentModel} of the requested type could not be instantiated
    */
-  public final void recalculateData(final IndexReader indexReader,
+  public void recalculateData(final IndexReader indexReader,
           final String[] targetFields, final boolean all) throws IOException,
           DocumentModelException {
     // check parameter sanity
@@ -265,6 +266,16 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
             FIELD_NAME_SEP));
     this.storageProp.setProperty("timestamp", new SimpleDateFormat(
             "MM/dd/yyyy h:mm:ss a").format(new Date()));
+    saveMetadata();
+  }
+
+  /**
+   * Save meta information for stored data.
+   *
+   * @throws FileNotFoundException If there where any low-level I/O errors
+   * @throws IOException If there where any low-level I/O errors
+   */
+  private void saveMetadata() throws FileNotFoundException, IOException {
     final File propFile = new File(this.storagePath, this.storageId
             + ".properties");
     try (FileOutputStream propFileOut = new FileOutputStream(propFile)) {
@@ -273,7 +284,7 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
   }
 
   @Override
-  public final void dispose() {
+  public void dispose() {
     // debug
     if (LOG.isTraceEnabled()) {
       for (Entry<String, TermFreqData> data : this.getTermFreqMap().entrySet()) {
@@ -282,8 +293,32 @@ public class CachedIndexDataProvider extends AbstractIndexDataProvider {
       }
     }
 
+    try {
+      // update meta-data
+      saveMetadata();
+    } catch (IOException ex) {
+      LOG.error("Error while storing meta informations.", ex);
+    }
+
     // commit changes & close storage
     this.db.commit();
     this.db.close();
+  }
+
+  @Override
+  public void setProperty(final String prefix, final String key,
+          final String value) {
+    this.storageProp.setProperty(prefix + '_' + key, value);
+  }
+
+  @Override
+  public String getProperty(final String prefix, final String key) {
+    return this.storageProp.getProperty(prefix + "_" + key);
+  }
+
+  @Override
+  public String getProperty(final String prefix, final String key,
+          final String defaultValue) {
+    return this.storageProp.getProperty(prefix + "_" + key, defaultValue);
   }
 }

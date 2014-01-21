@@ -119,7 +119,43 @@ public interface IndexDataProvider {
 
   /**
    * Get all document models known to this {@link IndexDataProvider}.
+   *
    * @return All document models known to this instance
    */
   Collection<DocumentModel> getDocModels();
+
+  /**
+   * Stores a property value to the {@link IndexDataProvider}. Depending on the
+   * implementation this property may be persistent.
+   *
+   * @param prefix Prefix to identify the property store
+   * @param key Key to assign a property to
+   * @param value Property value
+   */
+  void setProperty(final String prefix, final String key, final String value);
+
+  /**
+   * Retrieve a previously stored property from the {@link IndexDataProvider}.
+   * Depending on the implementation stored property values may be persistent
+   * between instantiations.
+   *
+   * @param prefix Prefix to identify the property store
+   * @param key Key under which the property was stored
+   * @return The stored property vale or null, if none was found
+   */
+  String getProperty(final String prefix, final String key);
+
+  /**
+   * Same as {@link IndexDataProvider#getProperty(String, String)}, but allows
+   * to specify a default value.
+   *
+   * @param prefix Prefix to identify the property store
+   * @param key Key under which the property was stored
+   * @param defaultValue Default value to return, if the specified key was not
+   * found
+   * @return The stored property vale or <tt>defaultValue</tt>, if none was
+   * found
+   */
+  String getProperty(final String prefix, final String key,
+          final String defaultValue);
 }

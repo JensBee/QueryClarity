@@ -205,17 +205,6 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
         continue;
       }
 
-      // get/create the document model for the current document
-      DocumentModel docModel = this.docModelMap.remove(docId);
-      if (docModel == null) {
-        try {
-          docModel = modelType.newInstance().setDocId(docId);
-        } catch (InstantiationException | IllegalAccessException ex) {
-          LOG.error("Error creating document model.", ex);
-          throw new DocumentModelException(ex);
-        }
-      }
-
       // clear previous cached document term values
       docTerms.clear();
 
@@ -243,6 +232,19 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
         }
       } catch (IOException ex) {
         LOG.error("Error while getting terms for document id {}", docId, ex);
+      }
+
+      // get/create the document model for the current document
+      DocumentModel docModel = this.docModelMap.remove(docId);
+      if (docModel == null) {
+        try {
+          // create a new model with the given id and
+          // the expected number of terms
+          docModel = modelType.newInstance().create(docId, docTerms.size());
+        } catch (InstantiationException | IllegalAccessException ex) {
+          LOG.error("Error creating document model.", ex);
+          throw new DocumentModelException(ex);
+        }
       }
 
       // All terms from all document fields are gathered.

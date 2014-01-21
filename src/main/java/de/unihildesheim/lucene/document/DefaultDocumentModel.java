@@ -20,6 +20,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -34,6 +35,11 @@ import org.slf4j.LoggerFactory;
 public final class DefaultDocumentModel implements DocumentModel, Serializable {
 
   /**
+   * Serialization class version id.
+   */
+  private static final long serialVersionUID = 0L;
+
+  /**
    * Logger instance for this class.
    */
   private static final transient Logger LOG = LoggerFactory.getLogger(
@@ -45,9 +51,20 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
   private final Integer docId;
 
   /**
+   * Initial size of {@link DefaultDocumentModel#termFreqMap} storage, if no
+   * value was supplied.
+   */
+  private static final int INITIAL_TERMFREQMAP_SIZE = 100;
+
+  /**
    * Stores the document frequency for each known term.
    */
   private final Map<String, Long> termFreqMap;
+
+  /**
+   * Initial size of {@link DefaultDocumentModel#termData} storage.
+   */
+  private static final int INITIAL_TERMDATA_SIZE = 20;
 
   /**
    * Stores arbitrary key-value data for each term.
@@ -55,15 +72,23 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
   private final List<TermData<String, Number>> termData;
 
   /**
-   * Creates a new DocumentModel for a specific document denoted by it's Lucene
-   * document id.
+   * Stores the calculated overall term frequency of all terms from the index.
+   */
+  private long overallTermFrequency = 0L;
+
+  /**
+   * Internal constructor used to create a new {@link DocumentModel} for a
+   * specific document denoted by it's Lucene document id. The
+   * <code>termsCount</code> value will be used to initialize the internal data
+   * store.
    *
    * @param documentId Lucene's document-id
+   * @param termsCount Number of terms expected for this document
    */
-  public DefaultDocumentModel(final int documentId) {
+  private DefaultDocumentModel(final int documentId, final int termsCount) {
     this.docId = documentId;
-    this.termData = null;
-    this.termFreqMap = null;
+    this.termData = new ArrayList(termsCount);
+    this.termFreqMap = new HashMap(termsCount);
   }
 
   /**
@@ -101,7 +126,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
 
     final List<TermData<String, Number>> newTermData;
     if (this.termData == null) {
-      newTermData = new ArrayList();
+      newTermData = new ArrayList(INITIAL_TERMDATA_SIZE);
     } else {
       newTermData = (List) ((ArrayList) this.termData).clone();
     }
@@ -114,9 +139,14 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
     Number retVal = null;
 
     if (this.termData != null) {
-      for (TermData<String, Number> data : this.termData) {
-        if (data != null && data.getTerm() != null && data.getKey() != null
-                && data.getTerm().equals(term) && data.getKey().equals(key)) {
+      // temporary object for fast lookup (?)
+      final int index = this.termData.indexOf(new TermData(term, key));
+
+      // start searching at the first occourence of the term + key
+      for (int i = index; i < this.termData.size(); i++) {
+        final TermData<String, Number> data = this.termData.get(i);
+        if (data != null && data.getTerm().equals(term) && data.getKey().equals(
+                key)) {
           retVal = data.getValue();
           break;
         }
@@ -131,7 +161,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
     if (term == null || this.termFreqMap == null) {
       return false;
     }
-    return termFreqMap.keySet().contains(term);
+    return termFreqMap.containsKey(term);
   }
 
   /**
@@ -143,7 +173,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
           final long frequency) {
     final Map<String, Long> newTermFreq;
     if (this.termFreqMap == null) {
-      newTermFreq = new HashMap();
+      newTermFreq = new HashMap(INITIAL_TERMFREQMAP_SIZE);
     } else {
       newTermFreq = (Map) ((HashMap) this.termFreqMap).clone();
     }
@@ -169,18 +199,16 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
 
   @Override
   public long getTermFrequency() {
-    long value = 0L;
-
-    if (this.termFreqMap != null) {
+    if (this.overallTermFrequency == 0L && this.termFreqMap != null) {
       final Iterator<Long> termFreqIt = termFreqMap.values().iterator();
       while (termFreqIt.hasNext()) {
         final Long freq = termFreqIt.next();
         if (freq != null) {
-          value += freq;
+          this.overallTermFrequency += freq;
         }
       }
     }
-    return value;
+    return this.overallTermFrequency;
   }
 
   @Override
@@ -200,5 +228,10 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
     }
 
     return value;
+  }
+
+  @Override
+  public DocumentModel create(final int documentId, final int termsCount) {
+    return new DefaultDocumentModel(documentId, termsCount);
   }
 }

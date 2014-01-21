@@ -58,9 +58,25 @@ public final class TermData<K, V> implements Serializable {
    * @param newValue Data to store under a specific key
    */
   public TermData(final String newTerm, final K newKey, final V newValue) {
+    if (newKey == null) {
+      throw new IllegalArgumentException("Key must not be null.");
+    }
     this.term = newTerm;
     this.key = newKey;
     this.value = newValue;
+  }
+
+  /**
+   * Constructor meant for creating an comparing object for
+   * <code>.equals()</code> lookups.
+   *
+   * @param newTerm Term to match
+   * @param newKey Key to match
+   */
+  public TermData(final String newTerm, final K newKey) {
+    this.term = newTerm;
+    this.key = newKey;
+    this.value = null;
   }
 
   /**
@@ -97,5 +113,37 @@ public final class TermData<K, V> implements Serializable {
    */
   public Entry<K, V> getEntry() {
     return new AbstractMap.SimpleEntry(getKey(), getValue());
+  }
+
+  /**
+   * The equals implementation compares the <tt>term</tt> value only. This is
+   * for fast lookups in {@link List}s.
+   *
+   * @param otherObj Other object to compare to
+   * @return True, if both objects are {@link TermData} instances and have the
+   * same <tt>key</tt> set
+   */
+  @Override
+  public boolean equals(final Object otherObj) {
+    if (this == otherObj) {
+      return true;
+    }
+
+    if (otherObj instanceof TermData) {
+      TermData otherTermData = (TermData) otherObj;
+      return term.equals(otherTermData.term) && key.equals(otherTermData.key);
+    } else {
+      return false;
+    }
+  }
+
+  /**
+   * Simple hashCode calculation.
+   *
+   * @return HashCode value of the <tt>term</tt> + <tt>key</tt> value
+   */
+  @Override
+  public int hashCode() {
+    return term.hashCode() + key.hashCode();
   }
 }

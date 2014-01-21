@@ -24,8 +24,10 @@ import de.unihildesheim.lucene.query.QueryUtils;
 import de.unihildesheim.util.TimeMeasure;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
@@ -44,34 +46,56 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class DefaultClarityScore implements ClarityScoreCalculation {
+public final class DefaultClarityScore implements ClarityScoreCalculation {
 
   /**
-   * Prefix to use to store calculated term-data values in cache.
+   * Prefix to use to store calculated term-data values in cache and access
+   * properties stored in the {@link DataProvider}.
    */
-  private static final String TD_PREFIX = "DCS";
+  private static final String PREFIX = "DCS";
 
   /**
-   * Keys to store calculation results in document models.
+   * Keys to store calculation results in document models and access properties
+   * stored in the {@link DataProvider}.
    */
-  private enum TermDataKeys {
+  private enum DataKeys {
 
     /**
-     * Stores the document model for a specific term.
+     * Stores the document model for a specific term in a {@link DocumentModel}.
      */
-    DOC_MODEL
+    DOC_MODEL,
+    /**
+     * Flag to indicate, if all document-models have already been
+     * pre-calculated. Stored in the {@link IndexDataProvider}.
+     */
+    DOCMODELS_PRECALCULATED
   }
+
+  /**
+   * Default multiplier value for relative term frequency inside documents.
+   */
+  private static final double DEFAULT_LANGMODEL_WEIGHT = 0.6d;
 
   /**
    * Multiplier for relative term frequency inside documents.
    */
-  private double langmodelWeight = 0.6d;
+  private double langmodelWeight = DEFAULT_LANGMODEL_WEIGHT;
 
   /**
-   * Number of feedback documents to use. Cronen-Townsend et al. recommend 500
-   * documents.
+   * Allowed delta when resetting language model weights.
    */
-  private int fbDocCount = 500;
+  private static final double LANGMODEL_EPSILON = 0.000000000000001;
+
+  /**
+   * Default number of feedback documents to use. Cronen-Townsend et al.
+   * recommend 500 documents.
+   */
+  private static final int DEFAULT_FEDDBACK_DOCS_COUNT = 500;
+
+  /**
+   * Number of feedback documents to use.
+   */
+  private int fbDocCount = DEFAULT_FEDDBACK_DOCS_COUNT;
 
   /**
    * Logger instance for this class.
@@ -82,18 +106,18 @@ public class DefaultClarityScore implements ClarityScoreCalculation {
   /**
    * Provider for statistical index related informations.
    */
-  private IndexDataProvider dataProv;
+  private final IndexDataProvider dataProv;
 
   /**
    * Index reader used by this instance.
    */
-  private IndexReader reader;
+  private final IndexReader reader;
 
   /**
    * {@link TermDataManager} to access to extended data storage for
    * {@link DocumentModel} data storage.
    */
-  private TermDataManager tdMan;
+  private final TermDataManager tdMan;
 
   /**
    * Default constructor using the {@link IndexDataProvider} for statistical
@@ -107,7 +131,19 @@ public class DefaultClarityScore implements ClarityScoreCalculation {
     super();
     this.reader = indexReader;
     this.dataProv = dataProvider;
-    this.tdMan = new TermDataManager(TD_PREFIX, this.dataProv);
+    this.tdMan = new TermDataManager(PREFIX, this.dataProv);
+  }
+
+  /**
+   * Calculates the default value, if the term is not contained in document.
+   * This value is also part of the regular calculation formula.
+   *
+   * @param term Term whose model to calculate
+   * @return The calculated default model value
+   */
+  private double getDefaultDocumentModel(final String term) {
+    return (double) (1 - langmodelWeight) * dataProv.getRelativeTermFrequency(
+            term);
   }
 
   /**
@@ -115,81 +151,96 @@ public class DefaultClarityScore implements ClarityScoreCalculation {
    *
    * @param docModel Document model to do the calculation for
    * @param term Term to do the calculation for
+   * @param force If true, the recalculation of the stored model values is
+   * forced
    * @return Calculated language model for the given document and term
    */
   private double getDocumentModel(final DocumentModel docModel,
-          final String term) {
+          final String term, final boolean force) {
     Double model;
-    // default value, if term is not contained in document,
-    // also part of the regular formular
-    final double defaultValue = (double) (1 - langmodelWeight) * dataProv.
-            getRelativeTermFrequency(term);
 
     if (docModel.containsTerm(term)) {
       // try to get the already calculated value
       model = (Double) this.tdMan.getTermData(docModel, term,
-              TermDataKeys.DOC_MODEL.toString());
+              DataKeys.DOC_MODEL.toString());
 
-      if (model == null) {
+      if (model == null || force) {
         // no value was stored, so calculate it
         model = langmodelWeight * ((double) docModel.getTermFrequency(term)
-                / (double) docModel.getTermFrequency()) + defaultValue;
+                / (double) docModel.getTermFrequency())
+                + getDefaultDocumentModel(term);
         // update document model
         this.tdMan.setTermData(docModel, term,
-                TermDataKeys.DOC_MODEL.toString(), model);
+                DataKeys.DOC_MODEL.toString(), model);
       }
     } else {
       // term not in document
-      model = defaultValue;
+      model = getDefaultDocumentModel(term);
     }
 
     return model;
   }
 
   /**
-   * Calculate the query language model.
+   * Calculate the weighting value for all terms in the query.
    *
    * @param docModels Document models to use for calculation
-   * @param queryTerms All terms from the original query
-   * @param currTerm Current term to do the calculation for
-   * @return Query language model for the given term
+   * @param queryTerms Terms of the originating query
+   * @return Mapping of {@link DocumentModel} to calculated language model
    */
-  private double calcQueryLangModel(final Set<DocumentModel> docModels,
-          final String[] queryTerms, final String currTerm) {
-    double prob = 0d;
+  private Map<DocumentModel, Double> calculateQueryModelWeight(
+          final Set<DocumentModel> docModels,
+          final String[] queryTerms) {
+    final Map<DocumentModel, Double> weights = new HashMap(docModels.size());
+    @SuppressWarnings("UnusedAssignment")
     double modelWeight = 1d;
     Double docLangModelCollection; // language model for collection term
-    Double docLangModelTerm; // language model for current term
 
     for (DocumentModel docModel : docModels) {
       modelWeight = 1d;
       for (String term : queryTerms) {
-        docLangModelCollection = getDocumentModel(docModel, term);
+        docLangModelCollection = getDocumentModel(docModel, term, false);
         modelWeight *= docLangModelCollection;
       }
-      docLangModelTerm = getDocumentModel(docModel, currTerm);
-      prob += docLangModelTerm * modelWeight;
+      weights.put(docModel, modelWeight);
     }
-
-    LOG.trace("[pQ(t)] Q={} t={} p={} (using {} feedback documents)",
-            queryTerms, currTerm, prob, docModels.size());
-
-    return prob;
+    return weights;
   }
 
   /**
    * Pre-calculate all document models for all terms known from the index.
+   *
+   * Forcing a recalculation is needed, if the language model weight has changed
+   * by calling {@link DefaultClarityScore#setLangmodelWeight(double)}.
+   *
+   * @param force If true, the recalculation is forced
    */
-  public void precalcDocumentModels() {
+  public void preCalcDocumentModels(final boolean force) {
+    final TimeMeasure timeMeasure = new TimeMeasure().start();
+    LOG.info("Pre-calculating document models for all terms in index.");
     final Iterator<String> idxTermsIt = this.dataProv.getTermsIterator();
 
     while (idxTermsIt.hasNext()) {
+      final String term = idxTermsIt.next();
       for (DocumentModel docModel : this.dataProv.getDocModels()) {
-
+        getDocumentModel(docModel, term, force);
       }
     }
+    timeMeasure.stop();
+    LOG.info("Pre-calculating document models for all terms in index "
+            + "took {} seconds", timeMeasure.getElapsedSeconds());
+    // store that we have pre-calculated values
+    this.dataProv.setProperty(PREFIX, DataKeys.DOCMODELS_PRECALCULATED.
+            toString(), "true");
   }
 
+  /**
+   * Calculate the clarity score.
+   * @param docModels Document models to use for calculation
+   * @param idxTermsIt Iterator over all terms from the index
+   * @param queryTerms Terms contained in the originating query
+   * @return Result of the calculation
+   */
   private ClarityScoreResult calculateClarity(
           final Set<DocumentModel> docModels, final Iterator<String> idxTermsIt,
           final String[] queryTerms) {
@@ -198,13 +249,22 @@ public class DefaultClarityScore implements ClarityScoreCalculation {
     double log;
     double qLangMod;
 
-    LOG.debug("Calculating clarity score query={}", queryTerms);
+    LOG.debug("Calculating clarity score query={}", (Object[]) queryTerms);
+
+    Map<DocumentModel, Double> modelWeights = calculateQueryModelWeight(
+            docModels, queryTerms);
 
     // iterate over all terms in index
     while (idxTermsIt.hasNext()) {
       final String term = idxTermsIt.next();
+
       // calculate the query probability of the current term
-      qLangMod = calcQueryLangModel(docModels, queryTerms, term);
+      qLangMod = 0d;
+      for (DocumentModel docModel : docModels) {
+        qLangMod += getDocumentModel(docModel, term, false) * modelWeights.get(
+                docModel);
+      }
+
       // calculate logarithmic part of the formular
       log = (Math.log(qLangMod) / Math.log(2)) / (Math.log(
               dataProv.getRelativeTermFrequency(term)) / Math.log(2));
@@ -223,18 +283,30 @@ public class DefaultClarityScore implements ClarityScoreCalculation {
     LOG.debug("Calculating default clarity score for query {} "
             + "with {} document models took {} seconds.", queryTerms, docModels.
             size(), timeMeasure.getElapsedSeconds());
-    
+
     return result;
   }
 
   @Override
-  public final ClarityScoreResult calculateClarity(final Query query) {
+  public ClarityScoreResult calculateClarity(final Query query) {
     ClarityScoreResult result;
 
     Integer[] fbDocIds;
 
+    // check if document models are pre-calculated and stored
+    final boolean hasPrecalcData = Boolean.parseBoolean(this.dataProv.
+            getProperty(
+                    PREFIX, DataKeys.DOCMODELS_PRECALCULATED.toString()));
+    if (hasPrecalcData) {
+      LOG.info("Using pre-calculated document models.");
+    } else {
+      // document models have to be calculated - this is not a must, but is a
+      // good idea (performance-wise)
+      preCalcDocumentModels(false);
+    }
+
     try {
-      fbDocIds = Feedback.getFixed(reader, query, this.fbDocCount); // NOPMD
+      fbDocIds = Feedback.getFixed(reader, query, this.fbDocCount);
     } catch (IOException ex) {
       fbDocIds = new Integer[0];
       LOG.error("Error while trying to get feedback documents.", ex);
@@ -262,51 +334,13 @@ public class DefaultClarityScore implements ClarityScoreCalculation {
   }
 
   /**
-   * Get the provider for statistical index related informations used by this
-   * instance.
-   *
-   * @return Data provider used by this instance
-   */
-  public final IndexDataProvider getDataProv() {
-    return dataProv;
-  }
-
-  /**
-   * Set the provider for statistical index related informations used by this
-   * instance.
-   *
-   * @param dataProvider Data provider to use by this instance
-   */
-  public final void setDataProv(final IndexDataProvider dataProvider) {
-    this.dataProv = dataProvider;
-  }
-
-  /**
-   * Get the {@link IndexReader} used by this instance.
-   *
-   * @return {@link IndexReader} used by this instance
-   */
-  public final IndexReader getReader() {
-    return reader;
-  }
-
-  /**
-   * Set the {@link IndexReader} used by this instance.
-   *
-   * @param indexReader {@link IndexReader} to use by this instance
-   */
-  public final void setReader(final IndexReader indexReader) {
-    this.reader = indexReader;
-  }
-
-  /**
    * Get the number of feedback documents that should be used for calculation.
    * The actual number of documents used depends on the amount of document
    * available in the index.
    *
    * @return Number of feedback documents that should be used for calculation
    */
-  public final int getFbDocCount() {
+  public int getFbDocCount() {
     return fbDocCount;
   }
 
@@ -317,7 +351,7 @@ public class DefaultClarityScore implements ClarityScoreCalculation {
    *
    * @param feedbackDocCount Number of feedback documents to use for calculation
    */
-  public final void setFbDocCount(final int feedbackDocCount) {
+  public void setFbDocCount(final int feedbackDocCount) {
     this.fbDocCount = feedbackDocCount;
   }
 
@@ -326,34 +360,28 @@ public class DefaultClarityScore implements ClarityScoreCalculation {
    *
    * @return Weighting value
    */
-  public final double getLangmodelWeight() {
+  public double getLangmodelWeight() {
     return langmodelWeight;
   }
 
   /**
    * Set the weighting value used for document language model calculation. The
-   * value should always be lower than <tt>1</tt>. This will remove any
-   * calculated values from the used {@link DocumentModel} instances and forces
-   * a recalculation when needed.
+   * value should always be lower than <tt>1</tt>.
+   *
+   * Please note that you may have to recalculate any previously calculated and
+   * cached values. This can be done by calling
+   * {@link DefaultClarityScore#preCalcDocumentModels(boolean)} and setting
+   * <code>force</code> to true.
    *
    * @param newLangmodelWeight New weighting value
    */
-//  public final void setLangmodelWeight(double newLangmodelWeight) {
-//    // check, if weight has changed
-//    if (newLangmodelWeight != this.langmodelWeight) {
-//      LOG.info("Language model weight has changed. "
-//              + "Removing all calculated values from document models.");
-//
-//      final Iterator<DocumentModel> docModelIt = this.dataProv.
-//              getDocModelIterator();
-//
-//      // remove calculated values for each documentModel
-//      while (docModelIt.hasNext()) {
-//        final DocumentModel docModel = docModelIt.next();
-//        docModel.clearTermData(TermDataKeys.DOC_MODEL.toString());
-//      }
-//    }
-//
-//    this.langmodelWeight = newLangmodelWeight;
-//  }
+  public void setLangmodelWeight(final double newLangmodelWeight) {
+    // check, if weight has changed
+    if ((Math.abs(this.langmodelWeight - newLangmodelWeight) <
+            LANGMODEL_EPSILON)) {
+      LOG.info("Language model weight has changed. "
+              + "You may need to recalculate any possibly cached values.");
+    }
+    this.langmodelWeight = newLangmodelWeight;
+  }
 }

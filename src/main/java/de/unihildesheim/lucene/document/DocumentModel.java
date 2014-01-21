@@ -35,11 +35,22 @@ public interface DocumentModel extends Serializable {
   /**
    * Set the id of the associated Lucene document.
    *
-   * @param documentId Id of the associated Lucene document.
+   * @param documentId Id of the associated Lucene document
    * @return New {@link DocumentModel} with all properties of the current object
    * and the given id set.
    */
   DocumentModel setDocId(final int documentId);
+
+  /**
+   * Create a new plain {@link DocumentModel} with a specific document-id and
+   * the expected number of terms to which data should be stored.
+   *
+   * @param documentId Id of the associated Lucene document
+   * @param termsCount Number of terms to expect for this document. This value
+   * will be used to initialize the data store to the appropriate size.
+   * @return New empty {@link DocumentModel} instance
+   */
+  DocumentModel create(final int documentId, final int termsCount);
 
   /**
    * Get the id of the associated Lucene document.
