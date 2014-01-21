@@ -36,7 +36,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class DefaultDocumentModelTest {
+public final class DefaultDocumentModelTest {
 
   /**
    * Logger instance for this class.
@@ -101,7 +101,7 @@ public class DefaultDocumentModelTest {
    *
    * @return Test {@link DefaultDocumentModel} instance
    */
-  private DefaultDocumentModel createModelInstance() {
+  private DocumentModel createModelInstance() {
     return new DefaultDocumentModel(defaultDocId,
             DefaultDocumentModelTest.terms.size());
   }
@@ -111,10 +111,11 @@ public class DefaultDocumentModelTest {
    *
    * @param docModel Model to add the terms to
    */
-  private void addTermsToModel(DefaultDocumentModel docModel) {
+  private DocumentModel addTermsToModel(DocumentModel docModel) {
     for (Entry<String, Long> entry : DefaultDocumentModelTest.terms.entrySet()) {
-      docModel.addTermFrequency(entry.getKey(), entry.getValue());
+      docModel = docModel.addTermFrequency(entry.getKey(), entry.getValue());
     }
+    return docModel;
   }
 
   /**
@@ -136,94 +137,40 @@ public class DefaultDocumentModelTest {
    * Test of setTermData method, of class DefaultDocumentModel.
    */
   @Test
-  public void testSetTermData() {
-    TestUtility.logHeader(LOG, "setTermData");
+  public void testAddTermData() {
+    TestUtility.logHeader(LOG, "addTermData");
 
     final Entry<String, Long> entry = getRandomTermEntry();
     final String key = "test";
-    final String value = "foo";
+    final Number value = 123;
 
-    final DefaultDocumentModel instance = createModelInstance();
+    LOG.info("Adding v={} k={} to t={}", value, key, entry);
 
-    instance.addTermData(entry.getKey(), key, value);
+    createModelInstance().addTermData(entry.getKey(), key, value);
   }
 
   /**
-   * Test of getTermData (general object) method, of class DefaultDocumentModel.
+   * Test of getTermData method, of class DefaultDocumentModel.
    */
   @Test
-  public void testGetTermDataObject() {
-    TestUtility.logHeader(LOG, "getTermData - object");
-
-    final Entry<String, Long> entry = getRandomTermEntry();
-    final String key = "test";
-    final String value = "foo";
-
-    final DefaultDocumentModel instance = createModelInstance();
-
-    instance.addTermData(entry.getKey(), key, value);
-    final Object result = instance.getTermData(entry.getKey(), key);
-
-    final Object expResult = value;
-
-    assertEquals(expResult, result);
-  }
-
-  /**
-   * Test of getTermData (typed) method, of class DefaultDocumentModel.
-   */
-  @Test
-  public void testGetTermDataTyped() {
+  public void testGetTermData() {
     TestUtility.logHeader(LOG, "getTermData - typed");
 
     final Entry<String, Long> entry = getRandomTermEntry();
     final String key = "test";
-    final String value = "foo";
+    final Number value = 123;
 
-    final DefaultDocumentModel instance = createModelInstance();
+    LOG.info("Adding v={} k={} to t={}", value, key, entry.getKey());
 
-    instance.addTermData(entry.getKey(), key, value);
-    final String result = instance.
-            getTermData(String.class, entry.getKey(), key);
+    DocumentModel instance = createModelInstance().addTermData(entry.getKey(),
+            key, value);
 
+    final Number result = instance.getTermData(entry.getKey(), key);
     final Object expResult = value;
 
+    LOG.info("Result v={} for k={} at t={}", result, key, entry.getKey());
+
     assertEquals(expResult, result);
-  }
-
-  /**
-   * Test of clearTermData method, of class DefaultDocumentModel.
-   */
-  @Test
-  public void testClearTermData() {
-    TestUtility.logHeader(LOG, "clearTermData");
-
-    final String[] set1 = new String[]{"fooTerm", "delMeKey", "fooVal"};
-    final String[] set2 = new String[]{"barTerm", "keepMeKey", "barVal"};
-    final String[] set3 = new String[]{"bazTerm", "keepMeTooKey", "bazVal"};
-
-    final DefaultDocumentModel instance = createModelInstance();
-
-    instance.addTermData(set1[0], set1[1], set1[2]);
-    instance.addTermData(set2[0], set2[1], set2[2]);
-    instance.addTermData(set3[0], set3[1], set3[2]);
-
-    LOG.info("Checking if all data is set.");
-    assertEquals(set1[2], instance.getTermData(set1[0], set1[1]));
-    assertEquals(set2[2], instance.getTermData(set2[0], set2[1]));
-    assertEquals(set3[2], instance.getTermData(set3[0], set3[1]));
-    // random check if other key is unset
-    assertEquals(null, instance.getTermData(set1[0], set3[1]));
-
-    LOG.info("Removing data.");
-    instance.clearTermData(set1[1]);
-
-    LOG.info("Check if data was removed.");
-    assertEquals(null, instance.getTermData(set1[0], set1[1]));
-
-    LOG.info("Check if other data is still there.");
-    assertEquals(set2[2], instance.getTermData(set2[0], set2[1]));
-    assertEquals(set3[2], instance.getTermData(set3[0], set3[1]));
   }
 
   /**
@@ -234,15 +181,17 @@ public class DefaultDocumentModelTest {
     TestUtility.logHeader(LOG, "containsTerm");
 
     final Entry<String, Long> entry = getRandomTermEntry();
-
-    final DefaultDocumentModel instance = createModelInstance();
+    DocumentModel instance = createModelInstance();
 
     // no terms stored
+    LOG.info("Contains t={} on empty model", entry.getKey());
     assertEquals(false, instance.containsTerm(entry.getKey()));
-
     // add term
-    instance.addTermFrequency(entry.getKey(), entry.getValue());
+    LOG.info("Add t={} with f={}", entry.getKey(), entry.getValue());
+    instance = instance.addTermFrequency(entry.getKey(), entry.getValue());
     // must be found
+    LOG.info("Contains t={}? r={}", entry.getKey(), instance.containsTerm(entry.
+            getKey()));
     assertEquals(true, instance.containsTerm(entry.getKey()));
   }
 
@@ -250,13 +199,13 @@ public class DefaultDocumentModelTest {
    * Test of setTermFrequency method, of class DefaultDocumentModel.
    */
   @Test
-  public void testSetTermFrequency() {
-    TestUtility.logHeader(LOG, "setTermFrequency");
+  public void testAddTermFrequency() {
+    TestUtility.logHeader(LOG, "addTermFrequency");
 
     final Entry<String, Long> entry = getRandomTermEntry();
-    final DefaultDocumentModel instance = createModelInstance();
-
-    instance.addTermFrequency(entry.getKey(), entry.getValue());
+    LOG.info("Add t={} with f={}", entry.getKey(), entry.getValue());
+    final DocumentModel instance = createModelInstance().addTermFrequency(entry.
+            getKey(), entry.getValue());
   }
 
   /**
@@ -266,9 +215,9 @@ public class DefaultDocumentModelTest {
   public void testGetDocId() {
     TestUtility.logHeader(LOG, "getDocId");
 
-    final DefaultDocumentModel instance = createModelInstance();
+    final DocumentModel instance = createModelInstance();
+    LOG.info("Lookig for default id={}", defaultDocId);
     final int result = instance.getDocId();
-
     assertEquals(defaultDocId, result);
   }
 
@@ -279,13 +228,11 @@ public class DefaultDocumentModelTest {
   public void testSetDocId() {
     TestUtility.logHeader(LOG, "setDocId");
 
-    final DefaultDocumentModel instance = createModelInstance();
     final int expResult = 328;
-
-    instance.setDocId(expResult);
-
+    LOG.info("Set id={}", expResult);
+    DocumentModel instance = createModelInstance().setDocId(expResult);
     final int result = instance.getDocId();
-
+    LOG.info("Got id={}", result);
     assertEquals(expResult, result);
   }
 
@@ -294,38 +241,29 @@ public class DefaultDocumentModelTest {
    * DefaultDocumentModel.
    */
   @Test
-  public void testGetTermFrequencyAll() {
+  public void testGetTermFrequency_0args() {
     TestUtility.logHeader(LOG, "getTermFrequency - overall");
 
-    DefaultDocumentModel instance = createModelInstance();
+    DocumentModel instance = createModelInstance();
 
     LOG.info("Try empty model.");
     // no terms - no frequency
     assertEquals(0L, instance.getTermFrequency());
 
     LOG.info("Try model with data.");
-    addTermsToModel(instance);
+    instance = addTermsToModel(instance);
     assertEquals(termFreq, instance.getTermFrequency());
   }
 
   /**
-   * Test of getTermFrequency method, of class DefaultDocumentModel.
+   * Test of create method, of class DefaultDocumentModel.
    */
   @Test
-  public void testGetTermFrequencyForTerm() {
-    TestUtility.logHeader(LOG, "getTermFrequency - term");
-
-    final DefaultDocumentModel instance = createModelInstance();
-    final Entry<String, Long> entry = getRandomTermEntry();
-
-    LOG.info("Try empty model.");
-    // no terms - no frequency
-    assertEquals(0L, instance.getTermFrequency("foo"));
-
-    LOG.info("Try model with data.");
-    addTermsToModel(instance);
-    assertEquals((Long) entry.getValue(), (Long) instance.getTermFrequency(
-            entry.getKey()));
+  public void testCreate() {
+    TestUtility.logHeader(LOG, "create");
+    DocumentModel instance = new DefaultDocumentModel();
+    DocumentModel result = instance.create(defaultDocId, 0);
+    assertEquals(defaultDocId, result.getDocId());
   }
 
 }

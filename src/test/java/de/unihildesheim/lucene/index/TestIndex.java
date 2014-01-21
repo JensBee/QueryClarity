@@ -634,6 +634,36 @@ public class TestIndex implements IndexDataProvider {
     throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
   }
 
+  @Override
+  public DocumentModel removeDocumentModel(int docId) {
+    throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public void addDocumentModel(DocumentModel documentModel) {
+    throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public Collection<DocumentModel> getDocModels() {
+    throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public void setProperty(String prefix, String key, String value) {
+    throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public String getProperty(String prefix, String key) {
+    throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public String getProperty(String prefix, String key, String defaultValue) {
+    throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+  }
+
   private class TestDocumentModel implements DocumentModel {
 
     private final int docId;
@@ -652,11 +682,6 @@ public class TestIndex implements IndexDataProvider {
       return TestIndex.this.getTermFrequency(this.docId, term);
     }
 
-//    @Override
-//    public double termProbability(final String term) {
-//      return TestIndex.this.getDocumentProbability(term, this.docId);
-//    }
-
     @Override
     public int getDocId() {
       return this.docId;
@@ -668,27 +693,27 @@ public class TestIndex implements IndexDataProvider {
     }
 
     @Override
-    public void addTermFrequency(String term, long frequency) {
+    public Number getTermData(String term, String key) {
       throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
-    public Object getTermData(String term, String key) {
+    public DocumentModel setDocId(int documentId) {
       throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
-    public <T> T getTermData(Class<T> cls, String term, String key) {
+    public DocumentModel create(int documentId, int termsCount) {
       throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
-    public void addTermData(String term, String key, Object value) {
+    public DocumentModel addTermFrequency(String term, long frequency) {
       throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
-    public void clearTermData(String key) {
+    public DocumentModel addTermData(String term, String key, Number value) {
       throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
   }

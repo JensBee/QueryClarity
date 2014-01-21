@@ -59,7 +59,7 @@ public final class TermDataManager {
    * @see DocumentModel#addTermData(String, String, Object)
    */
   public void setTermData(final DocumentModel docModel, final String term,
-          final String key, final Object value) {
+          final String key, final Number value) {
     final DocumentModel changedModel = docModel.addTermData(term, this.prefix
             + "_" + key, value);
     this.dataProv.addDocumentModel(changedModel);
@@ -75,7 +75,7 @@ public final class TermDataManager {
    * null, if no value was stored
    * @see DocumentModel#getTermData(String, String)
    */
-  public Object getTermData(final DocumentModel docModel,
+  public Number getTermData(final DocumentModel docModel,
           final String term, final String key) {
     return docModel.getTermData(term, this.prefix + "_" + key);
   }

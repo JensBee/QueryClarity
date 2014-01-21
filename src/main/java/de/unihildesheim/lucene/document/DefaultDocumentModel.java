@@ -85,7 +85,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
    * @param documentId Lucene's document-id
    * @param termsCount Number of terms expected for this document
    */
-  private DefaultDocumentModel(final int documentId, final int termsCount) {
+  protected DefaultDocumentModel(final int documentId, final int termsCount) {
     this.docId = documentId;
     this.termData = new ArrayList(termsCount);
     this.termFreqMap = new HashMap(termsCount);
@@ -122,7 +122,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
    */
   @Override
   public DocumentModel addTermData(final String term, final String key,
-          final Object value) {
+          final Number value) {
 
     final List<TermData<String, Number>> newTermData;
     if (this.termData == null) {
@@ -135,7 +135,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
   }
 
   @Override
-  public Object getTermData(final String term, final String key) {
+  public Number getTermData(final String term, final String key) {
     Number retVal = null;
 
     if (this.termData != null) {

@@ -97,10 +97,10 @@ public interface DocumentModel extends Serializable {
    *
    * @param term Term whose value should be retrieved
    * @param key Key under which the data is stored
-   * @return Stored value, or <tt>null</tt> if no value was stored under the
-   * specified key.
+   * @return Stored {@link Number} value, or <tt>null</tt> if no value was
+   * stored under the specified key.
    */
-  Object getTermData(final String term, final String key);
+  Number getTermData(final String term, final String key);
 
   /**
    * Store a value for a term in this document. This will silently overwrite any
@@ -108,10 +108,10 @@ public interface DocumentModel extends Serializable {
    *
    * @param term Non <tt>null</tt> term to store a value for
    * @param key Non <tt>null</tt> key to identify the value
-   * @param value Value to store
+   * @param value {@link Number} value to store
    * @return New {@link DocumentModel} with all properties of the current object
    * and the given key-value data set.
    */
   DocumentModel addTermData(final String term, final String key,
-          final Object value);
+          final Number value);
 }
