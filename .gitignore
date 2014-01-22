@@ -3,3 +3,7 @@
 /*.log
 /target/
 /data/
+/luke/
+/results.txt
+/contrib/*_output.xml
+/contrib/clef-solr/

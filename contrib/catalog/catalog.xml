@@ -1,0 +1,6 @@
+<catalog xmlns="urn:oasis:names:tc:entity:xmlns:xml:catalog">
+  <group prefer="public">
+    <public publicId="-//MXW//DTD patent-document XML//EN" uri="de-patent-document-v1-4.dtd"/>
+  </group>
+</catalog>
+

@@ -1,0 +1,110 @@
+#!/bin/sh
+### CONFIGURATION
+# location of catalog resolver jar
+RESOLVER=/usr/share/java/resolver.jar
+# location of xalan jar
+XALAN=/usr/share/java/xalan.jar
+# source data location
+SOURCE=../../data
+# target directory
+TARGET=../../data/clef-solr
+# how many document to add to one solr add statement
+MERGECOUNT=100
+
+### INTERNAL
+PWD=$(pwd)
+SEGMENT=0
+
+# build a list of xml files to process
+buildFileList() {
+  echo "Bulding file list from '$SOURCE/EP/', '$SOURCE/WO/' ('$PWD/files.txt')"
+  find $(realpath $SOURCE)/EP/ -name "*.xml" -type f > "$PWD/files.txt"
+  find $(realpath $SOURCE)/WO/ -name "*.xml" -type f >> "$PWD/files.txt"
+}
+
+# transform a xml file
+process() {
+  filename=$(basename "$1")
+  echo processing $filename
+  LANG=en_US.UTF-8 java -cp .:$RESOLVER:$XALAN org.apache.xalan.xslt.Process -ENTITYRESOLVER org.apache.xml.resolver.tools.CatalogResolver -URIRESOLVER org.apache.xml.resolver.tools.CatalogResolver -OUT "$TARGET/$filename" -IN "$1" -XSL clef-to-solr.xslt
+}
+
+# check libs and directories
+preCheck() {
+  # check libraries
+  echo "Checking libraries"
+  if [ ! -f "$RESOLVER" ]; then
+      echo "Catalog resolver '$RESOLVER' not found."
+      exit 1
+  fi
+  if [ ! -f "$XALAN" ]; then
+    echo "Xalan '$XALAN' not found."
+    exit 1
+  fi
+
+  # check directories
+  echo "Checking directories"
+  mkdir -p "$TARGET"
+  if [ ! -d "$TARGET" ]; then
+    echo "Target directory '$TARGET' does not exist."
+    exit 1
+  fi
+  if [ ! -d "$SOURCE" ]; then
+    echo "Source directory '$SOURCE' does not exist."
+    exit 1
+  fi
+  if [ "$(ls -A $TARGET)" ]; then
+    echo "Target directory '$TARGET' is not empty."
+    exit 1
+  fi
+}
+
+# merge multiple solr documents to one add statement
+mergeFiles() {
+  SEGMENT=$(($SEGMENT +1))
+  echo "Merging $MERGECOUNT files to solr document ($SEGMENT)"
+  echo '<add>' > "$TARGET/solr_${SEGMENT}"
+  cat "$TARGET/"*.xml >> "$TARGET/solr_${SEGMENT}"
+  echo '</add>' >> "$TARGET/solr_${SEGMENT}"
+  rm -f "$TARGET/"*.xml
+}
+
+# rename merged files
+finalizeFiles() {
+  echo "Finalizing solr documents"
+  for i in "$TARGET/"solr_*; do
+    mv "$i" "$i.xml"
+  done
+}
+
+# read the generated files list and run the transformation
+transformFiles() {
+  echo "Starting XSL transformation"
+  fileCount=0
+  while read xmlFile
+    do fileCount=$(($fileCount +1));
+    process $xmlFile
+    if [ $fileCount -eq $MERGECOUNT ]; then
+      mergeFiles
+      fileCount=0
+    fi
+  done < "$PWD/files.txt"
+  mergeFiles
+}
+
+### MAIN
+preCheck
+
+# check if files list is already there
+if [ -f "$PWD/files.txt" ]; then
+  read -p "File list exists. Use it? [y/n] " -n 1 -r
+  echo
+  if [[ $REPLY =~ ^[Nn]$ ]]; then
+    buildFileList
+  fi
+else
+  buildFileList
+fi
+
+transformFiles
+finalizeFiles
