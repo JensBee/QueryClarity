@@ -16,13 +16,16 @@
  */
 package de.unihildesheim.lucene.document;
 
+import de.unihildesheim.util.Tuple;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,6 +49,17 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
           DefaultDocumentModel.class);
 
   /**
+   * If true the model is locked and immutable.
+   */
+  private boolean locked = false;
+
+  /**
+   * Message to throw, if model is locked.
+   */
+  private static final String LOCKED_MSG = "Operation not supported. "
+          + "Object is locked.";
+
+  /**
    * Id of the document associated with this model.
    */
   private final Integer docId;
@@ -59,7 +73,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
   /**
    * Stores the document frequency for each known term.
    */
-  private final Map<String, Long> termFreqMap;
+  private Map<String, Long> termFreqMap;
 
   /**
    * Initial size of {@link DefaultDocumentModel#termData} storage.
@@ -69,7 +83,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
   /**
    * Stores arbitrary key-value data for each term.
    */
-  private final List<TermData<String, Number>> termData;
+  private List<TermData<String, Number>> termData;
 
   /**
    * Stores the calculated overall term frequency of all terms from the index.
@@ -102,13 +116,13 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
   }
 
   /**
-   * Internal constructor used to create new instances.
+   * Internal constructor used to create new instances and de-serialize objects.
    *
    * @param documentId Lucene document-id
    * @param newTermFreqMap Term->frequency mapping
    * @param newTermData Term->advanced data mapping
    */
-  private DefaultDocumentModel(final int documentId,
+  protected DefaultDocumentModel(final int documentId,
           final Map<String, Long> newTermFreqMap,
           final List<TermData<String, Number>> newTermData) {
     this.docId = documentId;
@@ -117,21 +131,39 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
   }
 
   /**
+   * Get the internal term frequency map. Used for serialization of the
+   * instance.
+   *
+   * @return The internal term frequency map
+   */
+  protected Map<String, Long> getTermFreqMap() {
+    return this.termFreqMap;
+  }
+
+  /**
+   * Get the internal term-data list. Used for serialization of the instance.
+   *
+   * @return The internal term-data list
+   */
+  protected List<TermData<String, Number>> getTermDataList() {
+    return this.termData;
+  }
+
+  /**
    * {@inheritDoc} Adds the given term to the list of known terms, if it's not
    * already known.
    */
   @Override
-  public DocumentModel addTermData(final String term, final String key,
+  public void setTermData(final String term, final String key,
           final Number value) {
-
-    final List<TermData<String, Number>> newTermData;
-    if (this.termData == null) {
-      newTermData = new ArrayList(INITIAL_TERMDATA_SIZE);
-    } else {
-      newTermData = (List) ((ArrayList) this.termData).clone();
+    if (this.locked) {
+      throw new UnsupportedOperationException(LOCKED_MSG);
     }
-    newTermData.add(new TermData(term, key, value));
-    return new DefaultDocumentModel(this.docId, this.termFreqMap, newTermData);
+
+    if (this.termData == null) {
+      this.termData = new ArrayList(INITIAL_TERMDATA_SIZE);
+    }
+    this.termData.add(new TermData(term, key, value));
   }
 
   @Override
@@ -142,14 +174,19 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
       // temporary object for fast lookup (?)
       final int index = this.termData.indexOf(new TermData(term, key));
 
-      // start searching at the first occourence of the term + key
-      for (int i = index; i < this.termData.size(); i++) {
-        final TermData<String, Number> data = this.termData.get(i);
-        if (data != null && data.getTerm().equals(term) && data.getKey().equals(
-                key)) {
-          retVal = data.getValue();
-          break;
+      if (index > -1) {
+        // start searching at the first occourence of the term + key
+        for (int i = index; i < this.termData.size(); i++) {
+          final TermData<String, Number> data = this.termData.get(i);
+          if (data != null && data.term.equals(term) && data.key.
+                  equals(key)) {
+            retVal = data.value;
+            break;
+          }
         }
+      } else {
+        // not found
+        retVal = null;
       }
     }
 
@@ -164,29 +201,22 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
     return termFreqMap.containsKey(term);
   }
 
-  /**
-   * {@inheritDoc} Adds the given term to the list of known terms, if it's not
-   * already known.
-   */
   @Override
-  public DocumentModel addTermFrequency(final String term,
+  public void setTermFrequency(final String term,
           final long frequency) {
-    final Map<String, Long> newTermFreq;
-    if (this.termFreqMap == null) {
-      newTermFreq = new HashMap(INITIAL_TERMFREQMAP_SIZE);
-    } else {
-      newTermFreq = (Map) ((HashMap) this.termFreqMap).clone();
+    if (this.locked) {
+      throw new UnsupportedOperationException(LOCKED_MSG);
     }
-
-    newTermFreq.put(term, frequency);
-    return new DefaultDocumentModel(this.docId, newTermFreq, this.termData);
+    if (this.termFreqMap == null) {
+      this.termFreqMap = new HashMap(INITIAL_TERMFREQMAP_SIZE);
+    }
+    this.termFreqMap.put(term, frequency);
   }
 
   @Override
   public int getDocId() {
     if (this.docId == null) {
-      throw new IllegalStateException(
-              "Document id have not been initialized.");
+      throw new IllegalStateException("Document id have not been initialized.");
     }
     return this.docId;
   }
@@ -217,14 +247,13 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
       throw new IllegalArgumentException("Term must not be null.");
     }
 
-    Long value;
-    if (this.termFreqMap == null) {
-      value = 0L;
-    } else {
+    Long value = null;
+    if (this.termFreqMap != null) {
       value = this.termFreqMap.get(term);
-      if (value == null) {
-        value = 0L;
-      }
+    }
+
+    if (value == null) {
+      value = 0L;
     }
 
     return value;
@@ -233,5 +262,51 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
   @Override
   public DocumentModel create(final int documentId, final int termsCount) {
     return new DefaultDocumentModel(documentId, termsCount);
+  }
+
+  @Override
+  @SuppressWarnings("AccessingNonPublicFieldOfAnotherObject")
+  public boolean equals(final Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    DefaultDocumentModel dDocMod = (DefaultDocumentModel) o;
+
+    if (docId == null ? dDocMod.docId != null : !docId.equals(dDocMod.docId)) {
+      return false;
+    }
+
+    if (termFreqMap == null ? dDocMod.termFreqMap != null : !termFreqMap.equals(
+            dDocMod.termFreqMap)) {
+      return false;
+    }
+
+    if (termData == null ? dDocMod.termData != null : !termData.equals(
+            dDocMod.termData)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  @Override
+  public int hashCode() {
+    int hash = 7;
+    hash = 53 * hash + Objects.hashCode(this.docId);
+    return hash;
+  }
+
+  @Override
+  public void lock() {
+    this.locked = true;
+  }
+
+  @Override
+  public void unlock() {
+    this.locked = false;
   }
 }

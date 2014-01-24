@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.lucene.scoring.clarity;
 
+import de.unihildesheim.lucene.LuceneDefaults;
 import de.unihildesheim.lucene.document.DocumentModelException;
 import de.unihildesheim.lucene.index.CachedIndexDataProvider;
 import java.io.File;
@@ -29,7 +30,6 @@ import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.util.Version;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,10 +50,6 @@ public final class Main {
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(Main.class);
-  /**
-   * Lucene field to run the queries on.
-   */
-  private static final String QUERY_FIELD = "text";
 
   /**
    * @param args Command line parameters
@@ -112,11 +108,11 @@ public final class Main {
 
       final Calculation calculation = new Calculation(dataProv, reader);
 
-      final Analyzer analyzer = new StandardAnalyzer(Version.LUCENE_46);
+      final Analyzer analyzer = new StandardAnalyzer(LuceneDefaults.VERSION);
 
       LOG.debug("Building query ({}).", queryString);
-      final QueryParser parser = new QueryParser(Version.LUCENE_46, QUERY_FIELD,
-              analyzer);
+      final QueryParser parser = new QueryParser(LuceneDefaults.VERSION,
+              fields[0], analyzer);
       final Query query = parser.parse(queryString);
 
       calculation.calculateClarity(query);

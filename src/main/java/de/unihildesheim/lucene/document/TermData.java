@@ -19,6 +19,7 @@ package de.unihildesheim.lucene.document;
 import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.Map.Entry;
+import java.util.Objects;
 
 /**
  * Simple triple object to store data associated to a term by specifying key and
@@ -38,17 +39,17 @@ public final class TermData<K, V> implements Serializable {
   /**
    * Term to which the data is related to.
    */
-  private final String term;
+  public final String term;
 
   /**
    * Key to identify the data part.
    */
-  private final K key;
+  public final K key;
 
   /**
    * Data to store under a specific key.
    */
-  private final V value;
+  public final V value;
 
   /**
    * Creates a new {@link TermData} triple.
@@ -80,70 +81,31 @@ public final class TermData<K, V> implements Serializable {
   }
 
   /**
-   * Get the term part of this triple.
-   *
-   * @return Term value
-   */
-  public String getTerm() {
-    return this.term;
-  }
-
-  /**
-   * Get the key part of this triple.
-   *
-   * @return Key object
-   */
-  public K getKey() {
-    return this.key;
-  }
-
-  /**
-   * Get the value part of this triple.
-   *
-   * @return Stored value
-   */
-  public V getValue() {
-    return this.value;
-  }
-
-  /**
-   * Get the <tt>key, value</tt> touple stored in this triple.
-   *
-   * @return <tt>key, value</tt> touple stored in this triple
-   */
-  public Entry<K, V> getEntry() {
-    return new AbstractMap.SimpleEntry(getKey(), getValue());
-  }
-
-  /**
    * The equals implementation compares the <tt>term</tt> value only. This is
    * for fast lookups in {@link List}s.
    *
-   * @param otherObj Other object to compare to
+   * @param o Other object to compare to
    * @return True, if both objects are {@link TermData} instances and have the
    * same <tt>key</tt> set
    */
   @Override
-  public boolean equals(final Object otherObj) {
-    if (this == otherObj) {
+  public boolean equals(final Object o) {
+    if (this == o) {
       return true;
     }
-
-    if (otherObj instanceof TermData) {
-      TermData otherTermData = (TermData) otherObj;
-      return term.equals(otherTermData.term) && key.equals(otherTermData.key);
-    } else {
+    if (o == null || getClass() != o.getClass()) {
       return false;
     }
+
+    TermData otherTermData = (TermData) o;
+    return term.equals(otherTermData.term) && key.equals(otherTermData.key);
   }
 
-  /**
-   * Simple hashCode calculation.
-   *
-   * @return HashCode value of the <tt>term</tt> + <tt>key</tt> value
-   */
   @Override
   public int hashCode() {
-    return term.hashCode() + key.hashCode();
+    int hash = 3;
+    hash = 53 * hash + Objects.hashCode(this.term);
+    hash = 53 * hash + Objects.hashCode(this.key);
+    return hash;
   }
 }

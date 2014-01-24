@@ -45,10 +45,10 @@ public class TestUtility {
     '9', '0'};
 
   /**
-   * Calculate facorial value for a number.
+   * Calculate factorial value for a number.
    *
-   * @param number Value to get the facorial for
-   * @return Facorial of given value
+   * @param number Value to get the factorial for
+   * @return Factorial of given value
    */
   public final long calcFactorial(final long number) {
     long factorial = 1;

@@ -16,10 +16,14 @@
  */
 package de.unihildesheim.lucene.index;
 
+import de.unihildesheim.lucene.LuceneDefaults;
+import de.unihildesheim.util.StringUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.document.Document;
@@ -32,7 +36,6 @@ import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.Version;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,7 +45,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class MemoryIndex {
+public final class MemoryIndex {
 
   /**
    * Logger instance for this class.
@@ -65,16 +68,41 @@ public class MemoryIndex {
   private final String[] idxFields;
 
   /**
+   * Collection of all terms in index.
+   */
+  private final Collection<String> idxTerms = new ArrayList(1000);
+
+  /**
    * Create a new in-memory index.
+   *
    * @param fields Per-document fields to generate
    * @param documents Documents to add
    * @throws IOException Thrown on low-level I/O-errors
    */
   public MemoryIndex(final String[] fields, final List<String[]> documents)
           throws IOException {
+    for (String[] document : documents) {
+      for (String docField : document) {
+        for (String docTerm : docField.split("\\s+")) {
+          idxTerms.add(StringUtils.lowerCase(docTerm));
+        }
+      }
+    }
+
     this.idxFields = fields.clone();
     createIndex(documents);
     this.reader = getReader();
+  }
+
+  /**
+   * Get a set of all terms known to this index.
+   *
+   * @return Set of known terms
+   */
+  public Set<String> getUniqueTerms() {
+    Set<String> uniqueTerms = new HashSet(this.idxTerms.size());
+    uniqueTerms.addAll(this.idxTerms);
+    return uniqueTerms;
   }
 
   /**
@@ -82,7 +110,7 @@ public class MemoryIndex {
    *
    * @return Available field names
    */
-  public final String[] getIdxFields() {
+  public String[] getIdxFields() {
     return this.idxFields.clone();
   }
 
@@ -92,17 +120,17 @@ public class MemoryIndex {
    * @return Reader for this index
    * @throws IOException Thrown on low-level I/O errors
    */
-  public final IndexReader getReader() throws IOException {
+  public IndexReader getReader() throws IOException {
     return DirectoryReader.open(index);
   }
 
   /**
-   * Get the ids of all available docments.
+   * Get the ids of all available documents.
    *
    * @return Ids of all available documents. Deleted documents are not included.
    */
-  public final Collection<Integer> getDocumentIds() {
-    final Bits liveDocs = MultiFields.getLiveDocs(this.reader); // NOPMD
+  public Collection<Integer> getDocumentIds() {
+    final Bits liveDocs = MultiFields.getLiveDocs(this.reader);
     final Collection<Integer> ids = new ArrayList(this.reader.maxDoc());
 
     for (int docId = 0; docId < this.reader.maxDoc(); docId++) {
@@ -125,9 +153,9 @@ public class MemoryIndex {
   private void createIndex(final List<String[]> documents) throws
           IOException {
     final StandardAnalyzer analyzer = new StandardAnalyzer(
-            Version.LUCENE_46, CharArraySet.EMPTY_SET);
+            LuceneDefaults.VERSION, CharArraySet.EMPTY_SET);
     final IndexWriterConfig config
-            = new IndexWriterConfig(Version.LUCENE_46, analyzer);
+            = new IndexWriterConfig(LuceneDefaults.VERSION, analyzer);
 
     // index documents
     int newIdx = 0;

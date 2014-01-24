@@ -163,12 +163,20 @@ public final class DocFieldsTermsEnum {
    */
   private BytesRef getNextValue() throws IOException {
     // try to get an iterator which has a value
-    BytesRef nextValue = this.currentEnum.next();
-
-    while (nextValue == null && !this.currentFields.
-            isEmpty()) {
-      updateCurrentEnum();
+    BytesRef nextValue;
+    if (this.currentEnum == null) {
+      nextValue = null;
+    } else {
       nextValue = this.currentEnum.next();
+    }
+
+    while (nextValue == null && !this.currentFields.isEmpty()) {
+      updateCurrentEnum();
+      if (this.currentEnum == null) {
+        nextValue = null;
+      } else {
+        nextValue = this.currentEnum.next();
+      }
     }
 
     return nextValue;
@@ -202,7 +210,8 @@ public final class DocFieldsTermsEnum {
         this.currentEnum = termVector.iterator(null);
         break;
       }
-      LOG.warn("No TermVector found for doc={} field={}."
+      this.currentEnum = null;
+      LOG.warn("No TermVector found for doc={} field={}. "
               + "Unable to get any term information for this docment field.",
               this.docId, targetField);
     }

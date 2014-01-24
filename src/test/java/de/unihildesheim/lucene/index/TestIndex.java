@@ -16,7 +16,9 @@
  */
 package de.unihildesheim.lucene.index;
 
+import de.unihildesheim.lucene.LuceneDefaults;
 import de.unihildesheim.lucene.document.DocumentModel;
+import de.unihildesheim.util.StringUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,6 +29,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
@@ -38,7 +41,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
-import org.apache.lucene.util.Version;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,7 +48,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class TestIndex implements IndexDataProvider {
+public final class TestIndex implements IndexDataProvider {
 
   /**
    * Logger instance for this class.
@@ -61,7 +63,7 @@ public class TestIndex implements IndexDataProvider {
    */
   private static final double RTFM_DOCUMENT = 0.6d;
   /**
-   * Prevent multiple index initializions.
+   * Prevent multiple index initializations.
    */
   private static boolean indexInitialized = false;
   /**
@@ -80,7 +82,7 @@ public class TestIndex implements IndexDataProvider {
   private static final Map<String, Double> relTermFreq = new HashMap();
 
   /**
-   * Fields names of the test lucene index.
+   * Fields names of the test Lucene index.
    */
   private static String[] indexFields;
 
@@ -90,6 +92,11 @@ public class TestIndex implements IndexDataProvider {
   private static Set<String> queryFields;
 
   private static HashMap<Integer, DocumentModel> docModels;
+
+  /**
+   * Storage meta data.
+   */
+  private final Properties storageProp = new Properties();
 
   /**
    * Store (document-id -> field-name -> lower-cased term list)
@@ -198,7 +205,13 @@ public class TestIndex implements IndexDataProvider {
     return overallFreq;
   }
 
-  public final Set<String> getTermsSet() {
+  /**
+   * Get a unique set of all terms known to this index. This takes into account
+   * the currently set query fields.
+   *
+   * @return Set of all terms
+   */
+  public Set<String> getTermsSet() {
     Set<String> uniqueTerms = new HashSet();
 
     // iterate over all stored frequency values by field-name
@@ -214,7 +227,7 @@ public class TestIndex implements IndexDataProvider {
   }
 
   @Override
-  public final Iterator<String> getTermsIterator() {
+  public Iterator<String> getTermsIterator() {
     return getTermsSet().iterator();
   }
 
@@ -285,13 +298,16 @@ public class TestIndex implements IndexDataProvider {
 
   /**
    * Create the simple in-memory test index.
+   *
+   * @param documents Documents to add to the index
+   * @throws IOException Thrown on low-level I/O errors
    */
   private void createIndex(final ArrayList<String[]> documents) throws
           IOException {
     final StandardAnalyzer analyzer = new StandardAnalyzer(
-            Version.LUCENE_46, CharArraySet.EMPTY_SET);
+            LuceneDefaults.VERSION, CharArraySet.EMPTY_SET);
     final IndexWriterConfig config
-            = new IndexWriterConfig(Version.LUCENE_46, analyzer);
+            = new IndexWriterConfig(LuceneDefaults.VERSION, analyzer);
 
     // index documents
     int newIdx = 0;
@@ -310,11 +326,13 @@ public class TestIndex implements IndexDataProvider {
    * Gather index statistics needed for evaluating test results. Test data will
    * be calculated for all available fields regardless if they're queried. The
    * decision, which data to use is up to the higher level functions.
+   *
+   * @param documents Documents that were added to the index
    */
   private void gatherTestData(final ArrayList<String[]> documents) {
-    String fieldTokens[]; // raw tokens of a field
+    String[] fieldTokens; // raw tokens of a field
     String fieldName; // name of the current field
-    String doc[]; // fields of the current document
+    String[] doc; // fields of the current document
     // term character enumeration
     char[] docTermChars;
     // stores field->lowercased-terms for each individual document
@@ -334,7 +352,8 @@ public class TestIndex implements IndexDataProvider {
       // iterate over all fields in document
       for (int docFieldNum = 0; docFieldNum < doc.length; docFieldNum++) {
         fieldName = indexFields[docFieldNum];
-        fieldTokens = doc[docFieldNum].trim().toLowerCase().split("\\s+");
+        fieldTokens = StringUtils.lowerCase(doc[docFieldNum].trim()).split(
+                "\\s+");
 
         docFieldLcTermList = new ArrayList(fieldTokens.length);
 
@@ -447,19 +466,18 @@ public class TestIndex implements IndexDataProvider {
    *
    * @param query The query that was run
    * @param term The current term of the query to calculate for
-   * @param docModels The feedback document models to use for calculation
+   * @param usedDocModels The feedback document models to use for calculation
    * @return Calculated pqt value
    */
-  public static final double calcPQT(final Set<String> query,
-          final String term,
-          final Collection<DocumentModel> docModels) {
+  public static double calcPQT(final Set<String> query, final String term,
+          final Collection<DocumentModel> usedDocModels) {
     int docId;
     double pqt = 0d;
 
     // used for trace output
     final StringBuilder sb = new StringBuilder(200);
 
-    for (DocumentModel doc : docModels) {
+    for (DocumentModel doc : usedDocModels) {
       docId = doc.getDocId();
       if (LOG.isTraceEnabled()) {
         sb.append("[pqt] term=").append(term).append(" doc=").append(docId).
@@ -505,7 +523,7 @@ public class TestIndex implements IndexDataProvider {
       pqt += pdt;
     }
     LOG.trace("[pqt] q={} t={} p={} (using {} feedback documents)", query, term,
-            pqt, docModels.size());
+            pqt, usedDocModels.size());
     return pqt;
   }
 
@@ -515,19 +533,19 @@ public class TestIndex implements IndexDataProvider {
    * @param terms Terms to use for calculation. This may be either all terms in
    * the collection or only the terms used in the (rewritten) query.
    * @param query Terms used in the original/rewritten query
-   * @param docModels Document models to use for calculation
+   * @param usedDocModels Document models to use for calculation
    * @return The query clarity score
    */
-  public final double calcClarity(final Set<String> terms,
+  public double calcClarity(final Set<String> terms,
           final Set<String> query,
-          final Collection<DocumentModel> docModels) {
+          final Collection<DocumentModel> usedDocModels) {
     double pqt;
     double clarity = 0d;
     double log; // result of the logarithmic part of the calculation formular
 
     Double colProb;
     for (String term : terms) {
-      pqt = this.calcPQT(query, term, docModels);
+      pqt = TestIndex.calcPQT(query, term, usedDocModels);
 
       // try get collection Stringprobability for a term
       colProb = relTermFreq.get(term);
@@ -536,7 +554,7 @@ public class TestIndex implements IndexDataProvider {
       }
 
       log = (Math.log(pqt) / Math.log(2)) / (Math.log(colProb) / Math.log(2));
-      clarity = clarity + (pqt * log);
+      clarity += (pqt * log);
     }
     return clarity;
   }
@@ -551,18 +569,17 @@ public class TestIndex implements IndexDataProvider {
   }
 
   /**
-   * Add a document to the index
+   * Add a document to the index.
    *
    * @param writer Index writer instance
-   * @param text Content of the document
-   * @param id Id to identify this document
-   * @throws IOException Thrown, if index could not be accessed
+   * @param content Content of the document
+   * @throws IOException Thrown on low-level I/O errors
    */
   private void addDoc(final IndexWriter writer, final String[] content)
           throws IOException {
     Document doc = new Document();
     for (int i = 0; i < content.length; i++) {
-      doc.add(new VecTextField(this.indexFields[i], content[i],
+      doc.add(new VecTextField(TestIndex.indexFields[i], content[i],
               Field.Store.YES));
     }
     writer.addDocument(doc);
@@ -584,16 +601,16 @@ public class TestIndex implements IndexDataProvider {
             new String[TestIndex.queryFields.size()]);
   }
 
-  private long getTermFrequency(int documentId) {
+  private long getTermFrequency(final int documentId) {
     Map<String, List<String>> docFieldTerms = DOCUMENT_INDEX.get(documentId);
-    long freq = 0l;
+    long freq = 0L;
     for (String fieldName : getTargetFields()) {
       freq += docFieldTerms.get(fieldName).size();
     }
     return freq;
   }
 
-  private long getTermFrequency(int documentId, String term) {
+  private long getTermFrequency(final int documentId, final String term) {
     Map<String, List<String>> docFieldTerms = DOCUMENT_INDEX.get(documentId);
     long freq = 0l;
     for (String fieldName : getTargetFields()) {
@@ -607,22 +624,9 @@ public class TestIndex implements IndexDataProvider {
   }
 
   @Override
-  public DocumentModel getDocumentModel(int documentId) {
+  public DocumentModel getDocumentModel(final int documentId) {
     return docModels.get(documentId);
   }
-
-//  public double getDocumentTermProbability(int documentId, String term) {
-//    Double prob = docModels.get(documentId).termProbability(term);
-//    if (prob == 0) {
-//      Double rTermFreq = relTermFreq.get(term);
-//      if (rTermFreq == null) {
-//        prob = 0d;
-//      } else {
-//        prob = (1 - RTFM_DOCUMENT) * relTermFreq.get(term);
-//      }
-//    }
-//    return prob;
-//  }
 
   @Override
   public void dispose() {
@@ -631,37 +635,43 @@ public class TestIndex implements IndexDataProvider {
 
   @Override
   public Iterator<DocumentModel> getDocModelIterator() {
-    throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
-  public DocumentModel removeDocumentModel(int docId) {
-    throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+  public DocumentModel removeDocumentModel(final int docId) {
+    throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
-  public void addDocumentModel(DocumentModel documentModel) {
-    throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+  public void addDocumentModel(final DocumentModel documentModel) {
+    throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
-  public Collection<DocumentModel> getDocModels() {
-    throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+  public int getDocModelCount() {
+    throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
-  public void setProperty(String prefix, String key, String value) {
-    throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+  public void setProperty(final String prefix, final String key,
+          final String value) {
+    storageProp.setProperty(prefix + "_" + key, value);
   }
 
   @Override
-  public String getProperty(String prefix, String key) {
-    throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+  public String getProperty(final String prefix, final String key) {
+    return storageProp.getProperty(prefix + "_" + key);
   }
 
   @Override
   public String getProperty(String prefix, String key, String defaultValue) {
-    throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    throw new UnsupportedOperationException("Not supported yet.");
+  }
+
+  @Override
+  public int getTermsCount() {
+    throw new UnsupportedOperationException("Not supported yet.");
   }
 
   private class TestDocumentModel implements DocumentModel {
@@ -688,33 +698,50 @@ public class TestIndex implements IndexDataProvider {
     }
 
     @Override
-    public boolean containsTerm(String term) {
-      throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    public boolean containsTerm(final String term) {
+      throw new UnsupportedOperationException("Not supported yet.");
     }
 
     @Override
-    public Number getTermData(String term, String key) {
-      throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    public Number getTermData(final String term, final String key) {
+      throw new UnsupportedOperationException("Not supported yet.");
     }
 
     @Override
-    public DocumentModel setDocId(int documentId) {
-      throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    public DocumentModel setDocId(final int documentId) {
+      throw new UnsupportedOperationException("Not supported yet.");
     }
 
     @Override
-    public DocumentModel create(int documentId, int termsCount) {
-      throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    public DocumentModel create(final int documentId, final int termsCount) {
+      throw new UnsupportedOperationException("Not supported yet.");
     }
 
     @Override
-    public DocumentModel addTermFrequency(String term, long frequency) {
-      throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    public DocumentModel addTermFrequency(final String term,
+            final long frequency) {
+      throw new UnsupportedOperationException("Not supported yet.");
     }
 
     @Override
-    public DocumentModel addTermData(String term, String key, Number value) {
-      throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    public DocumentModel addTermData(final String term, final String key,
+            final Number value) {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public void setTermFrequency(String term, long frequency) {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public void lock() {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public void unlock() {
+      throw new UnsupportedOperationException("Not supported yet.");
     }
   }
 }

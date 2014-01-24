@@ -59,7 +59,7 @@ public interface IndexDataProvider {
 
   /**
    * Close this instance. This is meant for handling cleanups after using this
-   * instance. The behaviour of functions called after this is undefined.
+   * instance. The behavior of functions called after this is undefined.
    */
   void dispose();
 
@@ -76,6 +76,12 @@ public interface IndexDataProvider {
    * @return Unique terms iterator
    */
   Iterator<String> getTermsIterator();
+
+  /**
+   * Get the number of unique terms in the index.
+   * @return Number of unique terms in the index
+   */
+  int getTermsCount();
 
   /**
    * Get an {@link Iterator} over all known {@link DocumentModel} instances.
@@ -118,11 +124,17 @@ public interface IndexDataProvider {
   void addDocumentModel(final DocumentModel documentModel);
 
   /**
-   * Get all document models known to this {@link IndexDataProvider}.
-   *
-   * @return All document models known to this instance
+   * Get the number of all {@link DocumentModel}s known to this instance.
+   * @return Number of {@link DocumentModel}s known
    */
-  Collection<DocumentModel> getDocModels();
+  int getDocModelCount();
+
+//  /**
+//   * Get all document models known to this {@link IndexDataProvider}.
+//   *
+//   * @return All document models known to this instance
+//   */
+//  Collection<DocumentModel> getDocModels();
 
   /**
    * Stores a property value to the {@link IndexDataProvider}. Depending on the

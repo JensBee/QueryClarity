@@ -18,6 +18,7 @@ package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.util.StringUtils;
 import de.unihildesheim.lucene.document.DefaultDocumentModel;
+import de.unihildesheim.lucene.document.DefaultDocumentModelSerializer;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.DocumentModelException;
 import de.unihildesheim.util.TimeMeasure;
@@ -34,11 +35,14 @@ import java.util.Date;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
-import java.util.logging.Level;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
+import org.mapdb.BTreeMap;
 import org.mapdb.DB;
+import org.mapdb.DB.HTreeMapMaker;
 import org.mapdb.DBMaker;
+import org.mapdb.HTreeMap;
+import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -99,8 +103,17 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     this.storageId = newStorageId;
     // create the manager for disk storage
     try {
-      this.db = DBMaker.newFileDB(new File(this.storagePath, this.storageId)).
-              make();
+      final DBMaker dbMkr = DBMaker.newFileDB(new File(this.storagePath,
+              this.storageId));
+      dbMkr.randomAccessFileEnableIfNeeded(); // support 32bit JVMs
+//      if (useLRUCache) {
+//        dbMkr.cacheLRUEnable(); // enable last-recent-used cache
+//      }
+//      if (useHardRefs) {
+//        dbMkr.cacheHardRefEnable(); // use hard reference map
+//      }
+//      dbMkr.closeOnJvmShutdown(); // auto close db on exit
+      this.db = dbMkr.make();
     } catch (RuntimeException ex) {
       LOG.error("Caught runtime exception. Maybe your classes have changed."
               + "You may want to delete the cache, because it's invalid now.");
@@ -157,10 +170,40 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
 
     // try load cached data
     final TimeMeasure timeMeasure = new TimeMeasure().start();
-    Map<Integer, DocumentModel> docModels = this.db.getHashMap("docModels");
-    this.setDocModelMap(docModels);
-    Map<String, TermFreqData> termFreq = this.db.getHashMap("termFreq");
-    this.setTermFreqMap(termFreq);
+
+//    if (this.db.exists("docModels")) {
+//      this.docModelMap = this.db.getTreeMap("docModels");
+//    } else {
+//      final BTreeMapMaker dmmMkr = this.db.createTreeMap("docModels");
+      final HTreeMapMaker dmmMkr = this.db.createHashMap("docModels");
+      // better performance when storing large objects
+//      dmmMkr.valuesStoredOutsideNodes(true);
+      // map-key serializer
+//      dmmMkr.keySerializer(BTreeKeySerializer.ZERO_OR_POSITIVE_INT);
+      dmmMkr.keySerializer(Serializer.INTEGER);
+      // map-value serializer
+      final Serializer ddmSerializer = new DefaultDocumentModelSerializer();
+      dmmMkr.valueSerializer(ddmSerializer);
+      // create map
+      this.docModelMap = dmmMkr.makeOrGet();
+//    }
+
+//    if (this.db.exists("termFreq")) {
+//      this.termFreqMap = this.db.getTreeMap("termFreq");
+//    } else {
+//      final BTreeMapMaker tfmMkr = this.db.createTreeMap("termFreq");
+      final HTreeMapMaker tfmMkr = this.db.createHashMap("termFreq");
+      // better performance when storing large objects
+//      tfmMkr.valuesStoredOutsideNodes(true);
+      // map-key serializer
+//      tfmMkr.keySerializer(BTreeKeySerializer.STRING);
+      tfmMkr.keySerializer(Serializer.STRING);
+      // map-value serializer
+      final Serializer tfdSerializer = new TermFreqDataSerializer();
+      tfmMkr.valueSerializer(tfdSerializer);
+      // create map
+      this.termFreqMap = tfmMkr.makeOrGet();
+//    }
     timeMeasure.stop();
 
     // check if storage meta information is there and fields are defined
@@ -171,17 +214,15 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
         needsRecalc = true;
       } else {
         // check if data was loaded
-        needsRecalc = this.getDocModelMap().isEmpty() || this.getTermFreqMap().
-                isEmpty();
+        needsRecalc = this.docModelMap.isEmpty() || this.termFreqMap.isEmpty();
         if (!needsRecalc) {
-          LOG.info("Loading docModels={} termFreq={} from cache "
-                  + "took {} seconds.", this.getDocModelMap().size(), this.
-                  getTermFreqMap().size(), timeMeasure.getElapsedSeconds());
+          LOG.info("Loading cache (docModels={} termFreq={}) "
+                  + "took {} seconds.", this.docModelMap.size(),
+                  this.termFreqMap.size(), timeMeasure.getElapsedSeconds());
         }
         // debug
         if (LOG.isTraceEnabled()) {
-          for (Entry<String, TermFreqData> data : this.getTermFreqMap().
-                  entrySet()) {
+          for (Entry<String, TermFreqData> data : this.termFreqMap.entrySet()) {
             LOG.trace("load: t={} f={} rf={}", data.getKey(), data.getValue().
                     getTotalFreq(), data.getValue().getRelFreq());
           }
@@ -252,7 +293,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
 
     // debug
     if (LOG.isTraceEnabled()) {
-      for (Entry<String, TermFreqData> data : this.getTermFreqMap().entrySet()) {
+      for (Entry<String, TermFreqData> data : this.termFreqMap.entrySet()) {
         LOG.trace("new: t={} f={} rf={}", data.getKey(), data.getValue().
                 getTotalFreq(), data.getValue().getRelFreq());
       }
@@ -272,10 +313,9 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   /**
    * Save meta information for stored data.
    *
-   * @throws FileNotFoundException If there where any low-level I/O errors
    * @throws IOException If there where any low-level I/O errors
    */
-  private void saveMetadata() throws FileNotFoundException, IOException {
+  private void saveMetadata() throws IOException {
     final File propFile = new File(this.storagePath, this.storageId
             + ".properties");
     try (FileOutputStream propFileOut = new FileOutputStream(propFile)) {
@@ -287,7 +327,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   public void dispose() {
     // debug
     if (LOG.isTraceEnabled()) {
-      for (Entry<String, TermFreqData> data : this.getTermFreqMap().entrySet()) {
+      for (Entry<String, TermFreqData> data : this.termFreqMap.entrySet()) {
         LOG.trace("store: t={} f={} rf={}", data.getKey(), data.getValue().
                 getTotalFreq(), data.getValue().getRelFreq());
       }
@@ -320,5 +360,60 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   public String getProperty(final String prefix, final String key,
           final String defaultValue) {
     return this.storageProp.getProperty(prefix + "_" + key, defaultValue);
+  }
+
+  @Override
+  protected final void updateTermFreqValue(final String term,
+          final long value) {
+    if (this.termFreqMap.containsKey(term)) {
+      final TermFreqData tfData = this.termFreqMap.get(term).addToTotalFreq(
+              value);
+      if (((HTreeMap) this.termFreqMap).replace(term, tfData) == null) {
+        // previous value should never be null - this smells like an error
+        throw new IllegalStateException("Got null while updating "
+                + "term frequency value for term '" + term + "'.");
+      }
+    } else {
+      final TermFreqData tfData = new TermFreqData(value);
+      this.termFreqMap.put(term, tfData);
+    }
+//    TermFreqData freq = this.termFreqMap.remove(term);
+//
+//    if (freq == null) {
+//      freq = new TermFreqData(value);
+//    } else {
+//      // add new value to the already stored value
+//      freq = freq.addToTotalFreq(value);
+//    }
+//    this.termFreqMap.put(term, freq);
+//
+//    // reset overall value
+//    this.setOverallTermFreq(null); // force recalculation
+  }
+
+  @Override
+  protected final void updateTermFreqValue(final String term,
+          final double value) {
+    if (this.termFreqMap.containsKey(term)) {
+      final TermFreqData tfData = this.termFreqMap.get(term).addRelFreq(
+              value);
+      if (((HTreeMap) this.termFreqMap).replace(term, tfData) == null) {
+        // previous value should never be null - this smells like an error
+        throw new IllegalStateException("Got null while updating "
+                + "relative term frequency value for term '" + term + "'.");
+      }
+    } else {
+      final TermFreqData tfData = new TermFreqData(value);
+      this.termFreqMap.put(term, tfData);
+    }
+//    TermFreqData freq = this.termFreqMap.remove(term);
+//
+//    if (freq == null) {
+//      freq = new TermFreqData(value);
+//    } else {
+//      // overwrite relative term freqency value
+//      freq = freq.addRelFreq(value);
+//    }
+//    this.termFreqMap.put(term, freq);
   }
 }

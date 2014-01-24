@@ -83,14 +83,13 @@ public interface DocumentModel extends Serializable {
   long getTermFrequency(final String term);
 
   /**
-   * Set the term frequency value for a specific term.
+   * Set the frequency value for a specific term, if the model is not already
+   * locked.
    *
-   * @param term Non <tt>null</tt> term
-   * @param frequency Document frequency for the specific term
-   * @return New {@link DocumentModel} with all properties of the current object
-   * and the given frequency value set.
+   * @param term Term whose frequency value should be set
+   * @param frequency Frequency value
    */
-  DocumentModel addTermFrequency(final String term, final long frequency);
+  void setTermFrequency(final String term, final long frequency);
 
   /**
    * Get a specific value stored for a term by a given key.
@@ -109,9 +108,17 @@ public interface DocumentModel extends Serializable {
    * @param term Non <tt>null</tt> term to store a value for
    * @param key Non <tt>null</tt> key to identify the value
    * @param value {@link Number} value to store
-   * @return New {@link DocumentModel} with all properties of the current object
-   * and the given key-value data set.
    */
-  DocumentModel addTermData(final String term, final String key,
+  void setTermData(final String term, final String key,
           final Number value);
+
+  /**
+   * Lock the document model, making all it's data immutable.
+   */
+  void lock();
+
+  /**
+   * Un-lock the document model to make it mutable again.
+   */
+  void unlock();
 }

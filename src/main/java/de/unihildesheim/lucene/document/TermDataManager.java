@@ -60,9 +60,11 @@ public final class TermDataManager {
    */
   public void setTermData(final DocumentModel docModel, final String term,
           final String key, final Number value) {
-    final DocumentModel changedModel = docModel.addTermData(term, this.prefix
-            + "_" + key, value);
-    this.dataProv.addDocumentModel(changedModel);
+//    this.dataProv.removeDocumentModel(docModel.getDocId());
+//    final DocumentModel changedModel = docModel.addTermData(term, this.prefix
+//            + "_" + key, value);
+//    this.dataProv.addDocumentModel(changedModel);
+    docModel.setTermData(term, this.prefix + "_" + key, value);
   }
 
   /**

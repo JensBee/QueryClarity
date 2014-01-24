@@ -17,6 +17,7 @@
 package de.unihildesheim.lucene.index;
 
 import java.io.Serializable;
+import java.util.Objects;
 
 /**
  * Simple wrapper for storing general term frequency values.
@@ -88,7 +89,7 @@ public final class TermFreqData implements Serializable {
    * @return Total frequency value
    */
   public long getTotalFreq() {
-    return totalFreq;
+    return this.totalFreq;
   }
 
   /**
@@ -97,7 +98,10 @@ public final class TermFreqData implements Serializable {
    * @return Relative frequency value
    */
   public double getRelFreq() {
-    return relFreq;
+    if (this.relFreq == null) {
+      return 0d;
+    }
+    return this.relFreq;
   }
 
   /**
@@ -107,7 +111,38 @@ public final class TermFreqData implements Serializable {
    * @return New {@link TermFreqData} object with all properties of the current
    * object and the given value set for the relative term frequency.
    */
-  public TermFreqData setRelFreq(final double rFreq) {
+  public TermFreqData addRelFreq(final double rFreq) {
     return new TermFreqData(this.totalFreq, rFreq);
+  }
+
+  @Override
+  @SuppressWarnings("AccessingNonPublicFieldOfAnotherObject")
+  public boolean equals(final Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    TermFreqData tfData = (TermFreqData) o;
+
+    if (this.totalFreq != tfData.totalFreq) {
+      return false;
+    }
+    if (this.relFreq == null ? tfData.relFreq != null : !this.relFreq.equals(
+            tfData.relFreq)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  @Override
+  public int hashCode() {
+    int hash = 3;
+    hash = 73 * hash + (int) (this.totalFreq ^ (this.totalFreq >>> 32));
+    hash = 73 * hash + Objects.hashCode(this.relFreq);
+    return hash;
   }
 }

@@ -21,12 +21,12 @@ import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.DocumentModelException;
 import de.unihildesheim.util.TimeMeasure;
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
@@ -42,6 +42,10 @@ import org.slf4j.LoggerFactory;
  * Default implementation of the {@link IndexDataProvider}. This abstract class
  * creates the basic data structures to handle pre-calculated index data and
  * provides basic accessors functions to those values.
+ *
+ * The calculation of all term frequency values respect the list of defined
+ * document fields. So all values are only calculated for terms found in those
+ * fields.
  *
  * The data storage {@link Map} implementations are assumed to be immutable, so
  * stored objects cannot be modified directly and have to be removed and
@@ -60,12 +64,12 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   /**
    * Store mapping of <tt>term</tt> -> <tt>frequency values</tt>.
    */
-  private Map<String, TermFreqData> termFreqMap;
+  protected Map<String, TermFreqData> termFreqMap;
 
   /**
    * Store mapping of <tt>document-id</tt> -> {@link DocumentModel}.
    */
-  private Map<Integer, DocumentModel> docModelMap;
+  protected Map<Integer, DocumentModel> docModelMap;
 
   /**
    * Index fields to operate on.
@@ -117,7 +121,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
       }
     }
     timeMeasure.stop();
-    LOG.info("Calculation of term frequencies for {} terms in index "
+    LOG.info("Calculation of term frequencies for {} unique terms in index "
             + "took {} seconds.", termFreqMap.size(), timeMeasure.
             getElapsedSeconds());
   }
@@ -127,57 +131,33 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    *
    * Since the used {@link Map} implementation is unknown here, a map with
    * immutable objects is assumed and a modification of already stored entries
-   * is permitted. So an entry has to be removed to be updated.
+   * is prohibited. So an entry has to be removed to be updated.
    *
    * @param term Term to update
    * @param value Value to add to the currently stored value. If there's no
    */
-  protected final void updateTermFreqValue(final String term,
-          final long value) {
-    TermFreqData freq = this.termFreqMap.remove(term);
-
-    if (freq == null) {
-      freq = new TermFreqData(value);
-    } else {
-      // add new value to the already stored value
-      freq = freq.addToTotalFreq(value);
-    }
-    this.termFreqMap.put(term, freq);
-
-    // reset overall value
-    this.setOverallTermFreq(null); // force recalculation
-  }
+  protected abstract void updateTermFreqValue(final String term,
+          final long value);
 
   /**
    * Updates the relative term frequency value for the given term.
    *
-   * Since the used {@link Map} implementation is unknown here, a map with
-   * immutable objects is assumed and a modification of already stored entries
-   * is permitted. So an entry has to be removed to be updated.
+   * Since the used {@link Map} implementation is unknown here, a custom
+   * implementation is needed.
    *
    * @param term Term to update
    * @param value Value to overwrite any previously stored value. If there's no
    * value stored, then it will be set to the specified value.
    */
-  protected final void updateTermFreqValue(final String term,
-          final double value) {
-    TermFreqData freq = this.termFreqMap.remove(term);
-
-    if (freq == null) {
-      freq = new TermFreqData(value);
-    } else {
-      // overwrite relative term freqency value
-      freq = freq.setRelFreq(value);
-    }
-    this.termFreqMap.put(term, freq);
-  }
+  protected abstract void updateTermFreqValue(final String term,
+          final double value);
 
   /**
    * Create the document models used by this instance.
    *
    * Since the used {@link Map} implementation is unknown here, a map with
    * immutable objects is assumed and a modification of already stored entries
-   * is permitted. So an entry has to be removed to be updated.
+   * is prohibited. So an entry has to be removed to be updated.
    *
    * @param modelType {@link DocumentModel} implementation to create
    * @param reader Reader to access the index
@@ -197,7 +177,9 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
 
     Long termCount;
 
-    final Bits liveDocs = MultiFields.getLiveDocs(reader); // NOPMD
+    final Bits liveDocs = MultiFields.getLiveDocs(reader);
+    String term;
+    long docTermFrequency;
     for (int docId = 0; docId < reader.maxDoc(); docId++) {
       // check if document is deleted
       if (liveDocs != null && !liveDocs.get(docId)) {
@@ -214,10 +196,10 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
         BytesRef bytesRef = dftEnum.next();
         while (bytesRef != null) {
           // get the document frequency of the current term
-          final long docTermFrequency = dftEnum.getTotalTermFreq();
+          docTermFrequency = dftEnum.getTotalTermFreq();
 
           // get string representation of current term
-          final String term = bytesRef.utf8ToString();
+          term = bytesRef.utf8ToString();
 
           // update frequency counter for current term
           termCount = docTerms.get(term);
@@ -234,24 +216,27 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
         LOG.error("Error while getting terms for document id {}", docId, ex);
       }
 
-      // get/create the document model for the current document
-      DocumentModel docModel = this.docModelMap.remove(docId);
-      if (docModel == null) {
-        try {
-          // create a new model with the given id and
-          // the expected number of terms
-          docModel = modelType.newInstance().create(docId, docTerms.size());
-        } catch (InstantiationException | IllegalAccessException ex) {
-          LOG.error("Error creating document model.", ex);
-          throw new DocumentModelException(ex);
-        }
+      DocumentModel docModel;
+      // document model should be unique - otherwise this is an error
+      if (this.docModelMap.containsKey(docId)) {
+        throw new IllegalArgumentException(
+                "Document model already known at creation time.");
+      }
+      try {
+        // create a new model with the given id and
+        // the expected number of terms
+        docModel = modelType.newInstance().create(docId, docTerms.size());
+      } catch (InstantiationException | IllegalAccessException ex) {
+        LOG.error("Error creating document model.", ex);
+        throw new DocumentModelException(ex);
       }
 
       // All terms from all document fields are gathered.
       // Store the document frequency of each document term to the model
       for (Map.Entry<String, Long> entry : docTerms.entrySet()) {
-        docModel = docModel.addTermFrequency(entry.getKey(), entry.getValue());
+        docModel.setTermFrequency(entry.getKey(), entry.getValue());
       }
+      docModel.lock(); // make model immutable for storage now
       this.docModelMap.put(docId, docModel);
     }
 
@@ -266,7 +251,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    *
    * Since the used {@link Map} implementation is unknown here, a map with
    * immutable objects is assumed and a modification of already stored entries
-   * is permitted. So an entry has to be removed to be updated.
+   * is prohibited. So an entry has to be removed to be updated.
    *
    * @param newDocModel Document model to update. The document id will be
    * retrieved from this model.
@@ -296,9 +281,17 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   protected final void calculateRelativeTermFrequencies() {
     final TimeMeasure timeMeasure = new TimeMeasure().start();
 
-    final double cFreq = (double) getTermFrequency(); // NOPMD
+    final double cFreq = (double) getTermFrequency();
 
-    for (String term : termFreqMap.keySet()) {
+    // Create a shallow copy of all term keys from the map. This is needed,
+    // because we update the map while iterating through. The set of terms
+    // stays the same, as we (should) re-add entries immediately.
+    // Using EntrySet to modify entries is prohibited, since we assume immutable
+    // entries.
+    final Set<String> terms = new HashSet(termFreqMap.size());
+    terms.addAll(termFreqMap.keySet());
+
+    for (String term : terms) {
       final double tFreq = (double) getTermFrequency(term);
       final double rTermFreq = tFreq / cFreq;
       updateTermFreqValue(term, rTermFreq);
@@ -306,8 +299,8 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
 
     timeMeasure.stop();
     LOG.info("Calculation of relative term frequencies "
-            + "for {} terms in index took {} seconds.", termFreqMap.size(),
-            timeMeasure.getElapsedSeconds());
+            + "for {} unique terms in index took {} seconds.", termFreqMap.
+            size(), timeMeasure.getElapsedSeconds());
   }
 
   @Override
@@ -340,6 +333,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
       value = freq.getTotalFreq();
     }
 
+    LOG.trace("TermFrequency t={} f={}", term, value);
     return value;
   }
 
@@ -359,8 +353,13 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   }
 
   @Override
+  public final int getTermsCount() {
+    return this.termFreqMap.size();
+  }
+
+  @Override
   public final Iterator<String> getTermsIterator() {
-    return Collections.unmodifiableMap(termFreqMap).keySet().iterator();
+    return Collections.unmodifiableSet(this.termFreqMap.keySet()).iterator();
   }
 
   @Override
@@ -379,60 +378,9 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
             iterator();
   }
 
-  /**
-   * Get the document models known by this instance. This map may be huge. You
-   * should use {@link AbstractIndexDataProvider#getDocModelIterator()} instead.
-   *
-   * @return Immutable map with <tt>document-id -> {@link DocumentModel}</tt>
-   * mapping
-   */
-  protected final Map<Integer, DocumentModel> getDocModelMap() {
-    return Collections.unmodifiableMap(docModelMap);
-  }
-
   @Override
-  public final Collection<DocumentModel> getDocModels() {
-    final Set<DocumentModel> modelSet = new HashSet(this.docModelMap.size());
-    modelSet.addAll(this.docModelMap.values());
-    return modelSet;
-  }
-
-  /**
-   * Set the document models known by this instance. The passed in map will be
-   * used directly to allow specific map implementations and should not be
-   * modified externally in any way.
-   *
-   * @param newDocModelMap Document model map
-   */
-  @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
-  protected final void setDocModelMap(
-          final Map<Integer, DocumentModel> newDocModelMap) {
-    this.docModelMap = newDocModelMap;
-  }
-
-  /**
-   * Get the calculated frequency values for each term in the index.
-   *
-   * @return Immutable map with <tt>Term->(Long) overall index frequency,
-   * (Double) relative index frequency</tt> mapping for every term in the index
-   */
-  protected final Map<String, TermFreqData> getTermFreqMap() {
-    return Collections.unmodifiableMap(termFreqMap);
-  }
-
-  /**
-   * Set the calculated frequency values for each term in the index. Note that
-   * <tt>null</tt> is not allowed for any value. The passed in map will be used
-   * directly to allow specific map implementations and should not be modified
-   * externally in any way.
-   *
-   * @param newTermFreq Mapping of <tt>Term->(Long) overall index frequency,
-   * (Double) relative index frequency</tt> for every term in the index
-   */
-  @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
-  protected final void setTermFreqMap(
-          final Map<String, TermFreqData> newTermFreq) {
-    this.termFreqMap = newTermFreq;
+  public int getDocModelCount() {
+    return this.docModelMap.size();
   }
 
   /**

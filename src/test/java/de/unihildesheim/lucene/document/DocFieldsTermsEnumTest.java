@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class DocFieldsTermsEnumTest {
+public final class DocFieldsTermsEnumTest {
 
   /**
    * Logger instance for this class.
@@ -48,18 +48,22 @@ public class DocFieldsTermsEnumTest {
   /**
    * Reader to access a test index.
    */
-  private static IndexReader reader;
+  private final IndexReader reader;
 
   /**
    * Index used by this test.
    */
-  private static MemoryIndex idx;
+  private final MemoryIndex idx;
 
-  @BeforeClass
-  public static void setUpClass() throws IOException {
+  /**
+   * Setup environment and test index.
+   *
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  public DocFieldsTermsEnumTest() throws IOException {
     // test index data
     final String[] fields = new String[]{"title", "text", "id"};
-    final List<String[]> documents = new ArrayList<String[]>(4);
+    final List<String[]> documents = new ArrayList(4);
     documents.add(new String[]{"A Book", "Lucene in Action", "title1"});
     documents.add(new String[]{"Another book", "Lucene for Dummies", "title2"});
     documents.add(new String[]{"Just a bunch of papers", "Managing Gigabytes",
@@ -68,28 +72,6 @@ public class DocFieldsTermsEnumTest {
       "title4"});
     idx = new MemoryIndex(fields, documents);
     reader = idx.getReader();
-  }
-
-  @AfterClass
-  public static void tearDownClass() {
-  }
-
-  @Before
-  public void setUp() {
-  }
-
-  @After
-  public void tearDown() {
-  }
-
-  /**
-   * Get a new {@link DocFieldsTermsEnum} instance with all default fields
-   * enabled.
-   *
-   * @return Instance
-   */
-  private DocFieldsTermsEnum getFullInstance() {
-    return new DocFieldsTermsEnum(reader, idx.getIdxFields());
   }
 
   /**
@@ -109,7 +91,7 @@ public class DocFieldsTermsEnumTest {
    * Test of setDocument method, of class DocFieldsTermsEnum.
    */
   @Test
-  public final void testSetDocument() {
+  public void testSetDocument() {
     TestUtility.logHeader(LOG, "setDocument");
 
     final List<Integer> docIds = new ArrayList(idx.getDocumentIds());
@@ -126,7 +108,7 @@ public class DocFieldsTermsEnumTest {
    * @throws java.io.IOException Thrown on low-level I/O errors
    */
   @Test
-  public final void testReset() throws IOException {
+  public void testReset() throws IOException {
     TestUtility.logHeader(LOG, "reset");
 
     final DocFieldsTermsEnum instance = getInstance();
@@ -149,9 +131,11 @@ public class DocFieldsTermsEnumTest {
 
   /**
    * Test of next method, of class DocFieldsTermsEnum.
+   *
+   * @throws java.io.IOException Thrown on low-level I/O errors
    */
   @Test
-  public void testNext() throws Exception {
+  public void testNext() throws IOException {
     TestUtility.logHeader(LOG, "next");
 
     final List<Integer> docIds = new ArrayList(idx.getDocumentIds());
@@ -159,9 +143,10 @@ public class DocFieldsTermsEnumTest {
 
     final String field = idx.getIdxFields()[0];
     LOG.info("Testing values of field={} for docId={}", field, documentId);
-    final String[] values = reader.document(documentId).get(field).split("\\s+");
+    final String[] values = reader.document(documentId).get(field)
+            .split("\\s+");
 
-    final List<String> valSet = new ArrayList();
+    final List<String> valSet = new ArrayList(10);
     for (String term : values) {
       valSet.add(StringUtils.lowerCase(term));
     }
@@ -185,9 +170,11 @@ public class DocFieldsTermsEnumTest {
 
   /**
    * Test of getTotalTermFreq method, of class DocFieldsTermsEnum.
+   *
+   * @throws java.io.IOException Thrown on low-level I/O errors
    */
   @Test
-  public void testGetTotalTermFreq() throws Exception {
+  public void testGetTotalTermFreq() throws IOException {
     TestUtility.logHeader(LOG, "getTotalTermFreq");
 
     final List<Integer> docIds = new ArrayList(idx.getDocumentIds());

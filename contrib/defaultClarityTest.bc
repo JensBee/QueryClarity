@@ -1,0 +1,38 @@
+/**
+* Calculation script for default clarity score test index.
+*/
+
+define collection(tf, qtf) {
+	sys__coll_tf=tf;
+	sys__coll_qtf=qtf;
+	print "Collection term frequency: ", tf, "\n";
+	print "Frequency of search term in collection: ", qtf,"\n";
+}
+
+define adddoc(doc, tf, qtf) {
+	sys__docs_tf[doc]=tf;
+	sys__docs_qtf[doc]=qtf;
+	print "doc ", doc, " termfreq=", tf, " query-teermfreq=", qtf,"\n";
+}
+
+define pq(doc, df, cf) {
+	print "((0.6 * (", df, "/", sys__docs_tf[doc], ")) + (0.4 * (", cf, "/", sys__coll_tf, "))) * ((0.6 * (", sys__docs_qtf[doc], "/", sys__docs_tf[doc], ")) + (0.4 * (", sys__coll_qtf, "/", sys__coll_tf, ")))\n";
+	return ((0.6 * (df/sys__docs_tf[doc])) + (0.4 * (cf/sys__coll_tf))) * ((0.6 * (sys__docs_qtf[doc]/sys__docs_tf[doc])) + (0.4 * (sys__coll_qtf/sys__coll_tf)))
+}
+
+print "\n\n----------\n"
+print "- default clarity score\n"
+print "----------\n"
+print "Collection:\n";
+print "  doc1: A Book Lucene in Action title1\n";
+print "  doc2: Another book Lucene for Dummies title2\n";
+print "  doc3: Just a bunch of papers Managing Gigabytes title3\n";
+print "  doc4: Literature The Art of Computer Science title4\n";
+print "\nQuery: another\n";
+print "----------\n\n";
+
+collection(27,1);
+adddoc(1,6,0);
+adddoc(2,6,1);
+adddoc(3,8,0);
+adddoc(4,7,0);

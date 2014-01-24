@@ -39,6 +39,11 @@ public final class TimeMeasure {
   private boolean paused = false;
 
   /**
+   * True, if measurement is stopped.
+   */
+  private boolean stopped = false;
+
+  /**
    * Start the time measurement. If the measurement was paused, it will continue
    * measuring. If it was stopped before it will be reset.
    *
@@ -70,6 +75,7 @@ public final class TimeMeasure {
    */
   public TimeMeasure stop() {
     this.paused = false;
+    this.stopped = true;
     this.elapsed += getElapsedNanos();
     return this;
   }
@@ -90,11 +96,17 @@ public final class TimeMeasure {
    * @return elapsed seconds, or <tt>0</tt> if no time was recorded
    */
   public double getElapsedSeconds() {
-    if (this.elapsed > 0) {
-      return this.elapsed / 1000000000.0;
+    double nanos;
+    if (!this.stopped) {
+      nanos = this.elapsed + getElapsedNanos();
     } else {
-      return 0d;
+      if (this.elapsed > 0) {
+        nanos = this.elapsed;
+      } else {
+        nanos = 0d;
+      }
     }
+    return nanos > 0 ? nanos / 1000000000.0 : 0d;
   }
 
 }
