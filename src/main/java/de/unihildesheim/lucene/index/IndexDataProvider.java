@@ -17,8 +17,8 @@
 package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.lucene.document.DocumentModel;
-import java.util.Collection;
 import java.util.Iterator;
+import org.apache.lucene.util.BytesRef;
 
 /**
  * IndexDataProvider provides statistical data from the underlying Lucene index.
@@ -47,7 +47,7 @@ public interface IndexDataProvider {
    * @param term Term to lookup
    * @return The frequency of the term in the index
    */
-  long getTermFrequency(final String term);
+  long getTermFrequency(final byte[] term);
 
   /**
    * Get the relative term frequency for a term in the index.
@@ -55,7 +55,7 @@ public interface IndexDataProvider {
    * @param term Term to lookup
    * @return Relative term frequency for the given term
    */
-  double getRelativeTermFrequency(final String term);
+  double getRelativeTermFrequency(final byte[] term);
 
   /**
    * Close this instance. This is meant for handling cleanups after using this
@@ -75,10 +75,11 @@ public interface IndexDataProvider {
    *
    * @return Unique terms iterator
    */
-  Iterator<String> getTermsIterator();
+  Iterator<byte[]> getTermsIterator();
 
   /**
    * Get the number of unique terms in the index.
+   *
    * @return Number of unique terms in the index
    */
   int getTermsCount();
@@ -125,6 +126,7 @@ public interface IndexDataProvider {
 
   /**
    * Get the number of all {@link DocumentModel}s known to this instance.
+   *
    * @return Number of {@link DocumentModel}s known
    */
   int getDocModelCount();
@@ -135,7 +137,6 @@ public interface IndexDataProvider {
 //   * @return All document models known to this instance
 //   */
 //  Collection<DocumentModel> getDocModels();
-
   /**
    * Stores a property value to the {@link IndexDataProvider}. Depending on the
    * implementation this property may be persistent.

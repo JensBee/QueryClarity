@@ -26,7 +26,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
@@ -62,9 +61,9 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
           AbstractIndexDataProvider.class);
 
   /**
-   * Store mapping of <tt>term</tt> -> <tt>frequency values</tt>.
+   * Store mapping of <tt>term (bytes)</tt> -> <tt>frequency values</tt>.
    */
-  protected Map<String, TermFreqData> termFreqMap;
+  protected Map<byte[], TermFreqData> termFreqMap;
 
   /**
    * Store mapping of <tt>document-id</tt> -> {@link DocumentModel}.
@@ -91,11 +90,12 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   protected final void calculateTermFrequencies(final IndexReader reader) throws
           IOException {
     final TimeMeasure timeMeasure = new TimeMeasure().start();
-    final Fields idxFields = MultiFields.getFields(reader); // NOPMD
+    final Fields idxFields = MultiFields.getFields(reader);
 
     Terms fieldTerms;
-    TermsEnum fieldTermsEnum = null; // NOPMD
+    TermsEnum fieldTermsEnum = null;
     BytesRef bytesRef;
+    String term;
 
     // go through all fields..
     for (String field : this.fields) {
@@ -111,10 +111,8 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
 
           // fast forward seek to term..
           if (fieldTermsEnum.seekExact(bytesRef)) {
-            final String term = bytesRef.utf8ToString();
-
             // ..and update the frequency value for term
-            updateTermFreqValue(term, fieldTermsEnum.totalTermFreq());
+            updateTermFreqValue(bytesRef.bytes, fieldTermsEnum.totalTermFreq());
           }
           bytesRef = fieldTermsEnum.next();
         }
@@ -136,7 +134,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * @param term Term to update
    * @param value Value to add to the currently stored value. If there's no
    */
-  protected abstract void updateTermFreqValue(final String term,
+  protected abstract void updateTermFreqValue(final byte[] term,
           final long value);
 
   /**
@@ -149,7 +147,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * @param value Value to overwrite any previously stored value. If there's no
    * value stored, then it will be set to the specified value.
    */
-  protected abstract void updateTermFreqValue(final String term,
+  protected abstract void updateTermFreqValue(final byte[] term,
           final double value);
 
   /**
@@ -171,15 +169,17 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     // create an enumerator enumarating over all specified document fields
     final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(reader,
             this.fields);
-
     // gather terms found in the document
-    final Map<String, Long> docTerms = new HashMap(1000);
-
+//    final Map<String, Long> docTerms = new HashMap(1000);
+    final Map<byte[], Long> docTerms = new HashMap(1000);
     Long termCount;
-
     final Bits liveDocs = MultiFields.getLiveDocs(reader);
-    String term;
+//    String term;
+    byte[] term;
+    DocumentModel docModel;
     long docTermFrequency;
+    BytesRef bytesRef;
+
     for (int docId = 0; docId < reader.maxDoc(); docId++) {
       // check if document is deleted
       if (liveDocs != null && !liveDocs.get(docId)) {
@@ -193,14 +193,22 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
       // go through all document fields..
       dftEnum.setDocument(docId);
       try {
-        BytesRef bytesRef = dftEnum.next();
+        bytesRef = dftEnum.next();
         while (bytesRef != null) {
           // get the document frequency of the current term
           docTermFrequency = dftEnum.getTotalTermFreq();
 
           // get string representation of current term
-          term = bytesRef.utf8ToString();
+//          try {
+          term = bytesRef.bytes.clone();
+//          } catch (ArrayIndexOutOfBoundsException ex) {
+//            LOG.error("docId={} bytes={} hex={} length={} offset={}", docId,
+//                    bytesRef.bytes, bytesRef.toString(), bytesRef.length,
+//                    bytesRef.offset);
+//            term = null;
+//          }
 
+//          if (term != null) {
           // update frequency counter for current term
           termCount = docTerms.get(term);
           if (termCount == null) {
@@ -210,13 +218,13 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
           }
 
           docTerms.put(term, termCount);
+//          }
           bytesRef = dftEnum.next();
         }
       } catch (IOException ex) {
         LOG.error("Error while getting terms for document id {}", docId, ex);
       }
 
-      DocumentModel docModel;
       // document model should be unique - otherwise this is an error
       if (this.docModelMap.containsKey(docId)) {
         throw new IllegalArgumentException(
@@ -225,7 +233,8 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
       try {
         // create a new model with the given id and
         // the expected number of terms
-        docModel = modelType.newInstance().create(docId, docTerms.size());
+        docModel = modelType.newInstance();
+        docModel.create(docId, docTerms.size());
       } catch (InstantiationException | IllegalAccessException ex) {
         LOG.error("Error creating document model.", ex);
         throw new DocumentModelException(ex);
@@ -233,8 +242,15 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
 
       // All terms from all document fields are gathered.
       // Store the document frequency of each document term to the model
-      for (Map.Entry<String, Long> entry : docTerms.entrySet()) {
-        docModel.setTermFrequency(entry.getKey(), entry.getValue());
+//      for (Map.Entry<String, Long> entry : docTerms.entrySet()) {
+      for (Map.Entry<byte[], Long> entry : docTerms.entrySet()) {
+        try {
+          docModel.setTermFrequency(entry.getKey(), entry.getValue());
+        } catch (ArrayIndexOutOfBoundsException ex) {
+          LOG.error("docId={} bytes={} hex={} length={}", docId,
+                  entry.getKey(), entry.getKey().toString(), entry.
+                  getKey().length);
+        }
       }
       docModel.lock(); // make model immutable for storage now
       this.docModelMap.put(docId, docModel);
@@ -288,12 +304,14 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     // stays the same, as we (should) re-add entries immediately.
     // Using EntrySet to modify entries is prohibited, since we assume immutable
     // entries.
-    final Set<String> terms = new HashSet(termFreqMap.size());
+    final Set<byte[]> terms = new HashSet(termFreqMap.size());
     terms.addAll(termFreqMap.keySet());
 
-    for (String term : terms) {
-      final double tFreq = (double) getTermFrequency(term);
-      final double rTermFreq = tFreq / cFreq;
+    double tFreq;
+    double rTermFreq;
+    for (byte[] term : terms) {
+      tFreq = (double) getTermFrequency(term);
+      rTermFreq = tFreq / cFreq;
       updateTermFreqValue(term, rTermFreq);
     }
 
@@ -322,7 +340,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   }
 
   @Override
-  public final long getTermFrequency(final String term) {
+  public final long getTermFrequency(final byte[] term) {
     final TermFreqData freq = this.termFreqMap.get(term);
     long value;
 
@@ -338,7 +356,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   }
 
   @Override
-  public final double getRelativeTermFrequency(final String term) {
+  public final double getRelativeTermFrequency(final byte[] term) {
     final TermFreqData freq = this.termFreqMap.get(term);
     double value;
 
@@ -358,7 +376,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   }
 
   @Override
-  public final Iterator<String> getTermsIterator() {
+  public final Iterator<byte[]> getTermsIterator() {
     return Collections.unmodifiableSet(this.termFreqMap.keySet()).iterator();
   }
 

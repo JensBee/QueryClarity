@@ -4,6 +4,7 @@
 /target/
 /data/
 /luke/
+/profiler/
 /results.txt
 /contrib/*_output.xml
 /contrib/clef-solr/

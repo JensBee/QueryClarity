@@ -16,16 +16,21 @@
  */
 package de.unihildesheim.lucene.document;
 
+import de.unihildesheim.util.Lockable;
 import java.io.Serializable;
 
 /**
  * General document model storing basic values needed for calculation. All
- * classes implementing this interface should be immutable, since the document
- * models should be easy cacheable.
+ * classes implementing this interface should take care of mutability, since the
+ * document models should be easy cacheable.
+ *
+ * To allow fine grained control over when the instance may be altered, the
+ * {@link DefaultDocumentModel#lock()} and {@link DefaultDocumentModel#unlock()}
+ * methods should be implemented as needed.
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public interface DocumentModel extends Serializable {
+public interface DocumentModel extends Serializable, Lockable {
 
   /**
    * Serialization class version id.
@@ -36,21 +41,20 @@ public interface DocumentModel extends Serializable {
    * Set the id of the associated Lucene document.
    *
    * @param documentId Id of the associated Lucene document
-   * @return New {@link DocumentModel} with all properties of the current object
-   * and the given id set.
    */
-  DocumentModel setDocId(final int documentId);
+  void setDocId(final int documentId);
 
   /**
    * Create a new plain {@link DocumentModel} with a specific document-id and
-   * the expected number of terms to which data should be stored.
+   * the expected number of terms to which data should be stored. Meant to
+   * initialize plain instances created by the default empty constructor only.
    *
    * @param documentId Id of the associated Lucene document
    * @param termsCount Number of terms to expect for this document. This value
    * will be used to initialize the data store to the appropriate size.
    * @return New empty {@link DocumentModel} instance
    */
-  DocumentModel create(final int documentId, final int termsCount);
+  void create(final int documentId, final int termsCount);
 
   /**
    * Get the id of the associated Lucene document.
@@ -72,7 +76,7 @@ public interface DocumentModel extends Serializable {
    * @param term Term to lookup
    * @return True if term is contained in document, false otherwise
    */
-  boolean containsTerm(final String term);
+  boolean containsTerm(final byte[] term);
 
   /**
    * Get the frequency of the given term in the document.
@@ -80,16 +84,15 @@ public interface DocumentModel extends Serializable {
    * @param term Non <tt>null</tt> term to lookup
    * @return Frequency of the given term in the document
    */
-  long getTermFrequency(final String term);
+  long getTermFrequency(final byte[] term);
 
   /**
-   * Set the frequency value for a specific term, if the model is not already
-   * locked.
+   * Set the frequency value for a specific term.
    *
    * @param term Term whose frequency value should be set
    * @param frequency Frequency value
    */
-  void setTermFrequency(final String term, final long frequency);
+  void setTermFrequency(final byte[] term, final long frequency);
 
   /**
    * Get a specific value stored for a term by a given key.
@@ -99,7 +102,7 @@ public interface DocumentModel extends Serializable {
    * @return Stored {@link Number} value, or <tt>null</tt> if no value was
    * stored under the specified key.
    */
-  Number getTermData(final String term, final String key);
+  Number getTermData(final byte[] term, final String key);
 
   /**
    * Store a value for a term in this document. This will silently overwrite any
@@ -109,7 +112,7 @@ public interface DocumentModel extends Serializable {
    * @param key Non <tt>null</tt> key to identify the value
    * @param value {@link Number} value to store
    */
-  void setTermData(final String term, final String key,
+  void setTermData(final byte[] term, final String key,
           final Number value);
 
   /**

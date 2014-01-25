@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -140,7 +141,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * @param term Term whose model to calculate
    * @return The calculated default model value
    */
-  private double calcDefaultDocumentModel(final String term) {
+  private double calcDefaultDocumentModel(final byte[] term) {
     return (double) (1 - langmodelWeight) * dataProv.getRelativeTermFrequency(
             term);
   }
@@ -154,7 +155,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * @return Calculated model value
    */
   private double calcDocumentModel(final DocumentModel docModel,
-          final String term, final boolean update) {
+          final byte[] term, final boolean update) {
     // no value was stored, so calculate it
     final double model = langmodelWeight * ((double) docModel.getTermFrequency(
             term) / (double) docModel.getTermFrequency())
@@ -177,7 +178,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * @return Calculated language model for the given document and term
    */
   private double getDocumentModel(final DocumentModel docModel,
-          final String term, final boolean force) {
+          final byte[] term, final boolean force) {
     Double model = null;
 
     if (docModel.containsTerm(term)) {
@@ -203,19 +204,19 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    *
    * @param docModels Document models to use for calculation
    * @param queryTerms Terms of the originating query
-   * @return Mapping of {@link DocumentModel} to calculated language model
+   * @return Mapping of {@link DocumentModel} to calculated language modelString
    */
   private Map<DocumentModel, Double> calculateQueryModelWeight(
           final Set<DocumentModel> docModels,
-          final String[] queryTerms) {
+          final BytesRef[] queryTerms) {
     final Map<DocumentModel, Double> weights = new HashMap(docModels.size());
     @SuppressWarnings("UnusedAssignment")
     double modelWeight;
 
     for (DocumentModel docModel : docModels) {
       modelWeight = 1d;
-      for (String term : queryTerms) {
-        modelWeight *= getDocumentModel(docModel, term, false);
+      for (BytesRef term : queryTerms) {
+        modelWeight *= getDocumentModel(docModel, term.bytes, false);
       }
       weights.put(docModel, modelWeight);
     }
@@ -237,7 +238,6 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
             this.dataProv.getDocModelCount(), termsCount);
 
     final TimeMeasure timeMeasure = new TimeMeasure().start();
-//    final Iterator<String> idxTermsIt = this.dataProv.getTermsIterator();
     int dbgCount = 0;
     int dbgStep = 100; // after how many terms to display a status message
     TimeMeasure dbgTimeMeasure = null;
@@ -248,10 +248,13 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
 
     final Iterator<DocumentModel> docModelsIt = this.dataProv.
             getDocModelIterator();
+    Iterator<byte[]> idxTermsIt;
+    byte[] term;
+    DocumentModel docModel;
     while (docModelsIt.hasNext()) {
       // remove model from known list to modify it
-      final DocumentModel docModel = this.dataProv.removeDocumentModel(
-              docModelsIt.next().getDocId());
+      docModel = this.dataProv.
+              removeDocumentModel(docModelsIt.next().getDocId());
       docModel.unlock();
 
       // debug operating indicator
@@ -264,9 +267,9 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
         }
       }
 
-      final Iterator<String> idxTermsIt = this.dataProv.getTermsIterator();
+      idxTermsIt = this.dataProv.getTermsIterator();
       while (idxTermsIt.hasNext()) {
-        final String term = idxTermsIt.next();
+        term = idxTermsIt.next();
         if (docModel.containsTerm(term)) {
           calcDocumentModel(docModel, term, true);
         }
@@ -277,27 +280,6 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
       this.dataProv.addDocumentModel(docModel);
     }
 
-//    while (idxTermsIt.hasNext()) {
-//      // debug operating indicator
-//      if (LOG.isDebugEnabled() && termsCount > dbgStep) {
-//        dbgCount++;
-//        if (dbgCount % dbgStep == 0) {
-//          LOG.debug("{} terms of {} calculated ({}s)", dbgCount, termsCount,
-//                  dbgTimeMeasure.stop().getElapsedSeconds());
-//          dbgTimeMeasure.start();
-//        }
-//      }
-//
-//      final String term = idxTermsIt.next();
-//      final Iterator<DocumentModel> docModelsIt = this.dataProv.
-//              getDocModelIterator();
-//      while (docModelsIt.hasNext()) {
-//        final DocumentModel docModel = docModelsIt.next();
-//        if (docModel.containsTerm(term)) {
-//          calcDocumentModel(docModel, term, true);
-//        }
-//      }
-//    }
     timeMeasure.stop();
     LOG.info("Pre-calculating document models for all unique terms in index "
             + "took {} seconds", timeMeasure.getElapsedSeconds());
@@ -315,8 +297,9 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * @return Result of the calculation
    */
   private ClarityScoreResult calculateClarity(
-          final Set<DocumentModel> docModels, final Iterator<String> idxTermsIt,
-          final String[] queryTerms) {
+          final Set<DocumentModel> docModels,
+          final Iterator<byte[]> idxTermsIt,
+          final BytesRef[] queryTerms) {
     final TimeMeasure timeMeasure = new TimeMeasure().start();
     double score = 0d;
     double log;
@@ -328,8 +311,9 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
             docModels, queryTerms);
 
     // iterate over all terms in index
+    byte[] term;
     while (idxTermsIt.hasNext()) {
-      final String term = idxTermsIt.next();
+      term = idxTermsIt.next();
 
       // calculate the query probability of the current term
       qLangMod = 0d;

@@ -17,6 +17,7 @@
 package de.unihildesheim.lucene.document;
 
 import de.unihildesheim.lucene.index.IndexDataProvider;
+import org.apache.lucene.util.BytesRef;
 
 /**
  * Wrapper around the term data storage in {@link DocumentModel}s that allows to
@@ -58,12 +59,8 @@ public final class TermDataManager {
    * @param value Value to store
    * @see DocumentModel#addTermData(String, String, Object)
    */
-  public void setTermData(final DocumentModel docModel, final String term,
+  public void setTermData(final DocumentModel docModel, final byte[] term,
           final String key, final Number value) {
-//    this.dataProv.removeDocumentModel(docModel.getDocId());
-//    final DocumentModel changedModel = docModel.addTermData(term, this.prefix
-//            + "_" + key, value);
-//    this.dataProv.addDocumentModel(changedModel);
     docModel.setTermData(term, this.prefix + "_" + key, value);
   }
 
@@ -78,7 +75,7 @@ public final class TermDataManager {
    * @see DocumentModel#getTermData(String, String)
    */
   public Number getTermData(final DocumentModel docModel,
-          final String term, final String key) {
+          final byte[] term, final String key) {
     return docModel.getTermData(term, this.prefix + "_" + key);
   }
 }

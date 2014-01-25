@@ -37,7 +37,7 @@ import java.util.Map.Entry;
 import java.util.Properties;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
-import org.mapdb.BTreeMap;
+import org.apache.lucene.util.BytesRef;
 import org.mapdb.DB;
 import org.mapdb.DB.HTreeMapMaker;
 import org.mapdb.DBMaker;
@@ -107,10 +107,10 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
               this.storageId));
       dbMkr.randomAccessFileEnableIfNeeded(); // support 32bit JVMs
 //      if (useLRUCache) {
-//        dbMkr.cacheLRUEnable(); // enable last-recent-used cache
+      dbMkr.cacheLRUEnable(); // enable last-recent-used cache
 //      }
 //      if (useHardRefs) {
-//        dbMkr.cacheHardRefEnable(); // use hard reference map
+      dbMkr.cacheHardRefEnable(); // use hard reference map
 //      }
 //      dbMkr.closeOnJvmShutdown(); // auto close db on exit
       this.db = dbMkr.make();
@@ -171,39 +171,23 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     // try load cached data
     final TimeMeasure timeMeasure = new TimeMeasure().start();
 
-//    if (this.db.exists("docModels")) {
-//      this.docModelMap = this.db.getTreeMap("docModels");
-//    } else {
-//      final BTreeMapMaker dmmMkr = this.db.createTreeMap("docModels");
-      final HTreeMapMaker dmmMkr = this.db.createHashMap("docModels");
-      // better performance when storing large objects
-//      dmmMkr.valuesStoredOutsideNodes(true);
-      // map-key serializer
-//      dmmMkr.keySerializer(BTreeKeySerializer.ZERO_OR_POSITIVE_INT);
-      dmmMkr.keySerializer(Serializer.INTEGER);
-      // map-value serializer
-      final Serializer ddmSerializer = new DefaultDocumentModelSerializer();
-      dmmMkr.valueSerializer(ddmSerializer);
-      // create map
-      this.docModelMap = dmmMkr.makeOrGet();
-//    }
+    final HTreeMapMaker dmmMkr = this.db.createHashMap("docModels");
+    // map-key serializer
+    dmmMkr.keySerializer(Serializer.INTEGER);
+    // map-value serializer
+    final Serializer ddmSerializer = new DefaultDocumentModelSerializer();
+    dmmMkr.valueSerializer(ddmSerializer);
+    // create map
+    this.docModelMap = dmmMkr.makeOrGet();
 
-//    if (this.db.exists("termFreq")) {
-//      this.termFreqMap = this.db.getTreeMap("termFreq");
-//    } else {
-//      final BTreeMapMaker tfmMkr = this.db.createTreeMap("termFreq");
-      final HTreeMapMaker tfmMkr = this.db.createHashMap("termFreq");
-      // better performance when storing large objects
-//      tfmMkr.valuesStoredOutsideNodes(true);
-      // map-key serializer
-//      tfmMkr.keySerializer(BTreeKeySerializer.STRING);
-      tfmMkr.keySerializer(Serializer.STRING);
-      // map-value serializer
-      final Serializer tfdSerializer = new TermFreqDataSerializer();
-      tfmMkr.valueSerializer(tfdSerializer);
-      // create map
-      this.termFreqMap = tfmMkr.makeOrGet();
-//    }
+    final HTreeMapMaker tfmMkr = this.db.createHashMap("termFreq");
+    // map-key serializer
+    tfmMkr.keySerializer(Serializer.BYTE_ARRAY);
+    // map-value serializer
+    final Serializer tfdSerializer = new TermFreqDataSerializer();
+    tfmMkr.valueSerializer(tfdSerializer);
+    // create map
+    this.termFreqMap = tfmMkr.makeOrGet();
     timeMeasure.stop();
 
     // check if storage meta information is there and fields are defined
@@ -222,7 +206,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
         }
         // debug
         if (LOG.isTraceEnabled()) {
-          for (Entry<String, TermFreqData> data : this.termFreqMap.entrySet()) {
+          for (Entry<byte[], TermFreqData> data : this.termFreqMap.entrySet()) {
             LOG.trace("load: t={} f={} rf={}", data.getKey(), data.getValue().
                     getTotalFreq(), data.getValue().getRelFreq());
           }
@@ -293,7 +277,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
 
     // debug
     if (LOG.isTraceEnabled()) {
-      for (Entry<String, TermFreqData> data : this.termFreqMap.entrySet()) {
+      for (Entry<byte[], TermFreqData> data : this.termFreqMap.entrySet()) {
         LOG.trace("new: t={} f={} rf={}", data.getKey(), data.getValue().
                 getTotalFreq(), data.getValue().getRelFreq());
       }
@@ -327,7 +311,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   public void dispose() {
     // debug
     if (LOG.isTraceEnabled()) {
-      for (Entry<String, TermFreqData> data : this.termFreqMap.entrySet()) {
+      for (Entry<byte[], TermFreqData> data : this.termFreqMap.entrySet()) {
         LOG.trace("store: t={} f={} rf={}", data.getKey(), data.getValue().
                 getTotalFreq(), data.getValue().getRelFreq());
       }
@@ -363,11 +347,12 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   }
 
   @Override
-  protected final void updateTermFreqValue(final String term,
+  protected final void updateTermFreqValue(final byte[] term,
           final long value) {
+
     if (this.termFreqMap.containsKey(term)) {
-      final TermFreqData tfData = this.termFreqMap.get(term).addToTotalFreq(
-              value);
+      final TermFreqData tfData = this.termFreqMap.get(term);
+      tfData.addToTotalFreq(value);
       if (((HTreeMap) this.termFreqMap).replace(term, tfData) == null) {
         // previous value should never be null - this smells like an error
         throw new IllegalStateException("Got null while updating "
@@ -375,28 +360,18 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
       }
     } else {
       final TermFreqData tfData = new TermFreqData(value);
-      this.termFreqMap.put(term, tfData);
+      this.termFreqMap.put(term.clone(), tfData);
     }
-//    TermFreqData freq = this.termFreqMap.remove(term);
-//
-//    if (freq == null) {
-//      freq = new TermFreqData(value);
-//    } else {
-//      // add new value to the already stored value
-//      freq = freq.addToTotalFreq(value);
-//    }
-//    this.termFreqMap.put(term, freq);
-//
-//    // reset overall value
-//    this.setOverallTermFreq(null); // force recalculation
+    this.setOverallTermFreq(null); // force recalculation
   }
 
   @Override
-  protected final void updateTermFreqValue(final String term,
+  protected final void updateTermFreqValue(final byte[] term,
           final double value) {
+
     if (this.termFreqMap.containsKey(term)) {
-      final TermFreqData tfData = this.termFreqMap.get(term).addRelFreq(
-              value);
+      final TermFreqData tfData = this.termFreqMap.get(term);
+      tfData.setRelFreq(value);
       if (((HTreeMap) this.termFreqMap).replace(term, tfData) == null) {
         // previous value should never be null - this smells like an error
         throw new IllegalStateException("Got null while updating "
@@ -404,16 +379,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
       }
     } else {
       final TermFreqData tfData = new TermFreqData(value);
-      this.termFreqMap.put(term, tfData);
+      this.termFreqMap.put(term.clone(), tfData);
     }
-//    TermFreqData freq = this.termFreqMap.remove(term);
-//
-//    if (freq == null) {
-//      freq = new TermFreqData(value);
-//    } else {
-//      // overwrite relative term freqency value
-//      freq = freq.addRelFreq(value);
-//    }
-//    this.termFreqMap.put(term, freq);
   }
 }

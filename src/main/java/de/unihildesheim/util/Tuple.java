@@ -33,6 +33,15 @@ public class Tuple {
     // empty private constructor for utility class.
   }
 
+  public static Object tupleMatcher(final Object o1, final Object o2) {
+    return new Tuple2Matcher(o1, o2);
+  }
+
+  public static Object tupleMatcher(final Object o1, final Object o2,
+          final Object o3) {
+    return new Tuple3Matcher(o1, o2, o3);
+  }
+
   public static <A, B> Tuple2<A, B> tuple2(A a, B b) {
     return new Tuple2<A, B>(a, b);
   }
@@ -134,6 +143,75 @@ public class Tuple {
       hash = 79 * hash + Objects.hashCode(this.b);
       hash = 79 * hash + Objects.hashCode(this.c);
       return hash;
+    }
+  }
+
+  public static final class Tuple2Matcher {
+
+    private final Object o1;
+    private final Object o2;
+
+    Tuple2Matcher(final Object obj1, final Object obj2) {
+      if (obj1 == null && obj2 == null) {
+        throw new IllegalArgumentException("Both parameters were null.");
+      }
+      this.o1 = obj1;
+      this.o2 = obj2;
+    }
+
+    @Override
+    public boolean equals(final Object o) {
+      if (o == null || Tuple2.class != o.getClass()) {
+        return false;
+      }
+
+      Tuple2 t = (Tuple2) o;
+
+      if (o1 != null && !o1.equals(t.a)) {
+        return false;
+      }
+      if (o2 != null && !o2.equals(t.b)) {
+        return false;
+      }
+
+      return true;
+    }
+  }
+
+  public static final class Tuple3Matcher {
+
+    private final Object o1;
+    private final Object o2;
+    private final Object o3;
+
+    Tuple3Matcher(final Object obj1, final Object obj2, final Object obj3) {
+      if (obj1 == null && obj2 == null && obj3 == null) {
+        throw new IllegalArgumentException("All three parameters were null.");
+      }
+      this.o1 = obj1;
+      this.o2 = obj2;
+      this.o3 = obj3;
+    }
+
+    @Override
+    public boolean equals(final Object o) {
+      if (o == null || Tuple3.class != o.getClass()) {
+        return false;
+      }
+
+      Tuple3 t = (Tuple3) o;
+
+      if (o1 != null && !o1.equals(t.a)) {
+        return false;
+      }
+      if (o2 != null && !o2.equals(t.b)) {
+        return false;
+      }
+      if (o3 != null && !o3.equals(t.c)) {
+        return false;
+      }
+
+      return true;
     }
   }
 }

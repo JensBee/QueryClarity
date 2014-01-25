@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.lucene.index;
 
+import de.unihildesheim.util.Lockable;
 import java.io.Serializable;
 import java.util.Objects;
 
@@ -24,7 +25,7 @@ import java.util.Objects;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public final class TermFreqData implements Serializable {
+public final class TermFreqData implements Serializable, Lockable {
 
   /**
    * Serialization class version id.
@@ -34,12 +35,23 @@ public final class TermFreqData implements Serializable {
   /**
    * Total frequency value of a term in relation to the whole index.
    */
-  private final long totalFreq;
+  private long totalFreq;
+
+  /**
+   * Message to throw, if model is locked.
+   */
+  private static final String LOCKED_MSG = "Operation not supported. "
+          + "Object is locked.";
 
   /**
    * Relative frequency value of a term in relation to the whole index.
    */
-  private final Double relFreq;
+  private double relFreq;
+
+  /**
+   * If true the model is locked and immutable.
+   */
+  private boolean locked = false;
 
   /**
    * Constructor taking both values ass initial parameter.
@@ -76,11 +88,12 @@ public final class TermFreqData implements Serializable {
    * Add the given value to the total frequency value.
    *
    * @param tFreq Value to add total frequency
-   * @return New {@link TermFreqData} object with all properties of the current
-   * object and the given value added to the total term frequency value.
    */
-  public TermFreqData addToTotalFreq(final long tFreq) {
-    return new TermFreqData(this.totalFreq + tFreq, this.relFreq);
+  public void addToTotalFreq(final long tFreq) {
+    if (this.locked) {
+      throw new UnsupportedOperationException(LOCKED_MSG);
+    }
+    this.totalFreq += tFreq;
   }
 
   /**
@@ -98,9 +111,6 @@ public final class TermFreqData implements Serializable {
    * @return Relative frequency value
    */
   public double getRelFreq() {
-    if (this.relFreq == null) {
-      return 0d;
-    }
     return this.relFreq;
   }
 
@@ -108,11 +118,12 @@ public final class TermFreqData implements Serializable {
    * Set the relative frequency value.
    *
    * @param rFreq Relative frequency value
-   * @return New {@link TermFreqData} object with all properties of the current
-   * object and the given value set for the relative term frequency.
    */
-  public TermFreqData addRelFreq(final double rFreq) {
-    return new TermFreqData(this.totalFreq, rFreq);
+  public void setRelFreq(final double rFreq) {
+    if (this.locked) {
+      throw new UnsupportedOperationException(LOCKED_MSG);
+    }
+    this.relFreq = rFreq;
   }
 
   @Override
@@ -127,11 +138,7 @@ public final class TermFreqData implements Serializable {
 
     TermFreqData tfData = (TermFreqData) o;
 
-    if (this.totalFreq != tfData.totalFreq) {
-      return false;
-    }
-    if (this.relFreq == null ? tfData.relFreq != null : !this.relFreq.equals(
-            tfData.relFreq)) {
+    if (this.totalFreq != tfData.totalFreq || this.relFreq != tfData.relFreq) {
       return false;
     }
 
@@ -141,8 +148,24 @@ public final class TermFreqData implements Serializable {
   @Override
   public int hashCode() {
     int hash = 3;
-    hash = 73 * hash + (int) (this.totalFreq ^ (this.totalFreq >>> 32));
-    hash = 73 * hash + Objects.hashCode(this.relFreq);
+    hash = 17 * hash + (int) (this.totalFreq ^ (this.totalFreq >>> 32));
+    hash = 17 * hash + (int) (Double.doubleToLongBits(this.relFreq)
+            ^ (Double.doubleToLongBits(this.relFreq) >>> 32));
     return hash;
+  }
+
+  @Override
+  public void lock() {
+    this.locked = true;
+  }
+
+  @Override
+  public void unlock() {
+    this.locked = false;
+  }
+
+  @Override
+  public boolean isLocked() {
+    return this.isLocked();
   }
 }

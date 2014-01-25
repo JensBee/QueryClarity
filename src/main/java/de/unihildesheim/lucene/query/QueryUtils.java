@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryTermExtractor;
 import org.apache.lucene.search.highlight.WeightedTerm;
+import org.apache.lucene.util.BytesRef;
 
 /**
  *
@@ -44,7 +45,7 @@ public final class QueryUtils {
    * @return Terms of the rewritten {@link Query}
    * @throws IOException Thrown on low-level I/O errors
    */
-  public static String[] getQueryTerms(final IndexReader reader,
+  public static BytesRef[] getQueryTerms(final IndexReader reader,
           final Query query) throws IOException {
     final Query rwQuery = query.rewrite(reader);
 
@@ -53,13 +54,13 @@ public final class QueryUtils {
             rwQuery, true);
 
     // stores all plain terms from the weighted query terms
-    final Set<String> queryTerms = new HashSet(wqTerms.length);
+    final Set<BytesRef> queryTerms = new HashSet(wqTerms.length);
 
     // store all plain query terms
     for (WeightedTerm wTerm : wqTerms) {
-      queryTerms.add(wTerm.getTerm());
+      queryTerms.add(new BytesRef(wTerm.getTerm()));
     }
 
-    return queryTerms.toArray(new String[queryTerms.size()]);
+    return queryTerms.toArray(new BytesRef[queryTerms.size()]);
   }
 }

@@ -100,7 +100,7 @@ public final class TestIndexDataProvider extends AbstractIndexDataProvider {
       freq = new TermFreqData(value);
     } else {
       // overwrite relative term freqency value
-      freq = freq.addRelFreq(value);
+      freq = freq.setRelFreq(value);
     }
     this.termFreqMap.put(term, freq);
   }

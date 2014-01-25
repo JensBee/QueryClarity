@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.lucene.document;
 
+import de.unihildesheim.util.Tuple;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInput;
@@ -26,7 +27,7 @@ import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.List;
-import java.util.Map;
+import org.apache.lucene.util.BytesRef;
 import org.mapdb.Serializer;
 
 /**
@@ -49,27 +50,17 @@ public final class DefaultDocumentModelSerializer implements
     out.writeInt(value.getDocId());
 
     // custom objects
-    ObjectOutput objBytesStream; // converts object to bytes
-    ByteArrayOutputStream objBytes; // collects object bytes
-    byte[] objByteArr; // final object as byte array
-
-    // convert object to byte array (termFreqMap)
-    objBytes = new ByteArrayOutputStream();
-    objBytesStream = new ObjectOutputStream(objBytes);
-    objBytesStream.writeObject(value.getTermFreqMap());
-    objByteArr = objBytes.toByteArray();
-    out.writeInt(objByteArr.length); // save object size
-    out.write(objByteArr); // save object
-    objBytesStream.close();
-    objBytes.close();
-
-    // convert object to byte array (termDataList)
-    objBytes = new ByteArrayOutputStream();
-    objBytesStream = new ObjectOutputStream(objBytes);
-    objBytesStream.writeObject(value.getTermDataList());
-    objByteArr = objBytes.toByteArray();
-    out.writeInt(objByteArr.length); // save object size
-    out.write(objByteArr); // save object
+    // collect object bytes
+    final ByteArrayOutputStream objBytes = new ByteArrayOutputStream();
+    // convert object to bytes
+    final ObjectOutput objBytesStream = new ObjectOutputStream(objBytes);
+    objBytesStream.writeObject(value.getTermData());
+    // final object as byte array
+    final byte[] objByteArr = objBytes.toByteArray();
+    // save object size
+    out.writeInt(objByteArr.length);
+    // save object
+    out.write(objByteArr);
     objBytesStream.close();
     objBytes.close();
   }
@@ -85,36 +76,17 @@ public final class DefaultDocumentModelSerializer implements
     final int docId = in.readInt();
 
     // custom objects
-    Map<String, Long> termFreqMap;
-    List<TermData<String, Number>> termDataList;
-
-    int objByteSize; // size of the objects byte array
-    byte[] objByteArr; // objects bytes
-    ByteArrayInputStream objBytes;
-    ObjectInputStream objBytesStream;
-
-    // convert byte array to object (termFreqMap)
-    objByteSize = in.readInt();
-    objByteArr = new byte[objByteSize];
+    List<Tuple.Tuple3<byte[], String, Number>> termDataList;
+    // size of the objects byte array
+    final int objByteSize = in.readInt();
+    // objects bytes
+    final byte[] objByteArr = new byte[objByteSize];
     in.readFully(objByteArr);
-    objBytes = new ByteArrayInputStream(objByteArr);
-    objBytesStream = new ObjectInputStream(objBytes);
+    final ByteArrayInputStream objBytes = new ByteArrayInputStream(objByteArr);
+    ObjectInputStream objBytesStream = new ObjectInputStream(objBytes);
     try {
-      termFreqMap = (Map<String, Long>) objBytesStream.readObject();
-    } catch (ClassNotFoundException e) {
-      throw new IOException(e);
-    }
-    objBytesStream.close();
-    objBytes.close();
-
-    // convert byte array to object (termDataList)
-    objByteSize = in.readInt();
-    objByteArr = new byte[objByteSize];
-    in.readFully(objByteArr);
-    objBytes = new ByteArrayInputStream(objByteArr);
-    objBytesStream = new ObjectInputStream(objBytes);
-    try {
-      termDataList = (List<TermData<String, Number>>) objBytesStream.
+      termDataList
+              = (List<Tuple.Tuple3<byte[], String, Number>>) objBytesStream.
               readObject();
     } catch (ClassNotFoundException e) {
       throw new IOException(e);
@@ -122,6 +94,6 @@ public final class DefaultDocumentModelSerializer implements
     objBytesStream.close();
     objBytes.close();
 
-    return new DefaultDocumentModel(docId, termFreqMap, termDataList);
+    return new DefaultDocumentModel(docId, termDataList);
   }
 }
