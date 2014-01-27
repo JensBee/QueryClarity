@@ -152,8 +152,6 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
       final int index = this.termDataList.indexOf(Tuple.tupleMatcher(term, key,
               null));
 
-      LOG.debug("check list from idx {}", index);
-
       if (index > -1) {
         // start searching at the first occourence of the term + key
         Tuple.Tuple3<BytesWrap, String, Number> tuple3;

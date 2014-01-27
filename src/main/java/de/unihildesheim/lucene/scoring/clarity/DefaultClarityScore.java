@@ -184,7 +184,6 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
       this.tdMan.setTermData(docModel, term, DataKeys.DOC_MODEL.name(), model);
       docModel.lock();
     }
-    LOG.debug("tm: {}", tm.stop().getElapsedSeconds());
     return model;
   }
 
@@ -267,7 +266,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     DocumentModel docModel;
 
     // debug helpers
-    int[] dbgStatus = new int[]{-1, 10, this.dataProv.getDocModelCount()};
+    int[] dbgStatus = new int[]{-1, 100, termsCount};
     TimeMeasure dbgTimeMeasure = null;
     if (LOG.isDebugEnabled() && dbgStatus[2] > dbgStatus[1]) {
       dbgStatus[0] = 0;
@@ -281,7 +280,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
             LuceneDefaults.VERSION, this.dataProv.getTargetFields(),
             analyzer);
     final IndexSearcher searcher = new IndexSearcher(reader);
-    final TotalHitCountCollector coll = new TotalHitCountCollector();
+    TotalHitCountCollector coll = new TotalHitCountCollector();
     TopDocs results;
     int expResults;
     Query query;
@@ -293,28 +292,27 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
       query = queryParser.parse(BytesWrapUtil.bytesWrapToString(term));
       searcher.search(query, coll);
       expResults = coll.getTotalHits();
-      LOG.debug("Query for {} ({}) yields {} results.", BytesWrapUtil.
+      LOG.trace("Query for {} ({}) yields {} results.", BytesWrapUtil.
               bytesWrapToString(term), query, expResults);
       if (expResults <= 0) {
         continue;
       }
+      coll = new TotalHitCountCollector();
       results = searcher.search(query, expResults);
+
+      // debug operating indicator
+      if (dbgStatus[0] >= 0 && ++dbgStatus[0] % dbgStatus[1] == 0) {
+        LOG.debug("models for {} terms of {} calculated ({}s)", dbgStatus[0],
+                dbgStatus[2], dbgTimeMeasure.stop().getElapsedSeconds());
+        dbgTimeMeasure.start();
+      }
 
       for (ScoreDoc sDoc : results.scoreDocs) {
         // remove model from known list to modify it
         docModel = this.dataProv.removeDocumentModel(sDoc.doc);
         docModel.unlock();
 
-        // debug operating indicator
-        if (dbgStatus[0] >= 0 && ++dbgStatus[0] % dbgStatus[1] == 0) {
-          LOG.debug("{} models of {} terms calculated ({}s)", dbgStatus[0],
-                  dbgStatus[2], dbgTimeMeasure.stop().getElapsedSeconds());
-          dbgTimeMeasure.start();
-        }
-
-        if (docModel.containsTerm(term)) { // double check?
-          calcDocumentModel(docModel, term, true);
-        }
+        calcDocumentModel(docModel, term, true);
 
         // re-add modified model to known list
         docModel.lock();
