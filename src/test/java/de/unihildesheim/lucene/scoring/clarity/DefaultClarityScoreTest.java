@@ -24,6 +24,7 @@ import de.unihildesheim.lucene.index.AbstractIndexDataProvider;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.index.MemoryIndex;
 import de.unihildesheim.lucene.index.TestIndexDataProvider;
+import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.StringUtils;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,8 +41,10 @@ import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.junit.Test;
 import static org.junit.Assert.*;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 import org.slf4j.Logger;
@@ -67,7 +70,7 @@ public final class DefaultClarityScoreTest {
   /**
    * Index used by this test.
    */
-  private final MemoryIndex idx;
+  private MemoryIndex idx;
 
   /**
    * Document fields send to index.
@@ -90,7 +93,7 @@ public final class DefaultClarityScoreTest {
    *
    * @throws IOException Thrown on low-level I/O errors
    */
-  public DefaultClarityScoreTest() throws IOException {
+  public DefaultClarityScoreTest() {
     this.exception = ExpectedException.none();
     // test index data
     fields = new String[]{"title", "text", "id"};
@@ -101,6 +104,11 @@ public final class DefaultClarityScoreTest {
       "title3"});
     documents.add(new String[]{"Literature", "The Art of Computer Science",
       "title4"});
+  }
+
+
+  @Before
+  public void setUp() throws IOException {
     // index should be unchanged through the test
     idx = new MemoryIndex(fields, documents);
   }
@@ -188,9 +196,7 @@ public final class DefaultClarityScoreTest {
           DocumentModelException {
     // data-provider gets initialized with all fields enabled
     dataProv = new TestIndexDataProvider(idx);
-    final DefaultClarityScore dcs
-            = new DefaultClarityScore(idx.getReader(), dataProv);
-    return dcs;
+    return new DefaultClarityScore(idx.getReader(), dataProv);
   }
 
   /**
@@ -202,7 +208,7 @@ public final class DefaultClarityScoreTest {
    * @return
    */
   private double calcDocLangModel(final double langmodelWeight,
-          final DocumentModel docModel, final String term) {
+          final DocumentModel docModel, final BytesWrap term) {
     double weight = (double) (1 - langmodelWeight) * dataProv.
             getRelativeTermFrequency(term);
 
@@ -235,18 +241,19 @@ public final class DefaultClarityScoreTest {
     for (DocumentModel docModel : docModels) {
       modelWeight = 1d;
       for (String term : queryTerms) {
-        modelWeight *= calcDocLangModel(langmodelWeight, docModel, term);
+        modelWeight *= calcDocLangModel(langmodelWeight, docModel, BytesWrap.
+                duplicate(new BytesRef(term)));
       }
       weights.put(docModel, modelWeight);
     }
 
     // iterate over all terms in index
-    Iterator<String> idxTermsIt = this.dataProv.getTermsIterator();
+    Iterator<BytesWrap> idxTermsIt = this.dataProv.getTermsIterator();
     double qLangMod; // query language model
     double score = 0d;
     double log;
     while (idxTermsIt.hasNext()) {
-      final String term = idxTermsIt.next();
+      final BytesWrap term = idxTermsIt.next();
 
       // calculate the query probability of the current term
       qLangMod = 0d;
@@ -283,14 +290,16 @@ public final class DefaultClarityScoreTest {
    */
   @Test
   public void testPreCalcDocumentModels() throws IOException,
-          DocumentModelException {
+          DocumentModelException,
+          ParseException {
     TestUtility.logHeader(LOG, "preCalcDocumentModels");
-    final boolean force = false;
+    boolean force = false;
     final DefaultClarityScore instance = getInstance();
-    LOG.info("force - false {}", instance);
+    LOG.info("force: {}", force);
     instance.preCalcDocumentModels(force);
 
-    LOG.info("force - true");
+    force = true;
+    LOG.info("force: {}", force);
     instance.preCalcDocumentModels(force);
   }
 

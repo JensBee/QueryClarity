@@ -16,12 +16,14 @@
  */
 package de.unihildesheim.lucene.scoring.clarity;
 
+import de.unihildesheim.lucene.LuceneDefaults;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.Feedback;
 import de.unihildesheim.lucene.document.TermDataManager;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.query.QueryUtils;
-import de.unihildesheim.util.BytesWrap;
+import de.unihildesheim.lucene.util.BytesWrapUtil;
+import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.TimeMeasure;
 import java.io.IOException;
 import java.util.HashMap;
@@ -29,8 +31,22 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
+import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.util.BytesRef;
 import org.slf4j.LoggerFactory;
 
@@ -157,14 +173,18 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    */
   private double calcDocumentModel(final DocumentModel docModel,
           final BytesWrap term, final boolean update) {
+    final TimeMeasure tm = new TimeMeasure().start();
     // no value was stored, so calculate it
     final double model = langmodelWeight * ((double) docModel.getTermFrequency(
             term) / (double) docModel.getTermFrequency())
             + calcDefaultDocumentModel(term);
     // update document model
     if (update) {
+      docModel.unlock();
       this.tdMan.setTermData(docModel, term, DataKeys.DOC_MODEL.name(), model);
+      docModel.lock();
     }
+    LOG.debug("tm: {}", tm.stop().getElapsedSeconds());
     return model;
   }
 
@@ -216,7 +236,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     for (DocumentModel docModel : docModels) {
       modelWeight = 1d;
       for (BytesRef term : queryTerms) {
-        modelWeight *= getDocumentModel(docModel, BytesWrap.wrap(term.bytes),
+        modelWeight *= getDocumentModel(docModel, BytesWrap.wrap(term),
                 false);
       }
       weights.put(docModel, modelWeight);
@@ -232,7 +252,8 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    *
    * @param force If true, the recalculation is forced
    */
-  public void preCalcDocumentModels(final boolean force) {
+  public void preCalcDocumentModels(final boolean force) throws ParseException,
+          IOException {
     final int termsCount = this.dataProv.getTermsCount();
     LOG.info("Pre-calculating document models ({}) "
             + "for all unique terms ({}) in index.",
@@ -246,39 +267,86 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     DocumentModel docModel;
 
     // debug helpers
-    int[] dbgStatus = new int[]{-1, 100, this.dataProv.getDocModelCount()};
+    int[] dbgStatus = new int[]{-1, 10, this.dataProv.getDocModelCount()};
     TimeMeasure dbgTimeMeasure = null;
     if (LOG.isDebugEnabled() && dbgStatus[2] > dbgStatus[1]) {
       dbgStatus[0] = 0;
       dbgTimeMeasure = new TimeMeasure();
     }
 
-    while (docModelsIt.hasNext()) {
-      // remove model from known list to modify it
-      docModel = this.dataProv.
-              removeDocumentModel(docModelsIt.next().getDocId());
-      docModel.unlock();
+    // NOTE: this analyzer won't remove any stopwords!
+    final Analyzer analyzer = new StandardAnalyzer(LuceneDefaults.VERSION,
+            CharArraySet.EMPTY_SET);
+    MultiFieldQueryParser queryParser = new MultiFieldQueryParser(
+            LuceneDefaults.VERSION, this.dataProv.getTargetFields(),
+            analyzer);
+    final IndexSearcher searcher = new IndexSearcher(reader);
+    final TotalHitCountCollector coll = new TotalHitCountCollector();
+    TopDocs results;
+    int expResults;
+    Query query;
 
-      // debug operating indicator
-      if (dbgStatus[0] >= 0 && ++dbgStatus[0] % dbgStatus[1] == 0) {
-        LOG.debug("{} models of {} terms calculated ({}s)", dbgStatus[0],
-                dbgStatus[2], dbgTimeMeasure.stop().getElapsedSeconds());
-        dbgTimeMeasure.start();
+    idxTermsIt = this.dataProv.getTermsIterator();
+    while (idxTermsIt.hasNext()) {
+      term = idxTermsIt.next();
+      // query matching documents
+      query = queryParser.parse(BytesWrapUtil.bytesWrapToString(term));
+      searcher.search(query, coll);
+      expResults = coll.getTotalHits();
+      LOG.debug("Query for {} ({}) yields {} results.", BytesWrapUtil.
+              bytesWrapToString(term), query, expResults);
+      if (expResults <= 0) {
+        continue;
       }
+      results = searcher.search(query, expResults);
 
-      idxTermsIt = this.dataProv.getTermsIterator();
-      while (idxTermsIt.hasNext()) {
-        term = idxTermsIt.next();
-        if (docModel.containsTerm(term)) {
+      for (ScoreDoc sDoc : results.scoreDocs) {
+        // remove model from known list to modify it
+        docModel = this.dataProv.removeDocumentModel(sDoc.doc);
+        docModel.unlock();
+
+        // debug operating indicator
+        if (dbgStatus[0] >= 0 && ++dbgStatus[0] % dbgStatus[1] == 0) {
+          LOG.debug("{} models of {} terms calculated ({}s)", dbgStatus[0],
+                  dbgStatus[2], dbgTimeMeasure.stop().getElapsedSeconds());
+          dbgTimeMeasure.start();
+        }
+
+        if (docModel.containsTerm(term)) { // double check?
           calcDocumentModel(docModel, term, true);
         }
-      }
 
-      // re-add modified model to known list
-      docModel.lock();
-      this.dataProv.addDocumentModel(docModel);
+        // re-add modified model to known list
+        docModel.lock();
+        this.dataProv.addDocumentModel(docModel);
+      }
     }
 
+//    while (docModelsIt.hasNext()) {
+//      // remove model from known list to modify it
+//      docModel = this.dataProv.
+//              removeDocumentModel(docModelsIt.next().getDocId());
+//      docModel.unlock();
+//
+//      // debug operating indicator
+//      if (dbgStatus[0] >= 0 && ++dbgStatus[0] % dbgStatus[1] == 0) {
+//        LOG.debug("{} models of {} terms calculated ({}s)", dbgStatus[0],
+//                dbgStatus[2], dbgTimeMeasure.stop().getElapsedSeconds());
+//        dbgTimeMeasure.start();
+//      }
+//
+//      idxTermsIt = this.dataProv.getTermsIterator();
+//      while (idxTermsIt.hasNext()) {
+//        term = idxTermsIt.next();
+//        if (docModel.containsTerm(term)) {
+//          calcDocumentModel(docModel, term, true);
+//        }
+//      }
+//
+//      // re-add modified model to known list
+//      docModel.lock();
+//      this.dataProv.addDocumentModel(docModel);
+//    }
     timeMeasure.stop();
     LOG.info("Pre-calculating document models for all unique terms in index "
             + "took {} seconds", timeMeasure.getElapsedSeconds());
@@ -354,7 +422,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * @return Calculated clarity score for the given terms
    */
   public ClarityScoreResult calculateClarity(final Query query,
-          final Integer[] fbDocIds) {
+          final Integer[] fbDocIds) throws ParseException, IOException {
     if (query == null) {
       throw new IllegalArgumentException("Query was null.");
     }
@@ -372,6 +440,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     } else {
       // document models have to be calculated - this is not a must, but is a
       // good idea (performance-wise)
+      LOG.info("No pre-calculated document models found. Need to calculate.");
       preCalcDocumentModels(false);
     }
 
@@ -383,7 +452,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
 
     try {
       result = calculateClarity(docModels, this.dataProv.getTermsIterator(),
-              QueryUtils.getQueryTerms(reader, query));
+              QueryUtils.getQueryTerms(this.reader, query));
     } catch (IOException ex) {
       result = new ClarityScoreResult(this.getClass());
       LOG.error("Caught exception while calculating clarity score.", ex);
@@ -401,13 +470,16 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     ClarityScoreResult result;
     try {
       // get feedback documents..
-      final Integer[] fbDocIds = Feedback.getFixed(reader, query,
+      final Integer[] fbDocIds = Feedback.getFixed(this.reader, query,
               this.fbDocCount);
       // ..and calculate score
       result = calculateClarity(query, fbDocIds);
     } catch (IOException ex) {
       LOG.error("Error while trying to get feedback documents.", ex);
       // return an empty result on errors
+      result = new ClarityScoreResult(this.getClass());
+    } catch (ParseException ex) {
+      LOG.error("Error while calculating document models.", ex);
       result = new ClarityScoreResult(this.getClass());
     }
 

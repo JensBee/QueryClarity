@@ -18,6 +18,7 @@ package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.lucene.LuceneDefaults;
 import de.unihildesheim.lucene.document.DocumentModel;
+import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.StringUtils;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,6 +46,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * BROKEN - only for reference!
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
@@ -119,7 +121,7 @@ public final class TestIndex implements IndexDataProvider {
 
     LOG.debug("[index] Initializing..");
     this.createIndex(documents);
-    this.gatherTestData(documents);
+//    this.gatherTestData(documents);
     this.calculateTestData();
     LOG.debug("[index] Initialization finished");
     TestIndex.indexInitialized = true;
@@ -137,17 +139,16 @@ public final class TestIndex implements IndexDataProvider {
     TestIndex.indexFields = fields;
   }
 
-  /**
-   * Get the probability value for a specific term related to the collection.
-   *
-   * @param term The term to lookup
-   * @return Calculated pct for the given term
-   */
-  @Override
-  public double getRelativeTermFrequency(final String term) {
-    return TestIndex.relTermFreq.get(term);
-  }
-
+//  /**
+//   * Get the probability value for a specific term related to the collection.
+//   *
+//   * @param term The term to lookup
+//   * @return Calculated pct for the given term
+//   */
+//  @Override
+//  public double getRelativeTermFrequency(final String term) {
+//    return TestIndex.relTermFreq.get(term);
+//  }
   /**
    * Get probability value for a specific term and document.
    *
@@ -169,42 +170,40 @@ public final class TestIndex implements IndexDataProvider {
     return probability;
   }
 
-  @Override
-  public final long getTermFrequency() {
-    return getTermFrequency(null);
-  }
-
-  @Override
-  public long getTermFrequency(final String term) {
-    long overallFreq = 0L;
-
-    // iterate over all stored frequency values by field-name
-    for (String fieldName : fieldTermFrequencies.keySet()) {
-      // check, if current field is included in query
-      if (TestIndex.queryFields.contains(fieldName)) {
-        // get stored term frequencies for this field
-        final Map<String, Integer> termFreqMap = fieldTermFrequencies.get(
-                fieldName);
-
-        if (term == null) {
-          // no term is given: iterate over all terms
-          // and collect the frequency values
-          for (Integer termFreq : termFreqMap.values()) {
-            overallFreq += termFreq;
-          }
-        } else {
-          // a term is set, try to get only the value for this term
-          final Integer termFreq = termFreqMap.get(term);
-          if (termFreq != null) {
-            overallFreq += termFreqMap.get(term);
-          }
-        }
-      }
-    }
-
-    return overallFreq;
-  }
-
+//  @Override
+//  public final long getTermFrequency() {
+//    return getTermFrequency(null);
+//  }
+//  @Override
+//  public long getTermFrequency(final String term) {
+//    long overallFreq = 0L;
+//
+//    // iterate over all stored frequency values by field-name
+//    for (String fieldName : fieldTermFrequencies.keySet()) {
+//      // check, if current field is included in query
+//      if (TestIndex.queryFields.contains(fieldName)) {
+//        // get stored term frequencies for this field
+//        final Map<String, Integer> termFreqMap = fieldTermFrequencies.get(
+//                fieldName);
+//
+//        if (term == null) {
+//          // no term is given: iterate over all terms
+//          // and collect the frequency values
+//          for (Integer termFreq : termFreqMap.values()) {
+//            overallFreq += termFreq;
+//          }
+//        } else {
+//          // a term is set, try to get only the value for this term
+//          final Integer termFreq = termFreqMap.get(term);
+//          if (termFreq != null) {
+//            overallFreq += termFreqMap.get(term);
+//          }
+//        }
+//      }
+//    }
+//
+//    return overallFreq;
+//  }
   /**
    * Get a unique set of all terms known to this index. This takes into account
    * the currently set query fields.
@@ -226,11 +225,10 @@ public final class TestIndex implements IndexDataProvider {
     return uniqueTerms;
   }
 
-  @Override
-  public Iterator<String> getTermsIterator() {
-    return getTermsSet().iterator();
-  }
-
+//  @Override
+//  public Iterator<String> getTermsIterator() {
+//    return getTermsSet().iterator();
+//  }
   /**
    * Get the number of unique terms in the index. This takes into account the
    * currently set query fields.
@@ -322,143 +320,140 @@ public final class TestIndex implements IndexDataProvider {
     }
   }
 
-  /**
-   * Gather index statistics needed for evaluating test results. Test data will
-   * be calculated for all available fields regardless if they're queried. The
-   * decision, which data to use is up to the higher level functions.
-   *
-   * @param documents Documents that were added to the index
-   */
-  private void gatherTestData(final ArrayList<String[]> documents) {
-    String[] fieldTokens; // raw tokens of a field
-    String fieldName; // name of the current field
-    String[] doc; // fields of the current document
-    // term character enumeration
-    char[] docTermChars;
-    // stores field->lowercased-terms for each individual document
-    Map<String, List<String>> docFieldTermMap;
-    // stores lowercased-terms for each individual document and field
-    List<String> docFieldLcTermList;
-    // stores fields term->termfrequency for all documents
-    Map<String, Integer> idxFieldTermFreq;
-
-    // iterate over all documents in index
-    for (int docId = 0; docId < documents.size(); docId++) {
-      doc = documents.get(docId);
-      docFieldTermMap = new HashMap(indexFields.length);
-      DOCUMENT_INDEX.put(docId, docFieldTermMap);
-      docModels.put(docId, new TestDocumentModel(docId));
-
-      // iterate over all fields in document
-      for (int docFieldNum = 0; docFieldNum < doc.length; docFieldNum++) {
-        fieldName = indexFields[docFieldNum];
-        fieldTokens = StringUtils.lowerCase(doc[docFieldNum].trim()).split(
-                "\\s+");
-
-        docFieldLcTermList = new ArrayList(fieldTokens.length);
-
-        // get/init term->frequency storage
-        idxFieldTermFreq = fieldTermFrequencies.get(fieldName);
-        if (idxFieldTermFreq == null) {
-          // initial size is just a guess
-          idxFieldTermFreq = new HashMap((int) (fieldTokens.length * 0.3));
-          fieldTermFrequencies.put(fieldName, idxFieldTermFreq);
-        }
-
-        // iterate over all tokens in field
-        for (String token : fieldTokens) {
-          // manual transform to lowercase to avoid locale problems
-          docTermChars = token.toCharArray();
-          for (int j = 0; j < docTermChars.length; j++) {
-            docTermChars[j] = Character.toLowerCase(docTermChars[j]);
-          }
-          // string is now all lower case
-          token = new String(docTermChars);
-
-          // store lower-cased token
-          docFieldLcTermList.add(token);
-
-          // update count for current token
-          if (idxFieldTermFreq.containsKey(token)) {
-            final int tokenCount = idxFieldTermFreq.get(token) + 1;
-            idxFieldTermFreq.put(token, tokenCount);
-          } else {
-            idxFieldTermFreq.put(token, 1);
-          }
-        }
-
-        // store lower-cases tokens for this document field
-        docFieldTermMap.put(fieldName, docFieldLcTermList);
-      }
-    }
-
-    if (LOG.isTraceEnabled()) {
-      for (String term : getTermsSet()) {
-        LOG.trace("[index] Frequency term={} freq={}", term,
-                getTermFrequency(term));
-      }
-      LOG.trace("[index] Frequency of all terms in index freq={}", this.
-              getTermFrequency());
-    }
-  }
-
-  /**
-   * Calculate document probability for each term in the index. This takes into
-   * account the currently set query fields.
-   */
-  private void calcPDT() {
-    LOG.debug("Calculating test data (pdt)");
-    List docTerms; // list of terms in document
-    double pdt; // document probability for a term and document
-    int ftd; // frequency of current term in document
-    int fd; // number of terms in document
-    long ft; // frequency of term in index
-    final Long f = this.getTermFrequency(); // frequency of all terms in index
-    double fc;
-
-    // store term-related probability values for each document
-    HashMap<Integer, Double> probMap;
-    // iterate over all terms in index
-    for (String term : getTermsSet()) {
-      ft = getTermFrequency(term);
-      fc = ((double) ft / (double) f) * (1 - RTFM_DOCUMENT);
-      probMap = new HashMap(DOCUMENT_INDEX.size()); // init storage
-      // iterate over all documents in index
-      // and calculate pdt for the current term and document
-
-      for (Integer docId : DOCUMENT_INDEX.keySet()) {
-        docTerms = getDocumentTerms(docId);
-        ftd = Collections.frequency(docTerms, term);
-        fd = docTerms.size();
-        pdt = ((double) ftd / (double) fd) * RTFM_DOCUMENT;
-        pdt += fc;
-        probMap.put(docId, pdt); // store value for current document
-        LOG.info("[pdt] docId={} term={} ftd={} fd={} ft={} f={} pdt={}",
-                docId, term, ftd, fd, ft, f, pdt);
-      }
-      // save calculated values with associated term
-      docProbabilities.put(term, probMap);
-    }
-  }
-
-  /**
-   * Calculate collection probability for each term in the index. This takes
-   * into account the currently set query fields.
-   */
-  private void calcPCT() {
-    LOG.debug("Calculating test data (pct)");
-    long ft; // frequency of term in index
-    final Long f = getTermFrequency(); // frequency of all terms in index
-    double pct; // collection probability for a term
-
-    for (String term : getTermsSet()) {
-      ft = getTermFrequency(term);
-      pct = (double) ft / (double) f;
-      relTermFreq.put(term, pct);
-      LOG.info("[pct] term={} ft={} f={} pct={}", term, ft, f, pct);
-    }
-  }
-
+//  /**
+//   * Gather index statistics needed for evaluating test results. Test data will
+//   * be calculated for all available fields regardless if they're queried. The
+//   * decision, which data to use is up to the higher level functions.
+//   *
+//   * @param documents Documents that were added to the index
+//   */
+//  private void gatherTestData(final ArrayList<String[]> documents) {
+//    String[] fieldTokens; // raw tokens of a field
+//    String fieldName; // name of the current field
+//    String[] doc; // fields of the current document
+//    // term character enumeration
+//    char[] docTermChars;
+//    // stores field->lowercased-terms for each individual document
+//    Map<String, List<String>> docFieldTermMap;
+//    // stores lowercased-terms for each individual document and field
+//    List<String> docFieldLcTermList;
+//    // stores fields term->termfrequency for all documents
+//    Map<String, Integer> idxFieldTermFreq;
+//
+//    // iterate over all documents in index
+//    for (int docId = 0; docId < documents.size(); docId++) {
+//      doc = documents.get(docId);
+//      docFieldTermMap = new HashMap(indexFields.length);
+//      DOCUMENT_INDEX.put(docId, docFieldTermMap);
+//      docModels.put(docId, new TestDocumentModel(docId));
+//
+//      // iterate over all fields in document
+//      for (int docFieldNum = 0; docFieldNum < doc.length; docFieldNum++) {
+//        fieldName = indexFields[docFieldNum];
+//        fieldTokens = StringUtils.lowerCase(doc[docFieldNum].trim()).split(
+//                "\\s+");
+//
+//        docFieldLcTermList = new ArrayList(fieldTokens.length);
+//
+//        // get/init term->frequency storage
+//        idxFieldTermFreq = fieldTermFrequencies.get(fieldName);
+//        if (idxFieldTermFreq == null) {
+//          // initial size is just a guess
+//          idxFieldTermFreq = new HashMap((int) (fieldTokens.length * 0.3));
+//          fieldTermFrequencies.put(fieldName, idxFieldTermFreq);
+//        }
+//
+//        // iterate over all tokens in field
+//        for (String token : fieldTokens) {
+//          // manual transform to lowercase to avoid locale problems
+//          docTermChars = token.toCharArray();
+//          for (int j = 0; j < docTermChars.length; j++) {
+//            docTermChars[j] = Character.toLowerCase(docTermChars[j]);
+//          }
+//          // string is now all lower case
+//          token = new String(docTermChars);
+//
+//          // store lower-cased token
+//          docFieldLcTermList.add(token);
+//
+//          // update count for current token
+//          if (idxFieldTermFreq.containsKey(token)) {
+//            final int tokenCount = idxFieldTermFreq.get(token) + 1;
+//            idxFieldTermFreq.put(token, tokenCount);
+//          } else {
+//            idxFieldTermFreq.put(token, 1);
+//          }
+//        }
+//
+//        // store lower-cases tokens for this document field
+//        docFieldTermMap.put(fieldName, docFieldLcTermList);
+//      }
+//    }
+//
+//    if (LOG.isTraceEnabled()) {
+//      for (String term : getTermsSet()) {
+//        LOG.trace("[index] Frequency term={} freq={}", term,
+//                getTermFrequency(term));
+//      }
+//      LOG.trace("[index] Frequency of all terms in index freq={}", this.
+//              getTermFrequency());
+//    }
+//  }
+//  /**
+//   * Calculate document probability for each term in the index. This takes into
+//   * account the currently set query fields.
+//   */
+//  private void calcPDT() {
+//    LOG.debug("Calculating test data (pdt)");
+//    List docTerms; // list of terms in document
+//    double pdt; // document probability for a term and document
+//    int ftd; // frequency of current term in document
+//    int fd; // number of terms in document
+//    long ft; // frequency of term in index
+//    final Long f = this.getTermFrequency(); // frequency of all terms in index
+//    double fc;
+//
+//    // store term-related probability values for each document
+//    HashMap<Integer, Double> probMap;
+//    // iterate over all terms in index
+//    for (String term : getTermsSet()) {
+//      ft = getTermFrequency(term);
+//      fc = ((double) ft / (double) f) * (1 - RTFM_DOCUMENT);
+//      probMap = new HashMap(DOCUMENT_INDEX.size()); // init storage
+//      // iterate over all documents in index
+//      // and calculate pdt for the current term and document
+//
+//      for (Integer docId : DOCUMENT_INDEX.keySet()) {
+//        docTerms = getDocumentTerms(docId);
+//        ftd = Collections.frequency(docTerms, term);
+//        fd = docTerms.size();
+//        pdt = ((double) ftd / (double) fd) * RTFM_DOCUMENT;
+//        pdt += fc;
+//        probMap.put(docId, pdt); // store value for current document
+//        LOG.info("[pdt] docId={} term={} ftd={} fd={} ft={} f={} pdt={}",
+//                docId, term, ftd, fd, ft, f, pdt);
+//      }
+//      // save calculated values with associated term
+//      docProbabilities.put(term, probMap);
+//    }
+//  }
+//  /**
+//   * Calculate collection probability for each term in the index. This takes
+//   * into account the currently set query fields.
+//   */
+//  private void calcPCT() {
+//    LOG.debug("Calculating test data (pct)");
+//    long ft; // frequency of term in index
+//    final Long f = getTermFrequency(); // frequency of all terms in index
+//    double pct; // collection probability for a term
+//
+//    for (String term : getTermsSet()) {
+//      ft = getTermFrequency(term);
+//      pct = (double) ft / (double) f;
+//      relTermFreq.put(term, pct);
+//      LOG.info("[pct] term={} ft={} f={} pct={}", term, ft, f, pct);
+//    }
+//  }
   /**
    * Calculate the query probability for the given query, the current term and
    * the list of feedback document. This takes into account the currently set
@@ -564,8 +559,8 @@ public final class TestIndex implements IndexDataProvider {
    * fields.
    */
   private void calculateTestData() {
-    this.calcPDT();
-    this.calcPCT();
+//    this.calcPDT();
+//    this.calcPCT();
   }
 
   /**
@@ -674,74 +669,23 @@ public final class TestIndex implements IndexDataProvider {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 
-  private class TestDocumentModel implements DocumentModel {
+  @Override
+  public long getTermFrequency(BytesWrap term) {
+    throw new UnsupportedOperationException("Not supported yet.");
+  }
 
-    private final int docId;
+  @Override
+  public double getRelativeTermFrequency(BytesWrap term) {
+    throw new UnsupportedOperationException("Not supported yet.");
+  }
 
-    public TestDocumentModel(final int documentId) {
-      this.docId = documentId;
-    }
+  @Override
+  public Iterator<BytesWrap> getTermsIterator() {
+    throw new UnsupportedOperationException("Not supported yet.");
+  }
 
-    @Override
-    public long getTermFrequency() {
-      return TestIndex.this.getTermFrequency(this.docId);
-    }
-
-    @Override
-    public long getTermFrequency(final String term) {
-      return TestIndex.this.getTermFrequency(this.docId, term);
-    }
-
-    @Override
-    public int getDocId() {
-      return this.docId;
-    }
-
-    @Override
-    public boolean containsTerm(final String term) {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public Number getTermData(final String term, final String key) {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public DocumentModel setDocId(final int documentId) {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public DocumentModel create(final int documentId, final int termsCount) {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public DocumentModel addTermFrequency(final String term,
-            final long frequency) {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public DocumentModel addTermData(final String term, final String key,
-            final Number value) {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public void setTermFrequency(String term, long frequency) {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public void lock() {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public void unlock() {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
+  @Override
+  public long getTermFrequency() {
+    throw new UnsupportedOperationException("Not supported yet.");
   }
 }

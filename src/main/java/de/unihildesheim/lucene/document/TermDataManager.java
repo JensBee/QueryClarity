@@ -17,7 +17,7 @@
 package de.unihildesheim.lucene.document;
 
 import de.unihildesheim.lucene.index.IndexDataProvider;
-import de.unihildesheim.util.BytesWrap;
+import de.unihildesheim.lucene.util.BytesWrap;
 import org.apache.lucene.util.BytesRef;
 
 /**

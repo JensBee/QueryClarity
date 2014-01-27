@@ -21,7 +21,7 @@ import de.ruedigermoeller.serialization.FSTObjectInput;
 import de.ruedigermoeller.serialization.FSTObjectOutput;
 import de.unihildesheim.io.FastByteArrayInputStream;
 import de.unihildesheim.io.FastByteArrayOutputStream;
-import de.unihildesheim.util.BytesWrap;
+import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.Tuple;
 import java.io.DataInput;
 import java.io.DataOutput;

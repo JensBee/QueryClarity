@@ -16,7 +16,7 @@
  */
 package de.unihildesheim.lucene.document;
 
-import de.unihildesheim.util.BytesWrap;
+import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.Tuple;
 import java.io.Serializable;
 import java.util.ArrayList;

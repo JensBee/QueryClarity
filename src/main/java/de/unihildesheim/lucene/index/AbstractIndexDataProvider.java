@@ -19,7 +19,8 @@ package de.unihildesheim.lucene.index;
 import de.unihildesheim.lucene.document.DocFieldsTermsEnum;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.DocumentModelException;
-import de.unihildesheim.util.BytesWrap;
+import de.unihildesheim.lucene.util.BytesWrapUtil;
+import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.TimeMeasure;
 import java.io.IOException;
 import java.util.Collections;
@@ -29,7 +30,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
@@ -66,12 +66,14 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   /**
    * Store mapping of <tt>term (bytes)</tt> -> <tt>frequency values</tt>.
    */
-  protected Map<BytesWrap, TermFreqData> termFreqMap;
+  @SuppressWarnings("ProtectedField")
+  protected ConcurrentMap<BytesWrap, TermFreqData> termFreqMap;
 
   /**
    * Store mapping of <tt>document-id</tt> -> {@link DocumentModel}.
    */
-  protected Map<Integer, DocumentModel> docModelMap;
+  @SuppressWarnings("ProtectedField")
+  protected ConcurrentMap<Integer, DocumentModel> docModelMap;
 
   /**
    * Index fields to operate on.
@@ -115,7 +117,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
           // fast forward seek to term..
           if (fieldTermsEnum.seekExact(bytesRef)) {
             // ..and update the frequency value for term
-            updateTermFreqValue(BytesWrap.duplicate(bytesRef.bytes),
+            updateTermFreqValue(BytesWrap.wrap(bytesRef),
                     fieldTermsEnum.totalTermFreq());
           }
           bytesRef = fieldTermsEnum.next();
@@ -131,28 +133,48 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   /**
    * Updates the term frequency value for the given term.
    *
-   * Since the used {@link Map} implementation is unknown here, a map with
-   * immutable objects is assumed and a modification of already stored entries
-   * is prohibited. So an entry has to be removed to be updated.
-   *
    * @param term Term to update
    * @param value Value to add to the currently stored value. If there's no
    */
-  protected abstract void updateTermFreqValue(final BytesWrap term,
-          final long value);
+  private void updateTermFreqValue(final BytesWrap term, final long value) {
+    if (this.termFreqMap.containsKey(term)) {
+      final TermFreqData tfData = this.termFreqMap.get(term);
+      tfData.addToTotalFreq(value);
+      if (this.termFreqMap.replace(term, tfData) == null) {
+        // previous value should never be null - this smells like an error
+        throw new IllegalStateException("Got null while updating "
+                + "term frequency value for term '" + term + "'.");
+      }
+    } else {
+      final TermFreqData tfData = new TermFreqData(value);
+      this.termFreqMap.put(term.duplicate(), tfData);
+    }
+    this.setTermFrequency(this.getTermFrequency() + value);
+  }
 
   /**
    * Updates the relative term frequency value for the given term.
-   *
-   * Since the used {@link Map} implementation is unknown here, a custom
-   * implementation is needed.
    *
    * @param term Term to update
    * @param value Value to overwrite any previously stored value. If there's no
    * value stored, then it will be set to the specified value.
    */
-  protected abstract void updateTermFreqValue(final BytesWrap term,
-          final double value);
+  private void updateTermFreqValue(final BytesWrap term,
+          final double value) {
+    if (this.termFreqMap.containsKey(term)) {
+      final TermFreqData tfData = this.termFreqMap.get(term);
+      tfData.setRelFreq(value);
+      if (this.termFreqMap.replace(term, tfData) == null) {
+        // previous value should never be null - this smells like an error
+        throw new IllegalStateException("Got null while updating "
+                + "relative term frequency value for term '" + term + "'.");
+      }
+    } else {
+      throw new IllegalStateException("term should be there");
+//      final TermFreqData tfData = new TermFreqData(value);
+//      this.termFreqMap.put(term.clone(), tfData);
+    }
+  }
 
   /**
    * Create the document models used by this instance.
@@ -205,8 +227,9 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
 
       // debug operating indicator
       if (dbgStatus[0] >= 0 && ++dbgStatus[0] % dbgStatus[1] == 0) {
-        LOG.debug("{} documents of  approx. {} created ({}s)", dbgStatus[0],
-                dbgStatus[2], dbgTimeMeasure.stop().getElapsedSeconds());
+        LOG.debug("{} models of  approx. {} documents created ({}s)",
+                dbgStatus[0], dbgStatus[2], dbgTimeMeasure.stop().
+                getElapsedSeconds());
         dbgTimeMeasure.start();
       }
 
@@ -219,11 +242,11 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
         try {
           bytesRef = dftEnum.next();
           while (bytesRef != null) {
-            term = BytesWrap.wrap(bytesRef.bytes);
+            term = BytesWrap.duplicate(bytesRef);
 
             // update frequency counter for current term
             if (!docTerms.containsKey(term)) {
-              docTerms.put(term.duplicate(), new AtomicLong(0));
+              docTerms.put(term, new AtomicLong(0));
             }
             docTerms.get(term).getAndAdd(dftEnum.getTotalTermFreq());
             LOG.trace("TermCount doc={} term={} count={}", docId, bytesRef.
@@ -311,9 +334,9 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     // stays the same, as we (should) re-add entries immediately.
     // Using EntrySet to modify entries is prohibited, since we assume immutable
     // entries.
-    final Set<BytesWrap> terms = Collections.
-            unmodifiableSet(termFreqMap.keySet());
-    double tFreq;
+    final Set<BytesWrap> terms = Collections.unmodifiableSet(termFreqMap.
+            keySet());
+//    double tFreq;
     double rTermFreq;
 
     // debug helpers

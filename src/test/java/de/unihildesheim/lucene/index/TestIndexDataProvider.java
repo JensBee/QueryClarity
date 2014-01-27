@@ -19,8 +19,8 @@ package de.unihildesheim.lucene.index;
 import de.unihildesheim.lucene.document.DefaultDocumentModel;
 import de.unihildesheim.lucene.document.DocumentModelException;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Simple {@link IndexDataProvider} implementation for testing purposes.
@@ -44,8 +44,8 @@ public final class TestIndexDataProvider extends AbstractIndexDataProvider {
    */
   public TestIndexDataProvider(final MemoryIndex memoryIdx) throws
           DocumentModelException, IOException {
-    this.docModelMap = new HashMap(memoryIdx.getDocumentIds().size());
-    this.termFreqMap = new HashMap(memoryIdx.getUniqueTerms().size());
+    this.docModelMap = new ConcurrentHashMap(memoryIdx.getDocumentIds().size());
+    this.termFreqMap = new ConcurrentHashMap(memoryIdx.getUniqueTerms().size());
     this.setFields(memoryIdx.getIdxFields());
     this.calculateTermFrequencies(memoryIdx.getReader());
     this.calculateRelativeTermFrequencies();
@@ -73,35 +73,5 @@ public final class TestIndexDataProvider extends AbstractIndexDataProvider {
   public String getProperty(final String prefix, final String key,
           final String defaultValue) {
     return storageProp.getProperty(prefix + "_" + key, defaultValue);
-  }
-
-  @Override
-  protected final void updateTermFreqValue(final String term,
-          final long value) {
-    TermFreqData freq = this.termFreqMap.remove(term);
-
-    if (freq == null) {
-      freq = new TermFreqData(value);
-    } else {
-      // add new value to the already stored value
-      freq = freq.addToTotalFreq(value);
-    }
-    this.termFreqMap.put(term, freq);
-
-    // reset overall value
-    this.setOverallTermFreq(null); // force recalculation
-  }
-
-  @Override
-  protected void updateTermFreqValue(final String term, final double value) {
-    TermFreqData freq = this.termFreqMap.remove(term);
-
-    if (freq == null) {
-      freq = new TermFreqData(value);
-    } else {
-      // overwrite relative term freqency value
-      freq = freq.setRelFreq(value);
-    }
-    this.termFreqMap.put(term, freq);
   }
 }

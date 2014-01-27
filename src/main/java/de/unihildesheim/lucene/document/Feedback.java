@@ -155,11 +155,11 @@ public final class Feedback {
 
       // get the amount of random docs to get
       int randDocs = maxRetDocs - initialDocs.scoreDocs.length;
-      LOG.debug("Got {} matching feedback documents. "
-              + "Getting additional {} random feedback documents...",
-              initialDocs.scoreDocs.length, randDocs);
 
       if (randDocs > 0) {
+        LOG.debug("Got {} matching feedback documents. "
+                + "Getting additional {} random feedback documents...",
+                initialDocs.scoreDocs.length, randDocs);
         final Bits liveDocs = MultiFields.getLiveDocs(reader); // NOPMD
 
         while (randDocs > 0) {

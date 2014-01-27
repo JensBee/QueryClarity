@@ -14,10 +14,12 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.util;
+package de.unihildesheim.lucene.util;
 
 import java.io.Serializable;
 import java.util.Arrays;
+import org.apache.lucene.util.BytesRef;
+import org.slf4j.LoggerFactory;
 
 /**
  * Based on: https://stackoverflow.com/a/1058169
@@ -25,6 +27,9 @@ import java.util.Arrays;
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public final class BytesWrap implements Serializable {
+
+  private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
+          BytesWrap.class);
 
   /**
    * Serialization class version id.
@@ -36,6 +41,9 @@ public final class BytesWrap implements Serializable {
    */
   private byte[] data;
 
+  /**
+   * True, if the wrapped data has been duplicated (a local copy was made).
+   */
   private boolean isDuplicated = false;
 
   /**
@@ -45,16 +53,40 @@ public final class BytesWrap implements Serializable {
    */
   private int hash = 0;
 
-  public BytesWrap(byte[] existingData, final boolean duplicate) {
+  /**
+   * Array offset.
+   */
+  private int offset = 0;
+
+  /**
+   * Length of data. <tt>-1</tt> means return the full array on request.
+   */
+  private int length = -1;
+
+  public BytesWrap(final byte[] existingData, final boolean duplicate) {
     if (existingData == null) {
-      throw new IllegalArgumentException("Byte array was null.");
+      throw new IllegalArgumentException("Byte array was empty or null.");
     }
     if (duplicate) {
-      this.data = existingData.clone(); // local copy - to be immutable
-      this.hash = Arrays.hashCode(data); // pre-calc hash-code
-      this.isDuplicated = true;
+      this.data = existingData.clone();
+      doDuplicate();
     } else {
-      this.data = existingData.clone(); // ref only - mutable
+      this.data = existingData; // ref only - mutable
+    }
+  }
+
+  public BytesWrap(final BytesRef bytesRef, final boolean duplicate) {
+    if (bytesRef.length == 0) {
+      throw new IllegalArgumentException("Byte array was empty or null.");
+    }
+    if (duplicate) {
+      this.data = Arrays.copyOfRange(bytesRef.bytes, bytesRef.offset,
+              bytesRef.length);
+      doDuplicate();
+    } else {
+      this.data = bytesRef.bytes; // ref only - mutable
+      this.offset = bytesRef.offset;
+      this.length = bytesRef.length;
     }
   }
 
@@ -70,6 +102,10 @@ public final class BytesWrap implements Serializable {
     return new BytesWrap(existingBytes, false);
   }
 
+  public static BytesWrap wrap(final BytesRef exBytesRef) {
+    return new BytesWrap(exBytesRef, false);
+  }
+
   /**
    * Creates a new {@link BytesWrap} instance by duplicating (making a local
    * copy) of the given array. This means any changes to the passed in array
@@ -82,6 +118,10 @@ public final class BytesWrap implements Serializable {
     return new BytesWrap(bytesToClone, true);
   }
 
+  public static BytesWrap duplicate(final BytesRef exBytesRef) {
+    return new BytesWrap(exBytesRef, true);
+  }
+
   /**
    * Create a local copy of the referenced byte array. This will do nothing, if
    * the copying was already done.
@@ -90,11 +130,22 @@ public final class BytesWrap implements Serializable {
    */
   public BytesWrap duplicate() {
     if (!this.isDuplicated) {
-      this.data = this.data.clone();
-      this.hash = Arrays.hashCode(data);
-      this.isDuplicated = true;
+      if (this.length == -1) {
+        // clone full array
+        this.data = this.data.clone();
+      } else {
+        // we only want a portion
+        this.data = Arrays.copyOfRange(this.data, this.offset, this.length);
+      }
+      doDuplicate();
     }
     return this;
+  }
+
+  private void doDuplicate() {
+    this.hash = Arrays.hashCode(data);
+    this.isDuplicated = true;
+    this.length = this.data.length;
   }
 
   /**
@@ -104,8 +155,12 @@ public final class BytesWrap implements Serializable {
    * @return Internal used or referenced byte array
    */
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
-  protected byte[] getBytes() {
-    return this.data;
+  public byte[] getBytes() {
+    if (this.length == -1) {
+      return this.data;
+    } else {
+      return Arrays.copyOfRange(this.data, this.offset, this.length);
+    }
   }
 
   @Override
@@ -113,11 +168,11 @@ public final class BytesWrap implements Serializable {
     if (!(o instanceof BytesWrap)) {
       return false;
     }
-    return Arrays.equals(data, ((BytesWrap) o).data);
+    return Arrays.equals(getBytes(), ((BytesWrap) o).getBytes());
   }
 
   @Override
   public int hashCode() {
-    return this.isDuplicated? this.hash : Arrays.hashCode(data);
+    return this.isDuplicated ? this.hash : Arrays.hashCode(data);
   }
 }

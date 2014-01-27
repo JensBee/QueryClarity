@@ -78,9 +78,10 @@ public final class DocFieldsTermsEnumTest {
    * Get a new {@link DocFieldsTermsEnum} instance with all default fields
    * enabled and a random document set as current.
    *
+   * @throws IOException Thrown on low-level I/O errors
    * @return Instance
    */
-  private DocFieldsTermsEnum getInstance() {
+  private DocFieldsTermsEnum getInstance() throws IOException {
     final List<Integer> docIds = new ArrayList(idx.getDocumentIds());
     final int documentId = docIds.get(TestUtility.getRandInt(0, docIds.size()));
 
@@ -89,9 +90,11 @@ public final class DocFieldsTermsEnumTest {
 
   /**
    * Test of setDocument method, of class DocFieldsTermsEnum.
+   *
+   * @throws IOException Thrown on low-level I/O errors
    */
   @Test
-  public void testSetDocument() {
+  public void testSetDocument() throws IOException {
     TestUtility.logHeader(LOG, "setDocument");
 
     final List<Integer> docIds = new ArrayList(idx.getDocumentIds());

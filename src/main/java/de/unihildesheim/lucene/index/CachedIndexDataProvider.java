@@ -21,8 +21,8 @@ import de.unihildesheim.lucene.document.DefaultDocumentModel;
 import de.unihildesheim.lucene.document.DefaultDocumentModelSerializer;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.DocumentModelException;
-import de.unihildesheim.util.BytesWrap;
-import de.unihildesheim.util.BytesWrapSerializer;
+import de.unihildesheim.lucene.util.BytesWrap;
+import de.unihildesheim.lucene.util.BytesWrapSerializer;
 import de.unihildesheim.util.TimeMeasure;
 import java.io.File;
 import java.io.FileInputStream;
@@ -93,6 +93,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
    * Static keys used to store and retrieve persistent meta information.
    */
   private enum DataKeys {
+
     /**
      * Fields indexed by this instance.
      */
@@ -193,6 +194,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     // map-value serializer
     final Serializer ddmSerializer = new DefaultDocumentModelSerializer();
     dmmMkr.valueSerializer(ddmSerializer);
+    // keep an entries counter
+    dmmMkr.keepCounter(true);
     // create map
     this.docModelMap = dmmMkr.makeOrGet();
 
@@ -203,6 +206,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     // map-value serializer
     final Serializer tfdSerializer = new TermFreqDataSerializer();
     tfmMkr.valueSerializer(tfdSerializer);
+    // keep an entry counter
+    tfmMkr.keepCounter(true);
     // create map
     this.termFreqMap = tfmMkr.makeOrGet();
     timeMeasure.stop();
@@ -217,6 +222,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
         // check if data was loaded
         needsRecalc = this.docModelMap.isEmpty() || this.termFreqMap.isEmpty();
         if (!needsRecalc) {
+//          LOG.info("Loading cache took {} seconds. ", timeMeasure.
+//                  getElapsedSeconds());
           LOG.info("Loading cache (docModels={} termFreq={}) "
                   + "took {} seconds.", this.docModelMap.size(),
                   this.termFreqMap.size(), timeMeasure.getElapsedSeconds());
@@ -361,43 +368,5 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   public String getProperty(final String prefix, final String key,
           final String defaultValue) {
     return this.storageProp.getProperty(prefix + "_" + key, defaultValue);
-  }
-
-  @Override
-  protected final void updateTermFreqValue(final BytesWrap term,
-          final long value) {
-
-    if (this.termFreqMap.containsKey(term)) {
-      final TermFreqData tfData = this.termFreqMap.get(term);
-      tfData.addToTotalFreq(value);
-      if (((HTreeMap) this.termFreqMap).replace(term, tfData) == null) {
-        // previous value should never be null - this smells like an error
-        throw new IllegalStateException("Got null while updating "
-                + "term frequency value for term '" + term + "'.");
-      }
-    } else {
-      final TermFreqData tfData = new TermFreqData(value);
-      this.termFreqMap.put(term.duplicate(), tfData);
-    }
-    this.setTermFrequency(this.getTermFrequency() + value);
-  }
-
-  @Override
-  protected final void updateTermFreqValue(final BytesWrap term,
-          final double value) {
-
-    if (this.termFreqMap.containsKey(term)) {
-      final TermFreqData tfData = this.termFreqMap.get(term);
-      tfData.setRelFreq(value);
-      if (((HTreeMap) this.termFreqMap).replace(term, tfData) == null) {
-        // previous value should never be null - this smells like an error
-        throw new IllegalStateException("Got null while updating "
-                + "relative term frequency value for term '" + term + "'.");
-      }
-    } else {
-      throw new IllegalStateException("term should be there");
-//      final TermFreqData tfData = new TermFreqData(value);
-//      this.termFreqMap.put(term.clone(), tfData);
-    }
   }
 }
