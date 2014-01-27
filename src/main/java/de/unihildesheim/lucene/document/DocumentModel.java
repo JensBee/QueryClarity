@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.lucene.document;
 
+import de.unihildesheim.util.BytesWrap;
 import de.unihildesheim.util.Lockable;
 import java.io.Serializable;
 
@@ -76,7 +77,7 @@ public interface DocumentModel extends Serializable, Lockable {
    * @param term Term to lookup
    * @return True if term is contained in document, false otherwise
    */
-  boolean containsTerm(final byte[] term);
+  boolean containsTerm(final BytesWrap term);
 
   /**
    * Get the frequency of the given term in the document.
@@ -84,7 +85,7 @@ public interface DocumentModel extends Serializable, Lockable {
    * @param term Non <tt>null</tt> term to lookup
    * @return Frequency of the given term in the document
    */
-  long getTermFrequency(final byte[] term);
+  long getTermFrequency(final BytesWrap term);
 
   /**
    * Set the frequency value for a specific term.
@@ -92,7 +93,7 @@ public interface DocumentModel extends Serializable, Lockable {
    * @param term Term whose frequency value should be set
    * @param frequency Frequency value
    */
-  void setTermFrequency(final byte[] term, final long frequency);
+  void setTermFrequency(final BytesWrap term, final long frequency);
 
   /**
    * Get a specific value stored for a term by a given key.
@@ -102,7 +103,7 @@ public interface DocumentModel extends Serializable, Lockable {
    * @return Stored {@link Number} value, or <tt>null</tt> if no value was
    * stored under the specified key.
    */
-  Number getTermData(final byte[] term, final String key);
+  Number getTermData(final BytesWrap term, final String key);
 
   /**
    * Store a value for a term in this document. This will silently overwrite any
@@ -112,7 +113,7 @@ public interface DocumentModel extends Serializable, Lockable {
    * @param key Non <tt>null</tt> key to identify the value
    * @param value {@link Number} value to store
    */
-  void setTermData(final byte[] term, final String key,
+  void setTermData(final BytesWrap term, final String key,
           final Number value);
 
   /**

@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Set;
+import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -45,13 +46,13 @@ public final class DocFieldsTermsEnum {
   /**
    * Lucene fields to operate on.
    */
-  private final Set<String> targetFields;
+//  private final Set<String> targetFields;
+  private final String[] fields;
 
   /**
    * Lucene fields to operate on.
    */
-  private LinkedList<String> currentFields;
-
+//  private LinkedList<String> currentFields;
   /**
    * Currently active enumerator.
    */
@@ -68,16 +69,32 @@ public final class DocFieldsTermsEnum {
   private Integer docId = null;
 
   /**
+   * Current field index the enumerator accesses.
+   */
+  private int currentFieldIdx;
+
+  /**
+   * Indicates whether a enumerator is set.
+   */
+  private boolean hasEnum = false;
+
+  /**
+   * Document fields to enumerate over.
+   */
+  private Fields docFields;
+
+  /**
    * Generic reusable {@link DocFieldsTermEnum} instance. To actually reuse this
    * instance the {@link setDocument} function must be called before
    * {@link next} can be used, to set the document to operate on.
    *
    * @param indexReader {@link IndexReader} instance to use
-   * @param fields Lucene index fields to operate on
+   * @param targetFields Lucene index fields to operate on
+   * @throws java.io.IOException Thrown on low-level I/O errors
    */
   public DocFieldsTermsEnum(final IndexReader indexReader,
-          final String[] fields) {
-    this(indexReader, fields, null);
+          final String[] targetFields) throws IOException {
+    this(indexReader, targetFields, null);
   }
 
   /**
@@ -86,29 +103,35 @@ public final class DocFieldsTermsEnum {
    * @param documentId Lucene document-id for which the enumeration should be
    * done
    * @param indexReader {@link IndexReader} instance to use
-   * @param fields Lucene index fields to operate on
+   * @param targetFields Lucene index fields to operate on (list must be unique)
+   * and not modified any more, since passed in.
+   * @throws java.io.IOException Thrown on low-level I/O errors
    */
   public DocFieldsTermsEnum(final IndexReader indexReader,
-          final String[] fields, final Integer documentId) {
+          final String[] targetFields, final Integer documentId) throws
+          IOException {
     if (indexReader == null) {
       throw new IllegalArgumentException("IndexReader was null.");
     }
-    if (fields == null || fields.length == 0) {
+    if (targetFields == null || targetFields.length == 0) {
       throw new IllegalArgumentException("No target fields were specified.");
     }
-    this.targetFields = new HashSet(Arrays.asList(fields));
-    this.currentFields = new LinkedList(this.targetFields);
+    this.fields = targetFields;
     this.reader = indexReader;
-    this.docId = documentId;
+    if (documentId != null) {
+      setDocument(documentId);
+    }
   }
 
   /**
    * Set the id for the document whose terms should be enumerated.
    *
    * @param documentId Lucene document id
+   * @throws java.io.IOException Thrown on low-level I/O errors
    */
-  public void setDocument(final int documentId) {
+  public void setDocument(final int documentId) throws IOException {
     this.docId = documentId;
+    this.docFields = this.reader.getTermVectors(documentId);
     reset();
   }
 
@@ -116,8 +139,8 @@ public final class DocFieldsTermsEnum {
    * Resets the iterator keeping the current document-id.
    */
   public void reset() {
-    this.currentFields = new LinkedList(this.targetFields);
-    this.currentEnum = null;
+    this.hasEnum = false;
+    this.currentFieldIdx = 0;
   }
 
   /**
@@ -136,7 +159,7 @@ public final class DocFieldsTermsEnum {
       throw new IllegalArgumentException("No document-id was specified.");
     }
 
-    if (this.currentEnum == null) {
+    if (!this.hasEnum) {
       updateCurrentEnum();
     }
 
@@ -164,15 +187,15 @@ public final class DocFieldsTermsEnum {
   private BytesRef getNextValue() throws IOException {
     // try to get an iterator which has a value
     BytesRef nextValue;
-    if (this.currentEnum == null) {
+    if (!this.hasEnum) {
       nextValue = null;
     } else {
       nextValue = this.currentEnum.next();
     }
 
-    while (nextValue == null && !this.currentFields.isEmpty()) {
+    while (nextValue == null && this.currentFieldIdx < this.fields.length) {
       updateCurrentEnum();
-      if (this.currentEnum == null) {
+      if (!this.hasEnum) {
         nextValue = null;
       } else {
         nextValue = this.currentEnum.next();
@@ -191,29 +214,22 @@ public final class DocFieldsTermsEnum {
    * @throws IOException If there is a low-level I/O error
    */
   private void updateCurrentEnum() throws IOException {
-    String targetField;
-    Terms termVector;
+    this.hasEnum = false;
 
     // try all fields. If there are no term vectors stored for the current
     // field, then try the next, until all fields are exhausted
-    while (!this.currentFields.isEmpty()) {
-      // get next field
-      targetField = this.currentFields.pop();
-      LOG.trace("Trying field field={} remaining={}", targetField,
-              this.currentFields.size());
-      // try to get term vectors for this field
-      termVector = this.reader.getTermVector(this.docId, targetField);
-
-      // check if we have TermVectors set
-      if (termVector != null) {
-        LOG.trace("Trying field field={} tv=true", targetField);
-        this.currentEnum = termVector.iterator(null);
-        break;
+    while (!this.hasEnum && this.currentFieldIdx < this.fields.length) {
+      try {
+        this.currentEnum = this.docFields.terms(
+                this.fields[this.currentFieldIdx]).iterator(this.currentEnum);
+        this.hasEnum = true;
+      } catch (NullPointerException ex) {
+        LOG.error("Caught NullPointerException for field={} doc={}. "
+                + "Either the field does not exist or "
+                + "there were no term-vectors stored.",
+                this.fields[this.currentFieldIdx], this.docId, ex);
       }
-      this.currentEnum = null;
-      LOG.warn("No TermVector found for doc={} field={}. "
-              + "Unable to get any term information for this docment field.",
-              this.docId, targetField);
+      this.currentFieldIdx++;
     }
   }
 }

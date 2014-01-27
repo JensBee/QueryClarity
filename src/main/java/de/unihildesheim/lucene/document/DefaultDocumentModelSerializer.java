@@ -16,18 +16,18 @@
  */
 package de.unihildesheim.lucene.document;
 
+import de.ruedigermoeller.serialization.FSTConfiguration;
+import de.ruedigermoeller.serialization.FSTObjectInput;
+import de.ruedigermoeller.serialization.FSTObjectOutput;
+import de.unihildesheim.io.FastByteArrayInputStream;
+import de.unihildesheim.io.FastByteArrayOutputStream;
+import de.unihildesheim.util.BytesWrap;
 import de.unihildesheim.util.Tuple;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutput;
-import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.List;
-import org.apache.lucene.util.BytesRef;
 import org.mapdb.Serializer;
 
 /**
@@ -43,26 +43,27 @@ public final class DefaultDocumentModelSerializer implements
    */
   private static final long serialVersionUID = 0L;
 
+  /**
+   * Configuration for fast object serialization.
+   */
+  private static final FSTConfiguration FST_CONF = FSTConfiguration.
+          createDefaultConfiguration();
+
   @Override
   public void serialize(final DataOutput out, final DefaultDocumentModel value)
           throws IOException {
     // pre-defined objects
     out.writeInt(value.getDocId());
-
-    // custom objects
-    // collect object bytes
-    final ByteArrayOutputStream objBytes = new ByteArrayOutputStream();
-    // convert object to bytes
-    final ObjectOutput objBytesStream = new ObjectOutputStream(objBytes);
-    objBytesStream.writeObject(value.getTermData());
-    // final object as byte array
-    final byte[] objByteArr = objBytes.toByteArray();
-    // save object size
-    out.writeInt(objByteArr.length);
-    // save object
-    out.write(objByteArr);
-    objBytesStream.close();
-    objBytes.close();
+    try (FastByteArrayOutputStream objBytes = new FastByteArrayOutputStream()) {
+      final FSTObjectOutput objBytesStream = FST_CONF.getObjectOutput(objBytes);
+      objBytesStream.writeObject(value.getTermData(), List.class);
+      // final object as byte array
+      final byte[] objByteArr = objBytes.getByteArray();
+      // save object size
+      out.writeInt(objByteArr.length);
+      // save object
+      out.write(objByteArr);
+    }
   }
 
   @Override
@@ -76,23 +77,23 @@ public final class DefaultDocumentModelSerializer implements
     final int docId = in.readInt();
 
     // custom objects
-    List<Tuple.Tuple3<byte[], String, Number>> termDataList;
+    List<Tuple.Tuple3<BytesWrap, String, Number>> termDataList;
     // size of the objects byte array
     final int objByteSize = in.readInt();
     // objects bytes
     final byte[] objByteArr = new byte[objByteSize];
     in.readFully(objByteArr);
-    final ByteArrayInputStream objBytes = new ByteArrayInputStream(objByteArr);
-    ObjectInputStream objBytesStream = new ObjectInputStream(objBytes);
-    try {
-      termDataList
-              = (List<Tuple.Tuple3<byte[], String, Number>>) objBytesStream.
-              readObject();
-    } catch (ClassNotFoundException e) {
-      throw new IOException(e);
+    try (FastByteArrayInputStream objBytes
+            = new FastByteArrayInputStream(objByteArr)) {
+      FSTObjectInput objBytesStream = FST_CONF.getObjectInput(objBytes);
+      try {
+        termDataList
+                = (List<Tuple.Tuple3<BytesWrap, String, Number>>) objBytesStream.
+                readObject(List.class);
+      } catch (Exception ex) {
+        throw new IOException(ex);
+      }
     }
-    objBytesStream.close();
-    objBytes.close();
 
     return new DefaultDocumentModel(docId, termDataList);
   }

@@ -17,8 +17,8 @@
 package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.lucene.document.DocumentModel;
+import de.unihildesheim.util.BytesWrap;
 import java.util.Iterator;
-import org.apache.lucene.util.BytesRef;
 
 /**
  * IndexDataProvider provides statistical data from the underlying Lucene index.
@@ -47,7 +47,7 @@ public interface IndexDataProvider {
    * @param term Term to lookup
    * @return The frequency of the term in the index
    */
-  long getTermFrequency(final byte[] term);
+  long getTermFrequency(final BytesWrap term);
 
   /**
    * Get the relative term frequency for a term in the index.
@@ -55,7 +55,7 @@ public interface IndexDataProvider {
    * @param term Term to lookup
    * @return Relative term frequency for the given term
    */
-  double getRelativeTermFrequency(final byte[] term);
+  double getRelativeTermFrequency(final BytesWrap term);
 
   /**
    * Close this instance. This is meant for handling cleanups after using this
@@ -75,7 +75,7 @@ public interface IndexDataProvider {
    *
    * @return Unique terms iterator
    */
-  Iterator<byte[]> getTermsIterator();
+  Iterator<BytesWrap> getTermsIterator();
 
   /**
    * Get the number of unique terms in the index.

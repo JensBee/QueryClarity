@@ -19,14 +19,17 @@ package de.unihildesheim.lucene.index;
 import de.unihildesheim.lucene.document.DocFieldsTermsEnum;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.DocumentModelException;
+import de.unihildesheim.util.BytesWrap;
 import de.unihildesheim.util.TimeMeasure;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.logging.Level;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
@@ -63,7 +66,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   /**
    * Store mapping of <tt>term (bytes)</tt> -> <tt>frequency values</tt>.
    */
-  protected Map<byte[], TermFreqData> termFreqMap;
+  protected Map<BytesWrap, TermFreqData> termFreqMap;
 
   /**
    * Store mapping of <tt>document-id</tt> -> {@link DocumentModel}.
@@ -105,14 +108,15 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
       if (fieldTerms != null) {
         fieldTermsEnum = fieldTerms.iterator(fieldTermsEnum);
 
-        // ..iterate over them,,
+        // ..iterate over them..
         bytesRef = fieldTermsEnum.next();
         while (bytesRef != null) {
 
           // fast forward seek to term..
           if (fieldTermsEnum.seekExact(bytesRef)) {
             // ..and update the frequency value for term
-            updateTermFreqValue(bytesRef.bytes, fieldTermsEnum.totalTermFreq());
+            updateTermFreqValue(BytesWrap.duplicate(bytesRef.bytes),
+                    fieldTermsEnum.totalTermFreq());
           }
           bytesRef = fieldTermsEnum.next();
         }
@@ -134,7 +138,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * @param term Term to update
    * @param value Value to add to the currently stored value. If there's no
    */
-  protected abstract void updateTermFreqValue(final byte[] term,
+  protected abstract void updateTermFreqValue(final BytesWrap term,
           final long value);
 
   /**
@@ -147,7 +151,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * @param value Value to overwrite any previously stored value. If there's no
    * value stored, then it will be set to the specified value.
    */
-  protected abstract void updateTermFreqValue(final byte[] term,
+  protected abstract void updateTermFreqValue(final BytesWrap term,
           final double value);
 
   /**
@@ -164,21 +168,27 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    */
   protected final void createDocumentModels(
           final Class<? extends DocumentModel> modelType,
-          final IndexReader reader) throws DocumentModelException {
+          final IndexReader reader) throws DocumentModelException, IOException {
     final TimeMeasure timeMeasure = new TimeMeasure().start();
-    // create an enumerator enumarating over all specified document fields
+    // create an enumerator enumerating over all specified document fields
     final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(reader,
             this.fields);
     // gather terms found in the document
-//    final Map<String, Long> docTerms = new HashMap(1000);
-    final Map<byte[], Long> docTerms = new HashMap(1000);
-    Long termCount;
+    final ConcurrentMap<BytesWrap, AtomicLong> docTerms
+            = new ConcurrentHashMap<>(1000);
     final Bits liveDocs = MultiFields.getLiveDocs(reader);
-//    String term;
-    byte[] term;
+    BytesWrap term;
     DocumentModel docModel;
-    long docTermFrequency;
     BytesRef bytesRef;
+
+    // debug helpers
+    int[] dbgStatus = new int[]{-1, 100, reader.maxDoc()};
+    int docModelCount = 0;
+    TimeMeasure dbgTimeMeasure = null;
+    if (LOG.isDebugEnabled() && dbgStatus[2] > dbgStatus[1]) {
+      dbgStatus[0] = 0;
+      dbgTimeMeasure = new TimeMeasure();
+    }
 
     for (int docId = 0; docId < reader.maxDoc(); docId++) {
       // check if document is deleted
@@ -187,78 +197,76 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
         continue;
       }
 
-      // clear previous cached document term values
-      docTerms.clear();
-
-      // go through all document fields..
-      dftEnum.setDocument(docId);
-      try {
-        bytesRef = dftEnum.next();
-        while (bytesRef != null) {
-          // get the document frequency of the current term
-          docTermFrequency = dftEnum.getTotalTermFreq();
-
-          // get string representation of current term
-//          try {
-          term = bytesRef.bytes.clone();
-//          } catch (ArrayIndexOutOfBoundsException ex) {
-//            LOG.error("docId={} bytes={} hex={} length={} offset={}", docId,
-//                    bytesRef.bytes, bytesRef.toString(), bytesRef.length,
-//                    bytesRef.offset);
-//            term = null;
-//          }
-
-//          if (term != null) {
-          // update frequency counter for current term
-          termCount = docTerms.get(term);
-          if (termCount == null) {
-            termCount = docTermFrequency;
-          } else {
-            termCount += docTermFrequency;
-          }
-
-          docTerms.put(term, termCount);
-//          }
-          bytesRef = dftEnum.next();
-        }
-      } catch (IOException ex) {
-        LOG.error("Error while getting terms for document id {}", docId, ex);
-      }
-
       // document model should be unique - otherwise this is an error
       if (this.docModelMap.containsKey(docId)) {
         throw new IllegalArgumentException(
                 "Document model already known at creation time.");
       }
-      try {
-        // create a new model with the given id and
-        // the expected number of terms
-        docModel = modelType.newInstance();
-        docModel.create(docId, docTerms.size());
-      } catch (InstantiationException | IllegalAccessException ex) {
-        LOG.error("Error creating document model.", ex);
-        throw new DocumentModelException(ex);
+
+      // debug operating indicator
+      if (dbgStatus[0] >= 0 && ++dbgStatus[0] % dbgStatus[1] == 0) {
+        LOG.debug("{} documents of  approx. {} created ({}s)", dbgStatus[0],
+                dbgStatus[2], dbgTimeMeasure.stop().getElapsedSeconds());
+        dbgTimeMeasure.start();
       }
 
-      // All terms from all document fields are gathered.
-      // Store the document frequency of each document term to the model
-//      for (Map.Entry<String, Long> entry : docTerms.entrySet()) {
-      for (Map.Entry<byte[], Long> entry : docTerms.entrySet()) {
+      // clear previous cached document term values
+      docTerms.clear();
+      try {
+        // go through all document fields..
+        dftEnum.setDocument(docId);
+
         try {
-          docModel.setTermFrequency(entry.getKey(), entry.getValue());
-        } catch (ArrayIndexOutOfBoundsException ex) {
-          LOG.error("docId={} bytes={} hex={} length={}", docId,
-                  entry.getKey(), entry.getKey().toString(), entry.
-                  getKey().length);
+          bytesRef = dftEnum.next();
+          while (bytesRef != null) {
+            term = BytesWrap.wrap(bytesRef.bytes);
+
+            // update frequency counter for current term
+            if (!docTerms.containsKey(term)) {
+              docTerms.put(term.duplicate(), new AtomicLong(0));
+            }
+            docTerms.get(term).getAndAdd(dftEnum.getTotalTermFreq());
+            LOG.trace("TermCount doc={} term={} count={}", docId, bytesRef.
+                    utf8ToString(), dftEnum.getTotalTermFreq());
+
+            bytesRef = dftEnum.next();
+          }
+        } catch (IOException ex) {
+          LOG.error("Error while getting terms for document id {}", docId, ex);
         }
+
+        try {
+          // create a new model with the given id and
+          // the expected number of terms
+          docModel = modelType.newInstance();
+          docModel.create(docId, docTerms.size());
+        } catch (InstantiationException | IllegalAccessException ex) {
+          LOG.error("Error creating document model.", ex);
+          throw new DocumentModelException(ex);
+        }
+
+        // All terms from all document fields are gathered.
+        // Store the document frequency of each document term to the model
+        for (Map.Entry<BytesWrap, AtomicLong> entry : docTerms.entrySet()) {
+          try {
+            docModel.setTermFrequency(entry.getKey(), entry.getValue().get());
+          } catch (ArrayIndexOutOfBoundsException ex) {
+            LOG.error("docId={} bytes={}", docId, entry.getKey());
+          }
+        }
+        docModel.lock(); // make model immutable for storage now
+        this.docModelMap.put(docId, docModel);
+        if (LOG.isDebugEnabled()) {
+          docModelCount++;
+        }
+      } catch (IOException ex) {
+        LOG.error("Error retrieving document id={}.", docId, ex);
       }
-      docModel.lock(); // make model immutable for storage now
-      this.docModelMap.put(docId, docModel);
     }
 
     timeMeasure.stop();
     LOG.info("Calculation of document models for {} documents took {} seconds.",
-            this.docModelMap.size(), timeMeasure.getElapsedSeconds());
+            docModelCount, timeMeasure.getElapsedSeconds());
   }
 
   /**
@@ -296,7 +304,6 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    */
   protected final void calculateRelativeTermFrequencies() {
     final TimeMeasure timeMeasure = new TimeMeasure().start();
-
     final double cFreq = (double) getTermFrequency();
 
     // Create a shallow copy of all term keys from the map. This is needed,
@@ -304,15 +311,31 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     // stays the same, as we (should) re-add entries immediately.
     // Using EntrySet to modify entries is prohibited, since we assume immutable
     // entries.
-    final Set<byte[]> terms = new HashSet(termFreqMap.size());
-    terms.addAll(termFreqMap.keySet());
-
+    final Set<BytesWrap> terms = Collections.
+            unmodifiableSet(termFreqMap.keySet());
     double tFreq;
     double rTermFreq;
-    for (byte[] term : terms) {
-      tFreq = (double) getTermFrequency(term);
-      rTermFreq = tFreq / cFreq;
-      updateTermFreqValue(term, rTermFreq);
+
+    // debug helpers
+    int[] dbgStatus = new int[]{-1, 10000, terms.size()};
+    TimeMeasure dbgTimeMeasure = null;
+    if (LOG.isDebugEnabled() && dbgStatus[2] > dbgStatus[1]) {
+      dbgStatus[0] = 0;
+      dbgTimeMeasure = new TimeMeasure();
+    }
+
+    for (BytesWrap term : terms) {
+      // debug operating indicator
+      if (dbgStatus[0] >= 0 && ++dbgStatus[0] % dbgStatus[1] == 0) {
+        LOG.debug("{} of {} terms calculated ({}s)", dbgStatus[0],
+                dbgStatus[2], dbgTimeMeasure.stop().getElapsedSeconds());
+        dbgTimeMeasure.start();
+      }
+
+      if (this.termFreqMap.containsKey(term)) {
+        rTermFreq = (double) this.termFreqMap.get(term).getTotalFreq() / cFreq;
+        updateTermFreqValue(term, rTermFreq);
+      }
     }
 
     timeMeasure.stop();
@@ -324,6 +347,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   @Override
   public final long getTermFrequency() {
     if (this.overallTermFreq == null) {
+      LOG.info("Collection term frequency not found. Need to recalculate.");
       this.overallTermFreq = 0L;
       for (TermFreqData freq : this.termFreqMap.values()) {
         if (freq == null) {
@@ -333,14 +357,15 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
           this.overallTermFreq += freq.getTotalFreq();
         }
       }
-      LOG.debug("Calculated overall term frequency: {}", this.overallTermFreq);
+      LOG.debug("Calculated collection term frequency: {}",
+              this.overallTermFreq);
     }
 
     return this.overallTermFreq;
   }
 
   @Override
-  public final long getTermFrequency(final byte[] term) {
+  public final long getTermFrequency(final BytesWrap term) {
     final TermFreqData freq = this.termFreqMap.get(term);
     long value;
 
@@ -356,7 +381,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   }
 
   @Override
-  public final double getRelativeTermFrequency(final byte[] term) {
+  public final double getRelativeTermFrequency(final BytesWrap term) {
     final TermFreqData freq = this.termFreqMap.get(term);
     double value;
 
@@ -376,7 +401,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   }
 
   @Override
-  public final Iterator<byte[]> getTermsIterator() {
+  public final Iterator<BytesWrap> getTermsIterator() {
     return Collections.unmodifiableSet(this.termFreqMap.keySet()).iterator();
   }
 
@@ -424,20 +449,11 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   }
 
   /**
-   * Get the overall frequency of all terms in the index.
-   *
-   * @return Overall frequency of all terms in the index
-   */
-  public final Long getOverallTermFreq() {
-    return overallTermFreq;
-  }
-
-  /**
    * Set the overall frequency of all terms in the index.
    *
    * @param oTermFreq Overall frequency of all terms in the index
    */
-  protected final void setOverallTermFreq(final Long oTermFreq) {
+  protected final void setTermFrequency(final Long oTermFreq) {
     this.overallTermFreq = oTermFreq;
   }
 

@@ -17,7 +17,7 @@
 package de.unihildesheim.lucene.document;
 
 import de.unihildesheim.lucene.TestUtility;
-import de.unihildesheim.lucene.index.TestIndex;
+import edu.umd.cs.findbugs.annotations.SuppressWarnings;
 import java.util.AbstractMap;
 import java.util.HashMap;
 import java.util.Map;
@@ -28,7 +28,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.*;
-import org.junit.Ignore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,9 +58,6 @@ public final class DefaultDocumentModelTest {
    */
   private static Map<String, Long> terms;
 
-  public DefaultDocumentModelTest() {
-  }
-
   @BeforeClass
   public static void setUpClass() {
     DefaultDocumentModelTest.terms = new HashMap(10);
@@ -81,18 +77,6 @@ public final class DefaultDocumentModelTest {
     for (Long freq : DefaultDocumentModelTest.terms.values()) {
       termFreq += freq;
     }
-  }
-
-  @AfterClass
-  public static void tearDownClass() {
-  }
-
-  @Before
-  public void setUp() {
-  }
-
-  @After
-  public void tearDown() {
   }
 
   /**
@@ -127,7 +111,8 @@ public final class DefaultDocumentModelTest {
   private Entry<String, Long> getRandomTermEntry() {
     final String[] docTerms = DefaultDocumentModelTest.terms.keySet().toArray(
             new String[DefaultDocumentModelTest.terms.size()]);
-    final String term = docTerms[TestUtility.getRandInt(0, docTerms.length - 1)];
+    final String term = docTerms[TestUtility.getRandInt(0,
+            docTerms.length - 1)];
 
     return new AbstractMap.SimpleEntry<>(term, DefaultDocumentModelTest.terms.
             get(term));
@@ -154,7 +139,7 @@ public final class DefaultDocumentModelTest {
    */
   @Test
   public void testGetTermData() {
-    TestUtility.logHeader(LOG, "getTermData - typed");
+    TestUtility.logHeader(LOG, "getTermData");
 
     final Entry<String, Long> entry = getRandomTermEntry();
     final String key = "test";
@@ -204,6 +189,7 @@ public final class DefaultDocumentModelTest {
 
     final Entry<String, Long> entry = getRandomTermEntry();
     LOG.info("Add t={} with f={}", entry.getKey(), entry.getValue());
+    @SuppressWarnings("DLS_DEAD_LOCAL_STORE")
     final DocumentModel instance = createModelInstance().addTermFrequency(entry.
             getKey(), entry.getValue());
   }

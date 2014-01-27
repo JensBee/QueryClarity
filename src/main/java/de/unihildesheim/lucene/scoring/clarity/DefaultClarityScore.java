@@ -21,6 +21,7 @@ import de.unihildesheim.lucene.document.Feedback;
 import de.unihildesheim.lucene.document.TermDataManager;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.query.QueryUtils;
+import de.unihildesheim.util.BytesWrap;
 import de.unihildesheim.util.TimeMeasure;
 import java.io.IOException;
 import java.util.HashMap;
@@ -141,7 +142,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * @param term Term whose model to calculate
    * @return The calculated default model value
    */
-  private double calcDefaultDocumentModel(final byte[] term) {
+  private double calcDefaultDocumentModel(final BytesWrap term) {
     return (double) (1 - langmodelWeight) * dataProv.getRelativeTermFrequency(
             term);
   }
@@ -155,15 +156,14 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * @return Calculated model value
    */
   private double calcDocumentModel(final DocumentModel docModel,
-          final byte[] term, final boolean update) {
+          final BytesWrap term, final boolean update) {
     // no value was stored, so calculate it
     final double model = langmodelWeight * ((double) docModel.getTermFrequency(
             term) / (double) docModel.getTermFrequency())
             + calcDefaultDocumentModel(term);
     // update document model
     if (update) {
-      this.tdMan.setTermData(docModel, term,
-              DataKeys.DOC_MODEL.name(), model);
+      this.tdMan.setTermData(docModel, term, DataKeys.DOC_MODEL.name(), model);
     }
     return model;
   }
@@ -178,7 +178,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * @return Calculated language model for the given document and term
    */
   private double getDocumentModel(final DocumentModel docModel,
-          final byte[] term, final boolean force) {
+          final BytesWrap term, final boolean force) {
     Double model = null;
 
     if (docModel.containsTerm(term)) {
@@ -216,7 +216,8 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     for (DocumentModel docModel : docModels) {
       modelWeight = 1d;
       for (BytesRef term : queryTerms) {
-        modelWeight *= getDocumentModel(docModel, term.bytes, false);
+        modelWeight *= getDocumentModel(docModel, BytesWrap.wrap(term.bytes),
+                false);
       }
       weights.put(docModel, modelWeight);
     }
@@ -238,19 +239,20 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
             this.dataProv.getDocModelCount(), termsCount);
 
     final TimeMeasure timeMeasure = new TimeMeasure().start();
-    int dbgCount = 0;
-    int dbgStep = 100; // after how many terms to display a status message
-    TimeMeasure dbgTimeMeasure = null;
-
-    if (LOG.isDebugEnabled()) {
-      dbgTimeMeasure = new TimeMeasure().start();
-    }
-
     final Iterator<DocumentModel> docModelsIt = this.dataProv.
             getDocModelIterator();
-    Iterator<byte[]> idxTermsIt;
-    byte[] term;
+    Iterator<BytesWrap> idxTermsIt;
+    BytesWrap term;
     DocumentModel docModel;
+
+    // debug helpers
+    int[] dbgStatus = new int[]{-1, 100, this.dataProv.getDocModelCount()};
+    TimeMeasure dbgTimeMeasure = null;
+    if (LOG.isDebugEnabled() && dbgStatus[2] > dbgStatus[1]) {
+      dbgStatus[0] = 0;
+      dbgTimeMeasure = new TimeMeasure();
+    }
+
     while (docModelsIt.hasNext()) {
       // remove model from known list to modify it
       docModel = this.dataProv.
@@ -258,13 +260,10 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
       docModel.unlock();
 
       // debug operating indicator
-      if (LOG.isDebugEnabled() && this.dataProv.getDocModelCount() > dbgStep) {
-        dbgCount++;
-        if (dbgCount % dbgStep == 0) {
-          LOG.debug("{} models of {} calculated ({}s)", dbgCount, this.dataProv.
-                  getDocModelCount(), dbgTimeMeasure.stop().getElapsedSeconds());
-          dbgTimeMeasure.start();
-        }
+      if (dbgStatus[0] >= 0 && ++dbgStatus[0] % dbgStatus[1] == 0) {
+        LOG.debug("{} models of {} terms calculated ({}s)", dbgStatus[0],
+                dbgStatus[2], dbgTimeMeasure.stop().getElapsedSeconds());
+        dbgTimeMeasure.start();
       }
 
       idxTermsIt = this.dataProv.getTermsIterator();
@@ -298,7 +297,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    */
   private ClarityScoreResult calculateClarity(
           final Set<DocumentModel> docModels,
-          final Iterator<byte[]> idxTermsIt,
+          final Iterator<BytesWrap> idxTermsIt,
           final BytesRef[] queryTerms) {
     final TimeMeasure timeMeasure = new TimeMeasure().start();
     double score = 0d;
@@ -311,7 +310,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
             docModels, queryTerms);
 
     // iterate over all terms in index
-    byte[] term;
+    BytesWrap term;
     while (idxTermsIt.hasNext()) {
       term = idxTermsIt.next();
 
@@ -367,8 +366,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
 
     // check if document models are pre-calculated and stored
     final boolean hasPrecalcData = Boolean.parseBoolean(this.dataProv.
-            getProperty(
-                    PREFIX, DataKeys.DOCMODELS_PRECALCULATED.name()));
+            getProperty(PREFIX, DataKeys.DOCMODELS_PRECALCULATED.name()));
     if (hasPrecalcData) {
       LOG.info("Using pre-calculated document models.");
     } else {
@@ -401,7 +399,6 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     }
 
     ClarityScoreResult result;
-
     try {
       // get feedback documents..
       final Integer[] fbDocIds = Feedback.getFixed(reader, query,

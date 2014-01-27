@@ -16,15 +16,12 @@
  */
 package de.unihildesheim.lucene.document;
 
+import de.unihildesheim.util.BytesWrap;
 import de.unihildesheim.util.Tuple;
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import org.apache.lucene.util.BytesRef;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,12 +69,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
   /**
    * List storing triples: Term, Key, Value
    */
-  private List<Tuple.Tuple3<byte[], String, Number>> termDataList;
-
-  /**
-   * Initial size of {@link DefaultDocumentModel#termData} storage.
-   */
-  private static final int INITIAL_TERMDATA_SIZE = 20;
+  private List<Tuple.Tuple3<BytesWrap, String, Number>> termDataList;
 
   /**
    * Stores the calculated overall term frequency of all terms from the index.
@@ -114,7 +106,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
    * @param newTermDataList
    */
   protected DefaultDocumentModel(final int documentId,
-          final List<Tuple.Tuple3<byte[], String, Number>> newTermDataList) {
+          final List<Tuple.Tuple3<BytesWrap, String, Number>> newTermDataList) {
     this.docId = documentId;
     this.termDataList = newTermDataList;
   }
@@ -124,7 +116,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
    *
    * @return The internal term data
    */
-  protected List<Tuple.Tuple3<byte[], String, Number>> getTermData() {
+  protected List<Tuple.Tuple3<BytesWrap, String, Number>> getTermData() {
     return this.termDataList;
   }
 
@@ -139,7 +131,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
    * @param key Must not start with an underscore (reserved for internal use).
    */
   @Override
-  public void setTermData(final byte[] term, final String key,
+  public void setTermData(final BytesWrap term, final String key,
           final Number value) {
     if (this.locked) {
       throw new UnsupportedOperationException(LOCKED_MSG);
@@ -148,11 +140,11 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
     if (this.termDataList == null) {
       createDataStore();
     }
-    this.termDataList.add(Tuple.tuple3(term, key, value));
+    this.termDataList.add(Tuple.tuple3(term.duplicate(), key, value));
   }
 
   @Override
-  public Number getTermData(final byte[] term, final String key) {
+  public Number getTermData(final BytesWrap term, final String key) {
     Number retVal = null;
 
     if (this.termDataList != null) {
@@ -164,7 +156,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
 
       if (index > -1) {
         // start searching at the first occourence of the term + key
-        Tuple.Tuple3<byte[], String, Number> tuple3;
+        Tuple.Tuple3<BytesWrap, String, Number> tuple3;
         for (int i = index; i < this.termDataList.size(); i++) {
           tuple3 = this.termDataList.get(i);
           if (tuple3 != null && tuple3.a.equals(term) && tuple3.b.equals(key)) {
@@ -182,7 +174,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
   }
 
   @Override
-  public boolean containsTerm(final byte[] term) {
+  public boolean containsTerm(final BytesWrap term) {
     if (term == null || this.termDataList == null) {
       return false;
     }
@@ -190,7 +182,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
   }
 
   @Override
-  public void setTermFrequency(final byte[] term,
+  public void setTermFrequency(final BytesWrap term,
           final long frequency) {
     if (this.locked) {
       throw new UnsupportedOperationException(LOCKED_MSG);
@@ -198,8 +190,8 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
     if (this.termDataList == null) {
       createDataStore();
     }
-    this.termDataList.add(Tuple.
-            tuple3(term.clone(), "_freq", (Number) frequency));
+    this.termDataList.add(Tuple.tuple3(term.duplicate(), "_freq",
+            (Number) frequency));
   }
 
   @Override
@@ -221,7 +213,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
   @Override
   public long getTermFrequency() {
     if (this.overallTermFrequency == 0L && this.termDataList != null) {
-      for (Tuple.Tuple3<byte[], String, Number> tuple3 : this.termDataList) {
+      for (Tuple.Tuple3<BytesWrap, String, Number> tuple3 : this.termDataList) {
         if (tuple3.b.equals("_freq")) {
           this.overallTermFrequency += (long) tuple3.c;
         }
@@ -231,7 +223,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
   }
 
   @Override
-  public long getTermFrequency(final byte[] term) {
+  public long getTermFrequency(final BytesWrap term) {
     if (term == null) {
       throw new IllegalArgumentException("Term must not be null.");
     }

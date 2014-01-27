@@ -21,6 +21,8 @@ import de.unihildesheim.lucene.document.DefaultDocumentModel;
 import de.unihildesheim.lucene.document.DefaultDocumentModelSerializer;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.DocumentModelException;
+import de.unihildesheim.util.BytesWrap;
+import de.unihildesheim.util.BytesWrapSerializer;
 import de.unihildesheim.util.TimeMeasure;
 import java.io.File;
 import java.io.FileInputStream;
@@ -88,6 +90,20 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
           CachedIndexDataProvider.class);
 
   /**
+   * Static keys used to store and retrieve persistent meta information.
+   */
+  private enum DataKeys {
+    /**
+     * Fields indexed by this instance.
+     */
+    fields,
+    /**
+     * Cache data last access date
+     */
+    timestamp
+  }
+
+  /**
    * Creates a new disk backed (cached) {@link IndexDataProvider} with the given
    * storage path.
    *
@@ -101,17 +117,16 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
             getClass().getCanonicalName(), newStoragePath);
     this.storagePath = newStoragePath;
     this.storageId = newStorageId;
+
     // create the manager for disk storage
     try {
       final DBMaker dbMkr = DBMaker.newFileDB(new File(this.storagePath,
               this.storageId));
+      dbMkr.transactionDisable(); // wo do not need transactions
+      dbMkr.asyncFlushDelay(100); // reduce the record fragmentation to minimum
       dbMkr.randomAccessFileEnableIfNeeded(); // support 32bit JVMs
-//      if (useLRUCache) {
       dbMkr.cacheLRUEnable(); // enable last-recent-used cache
-//      }
-//      if (useHardRefs) {
       dbMkr.cacheHardRefEnable(); // use hard reference map
-//      }
 //      dbMkr.closeOnJvmShutdown(); // auto close db on exit
       this.db = dbMkr.make();
     } catch (RuntimeException ex) {
@@ -138,7 +153,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
         this.storageProp.load(propStream);
       }
 
-      final String targetFields = this.storageProp.getProperty("fields");
+      final String targetFields = this.storageProp.getProperty(DataKeys.fields.
+              name());
       if (targetFields == null) {
         // no fields specified
         this.setFields(new String[0]);
@@ -182,7 +198,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
 
     final HTreeMapMaker tfmMkr = this.db.createHashMap("termFreq");
     // map-key serializer
-    tfmMkr.keySerializer(Serializer.BYTE_ARRAY);
+    final Serializer bwSerializer = new BytesWrapSerializer();
+    tfmMkr.keySerializer(bwSerializer);
     // map-value serializer
     final Serializer tfdSerializer = new TermFreqDataSerializer();
     tfmMkr.valueSerializer(tfdSerializer);
@@ -206,7 +223,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
         }
         // debug
         if (LOG.isTraceEnabled()) {
-          for (Entry<byte[], TermFreqData> data : this.termFreqMap.entrySet()) {
+          for (Entry<BytesWrap, TermFreqData> data : this.termFreqMap.entrySet()) {
             LOG.trace("load: t={} f={} rf={}", data.getKey(), data.getValue().
                     getTotalFreq(), data.getValue().getRelFreq());
           }
@@ -277,7 +294,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
 
     // debug
     if (LOG.isTraceEnabled()) {
-      for (Entry<byte[], TermFreqData> data : this.termFreqMap.entrySet()) {
+      for (Entry<BytesWrap, TermFreqData> data : this.termFreqMap.entrySet()) {
         LOG.trace("new: t={} f={} rf={}", data.getKey(), data.getValue().
                 getTotalFreq(), data.getValue().getRelFreq());
       }
@@ -287,10 +304,10 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     this.db.commit();
 
     // update meta data
-    this.storageProp.setProperty("fields", StringUtils.join(targetFields,
-            FIELD_NAME_SEP));
-    this.storageProp.setProperty("timestamp", new SimpleDateFormat(
-            "MM/dd/yyyy h:mm:ss a").format(new Date()));
+    this.storageProp.setProperty(DataKeys.fields.name(), StringUtils.join(
+            targetFields, FIELD_NAME_SEP));
+    this.storageProp.setProperty(DataKeys.timestamp.name(),
+            new SimpleDateFormat("MM/dd/yyyy h:mm:ss a").format(new Date()));
     saveMetadata();
   }
 
@@ -311,7 +328,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   public void dispose() {
     // debug
     if (LOG.isTraceEnabled()) {
-      for (Entry<byte[], TermFreqData> data : this.termFreqMap.entrySet()) {
+      for (Entry<BytesWrap, TermFreqData> data : this.termFreqMap.entrySet()) {
         LOG.trace("store: t={} f={} rf={}", data.getKey(), data.getValue().
                 getTotalFreq(), data.getValue().getRelFreq());
       }
@@ -347,7 +364,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   }
 
   @Override
-  protected final void updateTermFreqValue(final byte[] term,
+  protected final void updateTermFreqValue(final BytesWrap term,
           final long value) {
 
     if (this.termFreqMap.containsKey(term)) {
@@ -360,13 +377,13 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
       }
     } else {
       final TermFreqData tfData = new TermFreqData(value);
-      this.termFreqMap.put(term.clone(), tfData);
+      this.termFreqMap.put(term.duplicate(), tfData);
     }
-    this.setOverallTermFreq(null); // force recalculation
+    this.setTermFrequency(this.getTermFrequency() + value);
   }
 
   @Override
-  protected final void updateTermFreqValue(final byte[] term,
+  protected final void updateTermFreqValue(final BytesWrap term,
           final double value) {
 
     if (this.termFreqMap.containsKey(term)) {
@@ -378,8 +395,9 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
                 + "relative term frequency value for term '" + term + "'.");
       }
     } else {
-      final TermFreqData tfData = new TermFreqData(value);
-      this.termFreqMap.put(term.clone(), tfData);
+      throw new IllegalStateException("term should be there");
+//      final TermFreqData tfData = new TermFreqData(value);
+//      this.termFreqMap.put(term.clone(), tfData);
     }
   }
 }
