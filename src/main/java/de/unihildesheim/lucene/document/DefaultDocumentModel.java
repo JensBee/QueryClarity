@@ -77,6 +77,11 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
   private long overallTermFrequency = 0L;
 
   /**
+   * Flag, if this document has modified data.
+   */
+  private transient boolean changed = false;
+
+  /**
    * Internal constructor used to create a new {@link DocumentModel} for a
    * specific document denoted by it's Lucene document id. The
    * <code>termsCount</code> value will be used to initialize the internal data
@@ -103,7 +108,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
    * Internal constructor used to create new instances and de-serialize objects.
    *
    * @param documentId Lucene document-id
-   * @param newTermDataList
+   * @param newTermDataList New data to add
    */
   protected DefaultDocumentModel(final int documentId,
           final List<Tuple.Tuple3<BytesWrap, String, Number>> newTermDataList) {
@@ -120,6 +125,9 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
     return this.termDataList;
   }
 
+  /**
+   * Initialize the internal data store.
+   */
   private void createDataStore() {
     this.termDataList = new ArrayList(INITIAL_TERMFREQMAP_SIZE);
   }
@@ -291,5 +299,15 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
   @Override
   public boolean isLocked() {
     return this.locked;
+  }
+
+  @Override
+  public boolean hasChanged() {
+    return this.changed;
+  }
+
+  @Override
+  public void setChanged(final boolean state) {
+    this.changed = state;
   }
 }

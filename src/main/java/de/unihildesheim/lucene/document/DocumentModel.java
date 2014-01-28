@@ -125,4 +125,16 @@ public interface DocumentModel extends Serializable, Lockable {
    * Un-lock the document model to make it mutable again.
    */
   void unlock();
+
+  /**
+   * Indicates whether this model has changed data.
+   * @return True, if data was changed
+   */
+  boolean hasChanged();
+
+  /**
+   * Set the changed flag.
+   * @param state True, if changed, false otherwise
+   */
+  void setChanged(final boolean state);
 }

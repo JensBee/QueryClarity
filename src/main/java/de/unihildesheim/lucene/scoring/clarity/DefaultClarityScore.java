@@ -18,6 +18,8 @@ package de.unihildesheim.lucene.scoring.clarity;
 
 import de.unihildesheim.lucene.LuceneDefaults;
 import de.unihildesheim.lucene.document.DocumentModel;
+import de.unihildesheim.lucene.document.DocumentModelPool;
+import de.unihildesheim.lucene.document.DocumentModelPoolObserver;
 import de.unihildesheim.lucene.document.Feedback;
 import de.unihildesheim.lucene.document.TermDataManager;
 import de.unihildesheim.lucene.index.IndexDataProvider;
@@ -31,21 +33,19 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.util.BytesRef;
 import org.slf4j.LoggerFactory;
@@ -70,6 +70,20 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * properties stored in the {@link DataProvider}.
    */
   private static final String PREFIX = "DCS";
+
+  // Threading parameters
+  /**
+   * Model pre-calculation: number of models to cache in pool
+   */
+  private static final int PCALC_POOL_SIZE = 1000;
+  /**
+   * Model pre-calculation: the maximum number of terms that should be queued
+   */
+  private static final int PCALC_THREAD_QUEUE_MAX_CAPACITY = 100;
+  /**
+   * Model pre-calculation: number of calculation threads to run
+   */
+  private static final int PCALC_THREADS = 5;
 
   /**
    * Keys to store calculation results in document models and access properties
@@ -99,11 +113,6 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
   private double langmodelWeight = DEFAULT_LANGMODEL_WEIGHT;
 
   /**
-   * Allowed delta when resetting language model weights.
-   */
-  private static final double LANGMODEL_EPSILON = 0.000000000000001;
-
-  /**
    * Default number of feedback documents to use. Cronen-Townsend et al.
    * recommend 500 documents.
    */
@@ -121,14 +130,15 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
           DefaultClarityScore.class);
 
   /**
-   * Provider for statistical index related informations.
+   * Provider for statistical index related informations. Accessed from nested
+   * thread class.
    */
-  private final IndexDataProvider dataProv;
+  protected final IndexDataProvider dataProv;
 
   /**
-   * Index reader used by this instance.
+   * Index reader used by this instance. Accessed from nested thread class.
    */
-  private final IndexReader reader;
+  protected final IndexReader reader;
 
   /**
    * {@link TermDataManager} to access to extended data storage for
@@ -173,7 +183,6 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    */
   private double calcDocumentModel(final DocumentModel docModel,
           final BytesWrap term, final boolean update) {
-    final TimeMeasure tm = new TimeMeasure().start();
     // no value was stored, so calculate it
     final double model = langmodelWeight * ((double) docModel.getTermFrequency(
             term) / (double) docModel.getTermFrequency())
@@ -251,19 +260,14 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    *
    * @param force If true, the recalculation is forced
    */
-  public void preCalcDocumentModels(final boolean force) throws ParseException,
-          IOException {
+  public void preCalcDocumentModels(final boolean force) {
     final int termsCount = this.dataProv.getTermsCount();
     LOG.info("Pre-calculating document models ({}) "
             + "for all unique terms ({}) in index.",
             this.dataProv.getDocModelCount(), termsCount);
 
     final TimeMeasure timeMeasure = new TimeMeasure().start();
-    final Iterator<DocumentModel> docModelsIt = this.dataProv.
-            getDocModelIterator();
     Iterator<BytesWrap> idxTermsIt;
-    BytesWrap term;
-    DocumentModel docModel;
 
     // debug helpers
     int[] dbgStatus = new int[]{-1, 100, termsCount};
@@ -273,50 +277,56 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
       dbgTimeMeasure = new TimeMeasure();
     }
 
-    // NOTE: this analyzer won't remove any stopwords!
-    final Analyzer analyzer = new StandardAnalyzer(LuceneDefaults.VERSION,
-            CharArraySet.EMPTY_SET);
-    MultiFieldQueryParser queryParser = new MultiFieldQueryParser(
-            LuceneDefaults.VERSION, this.dataProv.getTargetFields(),
-            analyzer);
-    final IndexSearcher searcher = new IndexSearcher(reader);
-    TotalHitCountCollector coll = new TotalHitCountCollector();
-    TopDocs results;
-    int expResults;
-    Query query;
+    // bounded queue to hold index terms that should be processed
+    final BlockingQueue<BytesWrap> termsToProcess = new ArrayBlockingQueue(
+            PCALC_THREAD_QUEUE_MAX_CAPACITY);
+    final DocumentModelPool docModelPool
+            = new DocumentModelPool(PCALC_POOL_SIZE);
+    // unbounded queue holding models currently being modified
+    final Set<Integer> modifyingModels = new HashSet(PCALC_THREADS * 10);
+    // a latch that counts down the items we have processed
+    final CountDownLatch consumeLatch = new CountDownLatch(termsCount);
+    // all threads spawned
+    final Thread[] pCalcThreads = new Thread[PCALC_THREADS];
+
+    LOG.debug("Spawning {} threads for document model calculation.",
+            PCALC_THREADS);
+    for (int i = 0; i < PCALC_THREADS; i++) {
+      pCalcThreads[i] = new Thread(new DocumentModelCalculator(docModelPool,
+              termsToProcess, modifyingModels, consumeLatch));
+      pCalcThreads[i].setDaemon(true);
+      pCalcThreads[i].start();
+    }
+
+    // create document pool observer
+    final DocumentModelPoolObserver dpObserver = new DocumentModelPoolObserver(
+            this.dataProv, docModelPool);
+    final Thread dpObserverThread = new Thread(dpObserver);
+    dpObserverThread.setDaemon(true);
+    dpObserverThread.start();
 
     idxTermsIt = this.dataProv.getTermsIterator();
-    while (idxTermsIt.hasNext()) {
-      if (dbgStatus[0] > -1) {
-        dbgTimeMeasure.start();
-      }
-      term = idxTermsIt.next();
-      // query matching documents
-      query = queryParser.parse(BytesWrapUtil.bytesWrapToString(term));
-      searcher.search(query, coll);
-      expResults = coll.getTotalHits();
-      LOG.trace("Query for {} ({}) yields {} results.", BytesWrapUtil.
-              bytesWrapToString(term), query, expResults);
-      if (expResults == 0) {
-        continue;
-      }
-      coll = new TotalHitCountCollector();
-      results = searcher.search(query, expResults);
+    if (dbgStatus[0] > -1) {
+      dbgTimeMeasure.start();
+    }
 
-      // debug operating indicator
-      if (dbgStatus[0] >= 0 && ++dbgStatus[0] % dbgStatus[1] == 0) {
-        LOG.debug("models for {} terms of {} calculated ({}s)", dbgStatus[0],
-                dbgStatus[2], dbgTimeMeasure.stop().getElapsedSeconds());
-        dbgTimeMeasure.start();
-      }
-
-      for (ScoreDoc sDoc : results.scoreDocs) {
-        docModel = this.dataProv.getDocumentModel(sDoc.doc);
-        if (docModel.containsTerm(term)) { // double check?
-          calcDocumentModel(docModel, term, true);
-          this.dataProv.updateDocumentModel(docModel);
+    try {
+      while (idxTermsIt.hasNext()) {
+        termsToProcess.put(idxTermsIt.next());
+        // debug operating indicator
+        if (dbgStatus[0] >= 0 && ++dbgStatus[0] % dbgStatus[1] == 0) {
+          LOG.debug("models for {} terms of {} calculated ({}s)", dbgStatus[0],
+                  dbgStatus[2], dbgTimeMeasure.stop().getElapsedSeconds());
+          dbgTimeMeasure.start();
         }
       }
+
+      consumeLatch.await(); // wait until all waiting models are processed
+      dpObserver.terminate(); // commit all pending models
+    } catch (InterruptedException ex) {
+      LOG.error(
+              "Model pre-calculation thread interrupted. "
+              + "This may have caused data loss.", ex);
     }
 
     timeMeasure.stop();
@@ -370,9 +380,6 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
 
     LOG.debug("Calculation results: query={} docModels={} score={} ({}).",
             queryTerms, docModels.size(), score, score);
-//    LOG.debug("Calculation results: query={} docModels={} score={} ({}).",
-//            queryTerms, docModels.size(), score, BigDecimal.valueOf(score).
-//            toPlainString());
 
     final ClarityScoreResult result = new ClarityScoreResult(this.getClass(),
             score);
@@ -459,62 +466,190 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
   }
 
   /**
-   * Get the number of feedback documents that should be used for calculation.
-   * The actual number of documents used depends on the amount of document
-   * available in the index.
-   *
-   * @return Number of feedback documents that should be used for calculation
+   * Runnable to query Lucene for documents matching a specific term and
+   * calculate the document models for this term and the matching documents.
    */
-  public int getFbDocCount() {
-    return fbDocCount;
-  }
+  private class DocumentModelCalculator implements Runnable {
 
-  /**
-   * Set the number of feedback documents that should be used for calculation.
-   * The actual number of documents used depends on the amount of document
-   * available in the index.
-   *
-   * @param feedbackDocCount Number of feedback documents to use for
-   * calculation. This value must be greater than <tt>0</tt>.
-   */
-  public void setFbDocCount(final int feedbackDocCount) {
-    if (feedbackDocCount <= 0) {
-      throw new IllegalArgumentException(
-              "Number of feedback documents mst be greater than zero.");
-    }
-    this.fbDocCount = feedbackDocCount;
-  }
+    /**
+     * Lucene parser for all available document fields.
+     */
+    private final MultiFieldQueryParser mfQParser;
+    /**
+     * Terms queue.
+     */
+    private final BlockingQueue<BytesWrap> queue;
+    /**
+     * Cached {@link DocumentModel}s pool.
+     */
+    private final DocumentModelPool pool;
+    /**
+     * Queue holding models currently being modified.
+     */
+    private final Set<Integer> modQueue;
+    /**
+     * Tracking counter.
+     */
+    private final CountDownLatch latch;
+    /**
+     * Searcher to access the index.
+     */
+    private final IndexSearcher searcher;
+    /**
+     * {@link Collector} to get the total number of matching documents for a
+     * term.
+     */
+    private TotalHitCountCollector coll = new TotalHitCountCollector();
+    /**
+     * Scoring documents for a single term.
+     */
+    private ScoreDoc[] results = null;
+    /**
+     * Expected number of documents to retrieve. Estimated by {@link #coll}.
+     */
+    private int expResults;
+    /**
+     * Query for the current term.
+     */
+    private Query query;
+    /**
+     * Current {@link DocumentModel} to update.
+     */
+    private DocumentModel docModel;
+    /**
+     * Id of current document.
+     */
+    private Integer currentDocId = null;
 
-  /**
-   * Get the weighting value used for document language model calculation.
-   *
-   * @return Weighting value
-   */
-  public double getLangmodelWeight() {
-    return langmodelWeight;
-  }
+    /**
+     * Creates a new calculator for document models which gets the term to query
+     * from a global working queue.
+     *
+     * @param blockingQueue Queue to get the terms from
+     * @param modifyingModels Shared list of models currently being modified
+     * @param cLatch Countdown latch to track the progress
+     */
+    DocumentModelCalculator(final DocumentModelPool docModelPool,
+            final BlockingQueue<BytesWrap> blockingQueue,
+            final Set<Integer> modifyingModels,
+            final CountDownLatch cLatch) {
+      this.pool = docModelPool;
+      this.queue = blockingQueue;
+      this.modQueue = modifyingModels;
+      this.latch = cLatch;
+      this.searcher = new IndexSearcher(DefaultClarityScore.this.reader);
+      // NOTE: this analyzer won't remove any stopwords!
+      final Analyzer analyzer = new StandardAnalyzer(LuceneDefaults.VERSION,
+              CharArraySet.EMPTY_SET);
+      this.mfQParser = new MultiFieldQueryParser(
+              LuceneDefaults.VERSION, DefaultClarityScore.this.dataProv.
+              getTargetFields(),
+              analyzer);
+    }
 
-  /**
-   * Set the weighting value used for document language model calculation. The
-   * value should always be lower than <tt>1</tt>.
-   *
-   * Please note that you may have to recalculate any previously calculated and
-   * cached values. This can be done by calling
-   * {@link DefaultClarityScore#preCalcDocumentModels(boolean)} and setting
-   * <code>force</code> to true.
-   *
-   * @param newLangmodelWeight New weighting value
-   */
-  public void setLangmodelWeight(final double newLangmodelWeight) {
-    if (newLangmodelWeight > 1 || newLangmodelWeight <= 0) {
-      throw new IllegalArgumentException(
-              "Language model weight should be greater between 0-1.");
+    /**
+     * Updates all matching document models for the given term.
+     *
+     * @param term Term to use for updates
+     * @throws InterruptedException Thrown if thread was interrupted
+     */
+    private void updateModels(final BytesWrap term)
+            throws InterruptedException {
+      if (this.results == null || this.results.length == 0) {
+        return;
+      }
+      // calculate models for results
+      for (ScoreDoc sDoc : this.results) {
+
+        synchronized (this.modQueue) {
+          this.modQueue.remove(this.currentDocId);
+          this.modQueue.notifyAll();
+        }
+
+        this.currentDocId = sDoc.doc;
+
+        // add current model to modifying queue
+        synchronized (this.modQueue) {
+          while (this.modQueue.contains(this.currentDocId)) {
+            this.modQueue.wait();
+            break;
+          }
+          this.modQueue.add(this.currentDocId);
+        }
+
+        if (this.pool.containsDocId(currentDocId)) {
+          this.docModel = this.pool.get(currentDocId);
+        } else {
+          this.docModel = DefaultClarityScore.this.dataProv.getDocumentModel(
+                  this.currentDocId);
+        }
+
+        if (this.docModel == null) {
+          LOG.warn("Error retrieving document with id={}. Got null.",
+                  this.currentDocId);
+        } else {
+          if (this.docModel.containsTerm(term)) { // double check?
+            try {
+              calcDocumentModel(this.docModel, term, true);
+              this.docModel.setChanged(true);
+              this.pool.put(this.docModel);
+            } catch (NullPointerException ex) {
+              LOG.error("NPE docModel={} docId={} term={}", this.docModel,
+                      this.currentDocId, term, ex);
+            }
+          }
+        }
+      }
     }
-    // check, if weight has changed
-    if ((Math.abs(this.langmodelWeight - newLangmodelWeight) < LANGMODEL_EPSILON)) {
-      LOG.info("Language model weight has changed. "
-              + "You may need to recalculate any possibly cached values.");
+
+    @Override
+    public void run() {
+      try {
+        while (!Thread.currentThread().isInterrupted()) {
+          // get the next available term
+          BytesWrap term = this.queue.take();
+
+          LOG.trace("Query for {}...", BytesWrapUtil.bytesWrapToString(term));
+
+          // decrement the countdown latch
+          latch.countDown();
+
+          // build query for matching documents
+          try {
+            this.query = this.mfQParser.parse(BytesWrapUtil.
+                    bytesWrapToString(term));
+          } catch (ParseException ex) {
+            LOG.error("Caught exception while parsing term query '"
+                    + BytesWrapUtil.bytesWrapToString(term) + "'.", ex);
+            continue;
+          }
+
+          // run the queries
+          try {
+            this.searcher.search(this.query, this.coll);
+            this.expResults = coll.getTotalHits();
+            LOG.trace("Query for {} ({}) yields {} results.", BytesWrapUtil.
+                    bytesWrapToString(term), this.query, this.expResults);
+            if (this.expResults == 0) {
+              continue;
+            }
+
+            // get number of all matching documents
+            this.coll = new TotalHitCountCollector();
+
+            // collect the results
+            this.results = this.searcher.search(
+                    this.query, this.expResults).scoreDocs;
+          } catch (IOException ex) {
+            LOG.error("Caught exception while searching index.", ex);
+            continue;
+          }
+
+          updateModels(term);
+        }
+      } catch (InterruptedException ex) {
+        LOG.warn("Thread interrupted.", ex);
+      }
     }
-    this.langmodelWeight = newLangmodelWeight;
   }
 }
