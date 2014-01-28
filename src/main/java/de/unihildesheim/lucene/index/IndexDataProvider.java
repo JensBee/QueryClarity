@@ -125,6 +125,15 @@ public interface IndexDataProvider {
   void addDocumentModel(final DocumentModel documentModel);
 
   /**
+   * Updates an already stored {@link DocumentModel}. Use this to update any
+   * model, that have been changed externally.
+   *
+   * @param docModel Document model to update. It must already have been in the
+   * collection of known models.
+   */
+  void updateDocumentModel(final DocumentModel docModel);
+
+  /**
    * Get the number of all {@link DocumentModel}s known to this instance.
    *
    * @return Number of {@link DocumentModel}s known

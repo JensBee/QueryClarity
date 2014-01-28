@@ -170,9 +170,16 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
                 + "relative term frequency value for term '" + term + "'.");
       }
     } else {
-      throw new IllegalStateException("term should be there");
-//      final TermFreqData tfData = new TermFreqData(value);
-//      this.termFreqMap.put(term.clone(), tfData);
+      throw new IllegalStateException("Term " + BytesWrapUtil.bytesWrapToString(
+              term) + " not found.");
+    }
+  }
+
+  @Override
+  public final void updateDocumentModel(final DocumentModel docModel) {
+    if (this.docModelMap.replace(docModel.getDocId(), docModel) == null) {
+      throw new IllegalArgumentException("Document model id=" + docModel.
+              getDocId() + " cant't be updated, because it's not known.");
     }
   }
 
@@ -292,25 +299,25 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
             docModelCount, timeMeasure.getElapsedSeconds());
   }
 
-  /**
-   * Updates the document model by using it's document-id. This is done by
-   * replacing any previous model associated with the document-id.
-   *
-   * Since the used {@link Map} implementation is unknown here, a map with
-   * immutable objects is assumed and a modification of already stored entries
-   * is prohibited. So an entry has to be removed to be updated.
-   *
-   * @param newDocModel Document model to update. The document id will be
-   * retrieved from this model.
-   */
-  protected final void updateDocumentModel(final DocumentModel newDocModel) {
-    if (newDocModel == null) {
-      return;
-    }
-    final int docId = newDocModel.getDocId();
-    this.docModelMap.remove(docId);
-    this.docModelMap.put(docId, newDocModel);
-  }
+//  /**
+//   * Updates the document model by using it's document-id. This is done by
+//   * replacing any previous model associated with the document-id.
+//   *
+//   * Since the used {@link Map} implementation is unknown here, a map with
+//   * immutable objects is assumed and a modification of already stored entries
+//   * is prohibited. So an entry has to be removed to be updated.
+//   *
+//   * @param newDocModel Document model to update. The document id will be
+//   * retrieved from this model.
+//   */
+//  protected final void updateDocumentModel(final DocumentModel newDocModel) {
+//    if (newDocModel == null) {
+//      return;
+//    }
+//    final int docId = newDocModel.getDocId();
+//    this.docModelMap.remove(docId);
+//    this.docModelMap.put(docId, newDocModel);
+//  }
 
   /**
    * Clears all pre-calculated data.

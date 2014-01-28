@@ -287,6 +287,9 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
 
     idxTermsIt = this.dataProv.getTermsIterator();
     while (idxTermsIt.hasNext()) {
+      if (dbgStatus[0] > -1) {
+        dbgTimeMeasure.start();
+      }
       term = idxTermsIt.next();
       // query matching documents
       query = queryParser.parse(BytesWrapUtil.bytesWrapToString(term));
@@ -294,7 +297,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
       expResults = coll.getTotalHits();
       LOG.trace("Query for {} ({}) yields {} results.", BytesWrapUtil.
               bytesWrapToString(term), query, expResults);
-      if (expResults <= 0) {
+      if (expResults == 0) {
         continue;
       }
       coll = new TotalHitCountCollector();
@@ -308,43 +311,14 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
       }
 
       for (ScoreDoc sDoc : results.scoreDocs) {
-        // remove model from known list to modify it
-        docModel = this.dataProv.removeDocumentModel(sDoc.doc);
-        docModel.unlock();
-
-        calcDocumentModel(docModel, term, true);
-
-        // re-add modified model to known list
-        docModel.lock();
-        this.dataProv.addDocumentModel(docModel);
+        docModel = this.dataProv.getDocumentModel(sDoc.doc);
+        if (docModel.containsTerm(term)) { // double check?
+          calcDocumentModel(docModel, term, true);
+          this.dataProv.updateDocumentModel(docModel);
+        }
       }
     }
 
-//    while (docModelsIt.hasNext()) {
-//      // remove model from known list to modify it
-//      docModel = this.dataProv.
-//              removeDocumentModel(docModelsIt.next().getDocId());
-//      docModel.unlock();
-//
-//      // debug operating indicator
-//      if (dbgStatus[0] >= 0 && ++dbgStatus[0] % dbgStatus[1] == 0) {
-//        LOG.debug("{} models of {} terms calculated ({}s)", dbgStatus[0],
-//                dbgStatus[2], dbgTimeMeasure.stop().getElapsedSeconds());
-//        dbgTimeMeasure.start();
-//      }
-//
-//      idxTermsIt = this.dataProv.getTermsIterator();
-//      while (idxTermsIt.hasNext()) {
-//        term = idxTermsIt.next();
-//        if (docModel.containsTerm(term)) {
-//          calcDocumentModel(docModel, term, true);
-//        }
-//      }
-//
-//      // re-add modified model to known list
-//      docModel.lock();
-//      this.dataProv.addDocumentModel(docModel);
-//    }
     timeMeasure.stop();
     LOG.info("Pre-calculating document models for all unique terms in index "
             + "took {} seconds", timeMeasure.getElapsedSeconds());
