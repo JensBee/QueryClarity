@@ -17,12 +17,16 @@
 package de.unihildesheim.lucene.document;
 
 import de.unihildesheim.lucene.index.IndexDataProvider;
+import de.unihildesheim.util.TimeMeasure;
+import java.util.Map.Entry;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Observes the pool of cached {@link DocumentModel}s to dequeue and update the
  * data store as needed.
+ *
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public final class DocumentModelPoolObserver implements Runnable {
@@ -32,20 +36,10 @@ public final class DocumentModelPoolObserver implements Runnable {
    */
   private static final transient Logger LOG = LoggerFactory.getLogger(
           DocumentModelPoolObserver.class);
-
-  /**
-   * Factor defining the limit after which entries get commited to the
-   * {@link IndexDataProvider}.
-   */
-  private static final double LOAD_FACTOR = 0.75;
-  /**
-   * Calculated value of how much free capacity should remain in the pool.
-   */
-  private final int remainingCount;
   /**
    * Pool to observe.
    */
-  private final DocumentModelPool modelQueue;
+  private final DocumentModelPool modelPool;
   /**
    * Flag indicating if this instance should terminate.
    */
@@ -54,18 +48,28 @@ public final class DocumentModelPoolObserver implements Runnable {
    * {@link IndexDataProvider} to commit changes to.
    */
   private final IndexDataProvider dataProv;
+  /**
+   * Externally maintained list of models being currently modified. May be null
+   * if not used.
+   */
+  private final Set<Integer> lockedModels;
+
+  private static final double POOL_LOAD = 0.75;
 
   /**
    * Creates a new observer for the given pool and queue.
    *
    * @param newDataProv Data provider to commit to
    * @param newModelQueue Queue to observe
+   * @param lockedModelsSet Shared set of model currently being locked
    */
   public DocumentModelPoolObserver(final IndexDataProvider newDataProv,
-          final DocumentModelPool newModelQueue) {
-    this.modelQueue = newModelQueue;
+          final DocumentModelPool newModelQueue,
+          final Set<Integer> lockedModelsSet) {
+    this.modelPool = newModelQueue;
     this.dataProv = newDataProv;
-    this.remainingCount = (int) (this.modelQueue.capacity() * LOAD_FACTOR);
+    this.lockedModels = lockedModelsSet;
+    LOG.debug("Observing pool size={}", this.modelPool.capacity());
   }
 
   /**
@@ -79,34 +83,60 @@ public final class DocumentModelPoolObserver implements Runnable {
    * Checks if a model has changed data and if it has commits it to the data
    * provider.
    *
-   * @param docModel Document model to commit
+   * @param modelEntry Document-id, Document-Model pair
    */
-  private void commitModel(final DocumentModel docModel) {
-    if (docModel.hasChanged()) {
-      docModel.setChanged(false); // finalize it
-      this.dataProv.updateDocumentModel(docModel);
+  private boolean commitModel(final Entry<Integer, DocumentModel> modelEntry) {
+    boolean removed = false;
+    // try to lock model
+    if (this.lockedModels.add(modelEntry.getKey())) {
+      // ok, model is not already locked
+      if (this.modelPool.remove(modelEntry.getKey()) != null) {
+        // now model has been removed from queue
+        if (modelEntry.getValue().hasChanged()) {
+          // model has changed data, finalize it
+          modelEntry.getValue().setChanged(false);
+          // lock model to prevent changes
+          modelEntry.getValue().lock();
+          // commit model
+          this.dataProv.updateDocumentModel(modelEntry.getValue());
+        }
+        // no changed data in model, or already commited, remove model
+        this.lockedModels.remove(modelEntry.getKey());
+        removed = true;
+      }
+      this.lockedModels.remove(modelEntry.getKey());
     }
+    return removed;
   }
 
   @Override
   public void run() {
+    final TimeMeasure tm = new TimeMeasure().start();
     while (!terminate) {
-      if (this.modelQueue.remainingCapacity() <= this.remainingCount) {
-        try {
-          commitModel(this.modelQueue.take());
-        } catch (InterruptedException ex) {
-          LOG.warn("Writer thread interrupted. Data may be corrupted.");
-          this.terminate = true;
+      if (tm.getElapsedSeconds() > 15) {
+        LOG.info("Pool size {}", this.modelPool.size());
+        tm.start();
+      }
+
+      // commit entries, if pool is ~2/3 filled
+      if (!this.modelPool.isEmpty() && this.modelPool.size() > (this.modelPool.
+              capacity() * POOL_LOAD)) {
+        for (Entry<Integer, DocumentModel> modelEntry : this.modelPool.
+                entrySet()) {
+          if (commitModel(modelEntry)) {
+            break;
+          }
         }
       }
     }
-    try {
-      LOG.debug("Terminate. Commiting all pending models.");
-      while (!this.modelQueue.isEmpty()) {
-        commitModel(this.modelQueue.take());
+    LOG.info("Pool observer terminating. Commiting all pending models.");
+    while (!this.modelPool.isEmpty()) {
+      for (Entry<Integer, DocumentModel> modelEntry : this.modelPool.entrySet()) {
+        if (!commitModel(modelEntry) && LOG.isDebugEnabled()) {
+          LOG.debug("Failed to commit docId={}. Retrying in next loop.",
+                  modelEntry.getKey());
+        }
       }
-    } catch (InterruptedException ex) {
-      LOG.warn("Writer thread interrupted. Data may be corrupted.");
     }
   }
 }

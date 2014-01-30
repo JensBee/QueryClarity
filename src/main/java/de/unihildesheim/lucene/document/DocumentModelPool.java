@@ -16,42 +16,37 @@
  */
 package de.unihildesheim.lucene.document;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Caches document model instances for faster access.
+ * Caches document model instances for faster access. This is currently a simple
+ * wrapper around a {@link ConcurrentHashMap} instance.
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public final class DocumentModelPool extends ArrayBlockingQueue<DocumentModel> {
+public final class DocumentModelPool {
 
-  /**
-   * Serialization class version id.
-   */
-  private static final long serialVersionUID = 0L;
-
-  /**
-   * Cache ids of documents in the pool.
-   */
-  private final List<Integer> docIds;
   /**
    * Size of the pool.
    */
   private final int size;
 
   /**
-   * Creates a new {@link DocumentModel} pool of the given size. If the pool
-   * gets filled then (oldest model first) older entries will be removed.
+   * Backing map store.
+   */
+  private Map<Integer, DocumentModel> map;
+
+  /**
+   * Creates a new {@link DocumentModel} pool of the given initial size.
    *
    * @param newSize Size of the pool
    */
   public DocumentModelPool(final int newSize) {
-    super(newSize);
+    this.map = new ConcurrentHashMap(newSize);
     this.size = newSize;
-    this.docIds = new ArrayList(newSize);
   }
 
   /**
@@ -61,44 +56,76 @@ public final class DocumentModelPool extends ArrayBlockingQueue<DocumentModel> {
    * @return True, if it present
    */
   public boolean containsDocId(final Integer docId) {
-    return this.docIds.contains(docId);
+    return this.map.containsKey(docId);
   }
 
+  /**
+   * Get the capacity (maximum size) of this pool.
+   *
+   * @return Size of the pool
+   */
   public int capacity() {
     return this.size;
   }
 
-  public DocumentModel get(final Integer docId) {
-    final Iterator<DocumentModel> dmIt = super.iterator();
-    DocumentModel dm = null;
-    while (dmIt.hasNext()) {
-      dm = dmIt.next();
-      if (dm.getDocId() == docId) {
-        break;
-      }
-    }
-    return dm;
-  }
-
-  @Override
-  public DocumentModel take() throws InterruptedException {
-    final DocumentModel docModel = super.take();
-    this.docIds.remove(Integer.valueOf(docModel.getDocId()));
-    return docModel;
+  /**
+   * Get the current size of the pool.
+   *
+   * @return Pool size
+   */
+  public int size() {
+    return this.map.size();
   }
 
   /**
-   * {@inheritDoc} New elements will only be added, if they're not already
-   * present.
+   * Check if the pool is empty
    *
-   * @param elem Document model to add to the pool
-   * @throws java.lang.InterruptedException Thrown, if thread was interrupted
+   * @return True, if pool is empty
    */
-  @Override
-  public void put(final DocumentModel elem) throws InterruptedException {
-    if (!contains(elem)) {
-      this.docIds.add(elem.getDocId());
-      super.put(elem);
+  public boolean isEmpty() {
+    return this.map.isEmpty();
+  }
+
+  /**
+   * Get a set of entries stored in the pool.
+   *
+   * @return Pool entries
+   */
+  public Set<Entry<Integer, DocumentModel>> entrySet() {
+    return this.map.entrySet();
+  }
+
+  /**
+   * Add a model to the pool.
+   *
+   * @param docModel Model to add
+   */
+  public void put(final DocumentModel docModel) {
+    if (docModel == null) {
+      throw new NullPointerException();
     }
+    this.map.put(docModel.getDocId(), docModel);
+  }
+
+  /**
+   * Removes a model from the pool by it's document-id.
+   *
+   * @param docId Document-id of the model to remove
+   * @return Previously assigned model, or <tt>null</tt> if there was none
+   */
+  public DocumentModel remove(final int docId) {
+    return this.map.remove(docId);
+  }
+
+  /**
+   * Tries to get a {@link DocumentModel} from the current pool state. After
+   * returning it's not guaranteed that the returned model is still part of the
+   * pool.
+   *
+   * @param docId Document-id to lookup
+   * @return Document-model for the given document-id or null, if none found
+   */
+  public DocumentModel get(final Integer docId) {
+    return this.map.get(docId);
   }
 }

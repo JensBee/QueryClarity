@@ -607,7 +607,7 @@ public final class TestIndex implements IndexDataProvider {
 
   private long getTermFrequency(final int documentId, final String term) {
     Map<String, List<String>> docFieldTerms = DOCUMENT_INDEX.get(documentId);
-    long freq = 0l;
+    long freq = 0L;
     for (String fieldName : getTargetFields()) {
       for (String currentTerm : docFieldTerms.get(fieldName)) {
         if (term.equals(currentTerm)) {
@@ -686,6 +686,11 @@ public final class TestIndex implements IndexDataProvider {
 
   @Override
   public long getTermFrequency() {
+    throw new UnsupportedOperationException("Not supported yet.");
+  }
+
+  @Override
+  public void updateDocumentModel(DocumentModel docModel) {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 }

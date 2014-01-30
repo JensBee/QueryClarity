@@ -19,17 +19,13 @@ package de.unihildesheim.lucene.util;
 import java.io.Serializable;
 import java.util.Arrays;
 import org.apache.lucene.util.BytesRef;
-import org.slf4j.LoggerFactory;
 
 /**
- * Based on: https://stackoverflow.com/a/1058169
+ * Based on: https://stackoverflow.com/a/1058169.
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public final class BytesWrap implements Serializable {
-
-  private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
-          BytesWrap.class);
 
   /**
    * Serialization class version id.
@@ -63,6 +59,13 @@ public final class BytesWrap implements Serializable {
    */
   private int length = -1;
 
+  /**
+   * Creates a new wrapper around the given bytes array, optionally making a
+   * local copy of the array.
+   *
+   * @param existingData Byte array to wrap
+   * @param duplicate If true, a local copy will be made
+   */
   public BytesWrap(final byte[] existingData, final boolean duplicate) {
     if (existingData == null) {
       throw new IllegalArgumentException("Byte array was empty or null.");
@@ -75,6 +78,13 @@ public final class BytesWrap implements Serializable {
     }
   }
 
+  /**
+   * Creates a wrapper around the byte array contained in the given
+   * {@link BytesRef}, optionally creating a local copy of the array.
+   *
+   * @param bytesRef BytesRef instance with bytes to wrap
+   * @param duplicate If true, a local copy of the bytes array will be made
+   */
   public BytesWrap(final BytesRef bytesRef, final boolean duplicate) {
     if (bytesRef.length == 0) {
       throw new IllegalArgumentException("Byte array was empty or null.");
@@ -102,6 +112,14 @@ public final class BytesWrap implements Serializable {
     return new BytesWrap(existingBytes, false);
   }
 
+  /**
+   * Creates a new {@link BytesWrap} instance by referencing the bytes array of
+   * the given {@link BytesRef}. This means any changes to the passed in array
+   * will be reflected by this instance.
+   *
+   * @param exBytesRef BytesRef instance with bytes array to reference
+   * @return Instance with the bytes array wrapped
+   */
   public static BytesWrap wrap(final BytesRef exBytesRef) {
     return new BytesWrap(exBytesRef, false);
   }
@@ -118,6 +136,15 @@ public final class BytesWrap implements Serializable {
     return new BytesWrap(bytesToClone, true);
   }
 
+  /**
+   * Creates a new {@link BytesWrap} instance by duplicating (making a local
+   * copy) of the bytes array contained in the given {@link BytesRef} instance.
+   * This means any changes to the passed in array will <b>not</b> be reflected
+   * by this instance.
+   *
+   * @param exBytesRef BytesRef instance whose array should be copied
+   * @return Instance with the copy of the given array set
+   */
   public static BytesWrap duplicate(final BytesRef exBytesRef) {
     return new BytesWrap(exBytesRef, true);
   }
@@ -142,6 +169,9 @@ public final class BytesWrap implements Serializable {
     return this;
   }
 
+  /**
+   * Duplicates the currently referenced byte array.
+   */
   private void doDuplicate() {
     this.hash = Arrays.hashCode(data);
     this.isDuplicated = true;

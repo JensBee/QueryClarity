@@ -22,8 +22,6 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Default implementation of the {@link DocumentModel} interface. Immutable
@@ -37,12 +35,6 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
    * Serialization class version id.
    */
   private static final long serialVersionUID = 0L;
-
-  /**
-   * Logger instance for this class.
-   */
-  private static final transient Logger LOG = LoggerFactory.getLogger(
-          DefaultDocumentModel.class);
 
   /**
    * If true the model is locked and immutable.
@@ -67,7 +59,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
   private static final int INITIAL_TERMFREQMAP_SIZE = 100;
 
   /**
-   * List storing triples: Term, Key, Value
+   * List storing triples: Term, Key, Value.
    */
   private List<Tuple.Tuple3<BytesWrap, String, Number>> termDataList;
 
@@ -270,10 +262,11 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
       return false;
     }
 
-    if (termDataList == null ? dDocMod.termDataList != null : !termDataList.
-            equals(dDocMod.termDataList)) {
-      return false;
-    }
+    // FIXME: docModels should be unique - need a solution here
+//    if (termDataList == null ? dDocMod.termDataList != null : !termDataList.
+//            equals(dDocMod.termDataList)) {
+//      return false;
+//    }
 
     return false;
   }
@@ -282,7 +275,6 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
   public int hashCode() {
     int hash = 3;
     hash = 41 * hash + Objects.hashCode(this.docId);
-    hash = 41 * hash + Objects.hashCode(this.termDataList);
     return hash;
   }
 

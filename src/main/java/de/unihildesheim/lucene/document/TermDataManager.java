@@ -18,7 +18,6 @@ package de.unihildesheim.lucene.document;
 
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.util.BytesWrap;
-import org.apache.lucene.util.BytesRef;
 
 /**
  * Wrapper around the term data storage in {@link DocumentModel}s that allows to
@@ -34,21 +33,13 @@ public final class TermDataManager {
   private final String prefix;
 
   /**
-   * IndexDataProvider to use for updating the document models.
-   */
-  private final IndexDataProvider dataProv;
-
-  /**
    * Creates a new {@link TermDataManager} with the provided prefix and
    * {@link IndexDataProvider}.
    *
    * @param newPrefix Prefix to use for storing data keys
-   * @param newDataProv Data provider to access stored models
    */
-  public TermDataManager(final String newPrefix,
-          final IndexDataProvider newDataProv) {
+  public TermDataManager(final String newPrefix) {
     this.prefix = newPrefix;
-    this.dataProv = newDataProv;
   }
 
   /**

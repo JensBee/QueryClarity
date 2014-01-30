@@ -100,7 +100,6 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     Terms fieldTerms;
     TermsEnum fieldTermsEnum = null;
     BytesRef bytesRef;
-    String term;
 
     // go through all fields..
     for (String field : this.fields) {
@@ -131,29 +130,36 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   }
 
   /**
-   * Updates the term frequency value for the given term.
+   * Updates the term frequency value for the given term. Thread safe.
    *
    * @param term Term to update
    * @param value Value to add to the currently stored value. If there's no
    */
   private void updateTermFreqValue(final BytesWrap term, final long value) {
-    if (this.termFreqMap.containsKey(term)) {
-      final TermFreqData tfData = this.termFreqMap.get(term);
-      tfData.addToTotalFreq(value);
-      if (this.termFreqMap.replace(term, tfData) == null) {
-        // previous value should never be null - this smells like an error
-        throw new IllegalStateException("Got null while updating "
-                + "term frequency value for term '" + term + "'.");
+    final TermFreqData tfData = new TermFreqData(value);
+    term.duplicate();
+    TermFreqData oldValue;
+    TermFreqData newValue;
+
+    for (;;) {
+      oldValue = this.termFreqMap.putIfAbsent(term, tfData);
+      if (oldValue == null) {
+        // data was not already stored
+        break;
       }
-    } else {
-      final TermFreqData tfData = new TermFreqData(value);
-      this.termFreqMap.put(term.duplicate(), tfData);
+
+      newValue = this.termFreqMap.get(term);
+      newValue.addToTotalFreq(value);
+      if (this.termFreqMap.replace(term, oldValue, newValue)) {
+        // replacing actually worked
+        break;
+      }
     }
     this.setTermFrequency(this.getTermFrequency() + value);
   }
 
   /**
-   * Updates the relative term frequency value for the given term.
+   * Updates the relative term frequency value for the given term. Thread safe.
    *
    * @param term Term to update
    * @param value Value to overwrite any previously stored value. If there's no
@@ -161,20 +167,31 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    */
   private void updateTermFreqValue(final BytesWrap term,
           final double value) {
-    if (this.termFreqMap.containsKey(term)) {
-      final TermFreqData tfData = this.termFreqMap.get(term);
-      tfData.setRelFreq(value);
-      if (this.termFreqMap.replace(term, tfData) == null) {
-        // previous value should never be null - this smells like an error
-        throw new IllegalStateException("Got null while updating "
-                + "relative term frequency value for term '" + term + "'.");
+
+    TermFreqData tfData;
+    TermFreqData newValue;
+    for (;;) {
+      tfData = this.termFreqMap.get(term);
+      if (tfData == null) {
+        throw new IllegalStateException("Term " + BytesWrapUtil.
+                bytesWrapToString(term) + " not found.");
       }
-    } else {
-      throw new IllegalStateException("Term " + BytesWrapUtil.bytesWrapToString(
-              term) + " not found.");
+
+      newValue = new TermFreqData(tfData.getTotalFreq(), value);
+      if (this.termFreqMap.replace(term, tfData, newValue)) {
+        // replacing actually worked
+        break;
+      }
     }
   }
 
+  /**
+   * {@inheritdoc} This replaces the specified {@link DocumentModel} without
+   * checking for any concurrent modifications. This must be handled externally.
+   *
+   * @param docModel Document model to replace. The model to replace will be
+   * identified by the document-id returned by the model
+   */
   @Override
   public final void updateDocumentModel(final DocumentModel docModel) {
     if (this.docModelMap.replace(docModel.getDocId(), docModel) == null) {
@@ -194,6 +211,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * @param reader Reader to access the index
    * @throws de.unihildesheim.lucene.document.DocumentModelException Thrown, if
    * the {@link DocumentModel} of the requested type could not be instantiated
+   * @throws java.io.IOException Thrown on low-level I7O errors
    */
   protected final void createDocumentModels(
           final Class<? extends DocumentModel> modelType,
@@ -234,7 +252,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
 
       // debug operating indicator
       if (dbgStatus[0] >= 0 && ++dbgStatus[0] % dbgStatus[1] == 0) {
-        LOG.debug("{} models of  approx. {} documents created ({}s)",
+        LOG.info("{} models of  approx. {} documents created ({}s)",
                 dbgStatus[0], dbgStatus[2], dbgTimeMeasure.stop().
                 getElapsedSeconds());
         dbgTimeMeasure.start();
@@ -318,7 +336,6 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
 //    this.docModelMap.remove(docId);
 //    this.docModelMap.put(docId, newDocModel);
 //  }
-
   /**
    * Clears all pre-calculated data.
    */
@@ -357,7 +374,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     for (BytesWrap term : terms) {
       // debug operating indicator
       if (dbgStatus[0] >= 0 && ++dbgStatus[0] % dbgStatus[1] == 0) {
-        LOG.debug("{} of {} terms calculated ({}s)", dbgStatus[0],
+        LOG.info("{} of {} terms calculated ({}s)", dbgStatus[0],
                 dbgStatus[2], dbgTimeMeasure.stop().getElapsedSeconds());
         dbgTimeMeasure.start();
       }
@@ -452,7 +469,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   }
 
   @Override
-  public int getDocModelCount() {
+  public final int getDocModelCount() {
     return this.docModelMap.size();
   }
 

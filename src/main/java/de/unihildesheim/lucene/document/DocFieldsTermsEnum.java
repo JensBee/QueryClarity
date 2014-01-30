@@ -17,13 +17,8 @@
 package de.unihildesheim.lucene.document;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.Set;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.slf4j.Logger;
@@ -46,13 +41,8 @@ public final class DocFieldsTermsEnum {
   /**
    * Lucene fields to operate on.
    */
-//  private final Set<String> targetFields;
   private final String[] fields;
 
-  /**
-   * Lucene fields to operate on.
-   */
-//  private LinkedList<String> currentFields;
   /**
    * Currently active enumerator.
    */

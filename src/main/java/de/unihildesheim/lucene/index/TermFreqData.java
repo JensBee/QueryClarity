@@ -18,7 +18,6 @@ package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.util.Lockable;
 import java.io.Serializable;
-import java.util.Objects;
 
 /**
  * Simple wrapper for storing general term frequency values.

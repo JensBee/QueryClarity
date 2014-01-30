@@ -20,19 +20,12 @@ import de.unihildesheim.lucene.index.IndexDataProvider;
 import java.io.IOException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public class Calculation {
-
-//  /**
-//   * Logger instance for this class.
-//   */
-//  private static final Logger LOG = LoggerFactory.getLogger(Calculation.class);
 
   /**
    * Shared index reader instance.

@@ -19,7 +19,6 @@ package de.unihildesheim.lucene.index;
 import de.unihildesheim.util.StringUtils;
 import de.unihildesheim.lucene.document.DefaultDocumentModel;
 import de.unihildesheim.lucene.document.DefaultDocumentModelSerializer;
-import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.DocumentModelException;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.lucene.util.BytesWrapSerializer;
@@ -34,16 +33,13 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
-import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
-import org.apache.lucene.util.BytesRef;
 import org.mapdb.DB;
 import org.mapdb.DB.HTreeMapMaker;
 import org.mapdb.DBMaker;
-import org.mapdb.HTreeMap;
 import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -99,7 +95,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
      */
     fields,
     /**
-     * Cache data last access date
+     * Cache data last access date.
      */
     timestamp
   }

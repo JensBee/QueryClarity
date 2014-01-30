@@ -16,7 +16,6 @@
  */
 package de.unihildesheim.io;
 
-import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
@@ -36,19 +35,19 @@ public final class FastByteArrayOutputStream extends OutputStream {
   private byte[] buf = null;
 
   /**
-   *
+   * Current size of the buffer.
    */
   private int size = 0;
 
   /**
-   * Constructs a stream with buffer capacity size 5K
+   * Constructs a stream with buffer capacity size 5K.
    */
   public FastByteArrayOutputStream() {
     this(5 * 1024);
   }
 
   /**
-   * Constructs a stream with the given initial size
+   * Constructs a stream with the given initial size.
    *
    * @param initSize Initial size of the buffer
    */

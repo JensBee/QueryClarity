@@ -31,7 +31,7 @@ public final class LuceneDefaults {
   public static final Version VERSION = Version.LUCENE_46;
 
   /**
-   * Private constructor for utility class
+   * Private constructor for utility class.
    */
   private LuceneDefaults() {
     // nop constructor for utility class

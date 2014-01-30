@@ -16,7 +16,6 @@
  */
 package de.unihildesheim.io;
 
-import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 
 /**
@@ -63,7 +62,7 @@ public final class FastByteArrayInputStream extends InputStream {
 
   @Override
   public int read() {
-    return (this.pos < this.count) ? (this.buf[this.pos++] & 0xff) : -1;
+    return this.pos < this.count ? this.buf[this.pos++] & 0xff : -1;
   }
 
   @Override
@@ -75,11 +74,11 @@ public final class FastByteArrayInputStream extends InputStream {
     }
 
     if ((this.pos + lenRead) > this.count) {
-      lenRead = (count - pos);
+      lenRead = this.count - this.pos;
     }
 
-    System.arraycopy(buf, pos, b, off, lenRead);
-    pos += lenRead;
+    System.arraycopy(this.buf, this.pos, b, off, lenRead);
+    this.pos += lenRead;
     return lenRead;
   }
 
@@ -93,7 +92,7 @@ public final class FastByteArrayInputStream extends InputStream {
     if (numSkipped < 0) {
       return 0;
     }
-    pos += numSkipped;
+    this.pos += numSkipped;
     return numSkipped;
   }
 }

@@ -34,11 +34,6 @@ import java.io.Serializable;
 public interface DocumentModel extends Serializable, Lockable {
 
   /**
-   * Serialization class version id.
-   */
-  long serialVersionUID = 0L;
-
-  /**
    * Set the id of the associated Lucene document.
    *
    * @param documentId Id of the associated Lucene document
@@ -53,7 +48,6 @@ public interface DocumentModel extends Serializable, Lockable {
    * @param documentId Id of the associated Lucene document
    * @param termsCount Number of terms to expect for this document. This value
    * will be used to initialize the data store to the appropriate size.
-   * @return New empty {@link DocumentModel} instance
    */
   void create(final int documentId, final int termsCount);
 
@@ -115,16 +109,6 @@ public interface DocumentModel extends Serializable, Lockable {
    */
   void setTermData(final BytesWrap term, final String key,
           final Number value);
-
-  /**
-   * Lock the document model, making all it's data immutable.
-   */
-  void lock();
-
-  /**
-   * Un-lock the document model to make it mutable again.
-   */
-  void unlock();
 
   /**
    * Indicates whether this model has changed data.

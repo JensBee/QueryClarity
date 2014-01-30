@@ -81,5 +81,10 @@
       <artifactId>fst</artifactId>
       <version>1.36</version>
     </dependency>
+    <dependency>
+      <groupId>com.beust</groupId>
+      <artifactId>jcommander</artifactId>
+      <version>1.32</version>
+    </dependency>
   </dependencies>
 </project>

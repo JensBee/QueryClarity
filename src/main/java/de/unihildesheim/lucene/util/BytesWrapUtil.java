@@ -20,15 +20,23 @@ package de.unihildesheim.lucene.util;
 import org.apache.lucene.util.BytesRef;
 
 /**
- *
+ * Utility functions to work with {@link BytesWrap} instances.
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class BytesWrapUtil {
+public final class BytesWrapUtil {
+
+  /**
+   * Private constructor for utility class.
+   */
+  private BytesWrapUtil() {
+    // empty prvate constructor
+  }
+
   /**
    * Interprets stored bytes as UTF8 bytes, returning the
    * resulting string. Actually a copy of {@link BytesRef#utf8ToString()}.
-   * @param bw
-   * @return
+   * @param bw BytesWrap instance whose byte array should be converted
+   * @return String representation of the corresponding byte array
    */
   public static String bytesWrapToString(final BytesWrap bw) {
     final BytesRef br = new BytesRef(bw.getBytes());

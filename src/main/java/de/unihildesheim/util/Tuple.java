@@ -18,7 +18,6 @@ package de.unihildesheim.util;
 
 import java.io.Serializable;
 import java.util.Objects;
-import org.mapdb.Fun;
 
 /**
  *
@@ -43,13 +42,14 @@ public class Tuple {
   }
 
   public static <A, B> Tuple2<A, B> tuple2(A a, B b) {
-    return new Tuple2<A, B>(a, b);
+    return new Tuple2(a, b);
   }
 
   public static <A, B, C> Tuple3<A, B, C> tuple3(A a, B b, C c) {
-    return new Tuple3<A, B, C>(a, b, c);
+    return new Tuple3(a, b, c);
   }
 
+  @SuppressWarnings("PublicInnerClass")
   public static final class Tuple2<A, B> implements Serializable {
 
     /**
@@ -95,6 +95,7 @@ public class Tuple {
     }
   }
 
+  @SuppressWarnings("PublicInnerClass")
   public static final class Tuple3<A, B, C> implements Serializable {
 
     /**
@@ -146,6 +147,7 @@ public class Tuple {
     }
   }
 
+  @SuppressWarnings({"PublicInnerClass", "EqualsAndHashcode"})
   public static final class Tuple2Matcher {
 
     private final Object o1;
@@ -178,6 +180,7 @@ public class Tuple {
     }
   }
 
+  @SuppressWarnings({"PublicInnerClass", "EqualsAndHashcode"})
   public static final class Tuple3Matcher {
 
     private final Object o1;

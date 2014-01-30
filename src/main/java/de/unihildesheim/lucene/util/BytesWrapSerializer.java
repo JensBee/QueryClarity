@@ -16,7 +16,6 @@
  */
 package de.unihildesheim.lucene.util;
 
-import de.unihildesheim.lucene.util.BytesWrap;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
