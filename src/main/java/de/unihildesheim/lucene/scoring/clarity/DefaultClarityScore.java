@@ -39,12 +39,17 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -68,24 +73,16 @@ import org.slf4j.LoggerFactory;
 public final class DefaultClarityScore implements ClarityScoreCalculation {
 
   /**
+   * Logger instance for this class.
+   */
+  private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
+          DefaultClarityScore.class);
+
+  /**
    * Prefix to use to store calculated term-data values in cache and access
    * properties stored in the {@link DataProvider}.
    */
   private static final String PREFIX = "DCS";
-
-  // Threading parameters
-  /**
-   * Model pre-calculation: number of models to cache in pool.
-   */
-  private static final int PCALC_POOL_SIZE = 1000;
-  /**
-   * Model pre-calculation: the maximum number of terms that should be queued.
-   */
-  private static final int PCALC_THREAD_QUEUE_MAX_CAPACITY = 100;
-  /**
-   * Model pre-calculation: number of calculation threads to run.
-   */
-  private static final int PCALC_THREADS = 2;
 
   /**
    * Keys to store calculation results in document models and access properties
@@ -112,7 +109,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
   /**
    * Multiplier for relative term frequency inside documents.
    */
-  private double langmodelWeight = DEFAULT_LANGMODEL_WEIGHT;
+  private final double langmodelWeight;
 
   /**
    * Default number of feedback documents to use. Cronen-Townsend et al.
@@ -124,12 +121,6 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * Number of feedback documents to use.
    */
   private int fbDocCount = DEFAULT_FEDDBACK_DOCS_COUNT;
-
-  /**
-   * Logger instance for this class.
-   */
-  private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
-          DefaultClarityScore.class);
 
   /**
    * Provider for statistical index related informations. Accessed from nested
@@ -158,6 +149,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
   public DefaultClarityScore(final IndexReader indexReader,
           final IndexDataProvider dataProvider) {
     super();
+    this.langmodelWeight = DEFAULT_LANGMODEL_WEIGHT;
     this.reader = indexReader;
     this.dataProv = dataProvider;
     this.tdMan = new TermDataManager(PREFIX);
@@ -171,8 +163,8 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * @return The calculated default model value
    */
   private double calcDefaultDocumentModel(final BytesWrap term) {
-    return (double) (1 - langmodelWeight) * dataProv.getRelativeTermFrequency(
-            term);
+    return (double) (1 - langmodelWeight) * this.dataProv.
+            getRelativeTermFrequency(term);
   }
 
   /**
@@ -183,7 +175,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * @param update If true, value will be written to the documents data model
    * @return Calculated model value
    */
-  private double calcDocumentModel(final DocumentModel docModel,
+  protected double calcDocumentModel(final DocumentModel docModel,
           final BytesWrap term, final boolean update) {
     // no value was stored, so calculate it
     final double model = langmodelWeight * ((double) docModel.getTermFrequency(
@@ -193,6 +185,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     if (update) {
       docModel.unlock();
       this.tdMan.setTermData(docModel, term, DataKeys.DOC_MODEL.name(), model);
+      docModel.setChanged(true);
       docModel.lock();
     }
     return model;
@@ -263,80 +256,17 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * @param force If true, the recalculation is forced
    */
   public void preCalcDocumentModels(final boolean force) {
-    final int termsCount = this.dataProv.getTermsCount();
-    LOG.info("Pre-calculating document models ({}) "
-            + "for all unique terms ({}) in index.",
-            this.dataProv.getDocModelCount(), termsCount);
-
-    final TimeMeasure timeMeasure = new TimeMeasure().start();
-    Iterator<BytesWrap> idxTermsIt;
-
-    // debug helpers
-    int[] dbgStatus = new int[]{-1, 100, termsCount};
-    TimeMeasure dbgTimeMeasure = null;
-    if (LOG.isDebugEnabled() && dbgStatus[2] > dbgStatus[1]) {
-      dbgStatus[0] = 0;
-      dbgTimeMeasure = new TimeMeasure();
+    final DefaultClarityScorePrecalculator dcsP
+            = new DefaultClarityScorePrecalculator(this);
+    if (dcsP.preCalculate()) {
+      // store that we have pre-calculated values
+      this.dataProv.setProperty(PREFIX, DataKeys.DOCMODELS_PRECALCULATED.
+              name(), "true");
+    } else {
+      // calculation failed
+      this.dataProv.setProperty(PREFIX, DataKeys.DOCMODELS_PRECALCULATED.
+              name(), "false");
     }
-
-    // bounded queue to hold index terms that should be processed
-    final BlockingQueue<BytesWrap> termQueue = new ArrayBlockingQueue(
-            PCALC_THREAD_QUEUE_MAX_CAPACITY);
-    final DocumentModelPool docModelPool
-            = new DocumentModelPool(PCALC_POOL_SIZE);
-    // unbounded queue holding models currently being modified
-    final ConcurrentSkipListSet<Integer> lockedModels
-            = new ConcurrentSkipListSet();
-    // a latch that counts down the items we have processed
-    final CountDownLatch consumeLatch = new CountDownLatch(termsCount);
-    // all threads spawned
-    final Thread[] pCalcThreads = new Thread[PCALC_THREADS];
-
-    LOG.debug("Spawning {} threads for document model calculation.",
-            PCALC_THREADS);
-    for (int i = 0; i < PCALC_THREADS; i++) {
-      pCalcThreads[i] = new Thread(new DocumentModelCalculator(docModelPool,
-              termQueue, lockedModels, consumeLatch));
-      pCalcThreads[i].setDaemon(true);
-      pCalcThreads[i].start();
-    }
-
-    // create document pool observer
-    final DocumentModelPoolObserver dpObserver = new DocumentModelPoolObserver(
-            this.dataProv, docModelPool, lockedModels);
-    final Thread dpObserverThread = new Thread(dpObserver);
-    dpObserverThread.setDaemon(true);
-    dpObserverThread.start();
-
-    idxTermsIt = this.dataProv.getTermsIterator();
-    if (dbgStatus[0] > -1) {
-      dbgTimeMeasure.start();
-    }
-
-    try {
-      while (idxTermsIt.hasNext()) {
-        termQueue.put(idxTermsIt.next());
-        // debug operating indicator
-        if (dbgStatus[0] >= 0 && ++dbgStatus[0] % dbgStatus[1] == 0) {
-          LOG.info("models for {} terms of {} calculated ({}s)", dbgStatus[0],
-                  dbgStatus[2], dbgTimeMeasure.stop().getElapsedSeconds());
-          dbgTimeMeasure.start();
-        }
-      }
-
-      consumeLatch.await(); // wait until all waiting models are processed
-      dpObserver.terminate(); // commit all pending models
-    } catch (InterruptedException ex) {
-      LOG.error("Model pre-calculation thread interrupted. "
-              + "This may have caused data loss.", ex);
-    }
-
-    timeMeasure.stop();
-    LOG.info("Pre-calculating document models for all unique terms in index "
-            + "took {} seconds", timeMeasure.getElapsedSeconds());
-    // store that we have pre-calculated values
-    this.dataProv.setProperty(PREFIX, DataKeys.DOCMODELS_PRECALCULATED.
-            name(), "true");
   }
 
   /**
@@ -470,175 +400,13 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     return result;
   }
 
-  /**
-   * Runnable to query Lucene for documents matching a specific term and
-   * calculate the document models for this term and the matching documents.
-   */
-  private class DocumentModelCalculator implements Runnable {
+  @Override
+  public IndexDataProvider getIndexDataProvider() {
+    return this.dataProv;
+  }
 
-    /**
-     * Lucene parser for all available document fields.
-     */
-    private final MultiFieldQueryParser mfQParser;
-    /**
-     * Terms queue.
-     */
-    private final BlockingQueue<BytesWrap> termQueue;
-    /**
-     * Cached {@link DocumentModel}s pool.
-     */
-    private final DocumentModelPool pool;
-    /**
-     * Queue holding models currently being modified.
-     */
-    private final ConcurrentSkipListSet<Integer> lockedModels;
-    /**
-     * Tracking counter.
-     */
-    private final CountDownLatch latch;
-
-    private ArrayList<ScoreDoc> matchingDocs;
-
-    /**
-     * Creates a new calculator for document models which gets the term to query
-     * from a global working queue.
-     *
-     * @param docModelPool Pool for cached document models
-     * @param termsQueue Queue to get the terms from
-     * @param lockedModelsSet Shared list of models currently being modified
-     * @param cLatch Countdown latch to track the progress
-     */
-    DocumentModelCalculator(final DocumentModelPool docModelPool,
-            final BlockingQueue<BytesWrap> termsQueue,
-            final ConcurrentSkipListSet<Integer> lockedModelsSet,
-            final CountDownLatch cLatch) {
-      this.pool = docModelPool;
-      this.termQueue = termsQueue;
-      this.lockedModels = lockedModelsSet;
-      this.latch = cLatch;
-      // NOTE: this analyzer won't remove any stopwords!
-      final Analyzer analyzer = new StandardAnalyzer(LuceneDefaults.VERSION,
-              CharArraySet.EMPTY_SET);
-      this.mfQParser = new MultiFieldQueryParser(
-              LuceneDefaults.VERSION, DefaultClarityScore.this.dataProv.
-              getTargetFields(),
-              analyzer);
-    }
-
-    /**
-     * Get the next document-id from the list of matching documents, that is
-     * not currently blocked.
-     * @return Next non-blocked document-id
-     */
-    private Integer getNextDocId() {
-      ScoreDoc currentDoc = null;
-      while (currentDoc == null) {
-        for (ScoreDoc scoreDoc : this.matchingDocs) {
-          if (this.lockedModels.add(scoreDoc.doc)) {
-            currentDoc = scoreDoc;
-            break;
-          }
-        }
-      }
-      this.matchingDocs.remove(currentDoc);
-      return currentDoc.doc;
-    }
-
-    /**
-     * Updates all matching document models for the given term.
-     *
-     * @param term Term to use for updates
-     * @param results Lucene query results for the specified term
-     * @throws InterruptedException Thrown if thread was interrupted
-     */
-    private void updateModels(final BytesWrap term, final ScoreDoc[] results)
-            throws InterruptedException {
-      DocumentModel docModel;
-      Integer currentDocId;
-      this.matchingDocs = new ArrayList(Arrays.asList(results));
-
-      // calculate models for results
-      while (!matchingDocs.isEmpty()) {
-        // get the next document-id and add it to the being-modified list
-        currentDocId = getNextDocId();
-
-        docModel = this.pool.get(currentDocId);
-        if (docModel == null) {
-          docModel = DefaultClarityScore.this.dataProv.getDocumentModel(
-                  currentDocId);
-        }
-
-        if (docModel == null) {
-          LOG.warn("Error retrieving document with id={}. Got null.",
-                  currentDocId);
-        } else {
-          if (docModel.containsTerm(term)) { // double check?
-            try {
-              calcDocumentModel(docModel, term, true);
-              docModel.setChanged(true);
-            } catch (NullPointerException ex) {
-              LOG.error("NPE docModel={} docId={} term={}", docModel,
-                      currentDocId, BytesWrapUtil.bytesWrapToString(term), ex);
-            }
-          }
-        }
-        this.pool.put(docModel);
-        this.lockedModels.remove(currentDocId);
-      }
-    }
-
-    @Override
-    public void run() {
-      // Query for the current term.
-      Query query;
-      // Searcher to access the index.
-      IndexSearcher searcher
-              = new IndexSearcher(DefaultClarityScore.this.reader);
-      // Collector to get the total number of matching documents for a term.
-      TotalHitCountCollector coll;
-      // Expected number of documents to retrieve.
-      int expResults;
-      // Scoring documents for a single term.
-      ScoreDoc[] results;
-      try {
-        while (!Thread.currentThread().isInterrupted()) {
-          // get the next available term
-          BytesWrap term = this.termQueue.take();
-
-          LOG.trace("Query for {}...", BytesWrapUtil.bytesWrapToString(term));
-
-          // decrement the countdown latch
-          this.latch.countDown();
-
-          // build query for matching documents
-          try {
-            query = this.mfQParser.parse(BytesWrapUtil.bytesWrapToString(term));
-          } catch (ParseException ex) {
-            LOG.error("Caught exception while parsing term query '"
-                    + BytesWrapUtil.bytesWrapToString(term) + "'.", ex);
-            continue;
-          }
-
-          // run the queries
-          try {
-            coll = new TotalHitCountCollector();
-            searcher.search(query, coll);
-            expResults = coll.getTotalHits();
-            LOG.trace("Query for {} ({}) yields {} results.", BytesWrapUtil.
-                    bytesWrapToString(term), query, expResults);
-
-            if (expResults > 0) {
-              // collect the results
-              results = searcher.search(query, expResults).scoreDocs;
-              updateModels(term, results);
-            }
-          } catch (IOException ex) {
-            LOG.error("Caught exception while searching index.", ex);
-          }
-        }
-      } catch (InterruptedException ex) {
-        LOG.warn("Thread interrupted.", ex);
-      }
-    }
+  @Override
+  public IndexReader getReader() {
+    return this.reader;
   }
 }

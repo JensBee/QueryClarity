@@ -35,6 +35,11 @@ public final class DocumentModelPool {
   private final int size;
 
   /**
+   * Default pool size.
+   */
+  private static final int DEFAULT_POOL_SIZE = 5000;
+
+  /**
    * Backing map store.
    */
   private Map<Integer, DocumentModel> map;
@@ -47,6 +52,13 @@ public final class DocumentModelPool {
   public DocumentModelPool(final int newSize) {
     this.map = new ConcurrentHashMap(newSize);
     this.size = newSize;
+  }
+
+  /**
+   * Create a new {@link DocumentModel} pool of default initial size.
+   */
+  public DocumentModelPool() {
+    this(DEFAULT_POOL_SIZE);
   }
 
   /**

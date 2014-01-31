@@ -97,7 +97,9 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     /**
      * Cache data last access date.
      */
-    timestamp
+    timestamp,
+    docModelsSize,
+    termFreqSize,
   }
 
   /**
@@ -120,10 +122,10 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
       final DBMaker dbMkr = DBMaker.newFileDB(new File(this.storagePath,
               this.storageId));
       dbMkr.transactionDisable(); // wo do not need transactions
-      dbMkr.asyncFlushDelay(100); // reduce the record fragmentation to minimum
+      dbMkr.asyncFlushDelay(10); // reduce the record fragmentation to minimum
       dbMkr.randomAccessFileEnableIfNeeded(); // support 32bit JVMs
-      dbMkr.cacheLRUEnable(); // enable last-recent-used cache
-      dbMkr.cacheHardRefEnable(); // use hard reference map
+//      dbMkr.cacheLRUEnable(); // enable last-recent-used cache
+//      dbMkr.cacheHardRefEnable(); // use hard reference map
 //      dbMkr.closeOnJvmShutdown(); // auto close db on exit
       this.db = dbMkr.make();
     } catch (RuntimeException ex) {
@@ -194,6 +196,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     dmmMkr.keepCounter(true);
     // create map
     this.docModelMap = dmmMkr.makeOrGet();
+    // store size off-map, this makes inserts faster
+    this.db.createAtomicLong(DataKeys.docModelsSize.name(), 0);
 
     final HTreeMapMaker tfmMkr = this.db.createHashMap("termFreq");
     // map-key serializer
@@ -206,6 +210,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     tfmMkr.keepCounter(true);
     // create map
     this.termFreqMap = tfmMkr.makeOrGet();
+    // store size off-map, this makes inserts faster
+    this.db.createAtomicLong(DataKeys.termFreqSize.name(), 0);
     timeMeasure.stop();
 
     // check if storage meta information is there and fields are defined
@@ -218,11 +224,9 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
         // check if data was loaded
         needsRecalc = this.docModelMap.isEmpty() || this.termFreqMap.isEmpty();
         if (!needsRecalc) {
-//          LOG.info("Loading cache took {} seconds. ", timeMeasure.
-//                  getElapsedSeconds());
           LOG.info("Loading cache (docModels={} termFreq={}) "
-                  + "took {} seconds.", this.docModelMap.size(),
-                  this.termFreqMap.size(), timeMeasure.getElapsedSeconds());
+                  + "took {} seconds.", getDocModelMapSize(),
+                  getTermFreqMapSize(), timeMeasure.getElapsedSeconds());
         }
         // debug
         if (LOG.isTraceEnabled()) {
@@ -365,4 +369,45 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
           final String defaultValue) {
     return this.storageProp.getProperty(prefix + "_" + key, defaultValue);
   }
+
+  @Override
+  protected long getTermFreqMapSize() {
+    return this.db.getAtomicLong(DataKeys.termFreqSize.name()).get();
+  }
+
+  @Override
+  protected void setTermFreqMapSize(final long value) {
+    this.db.getAtomicLong(DataKeys.termFreqSize.name()).set(value);
+  }
+
+  @Override
+  protected void incTermFreqMapSize() {
+    this.db.getAtomicLong(DataKeys.termFreqSize.name()).incrementAndGet();
+  }
+
+  @Override
+  protected void decTermFreqMapSize() {
+    this.db.getAtomicLong(DataKeys.termFreqSize.name()).decrementAndGet();
+  }
+
+  @Override
+  protected long getDocModelMapSize() {
+    return this.db.getAtomicLong(DataKeys.docModelsSize.name()).get();
+  }
+
+  @Override
+  protected void setDocModelMapSize(final long value) {
+    this.db.getAtomicLong(DataKeys.docModelsSize.name()).set(value);
+  }
+
+  @Override
+  protected void incDocModelMapSize() {
+    this.db.getAtomicLong(DataKeys.docModelsSize.name()).incrementAndGet();
+  }
+
+  @Override
+  protected void decDocModelMapSize() {
+    this.db.getAtomicLong(DataKeys.docModelsSize.name()).decrementAndGet();
+  }
+
 }

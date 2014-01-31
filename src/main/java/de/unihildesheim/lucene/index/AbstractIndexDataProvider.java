@@ -125,7 +125,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     }
     timeMeasure.stop();
     LOG.info("Calculation of term frequencies for {} unique terms in index "
-            + "took {} seconds.", termFreqMap.size(), timeMeasure.
+            + "took {} seconds.", getTermFreqMapSize(), timeMeasure.
             getElapsedSeconds());
   }
 
@@ -145,6 +145,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
       oldValue = this.termFreqMap.putIfAbsent(term, tfData);
       if (oldValue == null) {
         // data was not already stored
+        incTermFreqMapSize();
         break;
       }
 
@@ -252,7 +253,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
 
       // debug operating indicator
       if (dbgStatus[0] >= 0 && ++dbgStatus[0] % dbgStatus[1] == 0) {
-        LOG.info("{} models of  approx. {} documents created ({}s)",
+        LOG.info("{} models of approx. {} documents created ({}s)",
                 dbgStatus[0], dbgStatus[2], dbgTimeMeasure.stop().
                 getElapsedSeconds());
         dbgTimeMeasure.start();
@@ -304,6 +305,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
         }
         docModel.lock(); // make model immutable for storage now
         this.docModelMap.put(docId, docModel);
+        incDocModelMapSize();
         if (LOG.isDebugEnabled()) {
           docModelCount++;
         }
@@ -317,31 +319,14 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
             docModelCount, timeMeasure.getElapsedSeconds());
   }
 
-//  /**
-//   * Updates the document model by using it's document-id. This is done by
-//   * replacing any previous model associated with the document-id.
-//   *
-//   * Since the used {@link Map} implementation is unknown here, a map with
-//   * immutable objects is assumed and a modification of already stored entries
-//   * is prohibited. So an entry has to be removed to be updated.
-//   *
-//   * @param newDocModel Document model to update. The document id will be
-//   * retrieved from this model.
-//   */
-//  protected final void updateDocumentModel(final DocumentModel newDocModel) {
-//    if (newDocModel == null) {
-//      return;
-//    }
-//    final int docId = newDocModel.getDocId();
-//    this.docModelMap.remove(docId);
-//    this.docModelMap.put(docId, newDocModel);
-//  }
   /**
    * Clears all pre-calculated data.
    */
   protected final void clearData() {
     this.docModelMap.clear();
     this.termFreqMap.clear();
+    setDocModelMapSize(0L);
+    setTermFreqMapSize(0L);
   }
 
   /**
@@ -360,7 +345,6 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     // entries.
     final Set<BytesWrap> terms = Collections.unmodifiableSet(termFreqMap.
             keySet());
-//    double tFreq;
     double rTermFreq;
 
     // debug helpers
@@ -387,8 +371,8 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
 
     timeMeasure.stop();
     LOG.info("Calculation of relative term frequencies "
-            + "for {} unique terms in index took {} seconds.", termFreqMap.
-            size(), timeMeasure.getElapsedSeconds());
+            + "for {} unique terms in index took {} seconds.",
+            getTermFreqMapSize(), timeMeasure.getElapsedSeconds());
   }
 
   @Override
@@ -443,8 +427,8 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   }
 
   @Override
-  public final int getTermsCount() {
-    return this.termFreqMap.size();
+  public final long getTermsCount() {
+    return getTermFreqMapSize();
   }
 
   @Override
@@ -469,8 +453,8 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   }
 
   @Override
-  public final int getDocModelCount() {
-    return this.docModelMap.size();
+  public final long getDocModelCount() {
+    return getDocModelMapSize();
   }
 
   /**
@@ -496,23 +480,55 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   }
 
   /**
+   * Get the size of the local term frequency map.
+   *
+   * @return Term frequency map size
+   */
+  protected abstract long getTermFreqMapSize();
+
+  /**
+   * Set the size of the local term frequency map.
+   */
+  protected abstract void setTermFreqMapSize(final long value);
+
+  /**
+   * Increase the size counter of the local term frequency map.
+   */
+  protected abstract void incTermFreqMapSize();
+
+  /**
+   * Decrease the size counter of the local term frequency map.
+   */
+  protected abstract void decTermFreqMapSize();
+
+  /**
+   * Get the size of the local document model map.
+   *
+   * @return Document model map size
+   */
+  protected abstract long getDocModelMapSize();
+
+  /**
+   * Set the size counter of the local document model map.
+   */
+  protected abstract void setDocModelMapSize(final long value);
+
+  /**
+   * Increase the size counter of the local document model map.
+   */
+  protected abstract void incDocModelMapSize();
+
+  /**
+   * Decrease the size counter of the local document model map.
+   */
+  protected abstract void decDocModelMapSize();
+
+  /**
    * Set the overall frequency of all terms in the index.
    *
    * @param oTermFreq Overall frequency of all terms in the index
    */
   protected final void setTermFrequency(final Long oTermFreq) {
     this.overallTermFreq = oTermFreq;
-  }
-
-  @Override
-  public final void addDocumentModel(final DocumentModel docModel) {
-    if (docModel != null) {
-      this.docModelMap.put(docModel.getDocId(), docModel);
-    }
-  }
-
-  @Override
-  public final DocumentModel removeDocumentModel(final int docId) {
-    return this.docModelMap.remove(docId);
   }
 }

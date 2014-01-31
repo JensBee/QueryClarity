@@ -74,6 +74,18 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
   private transient boolean changed = false;
 
   /**
+   * Keys to store calculation results in document models and access properties
+   * stored in the {@link DataProvider}.
+   */
+  private enum DataKeys {
+
+    /**
+     * Key to store term frequency for a term.
+     */
+    _FREQ
+  }
+
+  /**
    * Internal constructor used to create a new {@link DocumentModel} for a
    * specific document denoted by it's Lucene document id. The
    * <code>termsCount</code> value will be used to initialize the internal data
@@ -102,10 +114,11 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
    * @param documentId Lucene document-id
    * @param newTermDataList New data to add
    */
-  protected DefaultDocumentModel(final int documentId,
+  protected DefaultDocumentModel(final int documentId, final long termfreq,
           final List<Tuple.Tuple3<BytesWrap, String, Number>> newTermDataList) {
     this.docId = documentId;
     this.termDataList = newTermDataList;
+    this.overallTermFrequency = termfreq;
   }
 
   /**
@@ -188,7 +201,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
     if (this.termDataList == null) {
       createDataStore();
     }
-    this.termDataList.add(Tuple.tuple3(term.duplicate(), "_freq",
+    this.termDataList.add(Tuple.tuple3(term.duplicate(), DataKeys._FREQ.name(),
             (Number) frequency));
   }
 
@@ -212,7 +225,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
   public long getTermFrequency() {
     if (this.overallTermFrequency == 0L && this.termDataList != null) {
       for (Tuple.Tuple3<BytesWrap, String, Number> tuple3 : this.termDataList) {
-        if (tuple3.b.equals("_freq")) {
+        if (tuple3.b.equals(DataKeys._FREQ.name())) {
           this.overallTermFrequency += (long) tuple3.c;
         }
       }
@@ -226,7 +239,7 @@ public final class DefaultDocumentModel implements DocumentModel, Serializable {
       throw new IllegalArgumentException("Term must not be null.");
     }
 
-    final Long value = (Long) getTermData(term, "_freq");
+    final Long value = (Long) getTermData(term, DataKeys._FREQ.name());
     return value == null ? 0L : value;
   }
 

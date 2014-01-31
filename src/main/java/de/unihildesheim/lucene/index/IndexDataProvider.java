@@ -82,7 +82,7 @@ public interface IndexDataProvider {
    *
    * @return Number of unique terms in the index
    */
-  int getTermsCount();
+  long getTermsCount();
 
   /**
    * Get an {@link Iterator} over all known {@link DocumentModel} instances.
@@ -106,25 +106,6 @@ public interface IndexDataProvider {
   DocumentModel getDocumentModel(final int docId);
 
   /**
-   * Get (remove) a document model from the list of known models. This is a safe
-   * way to get a {@link DocumentModel} for doing modifications to the model.
-   *
-   * @param docId Id of the document model to remove
-   * @return The document model associated with the given id, or <tt>null</tt>
-   * if none was stored under the given id.
-   */
-  DocumentModel removeDocumentModel(final int docId);
-
-  /**
-   * Adds a {@link DocumentModel} to the list of known models. This should only
-   * be used to re-add models that have previously been removed from the list to
-   * apply any modifications.
-   *
-   * @param documentModel Document model to add to the list of known models
-   */
-  void addDocumentModel(final DocumentModel documentModel);
-
-  /**
    * Updates an already stored {@link DocumentModel}. Use this to update any
    * model, that have been changed externally.
    *
@@ -138,14 +119,8 @@ public interface IndexDataProvider {
    *
    * @return Number of {@link DocumentModel}s known
    */
-  int getDocModelCount();
+  long getDocModelCount();
 
-//  /**
-//   * Get all document models known to this {@link IndexDataProvider}.
-//   *
-//   * @return All document models known to this instance
-//   */
-//  Collection<DocumentModel> getDocModels();
   /**
    * Stores a property value to the {@link IndexDataProvider}. Depending on the
    * implementation this property may be persistent.

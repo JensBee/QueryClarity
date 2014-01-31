@@ -18,6 +18,7 @@ package de.unihildesheim.lucene.document;
 
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.util.TimeMeasure;
+import java.util.Collections;
 import java.util.Map.Entry;
 import java.util.Set;
 import org.slf4j.Logger;
@@ -53,8 +54,16 @@ public final class DocumentModelPoolObserver implements Runnable {
    * if not used.
    */
   private final Set<Integer> lockedModels;
-
+  /**
+   * Load factor after which models from the pool should be commited to make
+   * room for new entries.
+   */
   private static final double POOL_LOAD = 0.75;
+  /**
+   * Maximum size of the pool (held entries) after which to begin commiting
+   * models.
+   */
+  private final int maxPoolSize;
 
   /**
    * Creates a new observer for the given pool and queue.
@@ -69,7 +78,9 @@ public final class DocumentModelPoolObserver implements Runnable {
     this.modelPool = newModelQueue;
     this.dataProv = newDataProv;
     this.lockedModels = lockedModelsSet;
-    LOG.debug("Observing pool size={}", this.modelPool.capacity());
+    this.maxPoolSize = (int) (this.modelPool.capacity() * POOL_LOAD);
+    LOG.debug("Observing pool size={} max={}", this.modelPool.capacity(),
+            this.maxPoolSize);
   }
 
   /**
@@ -84,6 +95,7 @@ public final class DocumentModelPoolObserver implements Runnable {
    * provider.
    *
    * @param modelEntry Document-id, Document-Model pair
+   * @return True, if the model has been removed from the pool
    */
   private boolean commitModel(final Entry<Integer, DocumentModel> modelEntry) {
     boolean removed = false;
@@ -111,19 +123,22 @@ public final class DocumentModelPoolObserver implements Runnable {
 
   @Override
   public void run() {
+    long commitCount = 0;
     final TimeMeasure tm = new TimeMeasure().start();
     while (!terminate) {
       if (tm.getElapsedSeconds() > 15) {
-        LOG.info("Pool size {}", this.modelPool.size());
+        LOG.info("Pool size {} ({} commits in last run)", this.modelPool.size(),
+                commitCount);
         tm.start();
+        commitCount = 0;
       }
 
       // commit entries, if pool is ~2/3 filled
-      if (!this.modelPool.isEmpty() && this.modelPool.size() > (this.modelPool.
-              capacity() * POOL_LOAD)) {
+      if (!this.modelPool.isEmpty() && this.modelPool.size() > this.maxPoolSize) {
         for (Entry<Integer, DocumentModel> modelEntry : this.modelPool.
                 entrySet()) {
           if (commitModel(modelEntry)) {
+            commitCount++;
             break;
           }
         }

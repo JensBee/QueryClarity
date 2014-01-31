@@ -16,6 +16,8 @@
  */
 package de.unihildesheim.util;
 
+import java.util.concurrent.TimeUnit;
+
 /**
  * Simple class to measure the elapsed time.
  *
@@ -61,6 +63,7 @@ public final class TimeMeasure {
 
   /**
    * Pause the time measurement.
+   *
    * @return Self reference
    */
   public TimeMeasure pause() {
@@ -71,6 +74,7 @@ public final class TimeMeasure {
 
   /**
    * Start the time measurement.
+   *
    * @return Self reference
    */
   public TimeMeasure stop() {
@@ -109,4 +113,44 @@ public final class TimeMeasure {
     return nanos > 0 ? nanos / 1000000000.0 : 0d;
   }
 
+  /**
+   * Get a string representation of the elapsed time formatted as <tt>DDd
+   * HH:MM:SS</tt> string.
+   *
+   * @return Formatted elapsed time string
+   */
+  public String getElapsedTimeString() {
+    return getTimeString((long) getElapsedSeconds());
+  }
+
+  /**
+   * Get a string representation of the elapsed time formatted as <tt>DDd
+   * HH:MM:SS</tt> string.
+   *
+   * @param elapsedTime Elapsed seconds to convert
+   * @return Formatted elapsed time string
+   */
+  public static String getTimeString(final long elapsedTime) {
+    final StringBuilder timeStr = new StringBuilder(20);
+
+    int day = (int) TimeUnit.SECONDS.toDays(elapsedTime);
+    long hours = TimeUnit.SECONDS.toHours(elapsedTime) - (day * 24);
+    long minutes = TimeUnit.SECONDS.toMinutes(elapsedTime) - (TimeUnit.SECONDS.
+            toHours(elapsedTime) * 60);
+    long seconds = TimeUnit.SECONDS.toSeconds(elapsedTime) - (TimeUnit.SECONDS.
+            toMinutes(elapsedTime) * 60);
+
+    if (day > 0) {
+      timeStr.append(day).append("d ").append(hours).append("h ").append(
+              minutes).append("m ").append(seconds).append('s');
+    } else if (hours > 0) {
+      timeStr.append(hours).append("h ").append(minutes).append("m ").append(
+              seconds).append('s');
+    } else if (minutes > 0) {
+      timeStr.append(minutes).append("m ").append(seconds).append('s');
+    } else {
+      timeStr.append(seconds).append('s');
+    }
+    return timeStr.toString();
+  }
 }

@@ -14,9 +14,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 package de.unihildesheim.lucene.scoring.clarity;
 
+import de.unihildesheim.lucene.index.IndexDataProvider;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
 
 /**
@@ -27,8 +28,24 @@ public interface ClarityScoreCalculation {
 
   /**
    * Calculate the clarity score based on the given query terms.
+   *
    * @param query Query used for term extraction
    * @return Calculated clarity score for the given terms
    */
   ClarityScoreResult calculateClarity(final Query query);
+
+  /**
+   * Get the {@link IndexDataProvider} for statistical index related
+   * informations used by this instance.
+   *
+   * @return Data provider used by this instance
+   */
+  IndexDataProvider getIndexDataProvider();
+
+  /**
+   * Get the {@link IndexReader} used by this instance.
+   *
+   * @return IndexReader used by this instance
+   */
+  IndexReader getReader();
 }

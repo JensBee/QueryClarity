@@ -54,6 +54,9 @@ public final class DefaultDocumentModelSerializer implements
           throws IOException {
     // pre-defined objects
     out.writeInt(value.getDocId());
+    out.writeLong(value.getTermFrequency());
+
+    // custom objects
     try (FastByteArrayOutputStream objBytes = new FastByteArrayOutputStream()) {
       final FSTObjectOutput objBytesStream = FST_CONF.getObjectOutput(objBytes);
       objBytesStream.writeObject(value.getTermData(), List.class);
@@ -75,6 +78,7 @@ public final class DefaultDocumentModelSerializer implements
 
     // pre-defined objects
     final int docId = in.readInt();
+    final long termFreq = in.readLong();
 
     // custom objects
     List<Tuple.Tuple3<BytesWrap, String, Number>> termDataList;
@@ -95,6 +99,6 @@ public final class DefaultDocumentModelSerializer implements
       }
     }
 
-    return new DefaultDocumentModel(docId, termDataList);
+    return new DefaultDocumentModel(docId, termFreq, termDataList);
   }
 }
