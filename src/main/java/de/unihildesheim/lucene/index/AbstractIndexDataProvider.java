@@ -42,16 +42,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Default implementation of the {@link IndexDataProvider}. This abstract class
- * creates the basic data structures to handle pre-calculated index data and
- * provides basic accessors functions to those values.
+ * Default implementation of the {@link IndexDataProvider}. This abstract
+ * class creates the basic data structures to handle pre-calculated index data
+ * and provides basic accessors functions to those values.
  *
  * The calculation of all term frequency values respect the list of defined
  * document fields. So all values are only calculated for terms found in those
  * fields.
  *
- * The data storage {@link Map} implementations are assumed to be immutable, so
- * stored objects cannot be modified directly and have to be removed and
+ * The data storage {@link Map} implementations are assumed to be immutable,
+ * so stored objects cannot be modified directly and have to be removed and
  * re-added to get modified.
  *
  * @author Jens Bertram <code@jens-bertram.net>
@@ -63,12 +63,6 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    */
   private static final Logger LOG = LoggerFactory.getLogger(
           AbstractIndexDataProvider.class);
-
-  /**
-   * Global configuration object.
-   */
-  private static final ClarityScoreConfiguration CONF
-          = ClarityScoreConfiguration.getInstance();
 
   /**
    * Prefix used to store configuration.
@@ -83,21 +77,25 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   /**
    * Number of threads to use for creating document models.
    */
-  private static final int DOCMODEL_CREATOR_THREADS = CONF.getInt(CONF_PREFIX
-          + "creatorThreads", Runtime.getRuntime().availableProcessors());
+  private static final int DOCMODEL_CREATOR_THREADS
+          = ClarityScoreConfiguration.INSTANCE.getInt(CONF_PREFIX
+                  + "creatorThreads", Runtime.getRuntime().
+                  availableProcessors());
 
   /**
    * Size of queue to feed document model creator worker threads.
    */
-  private static final int DOCMODEL_CREATOR_QUEUE_CAPACITY = CONF.getInt(
-          CONF_PREFIX + "creatorQueueCap", DOCMODEL_CREATOR_THREADS * 10);
+  private static final int DOCMODEL_CREATOR_QUEUE_CAPACITY
+          = ClarityScoreConfiguration.INSTANCE.getInt(CONF_PREFIX
+                  + "creatorQueueCap", DOCMODEL_CREATOR_THREADS * 10);
 
   /**
-   * Updates the relative term frequency value for the given term. Thread safe.
+   * Updates the relative term frequency value for the given term. Thread
+   * safe.
    *
    * @param term Term to update
-   * @param value Value to overwrite any previously stored value. If there's no
-   * value stored, then it will be set to the specified value.
+   * @param value Value to overwrite any previously stored value. If there's
+   * no value stored, then it will be set to the specified value.
    */
   protected abstract void setTermFreqValue(final BytesWrap term,
           final double value);
@@ -112,14 +110,15 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
           final long value);
 
   /**
-   * Calculate term frequencies for all terms in the index in the initial given
-   * fields. This will collect all terms from all specified fields and record
-   * their frequency in the whole index.
+   * Calculate term frequencies for all terms in the index in the initial
+   * given fields. This will collect all terms from all specified fields and
+   * record their frequency in the whole index.
    *
    * @param reader Reader to access the index
    * @throws IOException Thrown, if the index could not be opened
    */
-  protected final void calculateTermFrequencies(final IndexReader reader) throws
+  protected final void calculateTermFrequencies(final IndexReader reader)
+          throws
           IOException {
     if (reader == null) {
       throw new IllegalArgumentException("Reader was null.");
@@ -167,8 +166,8 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * is prohibited. So an entry has to be removed to be updated.
    *
    * @param reader Reader to access the index
-   * @throws DocumentModelException Thrown, if the {@link DocumentModel} of the
-   * requested type could not be instantiated
+   * @throws DocumentModelException Thrown, if the {@link DocumentModel} of
+   * the requested type could not be instantiated
    * @throws java.io.IOException Thrown on low-level I7O errors
    */
   protected final void createDocumentModels(final IndexReader reader) throws
@@ -197,7 +196,8 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     LOG.debug("Spawning {} threads for document model creation.",
             DOCMODEL_CREATOR_THREADS);
     for (int i = 0; i < DOCMODEL_CREATOR_THREADS; i++) {
-      dmcThreads[i] = new DocumentModelCreator(reader, docQueue, trackingLatch);
+      dmcThreads[i]
+              = new DocumentModelCreator(reader, docQueue, trackingLatch);
       final Thread t = new Thread(dmcThreads[i], "DMCreator-" + i);
       t.start();
     }
@@ -215,11 +215,13 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
         if (++runStatus[0] % runStatus[1] == 0) {
           runTimeMeasure.stop();
           // estimate time needed
-          long estimate = (long) ((runStatus[2] - runStatus[0]) / (runStatus[0]
+          long estimate = (long) ((runStatus[2] - runStatus[0])
+                  / (runStatus[0]
                   / timeMeasure.getElapsedSeconds()));
 
           LOG.info("{} models of approx. {} documents created ({}s, {}%). "
-                  + "Time left {}.", runStatus[0], runStatus[2], runTimeMeasure.
+                  + "Time left {}.", runStatus[0], runStatus[2],
+                  runTimeMeasure.
                   getElapsedSeconds(), ++runStatus[3], TimeMeasure.
                   getTimeString(estimate));
 
@@ -244,8 +246,8 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   }
 
   /**
-   * Calculates the relative term frequency for each term in the index. Overall
-   * term frequency values must be calculated beforehand by calling
+   * Calculates the relative term frequency for each term in the index.
+   * Overall term frequency values must be calculated beforehand by calling
    * {@link AbstractIndexDataProvider#calculateTermFrequencies(IndexReader)}.
    *
    * @param terms List of terms to do the calculation for. Usually this is a
@@ -304,11 +306,12 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   }
 
   /**
-   * Set the document fields this {@link IndexDataProvider} accesses for statics
-   * calculation. Note that changing fields while the values are calculated may
-   * render the calculation results invalid. You should call
-   * {@link AbstractIndexDataProvider#clearData()} to remove any pre-calculated
-   * data if fields have changed and recalculate values as needed.
+   * Set the document fields this {@link IndexDataProvider} accesses for
+   * statics calculation. Note that changing fields while the values are
+   * calculated may render the calculation results invalid. You should call
+   * {@link AbstractIndexDataProvider#clearData()} to remove any
+   * pre-calculated data if fields have changed and recalculate values as
+   * needed.
    *
    * @param newFields List of field names
    */
@@ -323,12 +326,6 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * Worker thread to create {@link DocumentModel}s.
    */
   private final class DocumentModelCreator implements Runnable {
-
-    /**
-     * Global configuration object.
-     */
-    private final ClarityScoreConfiguration conf
-            = ClarityScoreConfiguration.getInstance();
     /**
      * Prefix used to store configuration.
      */
@@ -360,7 +357,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     /**
      * Maximum time (s) to wait for a new document-id to become available.
      */
-    private final int maxWait = conf.
+    private final int maxWait = ClarityScoreConfiguration.INSTANCE.
             getInt(CONF_PREFIX + "docIdMaxWait", 1);
 
     /**
@@ -390,8 +387,8 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     }
 
     /**
-     * Set the termination flag for this thread causing it to finish the current
-     * work and exit.
+     * Set the termination flag for this thread causing it to finish the
+     * current work and exit.
      */
     public void terminate() {
       LOG.debug("({}) Thread got terminating signal.", this.tName);

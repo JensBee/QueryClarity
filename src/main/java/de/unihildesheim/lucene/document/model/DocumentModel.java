@@ -30,12 +30,6 @@ import java.util.Map.Entry;
 public final class DocumentModel {
 
   /**
-   * Global configuration object.
-   */
-  private static final ClarityScoreConfiguration CONF
-          = ClarityScoreConfiguration.getInstance();
-
-  /**
    * Referenced Lucene document id.
    */
   public final int id;
@@ -98,13 +92,14 @@ public final class DocumentModel {
      */
     private static final String CONF_PREFIX = "DMBuilder_";
     /**
-     * Default number of terms to expect for a document. Used to initialize data
-     * storage to a appropriate size.
+     * Default number of terms to expect for a document. Used to initialize
+     * data storage to a appropriate size.
      */
-    private static final int DEFAULT_TERMS_COUNT = CONF.getInt(CONF_PREFIX
-            + "defaultTermsCount", 100);
+    private static final int DEFAULT_TERMS_COUNT
+            = ClarityScoreConfiguration.INSTANCE.getInt(CONF_PREFIX
+                    + "defaultTermsCount", 100);
     /**
-     * Term -> frequency mapping for every nown term in the document.
+     * Term -> frequency mapping for every known term in the document.
      */
     private final Map<BytesWrap, Long> termFreqMap;
     /**

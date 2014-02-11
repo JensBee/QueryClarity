@@ -27,13 +27,22 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class WorkQueueObserver {
+public final class WorkQueueObserver {
 
+  /**
+   * Private constructor for tool class.
+   */
   private WorkQueueObserver() {
-
+    // empty tool class constructor
   }
 
-  private static abstract class AbtractWorkQueueObserver<T> implements Runnable {
+  /**
+   * Base class for observers using a {@link BlockingDeque}.
+   *
+   * @param <T> Type of the queued items
+   */
+  private abstract static class AbstractWorkQueueObserver<T>
+          implements Runnable {
 
     /**
      * Name for this runnable.
@@ -46,7 +55,7 @@ public class WorkQueueObserver {
     /**
      * Randomizer.
      */
-    private Random rnd = new Random();
+    private final Random rnd = new Random();
     /**
      * Logger instance for this class.
      */
@@ -65,9 +74,24 @@ public class WorkQueueObserver {
      */
     private final BlockingDeque<T> workQueue;
 
+    /**
+     * Tries to process the given item.
+     *
+     * @param item Item to process
+     * @return True if it has been processed, false otherwise
+     */
     abstract boolean tryProcessItem(final T item);
 
-    AbtractWorkQueueObserver(final String name,
+    /**
+     * Abstract observer observing a working queue implemented as
+     * {@link BlockingDeque}.
+     *
+     * @param name Name to identify the observer
+     * @param newSource Source providing elements for the queue
+     * @param newWorkerFactory Factory creating consumers of the queue items
+     * @param sharedWorkQueue Shared queue instance
+     */
+    AbstractWorkQueueObserver(final String name,
             final ProcessingSource newSource,
             final ProcessingWorker.Factory newWorkerFactory,
             final BlockingDeque<T> sharedWorkQueue) {
@@ -77,6 +101,9 @@ public class WorkQueueObserver {
       this.tName = "WorkQueueObserver(" + name + "_" + this.hashCode() + ")";
     }
 
+    /**
+     * Set the termination flag for the runnable.
+     */
     public void terminate() {
       log.debug("({}) " + DocTermWorkQueueObserver.class
               + " got terminating signal.", this.tName);
@@ -130,13 +157,13 @@ public class WorkQueueObserver {
           TargetDocTerms.class);
 
   /**
-   * Thread to observe the queue of document-terms pairs to process. Each thread
-   * will poll from the queue, check if the model is not locked and run the
-   * desired worker for each entry.
+   * Runnable to observe the queue of document-terms pairs to process. Each
+   * thread will poll from the queue, check if the model is not locked and run
+   * the desired worker for each entry.
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class DocTermWorkQueueObserver extends
-          AbtractWorkQueueObserver<Tuple.Tuple2<Integer, BytesWrap[]>> {
+          AbstractWorkQueueObserver<Tuple.Tuple2<Integer, BytesWrap[]>> {
 
     /**
      * Document-ids source.
@@ -151,10 +178,21 @@ public class WorkQueueObserver {
      */
     private final BlockingDeque<Tuple.Tuple2<Integer, BytesWrap[]>> workQueue;
 
+    /**
+     * Create a new {@link Runnable} to observe the queue of document-terms
+     * pairs to process.
+     *
+     * @param name Name to identify this observer
+     * @param docSource Source providing document-ids for the queue
+     * @param termsTargetFactory Factory creating processes accepting
+     * document-ids and terms
+     * @param sharedWorkQueue Shared queue of work items
+     */
     public DocTermWorkQueueObserver(final String name,
             final ProcessingSource docSource,
             final ProcessingWorker.DocTerms.Factory termsTargetFactory,
-            final BlockingDeque<Tuple.Tuple2<Integer, BytesWrap[]>> sharedWorkQueue) {
+            final BlockingDeque<Tuple.Tuple2<
+                    Integer, BytesWrap[]>> sharedWorkQueue) {
       super(name, docSource, termsTargetFactory, sharedWorkQueue);
       this.source = docSource;
       this.workerFactory = termsTargetFactory;
@@ -165,7 +203,8 @@ public class WorkQueueObserver {
      * Spawns the worker process for a document and term list.
      *
      * @param item Tuple describing document and terms used for processing
-     * @return True, if item was processed successfully (runnable was executed)
+     * @return True, if item was processed successfully (runnable was
+     * executed)
      */
     @Override
     boolean tryProcessItem(final Tuple.Tuple2<Integer, BytesWrap[]> item) {

@@ -19,9 +19,7 @@ package de.unihildesheim.lucene.scoring;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.scoring.clarity.ClarityScoreCalculation;
 import de.unihildesheim.lucene.scoring.clarity.DefaultClarityScore;
-import java.io.IOException;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Query;
 
 /**
  *

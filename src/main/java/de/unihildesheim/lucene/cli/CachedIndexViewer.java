@@ -80,6 +80,7 @@ public final class CachedIndexViewer {
 
   /**
    * Main function.
+   *
    * @param args the command line arguments
    * @throws IOException Thrown on low-level I/O errors from Lucene index
    */
@@ -272,15 +273,19 @@ public final class CachedIndexViewer {
       while (tfIt.hasNext()) {
         BytesWrap bw = tfIt.next();
         System.out.println("prefix=" + prefix + " key=" + key + " term="
-                + BytesWrapUtil.bytesWrapToString(bw) + " data=" + dataMap.get(
+                + BytesWrapUtil.bytesWrapToString(bw) + " data=" + dataMap.
+                get(
                         Fun.t4(prefix, key, docId, bw)));
       }
     } else if (key != null) {
-      System.out.println("Termdata for prefix=" + prefix + " key=" + key + ".");
-      Iterator<Fun.Tuple4<String, String, Integer, BytesWrap>> dataIt = dataMap.
+      System.out.
+              println("Termdata for prefix=" + prefix + " key=" + key + ".");
+      Iterator<Fun.Tuple4<String, String, Integer, BytesWrap>> dataIt
+              = dataMap.
               keySet().iterator();
       while (dataIt.hasNext()) {
-        final Fun.Tuple4<String, String, Integer, BytesWrap> t4 = dataIt.next();
+        final Fun.Tuple4<String, String, Integer, BytesWrap> t4 = dataIt.
+                next();
         if (t4.a.equals(prefix) && t4.b.equals(key)) {
           System.out.println("prefix=" + prefix + " key=" + key + " docId="
                   + t4.c + " term=" + BytesWrapUtil.
@@ -289,10 +294,12 @@ public final class CachedIndexViewer {
       }
     } else if (prefix != null) {
       System.out.println("Termdata for prefix=" + prefix + ".");
-      Iterator<Fun.Tuple4<String, String, Integer, BytesWrap>> dataIt = dataMap.
+      Iterator<Fun.Tuple4<String, String, Integer, BytesWrap>> dataIt
+              = dataMap.
               keySet().iterator();
       while (dataIt.hasNext()) {
-        final Fun.Tuple4<String, String, Integer, BytesWrap> t4 = dataIt.next();
+        final Fun.Tuple4<String, String, Integer, BytesWrap> t4 = dataIt.
+                next();
         if (t4.a.equals(prefix)) {
           System.out.println("prefix=" + prefix + " key=" + t4.b + " docId="
                   + t4.c + " term=" + BytesWrapUtil.bytesWrapToString(t4.d)
@@ -301,11 +308,14 @@ public final class CachedIndexViewer {
       }
     } else {
       System.out.println("All termdata.");
-      Iterator<Fun.Tuple4<String, String, Integer, BytesWrap>> dataIt = dataMap.
+      Iterator<Fun.Tuple4<String, String, Integer, BytesWrap>> dataIt
+              = dataMap.
               keySet().iterator();
       while (dataIt.hasNext()) {
-        final Fun.Tuple4<String, String, Integer, BytesWrap> t4 = dataIt.next();
-        System.out.println("prefix=" + t4.a + " key=" + t4.b + " docId=" + t4.c
+        final Fun.Tuple4<String, String, Integer, BytesWrap> t4 = dataIt.
+                next();
+        System.out.println("prefix=" + t4.a + " key=" + t4.b + " docId="
+                + t4.c
                 + " term=" + BytesWrapUtil.bytesWrapToString(t4.d) + " data="
                 + dataMap.get(t4));
       }
@@ -469,7 +479,8 @@ public final class CachedIndexViewer {
     int rtfDigitLength = 0;
     System.out.println("getting relative frequency data..");
     for (BytesWrap term : terms) {
-      final Double rTermFrequency = this.dataProv.getRelativeTermFrequency(term);
+      final Double rTermFrequency = this.dataProv.getRelativeTermFrequency(
+              term);
       // nice print
       if (String.valueOf(rTermFrequency).length() > rtfDigitLength) {
         rtfDigitLength = String.valueOf(rTermFrequency).length();
@@ -607,7 +618,8 @@ public final class CachedIndexViewer {
   /**
    * Start the viewer.
    *
-   * @throws IOException Thrown on low-level I/O errors related to Lucene index
+   * @throws IOException Thrown on low-level I/O errors related to Lucene
+   * index
    */
   private void start() throws IOException {
     // get the data storage instance

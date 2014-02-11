@@ -96,7 +96,7 @@ public abstract class WorkerDocumentTerm implements ProcessingWorker.DocTerms {
           final BytesWrap term);
 
   @Override
-  public void terminate() {
+  public final void terminate() {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 

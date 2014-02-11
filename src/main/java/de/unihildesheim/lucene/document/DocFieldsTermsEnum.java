@@ -74,9 +74,9 @@ public final class DocFieldsTermsEnum {
   private Fields docFields;
 
   /**
-   * Generic reusable {@link DocFieldsTermsEnum} instance. To actually reuse this
-   * instance the {@link #setDocument(int)} function must be called before
-   * {@link #next()} can be used, to set the document to operate on.
+   * Generic reusable {@link DocFieldsTermsEnum} instance. To actually reuse
+   * this instance the {@link #setDocument(int)} function must be called
+   * before {@link #next()} can be used, to set the document to operate on.
    *
    * @param indexReader {@link IndexReader} instance to use
    * @param targetFields Lucene index fields to operate on
@@ -93,15 +93,16 @@ public final class DocFieldsTermsEnum {
    * @param documentId Lucene document-id for which the enumeration should be
    * done
    * @param indexReader {@link IndexReader} instance to use
-   * @param targetFields Lucene index fields to operate on (list must be unique)
-   * and not modified any more, since passed in.
+   * @param targetFields Lucene index fields to operate on (list must be
+   * unique) and not modified any more, since passed in.
    * @throws java.io.IOException Thrown on low-level I/O errors
    */
   public DocFieldsTermsEnum(final IndexReader indexReader,
           final String[] targetFields, final Integer documentId) throws
           IOException {
     if (indexReader == null || targetFields == null) {
-      throw new IllegalArgumentException("IndexReader or TargetFields were null");
+      throw new IllegalArgumentException(
+              "IndexReader or TargetFields were null");
     }
     if (targetFields.length == 0) {
       throw new IllegalArgumentException("No target fields were specified.");
@@ -167,8 +168,8 @@ public final class DocFieldsTermsEnum {
   /**
    * Try to get the next value from the {@link TermEnum} instance.
    *
-   * @return The next {@link ByteRef} value or <code>null</code>, if there a no
-   * more values
+   * @return The next {@link ByteRef} value or <code>null</code>, if there a
+   * no more values
    * @throws IOException If there is a low-level I/O error
    */
   private BytesRef getNextValue() throws IOException {
@@ -195,8 +196,8 @@ public final class DocFieldsTermsEnum {
   /**
    * Get the next {@link TermsEnum} pointing at the next field in list. This
    * will try to get the TermVector stored for a field and creates a new
-   * {@link TermsEnum} instance for those. If there are no TermVectors stored it
-   * will try the next, until all are exhausted.
+   * {@link TermsEnum} instance for those. If there are no TermVectors stored
+   * it will try the next, until all are exhausted.
    *
    * @throws IOException If there is a low-level I/O error
    */

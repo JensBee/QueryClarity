@@ -32,23 +32,73 @@ public final class Tuple {
     // empty private constructor for utility class.
   }
 
+  /**
+   * Returns an object providing an equals method comparing against the first
+   * two elements of a {@link Tuple}.
+   * <p>
+   * If an object is <tt>null</tt> it will not be tested. At least one object
+   * must be not <tt>null</tt>.
+   *
+   * @param o1 Object to match against <tt>Tuple.a</tt>
+   * @param o2 Object to match against <tt>Tuple.b</tt>
+   * @return The matcher object
+   */
   public static Object tupleMatcher(final Object o1, final Object o2) {
     return new Tuple2Matcher(o1, o2);
   }
 
+  /**
+   * Returns an object providing an equals method comparing against the first
+   * three elements of a {@link Tuple}.
+   * <p>
+   * If an object is <tt>null</tt> it will not be tested. At least one object
+   * must be not <tt>null</tt>.
+   *
+   * @param o1 Object to match against <tt>Tuple.a</tt>
+   * @param o2 Object to match against <tt>Tuple.b</tt>
+   * @param o3 Object to match against <tt>Tuple.c</tt>
+   * @return The matcher object
+   */
   public static Object tupleMatcher(final Object o1, final Object o2,
           final Object o3) {
     return new Tuple3Matcher(o1, o2, o3);
   }
 
-  public static <A, B> Tuple2<A, B> tuple2(A a, B b) {
-    return new Tuple2<A, B>(a, b);
+  /**
+   * Creates a new two-value tuple.
+   *
+   * @param <A> Type of <tt>Tuple.a</tt>
+   * @param <B> Type of <tt>Tuple.b</tt>
+   * @param a Value for <tt>Tuple.a</tt>
+   * @param b Value for <tt>Tuple.b</tt>
+   * @return New tuple
+   */
+  public static <A, B> Tuple2<A, B> tuple2(final A a, final B b) {
+    return new Tuple2<>(a, b);
   }
 
-  public static <A, B, C> Tuple3<A, B, C> tuple3(A a, B b, C c) {
-    return new Tuple3<A, B, C>(a, b, c);
+  /**
+   * Creates a new three-value tuple.
+   *
+   * @param <A> Type of <tt>Tuple.a</tt>
+   * @param <B> Type of <tt>Tuple.b</tt>
+   * @param <C> Type of <tt>Tuple.c</tt>
+   * @param a Value for <tt>Tuple.a</tt>
+   * @param b Value for <tt>Tuple.b</tt>
+   * @param c Value for <tt>Tuple.c</tt>
+   * @return New tuple
+   */
+  public static <A, B, C> Tuple3<A, B, C> tuple3(final A a, final B b,
+          final C c) {
+    return new Tuple3<>(a, b, c);
   }
 
+  /**
+   * Two-value tuple.
+   *
+   * @param <A> Type of <tt>Tuple.a</tt>
+   * @param <B> Type of <tt>Tuple.b</tt>
+   */
   @SuppressWarnings("PublicInnerClass")
   public static final class Tuple2<A, B> implements Serializable {
 
@@ -57,12 +107,24 @@ public final class Tuple {
      */
     private static final long serialVersionUID = 0L;
 
+    /**
+     * First object.
+     */
     public final A a;
+    /**
+     * Second object.
+     */
     public final B b;
 
-    public Tuple2(final A a, final B b) {
-      this.a = a;
-      this.b = b;
+    /**
+     * Two-value tuple.
+     *
+     * @param newA First object
+     * @param newB Second object
+     */
+    public Tuple2(final A newA, final B newB) {
+      this.a = newA;
+      this.b = newB;
     }
 
     @Override
@@ -95,6 +157,13 @@ public final class Tuple {
     }
   }
 
+  /**
+   * Three-value tuple.
+   *
+   * @param <A> Type of <tt>Tuple.a</tt>
+   * @param <B> Type of <tt>Tuple.b</tt>
+   * @param <C> Type of <tt>Tuple.c</tt>
+   */
   @SuppressWarnings("PublicInnerClass")
   public static final class Tuple3<A, B, C> implements Serializable {
 
@@ -103,14 +172,30 @@ public final class Tuple {
      */
     private static final long serialVersionUID = 0L;
 
+    /**
+     * First object.
+     */
     public final A a;
+    /**
+     * Second object.
+     */
     public final B b;
+    /**
+     * Third object.
+     */
     public final C c;
 
-    public Tuple3(final A a, final B b, final C c) {
-      this.a = a;
-      this.b = b;
-      this.c = c;
+    /**
+     * Three-value tuple.
+     *
+     * @param newA First object
+     * @param newB Second object
+     * @param newC Third object
+     */
+    public Tuple3(final A newA, final B newB, final C newC) {
+      this.a = newA;
+      this.b = newB;
+      this.c = newC;
     }
 
     @Override
@@ -147,12 +232,32 @@ public final class Tuple {
     }
   }
 
+  /**
+   * Object providing an equals method comparing against the first three
+   * elements of a {@link Tuple}.
+   * <p>
+   * If an object is <tt>null</tt> it will not be tested. At least one object
+   * must be not <tt>null</tt>.
+   */
   @SuppressWarnings({"PublicInnerClass", "EqualsAndHashcode"})
   public static final class Tuple2Matcher {
 
+    /**
+     * Object to match <tt>Tuple.a</tt>.
+     */
     private final Object o1;
+    /**
+     * Object to match <tt>Tuple.b</tt>.
+     */
     private final Object o2;
 
+    /**
+     * Match against at most two objects. One of the objects may be
+     * <tt>null</tt> to act as wildcard.
+     *
+     * @param obj1 Object to match <tt>Tuple.a</tt>
+     * @param obj2 Object to match <tt>Tuple.b</tt>
+     */
     Tuple2Matcher(final Object obj1, final Object obj2) {
       if (obj1 == null && obj2 == null) {
         throw new IllegalArgumentException("Both parameters were null.");
@@ -180,13 +285,37 @@ public final class Tuple {
     }
   }
 
+  /**
+   * Object providing an equals method comparing against the first two elements
+   * of a {@link Tuple}.
+   * <p>
+   * If an object is <tt>null</tt> it will not be tested. At least one object
+   * must be not <tt>null</tt>.
+   */
   @SuppressWarnings({"PublicInnerClass", "EqualsAndHashcode"})
   public static final class Tuple3Matcher {
 
+    /**
+     * Object to match <tt>Tuple.a</tt>.
+     */
     private final Object o1;
+    /**
+     * Object to match <tt>Tuple.b</tt>.
+     */
     private final Object o2;
+    /**
+     * Object to match <tt>Tuple.c</tt>.
+     */
     private final Object o3;
 
+    /**
+     * Match against at most three objects. Two of the objects may be
+     * <tt>null</tt> to act as wildcard.
+     *
+     * @param obj1 Object to match <tt>Tuple.a</tt>
+     * @param obj2 Object to match <tt>Tuple.b</tt>
+     * @param obj3 Object to match <tt>Tuple.c</tt>
+     */
     Tuple3Matcher(final Object obj1, final Object obj2, final Object obj3) {
       if (obj1 == null && obj2 == null && obj3 == null) {
         throw new IllegalArgumentException("All three parameters were null.");

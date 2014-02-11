@@ -30,18 +30,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Caches document model instances for faster access. This is currently a simple
- * wrapper around a {@link ConcurrentHashMap} instance.
+ * Caches document model instances for faster access. This is currently a
+ * simple wrapper around a {@link ConcurrentHashMap} instance.
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public final class DocumentModelPool {
-
-  /**
-   * Global configuration object.
-   */
-  private static final ClarityScoreConfiguration CONF
-          = ClarityScoreConfiguration.getInstance();
 
   /**
    * Prefix used to store configuration.
@@ -66,8 +60,9 @@ public final class DocumentModelPool {
   /**
    * Default pool size.
    */
-  private static final int DEFAULT_POOL_SIZE = CONF.getInt(CONF_PREFIX
-          + "defaultPoolSize", 5000);
+  private static final int DEFAULT_POOL_SIZE
+          = ClarityScoreConfiguration.INSTANCE.getInt(CONF_PREFIX
+                  + "defaultPoolSize", 5000);
 
   /**
    * Backing map store.
@@ -77,6 +72,7 @@ public final class DocumentModelPool {
   /**
    * Creates a new {@link DocumentModel} pool of the given initial size.
    *
+   * @param dataProvider Provider for statistical index data
    * @param newSize Size of the pool
    */
   public DocumentModelPool(final IndexDataProvider dataProvider,
@@ -138,8 +134,8 @@ public final class DocumentModelPool {
   /**
    * Removes a specific model from the pool, if it is unlocked. This does not
    * check if the model is currently part of the pool. It only checks if the
-   * model is not locked and tries to remove it. If it's already removed nothing
-   * will happen (the pool stays unchanged).
+   * model is not locked and tries to remove it. If it's already removed
+   * nothing will happen (the pool stays unchanged).
    *
    * @param docId Document-id to remove
    * @return True, if model was not locked and removal was triggered, false if
@@ -157,9 +153,9 @@ public final class DocumentModelPool {
   }
 
   /**
-   * Tries to get a {@link DocumentModel} from the current pool state and pulls
-   * it into the pool, if its not already there. This does not check if the
-   * model is currently locked.
+   * Tries to get a {@link DocumentModel} from the current pool state and
+   * pulls it into the pool, if its not already there. This does not check if
+   * the model is currently locked.
    *
    * @param docId Document-id to lookup
    * @return Document-model for the given document-id or null, if none found
@@ -216,11 +212,6 @@ public final class DocumentModelPool {
      */
     private static final transient Logger LOG = LoggerFactory.getLogger(
             Observer.class);
-    /**
-     * Global configuration object.
-     */
-    private static final ClarityScoreConfiguration CONF
-            = ClarityScoreConfiguration.getInstance();
 
     /**
      * Prefix used to store configuration.
@@ -242,8 +233,9 @@ public final class DocumentModelPool {
      * Load factor after which models from the pool should be commited to make
      * room for new entries.
      */
-    private static final double POOL_LOAD = CONF.getDouble(CONF_PREFIX
-            + "poolLoad", 0.75);
+    private static final double POOL_LOAD
+            = ClarityScoreConfiguration.INSTANCE.getDouble(CONF_PREFIX
+                    + "poolLoad", 0.75);
     /**
      * Maximum size of the pool (held entries) after which to begin commiting
      * models.
@@ -299,7 +291,8 @@ public final class DocumentModelPool {
     }
 
     /**
-     * Sets the flag to terminate this instance an commit all remaining models.
+     * Sets the flag to terminate this instance an commit all remaining
+     * models.
      */
     public void terminate() {
       LOG.debug("PoolObserver got terminating signal.");
@@ -313,7 +306,8 @@ public final class DocumentModelPool {
      * @param modelEntry Document-id, Document-Model pair
      * @return True, if the model has been removed from the pool
      */
-    private boolean commitModel(final Entry<Integer, DocumentModel> modelEntry) {
+    private boolean commitModel(
+            final Entry<Integer, DocumentModel> modelEntry) {
       if (this.modelPool.removeIfUnlocked(modelEntry.getKey())) {
         this.dataProv.updateDocumentModel(modelEntry.getValue());
         return true;
@@ -357,7 +351,9 @@ public final class DocumentModelPool {
           success = commitModel(modelEntry);
           if (LOG.isTraceEnabled()) {
             if (success) {
-              LOG.trace("Successfully commited docId={}.", modelEntry.getKey());
+              LOG.
+                      trace("Successfully commited docId={}.", modelEntry.
+                              getKey());
             } else {
               LOG.trace("Failed to commit docId={}. Retrying in next loop.",
                       modelEntry.getKey());

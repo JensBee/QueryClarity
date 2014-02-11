@@ -47,26 +47,22 @@ public final class TargetDocTerms implements ProcessingTarget.DocQueue {
    */
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
           TargetDocTerms.class);
-
-  /**
-   * Global configuration object.
-   */
-  private static final ClarityScoreConfiguration CONF
-          = ClarityScoreConfiguration.getInstance();
   /**
    * Prefix used to store configuration.
    */
   private static final String CONF_PREFIX = "ProcTargetDocTerms_";
   /**
-   * Maximum time to wait for the next query term to be available (in seconds).
+   * Maximum time to wait for the next query term to be available (in
+   * seconds).
    */
-  private static final int DOC_MAXWAIT = CONF.getInt(CONF_PREFIX
-          + "docMaxWait", 2);
+  private static final int DOC_MAXWAIT = ClarityScoreConfiguration.INSTANCE.
+          getInt(CONF_PREFIX + "docMaxWait", 2);
   /**
    * Number of max queued items per thread.
    */
-  private static final int QUEUED_ITEMS_PER_THREAD = CONF.getInt(CONF_PREFIX
-          + "queuedItemsPerThread", 50);
+  private static final int QUEUED_ITEMS_PER_THREAD
+          = ClarityScoreConfiguration.INSTANCE.getInt(CONF_PREFIX
+                  + "queuedItemsPerThread", 50);
 
   /**
    * Name of this runnable.
@@ -115,8 +111,9 @@ public final class TargetDocTerms implements ProcessingTarget.DocQueue {
     this.runName = Thread.currentThread().getName();
     this.wqoThread.start();
     try {
-      final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(this.source.
-              getIndexReader(), this.source.getDataProvider().getTargetFields());
+      final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(
+              this.source.getIndexReader(),
+              this.source.getDataProvider().getTargetFields());
 
       try {
         while (!Thread.currentThread().isInterrupted() && !(this.terminate
@@ -168,15 +165,16 @@ public final class TargetDocTerms implements ProcessingTarget.DocQueue {
    * Create a new {@link ProcessingTarget} processing document-ids.
    *
    * @param termsSource Source to provide document-ids
-   * @param termsTargetFactory Factory creating instances working with documents
-   * and terms
+   * @param termsTargetFactory Factory creating instances working with
+   * documents and terms
    */
   public TargetDocTerms(final ProcessingSource.DocQueue termsSource,
           final ProcessingWorker.DocTerms.Factory termsTargetFactory) {
     this.source = termsSource;
     this.workerFactory = termsTargetFactory;
-    this.workQueueSize = CONF.getInt(CONF_PREFIX + "workQueueCap", this.source.
-            getThreadCount() * QUEUED_ITEMS_PER_THREAD);
+    this.workQueueSize = ClarityScoreConfiguration.INSTANCE.getInt(CONF_PREFIX
+            + "workQueueCap", this.source.getThreadCount()
+            * QUEUED_ITEMS_PER_THREAD);
     this.workQueue = new LinkedBlockingDeque<>(this.workQueueSize);
     this.wqObserver = new WorkQueueObserver.DocTermWorkQueueObserver(
             "TargetDocTerms", this.source, this.workerFactory, this.workQueue);
@@ -204,8 +202,8 @@ public final class TargetDocTerms implements ProcessingTarget.DocQueue {
      * Initialize the factory with the given source and worker factory.
      *
      * @param docSource Documents source to use by the created instances.
-     * @param termsTargetFactory Factory to create worker instances processing a
-     * document and a list of terms
+     * @param termsTargetFactory Factory to create worker instances processing
+     * a document and a list of terms
      */
     public Factory(final ProcessingSource.DocQueue docSource,
             final ProcessingWorker.DocTerms.Factory termsTargetFactory) {

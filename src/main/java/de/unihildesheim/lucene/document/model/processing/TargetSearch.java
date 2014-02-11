@@ -41,8 +41,8 @@ import org.slf4j.LoggerFactory;
 /**
  * {@link ProcessingTarget.TermQueue} processing target. Reads terms from a
  * {@link BlockingDeque} and runs queries on the Lucene index to get documents
- * matching each of those terms. Those matching documents are then fed into the
- * specified worker for further processing.
+ * matching each of those terms. Those matching documents are then fed into
+ * the specified worker for further processing.
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
@@ -53,11 +53,6 @@ public final class TargetSearch implements ProcessingTarget.TermQueue {
    */
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
           TargetSearch.class);
-  /**
-   * Global configuration object.
-   */
-  private static final ClarityScoreConfiguration CONF
-          = ClarityScoreConfiguration.getInstance();
   /**
    * Prefix used to store configuration.
    */
@@ -96,23 +91,27 @@ public final class TargetSearch implements ProcessingTarget.TermQueue {
   /**
    * Number of max queued items per thread.
    */
-  private static final int QUEUED_ITEMS_PER_THREAD = CONF.getInt(CONF_PREFIX
-          + "queuedItemsPerThread", 50);
+  private static final int QUEUED_ITEMS_PER_THREAD
+          = ClarityScoreConfiguration.INSTANCE.getInt(CONF_PREFIX
+                  + "queuedItemsPerThread", 50);
   /**
    * Number of terms to take per query.
    */
-  private static final int TERMS_PER_QUERY = CONF.getInt(CONF_PREFIX
-          + "termsPerQuery", 10);
+  private static final int TERMS_PER_QUERY
+          = ClarityScoreConfiguration.INSTANCE.getInt(CONF_PREFIX
+                  + "termsPerQuery", 10);
   /**
-   * Maximum time to wait for the next query term to be available (in seconds).
+   * Maximum time to wait for the next query term to be available (in
+   * seconds).
    */
-  private static final int TERMS_MAXWAIT = CONF.getInt(CONF_PREFIX
-          + "queryTermMaxWait", 2);
+  private static final int TERMS_MAXWAIT = ClarityScoreConfiguration.INSTANCE.
+          getInt(CONF_PREFIX + "queryTermMaxWait", 2);
   /**
    * Expected length of a general query term to pre-calculate query length.
    */
-  private static final int EXP_TERM_LENGTH = CONF.getInt(CONF_PREFIX
-          + "expectedTermLength", 10);
+  private static final int EXP_TERM_LENGTH
+          = ClarityScoreConfiguration.INSTANCE.getInt(CONF_PREFIX
+                  + "expectedTermLength", 10);
   /**
    * Thread observing the work queue.
    */
@@ -141,8 +140,9 @@ public final class TargetSearch implements ProcessingTarget.TermQueue {
             this.source.getDataProvider().getTargetFields(), analyzer);
     // default to OR queries
     this.mfQParser.setDefaultOperator(QueryParser.Operator.OR);
-    this.workQueueSize = CONF.getInt(CONF_PREFIX + "workQueueCap", this.source.
-            getThreadCount() * QUEUED_ITEMS_PER_THREAD);
+    this.workQueueSize = ClarityScoreConfiguration.INSTANCE.getInt(CONF_PREFIX
+            + "workQueueCap", this.source.getThreadCount()
+            * QUEUED_ITEMS_PER_THREAD);
     this.workQueue = new LinkedBlockingDeque<>(workQueueSize);
 
     // threading setup
@@ -242,8 +242,9 @@ public final class TargetSearch implements ProcessingTarget.TermQueue {
               this.workQueue.put(Tuple.tuple2(scoreDoc.doc, queryTerms));
             }
           } else {
-            LOG.warn("Expecting 0 results for query='{}'. This is suspicious.",
-                    queryString);
+            LOG.
+                    warn("Expecting 0 results for query='{}'. This is suspicious.",
+                            queryString);
           }
         } catch (IOException ex) {
           LOG.error("({}) Caught exception while searching index.",
@@ -284,8 +285,8 @@ public final class TargetSearch implements ProcessingTarget.TermQueue {
      * Initialize the factory with the given source and worker factory.
      *
      * @param termSource Term source to use by the created instances.
-     * @param docTermWorkerFactory Factory to create worker instances processing
-     * a document and a list of terms
+     * @param docTermWorkerFactory Factory to create worker instances
+     * processing a document and a list of terms
      */
     public Factory(final ProcessingSource.TermQueue termSource,
             final ProcessingWorker.DocTerms.Factory docTermWorkerFactory) {
@@ -298,92 +299,4 @@ public final class TargetSearch implements ProcessingTarget.TermQueue {
       return new TargetSearch(this.source, this.workerFactory);
     }
   }
-
-//  /**
-//   * Thread to observe the queue of document-terms pairs to process. Each thread
-//   * will poll from the queue, check if the model is not locked and run the
-//   * desired worker for each entry.
-//   */
-//  private final class WorkQueueObserver implements Runnable {
-//
-//    /**
-//     * Name for this runnable.
-//     */
-//    private String tName;
-//
-//    /**
-//     * Randomizer.
-//     */
-//    private Random rnd = new Random();
-//
-//    /**
-//     * Spawns the worker process for a document and term list.
-//     *
-//     * @param item Tuple describing document and terms used for processing
-//     * @return True, if item was processed successfully (runnable was executed)
-//     */
-//    private boolean tryProcessItem(final Tuple.Tuple2<Integer, BytesWrap[]> item) {
-//      boolean processed;
-//      // try to lock model
-//      if (TargetSearch.this.source.getDocumentModelPool().lock(item.a)) {
-//        // locked - still in queue?
-//        if (TargetSearch.this.workQueue.remove(item)) {
-//          // locked & in queue - process it
-//          try {
-//            TargetSearch.this.workerFactory.newInstance(item.a, item.b).run();
-//            processed = true;
-//          } catch (Exception ex) {
-//            LOG.error("({}) WorkQueueObserver caught exception "
-//                    + "while executing worker.", this.tName, ex);
-//            processed = false;
-//          }
-//        } else {
-//          processed = false;
-//        }
-//        // unlock - we're done
-//        TargetSearch.this.source.getDocumentModelPool().unLock(item.a);
-//      } else {
-//        processed = false;
-//      }
-//      return processed;
-//    }
-//
-//    @Override
-//    public void run() {
-//      this.tName = "WorkQueueObserver" + TargetSearch.this.hashCode();
-//      LOG.debug("({}) Starting", tName);
-//      while (!TargetSearch.this.terminate || !(TargetSearch.this.terminate
-//              && TargetSearch.this.workQueue.isEmpty())) {
-//        // pre-check, if we have items
-//        if (TargetSearch.this.workQueue.isEmpty()) {
-//          continue;
-//        }
-//
-//        Tuple.Tuple2<Integer, BytesWrap[]> item;
-//        // peek at the head of queue first
-//        item = TargetSearch.this.workQueue.peekFirst();
-//        if (!tryProcessItem(item)) {
-//          // peek at the tail of queue seconds, if needed
-//          item = TargetSearch.this.workQueue.peekLast();
-//
-//          if (!tryProcessItem(item)) {
-//            Iterator<Tuple.Tuple2<Integer, BytesWrap[]>> itemIt;
-//
-//            // pick a random iteration direction
-//            if (rnd.nextBoolean()) {
-//              itemIt = TargetSearch.this.workQueue.iterator();
-//            } else {
-//              itemIt = TargetSearch.this.workQueue.descendingIterator();
-//            }
-//
-//            while (itemIt.hasNext()) {
-//              if (tryProcessItem(itemIt.next())) {
-//                break;
-//              }
-//            }
-//          }
-//        }
-//      }
-//    }
-//  }
 }

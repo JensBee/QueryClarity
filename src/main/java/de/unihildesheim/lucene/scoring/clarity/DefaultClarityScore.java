@@ -41,8 +41,8 @@ import org.slf4j.LoggerFactory;
  * Reference:
  * <p>
  * “Predicting Query Performance.” In Proceedings of the 25th Annual
- * International ACM SIGIR Conference on Research and Development in Information
- * Retrieval, 299–306. SIGIR ’02. New York, NY, USA: ACM, 2002.
+ * International ACM SIGIR Conference on Research and Development in
+ * Information Retrieval, 299–306. SIGIR ’02. New York, NY, USA: ACM, 2002.
  * doi:10.1145/564376.564429.
  *
  * @author Jens Bertram <code@jens-bertram.net>
@@ -56,12 +56,6 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
           DefaultClarityScore.class);
 
   /**
-   * Global configuration object.
-   */
-  private static final ClarityScoreConfiguration CONF
-          = ClarityScoreConfiguration.getInstance();
-
-  /**
    * Prefix used to store configuration.
    */
   private static final String CONF_PREFIX = "DCS_";
@@ -70,17 +64,18 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * Prefix to use to store calculated term-data values in cache and access
    * properties stored in the {@link DataProvider}.
    */
-  private static final String PREFIX = CONF.get(CONF_PREFIX + "dataPrefix",
-          "DCS");
+  private static final String PREFIX = ClarityScoreConfiguration.INSTANCE.get(
+          CONF_PREFIX + "dataPrefix", "DCS");
 
   /**
-   * Keys to store calculation results in document models and access properties
-   * stored in the {@link DataProvider}.
+   * Keys to store calculation results in document models and access
+   * properties stored in the {@link DataProvider}.
    */
   private enum DataKeys {
 
     /**
-     * Stores the document model for a specific term in a {@link DocumentModel}.
+     * Stores the document model for a specific term in a
+     * {@link DocumentModel}.
      */
     docModel,
     /**
@@ -93,8 +88,9 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
   /**
    * Default multiplier value for relative term frequency inside documents.
    */
-  private static final double DEFAULT_LANGMODEL_WEIGHT = CONF.getDouble(
-          CONF_PREFIX + "defaultLangModelWeight", 0.6d);
+  private static final double DEFAULT_LANGMODEL_WEIGHT
+          = ClarityScoreConfiguration.INSTANCE.getDouble(
+                  CONF_PREFIX + "defaultLangModelWeight", 0.6d);
 
   /**
    * Multiplier for relative term frequency inside documents.
@@ -105,8 +101,9 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * Default number of feedback documents to use. Cronen-Townsend et al.
    * recommend 500 documents.
    */
-  private static final int DEFAULT_FEEDBACK_DOCS_COUNT = CONF.getInt(
-          CONF_PREFIX + "defaultFeedbackDocCount", 500);
+  private static final int DEFAULT_FEEDBACK_DOCS_COUNT
+          = ClarityScoreConfiguration.INSTANCE.getInt(
+                  CONF_PREFIX + "defaultFeedbackDocCount", 500);
 
   /**
    * Number of feedback documents to use.
@@ -209,7 +206,8 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    *
    * @param docModels Document models to use for calculation
    * @param queryTerms Terms of the originating query
-   * @return Mapping of {@link DocumentModel} to calculated language modelString
+   * @return Mapping of {@link DocumentModel} to calculated language
+   * modelString
    */
   private Map<DocumentModel, Double> calculateQueryModelWeight(
           final Set<DocumentModel> docModels,
@@ -231,8 +229,9 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
   /**
    * Pre-calculate all document models for all terms known from the index.
    *
-   * Forcing a recalculation is needed, if the language model weight has changed
-   * by calling {@link DefaultClarityScore#setLangmodelWeight(double)}.
+   * Forcing a recalculation is needed, if the language model weight has
+   * changed by calling
+   * {@link DefaultClarityScore#setLangmodelWeight(double)}.
    *
    * @param force If true, the recalculation is forced
    */
@@ -279,8 +278,9 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
       // calculate the query probability of the current term
       qLangMod = 0d;
       for (DocumentModel docModel : docModels) {
-        qLangMod += getDocumentModel(docModel, term, false) * modelWeights.get(
-                docModel);
+        qLangMod += getDocumentModel(docModel, term, false) * modelWeights.
+                get(
+                        docModel);
       }
 
       // calculate logarithmic part of the formular
@@ -305,8 +305,8 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
   }
 
   /**
-   * Same as {@link DefaultClarityScore#calculateClarity(Query)}, but allows to
-   * pass in the list of feedback documents.
+   * Same as {@link DefaultClarityScore#calculateClarity(Query)}, but allows
+   * to pass in the list of feedback documents.
    *
    * @param query Query used for term extraction
    * @param fbDocIds List of document-ids to use for feedback calculation

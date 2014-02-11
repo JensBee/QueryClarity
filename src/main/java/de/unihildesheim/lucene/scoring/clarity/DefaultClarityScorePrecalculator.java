@@ -32,8 +32,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Threaded document model pre-calculation. This calculation may be very
- * expensive in time, so this class makes heavy use of parallel calculations to
- * try to minimize th needed time.
+ * expensive in time, so this class makes heavy use of parallel calculations
+ * to try to minimize th needed time.
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
@@ -45,12 +45,6 @@ public final class DefaultClarityScorePrecalculator extends
    */
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
           DefaultClarityScorePrecalculator.class);
-
-  /**
-   * Global configuration object.
-   */
-  private static final ClarityScoreConfiguration CONF
-          = ClarityScoreConfiguration.getInstance();
 
   /**
    * Prefix used to store configuration.
@@ -66,8 +60,9 @@ public final class DefaultClarityScorePrecalculator extends
    * Number of threads to use for model pre-calculation. Default takes the
    * number of processors times two.
    */
-  private static final int THREADS = CONF.getInt(CONF_PREFIX + "threads",
-          Runtime.getRuntime().availableProcessors());
+  private static final int THREADS = ClarityScoreConfiguration.INSTANCE.
+          getInt(CONF_PREFIX + "threads", Runtime.getRuntime().
+                  availableProcessors());
 
   /**
    * Creates a new document-model pre-calculator for the given
@@ -121,15 +116,15 @@ public final class DefaultClarityScorePrecalculator extends
   }
 
   /**
-   * Worker instance calculating the document model for a single document and a
-   * list of terms.
+   * Worker instance calculating the document model for a single document and
+   * a list of terms.
    */
   @SuppressWarnings("PublicInnerClass")
   public final class Worker extends WorkerDocumentTerm {
 
     /**
-     * Create a new worker with a caching pool attached and a specific document
-     * and list of terms.
+     * Create a new worker with a caching pool attached and a specific
+     * document and list of terms.
      *
      * @param docModelPool Cached document models pool
      * @param currentDocId Document id to process
@@ -150,8 +145,8 @@ public final class DefaultClarityScorePrecalculator extends
   }
 
   /**
-   * Factory creating new worker instances to do the default clarity score model
-   * calculation.
+   * Factory creating new worker instances to do the default clarity score
+   * model calculation.
    */
   @SuppressWarnings("PublicInnerClass")
   public final class WorkerFactory implements

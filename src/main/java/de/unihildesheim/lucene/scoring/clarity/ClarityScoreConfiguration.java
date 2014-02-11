@@ -37,14 +37,10 @@ public final class ClarityScoreConfiguration {
           ClarityScoreConfiguration.class);
 
   /**
-   * Lock object for synchronized parts.
-   */
-  private static volatile Object threadLock = new Object();
-
-  /**
    * Singleton instance reference.
    */
-  private static ClarityScoreConfiguration instance = null;
+  public static final ClarityScoreConfiguration INSTANCE
+          = new ClarityScoreConfiguration();
 
   /**
    * Configuration properties.
@@ -82,23 +78,6 @@ public final class ClarityScoreConfiguration {
   }
 
   /**
-   * Get an {@link ClarityScoreConfiguration} instance.
-   *
-   * @return Instance
-   */
-  @SuppressWarnings({"DoubleCheckedLocking", "SynchronizeOnNonFinalField"})
-  public static ClarityScoreConfiguration getInstance() {
-    if (instance == null) {
-      synchronized (threadLock) {
-        if (instance == null) {
-          instance = new ClarityScoreConfiguration();
-        }
-      }
-    }
-    return instance;
-  }
-
-  /**
    * Save the current configuration back to disk.
    */
   private void saveConfig() {
@@ -131,8 +110,8 @@ public final class ClarityScoreConfiguration {
    * Get an configuration item by key, specifying a default value.
    *
    * @param key Configuration item key
-   * @param defaultValue Default value to use, if no data for the given key was
-   * found
+   * @param defaultValue Default value to use, if no data for the given key
+   * was found
    * @return Value assigned to the key, or <tt>defaultValue</tt> if there was
    * none
    */
@@ -148,8 +127,8 @@ public final class ClarityScoreConfiguration {
    * Tries to get an integer value associated with the given key.
    *
    * @param key Configuration item key
-   * @param defaultValue Default value to use, if no data for the given key was
-   * found
+   * @param defaultValue Default value to use, if no data for the given key
+   * was found
    * @return Integer value assigned to the key, or <tt>defaultValue</tt> if
    * there was none
    */
@@ -168,10 +147,10 @@ public final class ClarityScoreConfiguration {
    * Tries to get an integer value associated with the given key.
    *
    * @param key Configuration item key
-   * @param defaultValue Default value to use, if no data for the given key was
-   * found
-   * @return Double value assigned to the key, or <tt>defaultValue</tt> if there
-   * was none
+   * @param defaultValue Default value to use, if no data for the given key
+   * was found
+   * @return Double value assigned to the key, or <tt>defaultValue</tt> if
+   * there was none
    */
   public Double getDouble(final String key, final Double defaultValue) {
     String value = get(key);

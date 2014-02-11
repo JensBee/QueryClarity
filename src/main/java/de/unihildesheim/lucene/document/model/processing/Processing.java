@@ -40,12 +40,6 @@ public final class Processing {
           Processing.class);
 
   /**
-   * Global configuration object.
-   */
-  private static final ClarityScoreConfiguration CONF
-          = ClarityScoreConfiguration.getInstance();
-
-  /**
    * Prefix used to store configuration.
    */
   private static final String CONF_PREFIX = "Processing_";
@@ -53,8 +47,9 @@ public final class Processing {
   /**
    * Default number of calculation threads to run.
    */
-  private static final int THREADS = CONF.getInt(CONF_PREFIX + "threadsDefault",
-          Runtime.getRuntime().availableProcessors());
+  private static final int THREADS = ClarityScoreConfiguration.INSTANCE.
+          getInt(CONF_PREFIX + "threadsDefault", Runtime.getRuntime().
+                  availableProcessors());
 
   /**
    * Number of threads to use for processing.
@@ -69,11 +64,15 @@ public final class Processing {
   }
 
   /**
-   * Plain constructor.
+   * Plain constructor allowing to specify the number of used processing
+   * threads.
+   *
+   * @param threads Override the default number of threads to use
    */
   public Processing(final int threads) {
     if (threads <= 0) {
-      throw new IllegalArgumentException("Invalid number of threads specified: "
+      throw new IllegalArgumentException(
+              "Invalid number of threads specified: "
               + threads + ".");
     }
     this.numOfthreads = threads;
@@ -146,6 +145,12 @@ public final class Processing {
      */
     private ProcessingTarget.Factory targetFactory;
 
+    /**
+     * Generic {@link BlockingQueue} based processing instance.
+     *
+     * @param qSource Processing source
+     * @param qTargetFactory Processing target factory
+     */
     public QueueProcessor(
             final ProcessingQueueSource qSource,
             final ProcessingTarget.Factory qTargetFactory) {
@@ -210,17 +215,20 @@ public final class Processing {
               = new ProcessingTarget[Processing.this.numOfthreads];
       for (int i = 0; i < Processing.this.numOfthreads; i++) {
         targetThreads[i] = targetFactory.newInstance();
-        final Thread t = new Thread(targetThreads[i], "ProcessingTarget-" + i);
+        final Thread t = new Thread(targetThreads[i],
+                "ProcessingTarget-" + i);
         t.start();
       }
 
       // start a pool observer to commmit cached models
       final DocumentModelPool.Observer poolObserver = createPoolObserver(
               this.source);
-      final Thread poolObserverThread = new Thread(poolObserver, "PoolObserver");
+      final Thread poolObserverThread = new Thread(poolObserver,
+              "PoolObserver");
       poolObserverThread.start();
 
-      final Iterator<T> sourceItemsIt = this.source.getItemsToProcessIterator();
+      final Iterator<T> sourceItemsIt = this.source.
+              getItemsToProcessIterator();
 
       // do the iteration
       final BlockingQueue<T> sourceQueue = source.getQueue();

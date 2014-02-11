@@ -54,9 +54,9 @@ import org.slf4j.LoggerFactory;
 
 /**
  * This implementation of the {@link IndexDataProvider} stores it's data with
- * disk-backed {@link ConcurrentMap} implementations to cache calculated values.
- * This allows to store a huge amount of data exceeding memory limits, with a
- * bit of speed tradeoff to load cached values from disk.
+ * disk-backed {@link ConcurrentMap} implementations to cache calculated
+ * values. This allows to store a huge amount of data exceeding memory limits,
+ * with a bit of speed tradeoff to load cached values from disk.
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
@@ -69,12 +69,6 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
           CachedIndexDataProvider.class);
 
   /**
-   * Global configuration object.
-   */
-  private static final ClarityScoreConfiguration CONF
-          = ClarityScoreConfiguration.getInstance();
-
-  /**
    * Prefix used to store configuration.
    */
   private static final String CONF_PREFIX = "CachedIDP_";
@@ -82,8 +76,9 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   /**
    * Separator to store field names.
    */
-  private static final String FIELD_NAME_SEP = CONF.get(CONF_PREFIX
-          + "fieldNameSep", "\\|");
+  private static final String FIELD_NAME_SEP
+          = ClarityScoreConfiguration.INSTANCE.get(CONF_PREFIX
+                  + "fieldNameSep", "\\|");
 
   /**
    * Directory where cached data should be stored.
@@ -120,7 +115,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
    * Document-term data. Store <tt>prefix -> key -> document-id -> term :
    * value</tt>. Prefix is null for internal data.
    */
-  private BTreeMap<Fun.Tuple4<String, String, Integer, BytesWrap>, Object> docTermData;
+  private BTreeMap<Fun.Tuple4<
+          String, String, Integer, BytesWrap>, Object> docTermData;
 
   /**
    * Summed frequency of all terms in the index.
@@ -130,12 +126,13 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   /**
    * Prefix to use for internal data stored to {@link #docTermData}.
    */
-  private static final String INTERNAL_PREFIX = CONF.get(CONF_PREFIX
-          + "internalPrefix", "_");
+  private static final String INTERNAL_PREFIX
+          = ClarityScoreConfiguration.INSTANCE.get(CONF_PREFIX
+                  + "internalPrefix", "_");
 
   /**
-   * Flag indicating if a database rollback should be done. Used, if calculation
-   * is in progress and JVM is shutting down.
+   * Flag indicating if a database rollback should be done. Used, if
+   * calculation is in progress and JVM is shutting down.
    */
   private boolean rollback = false;
 
@@ -167,7 +164,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
      */
     propDocumentModel,
     /**
-     * Properties: Boolean flag, if document-model, term-data data is available.
+     * Properties: Boolean flag, if document-model, term-data data is
+     * available.
      */
     propDocumentModelTermData,
     /**
@@ -197,8 +195,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   }
 
   /**
-   * Creates a new disk backed (cached) {@link IndexDataProvider} with the given
-   * storage path.
+   * Creates a new disk backed (cached) {@link IndexDataProvider} with the
+   * given storage path.
    *
    * @param newStorageId Unique identifier for this cache
    * @throws IOException Thrown on low-level I/O errors
@@ -208,7 +206,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
       throw new IllegalArgumentException("Missing storage information.");
     }
 
-    this.storagePath = CONF.get(CONF_PREFIX + "storagePath", "data/cache/");
+    this.storagePath = ClarityScoreConfiguration.INSTANCE.get(CONF_PREFIX
+            + "storagePath", "data/cache/");
     LOG.info("Created IndexDataProvider::{} instance storage={}.", this.
             getClass().getCanonicalName(), this.storagePath);
     this.storageId = newStorageId;
@@ -322,8 +321,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
    *
    * @return True, if all data could be read, false if recalculation is needed
    * and automatic recalculation was not enabled
-   * @throws IOException Thrown, on low-level errors while accessing the cached
-   * data
+   * @throws IOException Thrown, on low-level errors while accessing the
+   * cached data
    */
   public boolean tryGetStoredData() throws IOException {
     LOG.info("Trying to get disk storage ({})", this.storagePath);
@@ -338,7 +337,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     // check if storage meta information is there and fields are defined
     if (getStorageInfo()) {
       if (this.getFields().length == 0) {
-        LOG.info("No chached field information specified in meta information. "
+        LOG.info(
+                "No chached field information specified in meta information. "
                 + "Need to recalculate values.");
         needsRecalc = true;
       } else {
@@ -359,7 +359,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
         if (LOG.isTraceEnabled()) {
           for (Entry<BytesWrap, Fun.Tuple2<Long, Double>> data
                   : this.termFreqMap.entrySet()) {
-            LOG.trace("load: t={} f={} rf={}", data.getKey(), data.getValue().a,
+            LOG.trace("load: t={} f={} rf={}", data.getKey(),
+                    data.getValue().a,
                     data.getValue().b);
           }
         }
@@ -377,8 +378,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
    * Initializes the stored data. Tries to load the data, if any was found and
    * <tt>clear</tt> is not true.
    *
-   * @param clear If true all data will be erased before initialization. This is
-   * meant for rebuilding the index.
+   * @param clear If true all data will be erased before initialization. This
+   * is meant for rebuilding the index.
    */
   private void initStorage(final boolean clear) {
     // base document->term-frequency data
@@ -524,8 +525,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
       strictTransactionHookRequest();
       calculateTermFrequencies(indexReader);
 
-      // 2. Relative Term-Frequency: Calculate the relative frequency of each term
-      // found in step 1.
+      // 2. Relative Term-Frequency: Calculate the relative frequency
+      // of each term found in step 1.
       calculateRelativeTermFrequencies(termFreqMap.keySet());
 
       transactionHookRelease();
@@ -833,8 +834,9 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
       dmBuilder.setTermFrequency(this.docModels.get(docId));
 
       // add term frequency values
-      Iterator<BytesWrap> tfIt = Fun.filter(this.docTermData.navigableKeySet(),
-              INTERNAL_PREFIX, DataKeys._TF.name(), docId).iterator();
+      Iterator<BytesWrap> tfIt = Fun.
+              filter(this.docTermData.navigableKeySet(),
+                      INTERNAL_PREFIX, DataKeys._TF.name(), docId).iterator();
 
       try {
         while (tfIt.hasNext()) {
@@ -894,7 +896,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
       throw new IllegalArgumentException("Null is not allowed as value.");
     }
 
-    if (INTERNAL_PREFIX.equals(prefix) || prefix.startsWith(INTERNAL_PREFIX)) {
+    if (INTERNAL_PREFIX.equals(prefix)
+            || prefix.startsWith(INTERNAL_PREFIX)) {
       throw new IllegalArgumentException("The sequence '" + INTERNAL_PREFIX
               + "' is not allowed as prefix, as it's reserved "
               + "for internal purpose.");
@@ -910,7 +913,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
    * @return Internal term-data-map
    */
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
-  public BTreeMap<Fun.Tuple4<String, String, Integer, BytesWrap>, Object> debugGetTermDataMap() {
+  public BTreeMap<Fun.Tuple4<String, String, Integer, BytesWrap>, Object>
+          debugGetTermDataMap() {
     return this.docTermData;
   }
 

@@ -57,9 +57,10 @@ public final class Feedback {
    * @param reader Reader to access Lucene's index
    * @param query Query to get matching documents
    * @param maxDocCount Maximum number of documents to get. The number of
-   * results may be lower, if there were less matching documents. If <tt>-1</tt>
-   * is given, then the maximum number of feedback documents is unlimited. This
-   * means, all matching documents will be returned.
+   * results may be lower, if there were less matching documents. If
+   * <tt>-1</tt>
+   * is given, then the maximum number of feedback documents is unlimited.
+   * This means, all matching documents will be returned.
    * @return Documents matching the query
    * @throws IOException Thrown on low-level I/O errors
    */
@@ -98,11 +99,10 @@ public final class Feedback {
   }
 
   /**
-   * Same as
-   * {@link Feedback#get(org.apache.lucene.index.IndexReader, org.apache.lucene.search.Query, int)},
-   * except that, if the maximum number of feedback documents matching the query
-   * is not reached, then random documents will be picked from the index to
-   * reach this value.
+   * Same as null   {@link Feedback#get(org.apache.lucene.index.IndexReader,
+   * org.apache.lucene.search.Query, int)}, except that, if the maximum number
+   * of feedback documents matching the query is not reached, then random
+   * documents will be picked from the index to reach this value.
    *
    * @param reader Reader to access Lucene's index
    * @param query Query to get matching documents

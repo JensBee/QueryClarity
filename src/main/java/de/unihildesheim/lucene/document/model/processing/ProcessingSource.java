@@ -29,8 +29,8 @@ import org.apache.lucene.index.IndexReader;
 /**
  * A general source for the data processing pipeline.
  * <p>
- * Base interface for all {@link DocumentModel} processors. Basically allowing
- * access to the underlying {@link IndexDataprovider}, the caching
+ * Base interface for all <tt>DocumentModel</tt> processors. Basically
+ * allowing access to the underlying {@link IndexDataprovider}, the caching
  * {@link DocumentModelPool}, the Lucene index and thread tracking functions.
  * <p>
  * A processing pipeline consists of a {@link ProcessingSource}, a
@@ -39,12 +39,6 @@ import org.apache.lucene.index.IndexReader;
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public abstract class ProcessingSource {
-
-  /**
-   * Global configuration object.
-   */
-  private static final ClarityScoreConfiguration CONF
-          = ClarityScoreConfiguration.getInstance();
 
   /**
    * Prefix used to store configuration.
@@ -56,7 +50,7 @@ public abstract class ProcessingSource {
    */
   private final IndexDataProvider dataProvider;
   /**
-   * Unbound cached for {@link DocumentModel}s that have been processed.
+   * Unbound cached for <tt>DocumentModels</tt> that have been processed.
    */
   private final DocumentModelPool documentModelPool;
   /**
@@ -66,8 +60,9 @@ public abstract class ProcessingSource {
   /**
    * Number of threads to run.
    */
-  private static final int THREADS = CONF.getInt(CONF_PREFIX + "threads",
-          Runtime.getRuntime().availableProcessors());
+  private static final int THREADS = ClarityScoreConfiguration.INSTANCE.
+          getInt(CONF_PREFIX + "threads", Runtime.getRuntime().
+                  availableProcessors());
 
   /**
    * Create a new source for the processing pipeline.
@@ -124,8 +119,8 @@ public abstract class ProcessingSource {
   }
 
   /**
-   * Base class for {@link ProcessingSource}s using a {@link BlockingQueue} for
-   * managing items to process.
+   * Base class for {@link ProcessingSource}s using a {@link BlockingQueue}
+   * for managing items to process.
    *
    * @param <T> Type of items that get queued
    */
@@ -139,8 +134,8 @@ public abstract class ProcessingSource {
     private final BlockingQueue<T> queue;
 
     /**
-     * Create a queue processing source with a {@link IndexDataProvider} to get
-     * index related data and a maximum capacity for the working queue.
+     * Create a queue processing source with a {@link IndexDataProvider} to
+     * get index related data and a maximum capacity for the working queue.
      *
      * @param indexDataProvider Provider for index data
      * @param queueMaxCap Maximum number of queued work items
@@ -186,8 +181,9 @@ public abstract class ProcessingSource {
     /**
      * Maximum number of document-ids that should be queued.
      */
-    private static final int THREAD_QUEUE_MAX_CAPACITY = CONF.getInt(CONF_PREFIX
-            + "docQueue_threadQueueMaxCap", THREADS * 20);
+    private static final int THREAD_QUEUE_MAX_CAPACITY
+            = ClarityScoreConfiguration.INSTANCE.getInt(CONF_PREFIX
+                    + "docQueue_threadQueueMaxCap", THREADS * 20);
 
     /**
      * Create a new document-id source, backed by a {@link IndexDataProvider}.
@@ -209,8 +205,9 @@ public abstract class ProcessingSource {
     /**
      * Maximum number of terms that should be queued.
      */
-    private static final int THREAD_QUEUE_MAX_CAPACITY = CONF.getInt(CONF_PREFIX
-            + "termQueue_threadQueueMaxCap", THREADS * 20);
+    private static final int THREAD_QUEUE_MAX_CAPACITY
+            = ClarityScoreConfiguration.INSTANCE.getInt(CONF_PREFIX
+                    + "termQueue_threadQueueMaxCap", THREADS * 20);
 
     /**
      * Create a new term source, backed by a {@link IndexDataProvider}.
