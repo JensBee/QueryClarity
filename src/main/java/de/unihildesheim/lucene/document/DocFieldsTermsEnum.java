@@ -74,9 +74,9 @@ public final class DocFieldsTermsEnum {
   private Fields docFields;
 
   /**
-   * Generic reusable {@link DocFieldsTermEnum} instance. To actually reuse this
-   * instance the {@link setDocument} function must be called before
-   * {@link next} can be used, to set the document to operate on.
+   * Generic reusable {@link DocFieldsTermsEnum} instance. To actually reuse this
+   * instance the {@link #setDocument(int)} function must be called before
+   * {@link #next()} can be used, to set the document to operate on.
    *
    * @param indexReader {@link IndexReader} instance to use
    * @param targetFields Lucene index fields to operate on
@@ -88,7 +88,7 @@ public final class DocFieldsTermsEnum {
   }
 
   /**
-   * {@link DocFieldsTermEnum} instance with initial document set.
+   * {@link DocFieldsTermsEnum} instance with initial document set.
    *
    * @param documentId Lucene document-id for which the enumeration should be
    * done
@@ -100,13 +100,13 @@ public final class DocFieldsTermsEnum {
   public DocFieldsTermsEnum(final IndexReader indexReader,
           final String[] targetFields, final Integer documentId) throws
           IOException {
-    if (indexReader == null) {
-      throw new IllegalArgumentException("IndexReader was null.");
+    if (indexReader == null || targetFields == null) {
+      throw new IllegalArgumentException("IndexReader or TargetFields were null");
     }
-    if (targetFields == null || targetFields.length == 0) {
+    if (targetFields.length == 0) {
       throw new IllegalArgumentException("No target fields were specified.");
     }
-    this.fields = targetFields;
+    this.fields = targetFields.clone();
     this.reader = indexReader;
     if (documentId != null) {
       setDocument(documentId);
@@ -136,15 +136,13 @@ public final class DocFieldsTermsEnum {
   /**
    * Steps through all fields and provides access to the {@link TermsEnum} for
    * each field. You have to specify a document-id by calling
-   * {@link setDocument} before calling this function.
+   * {@link #setDocument(int)} before calling this function.
    *
    * @return The resulting {@link BytesRef} or <code>null</code> if the end of
    * the all field iterators is reached
    * @throws IOException If there is a low-level I/O error
    */
   public BytesRef next() throws IOException {
-    BytesRef nextValue;
-
     if (this.docId == null) {
       throw new IllegalArgumentException("No document-id was specified.");
     }
@@ -153,8 +151,7 @@ public final class DocFieldsTermsEnum {
       updateCurrentEnum();
     }
 
-    nextValue = getNextValue();
-    return nextValue;
+    return getNextValue();
   }
 
   /**

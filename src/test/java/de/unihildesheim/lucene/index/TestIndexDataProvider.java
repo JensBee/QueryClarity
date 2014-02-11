@@ -17,7 +17,7 @@
 package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.lucene.document.DefaultDocumentModel;
-import de.unihildesheim.lucene.document.DocumentModelException;
+import de.unihildesheim.lucene.document.model.DocumentModelException;
 import java.io.IOException;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;

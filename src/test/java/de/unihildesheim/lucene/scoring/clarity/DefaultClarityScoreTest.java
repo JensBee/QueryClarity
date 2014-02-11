@@ -18,8 +18,8 @@ package de.unihildesheim.lucene.scoring.clarity;
 
 import de.unihildesheim.lucene.LuceneDefaults;
 import de.unihildesheim.lucene.TestUtility;
-import de.unihildesheim.lucene.document.DocumentModel;
-import de.unihildesheim.lucene.document.DocumentModelException;
+import de.unihildesheim.lucene.document.IDocumentModel;
+import de.unihildesheim.lucene.document.model.DocumentModelException;
 import de.unihildesheim.lucene.index.AbstractIndexDataProvider;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.index.MemoryIndex;
@@ -43,7 +43,6 @@ import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.junit.Test;
-import static org.junit.Assert.*;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
@@ -208,7 +207,7 @@ public final class DefaultClarityScoreTest {
    * @return
    */
   private double calcDocLangModel(final double langmodelWeight,
-          final DocumentModel docModel, final BytesWrap term) {
+          final IDocumentModel docModel, final BytesWrap term) {
     double weight = (double) (1 - langmodelWeight) * dataProv.
             getRelativeTermFrequency(term);
 
@@ -230,15 +229,15 @@ public final class DefaultClarityScoreTest {
   private double calculateClarity(final double langmodelWeight,
           final String[] queryTerms, final Collection<Integer> feedback) {
     // collect feedback document models
-    final Set<DocumentModel> docModels = new HashSet(feedback.size());
+    final Set<IDocumentModel> docModels = new HashSet(feedback.size());
     for (Integer docId : feedback) {
       docModels.add(dataProv.getDocumentModel(docId));
     }
 
     // calculate query model weights, this values are used more times
-    final Map<DocumentModel, Double> weights = new HashMap(docModels.size());
+    final Map<IDocumentModel, Double> weights = new HashMap(docModels.size());
     double modelWeight;
-    for (DocumentModel docModel : docModels) {
+    for (IDocumentModel docModel : docModels) {
       modelWeight = 1d;
       for (String term : queryTerms) {
         modelWeight *= calcDocLangModel(langmodelWeight, docModel, BytesWrap.
@@ -258,7 +257,7 @@ public final class DefaultClarityScoreTest {
       // calculate the query probability of the current term
       qLangMod = 0d;
       final StringBuilder sb = new StringBuilder("QueryLangMod: ");
-      for (DocumentModel docModel : docModels) {
+      for (IDocumentModel docModel : docModels) {
         double langMod = calcDocLangModel(langmodelWeight, docModel, term);
         double weight = weights.get(docModel);
         if (LOG.isDebugEnabled()) {

@@ -14,9 +14,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.lucene.scoring.clarity;
+package de.unihildesheim.lucene.scoring;
 
 import de.unihildesheim.lucene.index.IndexDataProvider;
+import de.unihildesheim.lucene.scoring.clarity.ClarityScoreCalculation;
+import de.unihildesheim.lucene.scoring.clarity.DefaultClarityScore;
 import java.io.IOException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
@@ -25,39 +27,52 @@ import org.apache.lucene.search.Query;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class Calculation {
+public final class Scoring {
+
+  /**
+   * Different types of clarity score calculators.
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public enum ClarityScore {
+
+    /**
+     * Default clarity score.
+     */
+    DEFAULT
+  }
 
   /**
    * Shared index reader instance.
    */
-  private IndexReader indexReader;
+  private final IndexReader indexReader;
 
   /**
    * Data provider for cacheable index statistics.
    */
   private final IndexDataProvider dataProv;
 
-  public Calculation(final IndexDataProvider dataProvider,
+  /**
+   * New factory instance to create scoring calculators.
+   * @param dataProvider Provider for index data
+   * @param reader Reader to access Lucene index, if needed
+   */
+  public Scoring(final IndexDataProvider dataProvider,
           final IndexReader reader) {
     this.dataProv = dataProvider;
     this.indexReader = reader;
   }
 
-  public final IndexReader getIndexReader() {
-    return this.indexReader;
-  }
-
-  public final void setIndexReader(final IndexReader reader) {
-    this.indexReader = reader;
-  }
-
   /**
-   *
-   * @param query User query to parse
-   * @throws IOException Thrown if index could not be read
+   * Create a new Clarity Score calculation instance of a specific type.
+   * @param csType Type of clarity score
+   * @return New instance usable for calculating the specified score type
    */
-  public final void calculateClarity(final Query query) throws IOException {
-    DefaultClarityScore dcs = new DefaultClarityScore(indexReader, dataProv);
-    ClarityScoreResult csr = dcs.calculateClarity(query);
+  public ClarityScoreCalculation newInstance(final ClarityScore csType) {
+    switch (csType) {
+      case DEFAULT:
+        return new DefaultClarityScore(this.indexReader, this.dataProv);
+    }
+    throw new IllegalArgumentException(
+            "Unknown or not supported type specified.");
   }
 }

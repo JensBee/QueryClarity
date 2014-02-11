@@ -54,7 +54,7 @@ public final class QueryUtils {
             rwQuery, true);
 
     // stores all plain terms from the weighted query terms
-    final Set<BytesRef> queryTerms = new HashSet(wqTerms.length);
+    final Set<BytesRef> queryTerms = new HashSet<>(wqTerms.length);
 
     // store all plain query terms
     for (WeightedTerm wTerm : wqTerms) {

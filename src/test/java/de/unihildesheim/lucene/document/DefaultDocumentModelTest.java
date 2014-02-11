@@ -84,7 +84,7 @@ public final class DefaultDocumentModelTest {
    *
    * @return Test {@link DefaultDocumentModel} instance
    */
-  private DocumentModel createModelInstance() {
+  private IDocumentModel createModelInstance() {
     return new DefaultDocumentModel(defaultDocId,
             DefaultDocumentModelTest.terms.size());
   }
@@ -98,7 +98,7 @@ public final class DefaultDocumentModelTest {
    *
    * @param docModel Model to add the terms to
    */
-  private void addTermsToModel(DocumentModel docModel) {
+  private void addTermsToModel(IDocumentModel docModel) {
     for (Entry<String, Long> entry : DefaultDocumentModelTest.terms.entrySet()) {
       docModel.setTermFrequency(bytesWrapString(entry.getKey()), entry.getValue());
     }
@@ -133,7 +133,7 @@ public final class DefaultDocumentModelTest {
 
     LOG.info("Adding v={} k={} to t={}", value, key, entry);
 
-    final DocumentModel instance = createModelInstance();
+    final IDocumentModel instance = createModelInstance();
     instance.setTermData(bytesWrapString(entry.getKey()), key, value);
   }
 
@@ -151,7 +151,7 @@ public final class DefaultDocumentModelTest {
     LOG.info("Adding v={} k={} to t={}", value, key, entry.getKey());
 
     final BytesWrap term = bytesWrapString(entry.getKey());
-    DocumentModel instance = createModelInstance();
+    IDocumentModel instance = createModelInstance();
     instance.setTermData(term, key, value);
 
     final Number result = instance.getTermData(term, key);
@@ -170,7 +170,7 @@ public final class DefaultDocumentModelTest {
     TestUtility.logHeader(LOG, "containsTerm");
 
     final Entry<String, Long> entry = getRandomTermEntry();
-    DocumentModel instance = createModelInstance();
+    IDocumentModel instance = createModelInstance();
 
     // no terms stored
     BytesWrap term = bytesWrapString(entry.getKey());
@@ -195,7 +195,7 @@ public final class DefaultDocumentModelTest {
     final BytesWrap term = bytesWrapString(entry.getKey());
     LOG.info("Add t={} with f={}", entry.getKey(), entry.getValue());
     @SuppressWarnings("DLS_DEAD_LOCAL_STORE")
-    final DocumentModel instance = createModelInstance();
+    final IDocumentModel instance = createModelInstance();
     instance.setTermFrequency(term, entry.getValue());
   }
 
@@ -206,7 +206,7 @@ public final class DefaultDocumentModelTest {
   public void testGetDocId() {
     TestUtility.logHeader(LOG, "getDocId");
 
-    final DocumentModel instance = createModelInstance();
+    final IDocumentModel instance = createModelInstance();
     LOG.info("Lookig for default id={}", defaultDocId);
     final int result = instance.getDocId();
     assertEquals(defaultDocId, result);
@@ -221,7 +221,7 @@ public final class DefaultDocumentModelTest {
 
     final int expResult = 328;
     LOG.info("Set id={}", expResult);
-    DocumentModel instance = createModelInstance();
+    IDocumentModel instance = createModelInstance();
     instance.setDocId(expResult);
     final int result = instance.getDocId();
     LOG.info("Got id={}", result);
@@ -236,7 +236,7 @@ public final class DefaultDocumentModelTest {
   public void testGetTermFrequency_0args() {
     TestUtility.logHeader(LOG, "getTermFrequency - overall");
 
-    DocumentModel instance = createModelInstance();
+    IDocumentModel instance = createModelInstance();
 
     LOG.info("Try empty model.");
     // no terms - no frequency
@@ -253,7 +253,7 @@ public final class DefaultDocumentModelTest {
   @Test
   public void testCreate() {
     TestUtility.logHeader(LOG, "create");
-    DocumentModel instance = new DefaultDocumentModel();
+    IDocumentModel instance = new DefaultDocumentModel();
     instance.create(defaultDocId, 0);
     assertEquals(defaultDocId, instance.getDocId());
   }

@@ -17,14 +17,12 @@
 package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.lucene.LuceneDefaults;
-import de.unihildesheim.lucene.document.DocumentModel;
+import de.unihildesheim.lucene.document.IDocumentModel;
 import de.unihildesheim.lucene.util.BytesWrap;
-import de.unihildesheim.util.StringUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -93,7 +91,7 @@ public final class TestIndex implements IndexDataProvider {
    */
   private static Set<String> queryFields;
 
-  private static HashMap<Integer, DocumentModel> docModels;
+  private static HashMap<Integer, IDocumentModel> docModels;
 
   /**
    * Storage meta data.
@@ -265,9 +263,9 @@ public final class TestIndex implements IndexDataProvider {
    * @param terms Terms to match against
    * @return List of document ids matching at least one of the given terms
    */
-  public static Collection<DocumentModel> getDocumentModelsMatching(
+  public static Collection<IDocumentModel> getDocumentModelsMatching(
           final Collection<String> terms) {
-    Collection<DocumentModel> docIds = new HashSet(DOCUMENT_INDEX.size());
+    Collection<IDocumentModel> docIds = new HashSet(DOCUMENT_INDEX.size());
 
     // iterate over all documents
     for (Integer docId : DOCUMENT_INDEX.keySet()) {
@@ -290,7 +288,7 @@ public final class TestIndex implements IndexDataProvider {
    *
    * @return Models of all documents in the index
    */
-  public static Collection<DocumentModel> getDocumentModels() {
+  public static Collection<IDocumentModel> getDocumentModels() {
     return docModels.values();
   }
 
@@ -465,14 +463,14 @@ public final class TestIndex implements IndexDataProvider {
    * @return Calculated pqt value
    */
   public static double calcPQT(final Set<String> query, final String term,
-          final Collection<DocumentModel> usedDocModels) {
+          final Collection<IDocumentModel> usedDocModels) {
     int docId;
     double pqt = 0d;
 
     // used for trace output
     final StringBuilder sb = new StringBuilder(200);
 
-    for (DocumentModel doc : usedDocModels) {
+    for (IDocumentModel doc : usedDocModels) {
       docId = doc.getDocId();
       if (LOG.isTraceEnabled()) {
         sb.append("[pqt] term=").append(term).append(" doc=").append(docId).
@@ -533,7 +531,7 @@ public final class TestIndex implements IndexDataProvider {
    */
   public double calcClarity(final Set<String> terms,
           final Set<String> query,
-          final Collection<DocumentModel> usedDocModels) {
+          final Collection<IDocumentModel> usedDocModels) {
     double pqt;
     double clarity = 0d;
     double log; // result of the logarithmic part of the calculation formular
@@ -619,7 +617,7 @@ public final class TestIndex implements IndexDataProvider {
   }
 
   @Override
-  public DocumentModel getDocumentModel(final int documentId) {
+  public IDocumentModel getDocumentModel(final int documentId) {
     return docModels.get(documentId);
   }
 
@@ -629,17 +627,17 @@ public final class TestIndex implements IndexDataProvider {
   }
 
   @Override
-  public Iterator<DocumentModel> getDocModelIterator() {
+  public Iterator<IDocumentModel> getDocModelIterator() {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
-  public DocumentModel removeDocumentModel(final int docId) {
+  public IDocumentModel removeDocumentModel(final int docId) {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
-  public void addDocumentModel(final DocumentModel documentModel) {
+  public void addDocumentModel(final IDocumentModel documentModel) {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 
@@ -690,7 +688,7 @@ public final class TestIndex implements IndexDataProvider {
   }
 
   @Override
-  public void updateDocumentModel(DocumentModel docModel) {
+  public void updateDocumentModel(IDocumentModel docModel) {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 }

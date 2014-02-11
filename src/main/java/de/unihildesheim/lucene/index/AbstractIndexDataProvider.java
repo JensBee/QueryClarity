@@ -17,18 +17,19 @@
 package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.lucene.document.DocFieldsTermsEnum;
-import de.unihildesheim.lucene.document.DocumentModel;
-import de.unihildesheim.lucene.document.DocumentModelException;
-import de.unihildesheim.lucene.util.BytesWrapUtil;
+import de.unihildesheim.lucene.document.model.DocumentModel;
+import de.unihildesheim.lucene.document.model.DocumentModelException;
+import de.unihildesheim.lucene.scoring.clarity.ClarityScoreConfiguration;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.TimeMeasure;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Iterator;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
@@ -64,42 +65,72 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
           AbstractIndexDataProvider.class);
 
   /**
-   * Store mapping of <tt>term (bytes)</tt> -> <tt>frequency values</tt>.
+   * Global configuration object.
    */
-  @SuppressWarnings("ProtectedField")
-  protected ConcurrentMap<BytesWrap, TermFreqData> termFreqMap;
+  private static final ClarityScoreConfiguration CONF
+          = ClarityScoreConfiguration.getInstance();
 
   /**
-   * Store mapping of <tt>document-id</tt> -> {@link DocumentModel}.
+   * Prefix used to store configuration.
    */
-  @SuppressWarnings("ProtectedField")
-  protected ConcurrentMap<Integer, DocumentModel> docModelMap;
+  private static final String CONF_PREFIX = "AbstractIDP_";
 
   /**
    * Index fields to operate on.
    */
-  private transient String[] fields;
+  private transient String[] fields = new String[0];
 
   /**
-   * Summed frequency of all terms in the index.
+   * Number of threads to use for creating document models.
    */
-  private transient Long overallTermFreq = null;
+  private static final int DOCMODEL_CREATOR_THREADS = CONF.getInt(CONF_PREFIX
+          + "creatorThreads", Runtime.getRuntime().availableProcessors());
+
+  /**
+   * Size of queue to feed document model creator worker threads.
+   */
+  private static final int DOCMODEL_CREATOR_QUEUE_CAPACITY = CONF.getInt(
+          CONF_PREFIX + "creatorQueueCap", DOCMODEL_CREATOR_THREADS * 10);
+
+  /**
+   * Updates the relative term frequency value for the given term. Thread safe.
+   *
+   * @param term Term to update
+   * @param value Value to overwrite any previously stored value. If there's no
+   * value stored, then it will be set to the specified value.
+   */
+  protected abstract void setTermFreqValue(final BytesWrap term,
+          final double value);
+
+  /**
+   * Updates the term frequency value for the given term. Thread safe.
+   *
+   * @param term Term to update
+   * @param value Value to add to the currently stored value. If there's no
+   */
+  protected abstract void addToTermFreqValue(final BytesWrap term,
+          final long value);
 
   /**
    * Calculate term frequencies for all terms in the index in the initial given
-   * fields.
+   * fields. This will collect all terms from all specified fields and record
+   * their frequency in the whole index.
    *
    * @param reader Reader to access the index
    * @throws IOException Thrown, if the index could not be opened
    */
   protected final void calculateTermFrequencies(final IndexReader reader) throws
           IOException {
+    if (reader == null) {
+      throw new IllegalArgumentException("Reader was null.");
+    }
+
     final TimeMeasure timeMeasure = new TimeMeasure().start();
     final Fields idxFields = MultiFields.getFields(reader);
+    LOG.info("Calculating term frequencies for all unique terms in index.");
 
     Terms fieldTerms;
     TermsEnum fieldTermsEnum = null;
-    BytesRef bytesRef;
 
     // go through all fields..
     for (String field : this.fields) {
@@ -110,14 +141,14 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
         fieldTermsEnum = fieldTerms.iterator(fieldTermsEnum);
 
         // ..iterate over them..
-        bytesRef = fieldTermsEnum.next();
+        BytesRef bytesRef = fieldTermsEnum.next();
         while (bytesRef != null) {
 
           // fast forward seek to term..
           if (fieldTermsEnum.seekExact(bytesRef)) {
             // ..and update the frequency value for term
-            updateTermFreqValue(BytesWrap.wrap(bytesRef),
-                    fieldTermsEnum.totalTermFreq());
+            addToTermFreqValue(new BytesWrap(bytesRef), fieldTermsEnum.
+                    totalTermFreq());
           }
           bytesRef = fieldTermsEnum.next();
         }
@@ -125,80 +156,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     }
     timeMeasure.stop();
     LOG.info("Calculation of term frequencies for {} unique terms in index "
-            + "took {} seconds.", getTermFreqMapSize(), timeMeasure.
-            getElapsedSeconds());
-  }
-
-  /**
-   * Updates the term frequency value for the given term. Thread safe.
-   *
-   * @param term Term to update
-   * @param value Value to add to the currently stored value. If there's no
-   */
-  private void updateTermFreqValue(final BytesWrap term, final long value) {
-    final TermFreqData tfData = new TermFreqData(value);
-    term.duplicate();
-    TermFreqData oldValue;
-    TermFreqData newValue;
-
-    for (;;) {
-      oldValue = this.termFreqMap.putIfAbsent(term, tfData);
-      if (oldValue == null) {
-        // data was not already stored
-        incTermFreqMapSize();
-        break;
-      }
-
-      newValue = this.termFreqMap.get(term);
-      newValue.addToTotalFreq(value);
-      if (this.termFreqMap.replace(term, oldValue, newValue)) {
-        // replacing actually worked
-        break;
-      }
-    }
-    this.setTermFrequency(this.getTermFrequency() + value);
-  }
-
-  /**
-   * Updates the relative term frequency value for the given term. Thread safe.
-   *
-   * @param term Term to update
-   * @param value Value to overwrite any previously stored value. If there's no
-   * value stored, then it will be set to the specified value.
-   */
-  private void updateTermFreqValue(final BytesWrap term,
-          final double value) {
-
-    TermFreqData tfData;
-    TermFreqData newValue;
-    for (;;) {
-      tfData = this.termFreqMap.get(term);
-      if (tfData == null) {
-        throw new IllegalStateException("Term " + BytesWrapUtil.
-                bytesWrapToString(term) + " not found.");
-      }
-
-      newValue = new TermFreqData(tfData.getTotalFreq(), value);
-      if (this.termFreqMap.replace(term, tfData, newValue)) {
-        // replacing actually worked
-        break;
-      }
-    }
-  }
-
-  /**
-   * {@inheritdoc} This replaces the specified {@link DocumentModel} without
-   * checking for any concurrent modifications. This must be handled externally.
-   *
-   * @param docModel Document model to replace. The model to replace will be
-   * identified by the document-id returned by the model
-   */
-  @Override
-  public final void updateDocumentModel(final DocumentModel docModel) {
-    if (this.docModelMap.replace(docModel.getDocId(), docModel) == null) {
-      throw new IllegalArgumentException("Document model id=" + docModel.
-              getDocId() + " cant't be updated, because it's not known.");
-    }
+            + "took {}.", getTermsCount(), timeMeasure.getElapsedTimeString());
   }
 
   /**
@@ -208,253 +166,132 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * immutable objects is assumed and a modification of already stored entries
    * is prohibited. So an entry has to be removed to be updated.
    *
-   * @param modelType {@link DocumentModel} implementation to create
    * @param reader Reader to access the index
-   * @throws de.unihildesheim.lucene.document.DocumentModelException Thrown, if
-   * the {@link DocumentModel} of the requested type could not be instantiated
+   * @throws DocumentModelException Thrown, if the {@link DocumentModel} of the
+   * requested type could not be instantiated
    * @throws java.io.IOException Thrown on low-level I7O errors
    */
-  protected final void createDocumentModels(
-          final Class<? extends DocumentModel> modelType,
-          final IndexReader reader) throws DocumentModelException, IOException {
-    final TimeMeasure timeMeasure = new TimeMeasure().start();
-    // create an enumerator enumerating over all specified document fields
-    final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(reader,
-            this.fields);
-    // gather terms found in the document
-    final ConcurrentMap<BytesWrap, AtomicLong> docTerms
-            = new ConcurrentHashMap<>(1000);
-    final Bits liveDocs = MultiFields.getLiveDocs(reader);
-    BytesWrap term;
-    DocumentModel docModel;
-    BytesRef bytesRef;
-
-    // debug helpers
-    int[] dbgStatus = new int[]{-1, 100, reader.maxDoc()};
-    int docModelCount = 0;
-    TimeMeasure dbgTimeMeasure = null;
-    if (LOG.isDebugEnabled() && dbgStatus[2] > dbgStatus[1]) {
-      dbgStatus[0] = 0;
-      dbgTimeMeasure = new TimeMeasure();
+  protected final void createDocumentModels(final IndexReader reader) throws
+          DocumentModelException, IOException {
+    if (reader == null) {
+      throw new IllegalArgumentException("Reader was null.");
     }
 
-    for (int docId = 0; docId < reader.maxDoc(); docId++) {
-      // check if document is deleted
-      if (liveDocs != null && !liveDocs.get(docId)) {
-        // document is deleted
-        continue;
-      }
+    final TimeMeasure timeMeasure = new TimeMeasure().start();
+    final Bits liveDocs = MultiFields.getLiveDocs(reader);
+    final int maxDoc = reader.maxDoc();
+    LOG.info("Creating document models for approx. {} documents.", maxDoc);
 
-      // document model should be unique - otherwise this is an error
-      if (this.docModelMap.containsKey(docId)) {
-        throw new IllegalArgumentException(
-                "Document model already known at creation time.");
-      }
+    // show a progress status in 1% steps
+    int[] runStatus = new int[]{0, (int) (maxDoc * 0.01),
+      maxDoc, 0}; // counter, step, max, percentage
+    TimeMeasure runTimeMeasure = new TimeMeasure();
 
-      // debug operating indicator
-      if (dbgStatus[0] >= 0 && ++dbgStatus[0] % dbgStatus[1] == 0) {
-        LOG.info("{} models of approx. {} documents created ({}s)",
-                dbgStatus[0], dbgStatus[2], dbgTimeMeasure.stop().
-                getElapsedSeconds());
-        dbgTimeMeasure.start();
-      }
+    // threading
+    final CountDownLatch trackingLatch = new CountDownLatch(
+            DOCMODEL_CREATOR_THREADS);
+    final BlockingQueue<Integer> docQueue = new ArrayBlockingQueue<Integer>(
+            DOCMODEL_CREATOR_QUEUE_CAPACITY);
+    final DocumentModelCreator[] dmcThreads
+            = new DocumentModelCreator[DOCMODEL_CREATOR_THREADS];
+    LOG.debug("Spawning {} threads for document model creation.",
+            DOCMODEL_CREATOR_THREADS);
+    for (int i = 0; i < DOCMODEL_CREATOR_THREADS; i++) {
+      dmcThreads[i] = new DocumentModelCreator(reader, docQueue, trackingLatch);
+      final Thread t = new Thread(dmcThreads[i], "DMCreator-" + i);
+      t.start();
+    }
 
-      // clear previous cached document term values
-      docTerms.clear();
-      try {
-        // go through all document fields..
-        dftEnum.setDocument(docId);
-
-        try {
-          bytesRef = dftEnum.next();
-          while (bytesRef != null) {
-            term = BytesWrap.duplicate(bytesRef);
-
-            // update frequency counter for current term
-            if (!docTerms.containsKey(term)) {
-              docTerms.put(term, new AtomicLong(0));
-            }
-            docTerms.get(term).getAndAdd(dftEnum.getTotalTermFreq());
-            LOG.trace("TermCount doc={} term={} count={}", docId, bytesRef.
-                    utf8ToString(), dftEnum.getTotalTermFreq());
-
-            bytesRef = dftEnum.next();
-          }
-        } catch (IOException ex) {
-          LOG.error("Error while getting terms for document id {}", docId, ex);
+    try {
+      for (int docId = 0; docId < maxDoc; docId++) {
+        // check if document is deleted
+        if (liveDocs != null && !liveDocs.get(docId)) {
+          // document is deleted
+          continue;
         }
 
-        try {
-          // create a new model with the given id and
-          // the expected number of terms
-          docModel = modelType.newInstance();
-          docModel.create(docId, docTerms.size());
-        } catch (InstantiationException | IllegalAccessException ex) {
-          LOG.error("Error creating document model.", ex);
-          throw new DocumentModelException(ex);
-        }
+        docQueue.put(docId);
+        // operating indicator
+        if (++runStatus[0] % runStatus[1] == 0) {
+          runTimeMeasure.stop();
+          // estimate time needed
+          long estimate = (long) ((runStatus[2] - runStatus[0]) / (runStatus[0]
+                  / timeMeasure.getElapsedSeconds()));
 
-        // All terms from all document fields are gathered.
-        // Store the document frequency of each document term to the model
-        for (Map.Entry<BytesWrap, AtomicLong> entry : docTerms.entrySet()) {
-          try {
-            docModel.setTermFrequency(entry.getKey(), entry.getValue().get());
-          } catch (ArrayIndexOutOfBoundsException ex) {
-            LOG.error("docId={} bytes={}", docId, entry.getKey());
-          }
+          LOG.info("{} models of approx. {} documents created ({}s, {}%). "
+                  + "Time left {}.", runStatus[0], runStatus[2], runTimeMeasure.
+                  getElapsedSeconds(), ++runStatus[3], TimeMeasure.
+                  getTimeString(estimate));
+
+          runTimeMeasure.start();
         }
-        docModel.lock(); // make model immutable for storage now
-        this.docModelMap.put(docId, docModel);
-        incDocModelMapSize();
-        if (LOG.isDebugEnabled()) {
-          docModelCount++;
-        }
-      } catch (IOException ex) {
-        LOG.error("Error retrieving document id={}.", docId, ex);
       }
+
+      // clean up
+      for (int i = 0; i < DOCMODEL_CREATOR_THREADS; i++) {
+        dmcThreads[i].terminate();
+      }
+      // wait until all waiting models are processed
+      trackingLatch.await();
+    } catch (InterruptedException ex) {
+      LOG.error("Model creation thread interrupted. "
+              + "This may have caused data corruption.", ex);
     }
 
     timeMeasure.stop();
-    LOG.info("Calculation of document models for {} documents took {} seconds.",
-            docModelCount, timeMeasure.getElapsedSeconds());
-  }
-
-  /**
-   * Clears all pre-calculated data.
-   */
-  protected final void clearData() {
-    this.docModelMap.clear();
-    this.termFreqMap.clear();
-    setDocModelMapSize(0L);
-    setTermFreqMapSize(0L);
+    LOG.info("Calculation of document models for {} documents took {}.",
+            runStatus[0], timeMeasure.getElapsedTimeString());
   }
 
   /**
    * Calculates the relative term frequency for each term in the index. Overall
    * term frequency values must be calculated beforehand by calling
    * {@link AbstractIndexDataProvider#calculateTermFrequencies(IndexReader)}.
+   *
+   * @param terms List of terms to do the calculation for. Usually this is a
+   * list of all terms known from the index.
    */
-  protected final void calculateRelativeTermFrequencies() {
+  protected final void calculateRelativeTermFrequencies(
+          final Set<BytesWrap> terms) {
+    if (terms == null) {
+      throw new IllegalArgumentException("Term set was null.");
+    }
+    LOG.info("Calculating relative term frequencies for {} terms.", terms.
+            size());
     final TimeMeasure timeMeasure = new TimeMeasure().start();
     final double cFreq = (double) getTermFrequency();
+    Long termFreq;
 
-    // Create a shallow copy of all term keys from the map. This is needed,
-    // because we update the map while iterating through. The set of terms
-    // stays the same, as we (should) re-add entries immediately.
-    // Using EntrySet to modify entries is prohibited, since we assume immutable
-    // entries.
-    final Set<BytesWrap> terms = Collections.unmodifiableSet(termFreqMap.
-            keySet());
-    double rTermFreq;
-
-    // debug helpers
-    int[] dbgStatus = new int[]{-1, 10000, terms.size()};
-    TimeMeasure dbgTimeMeasure = null;
-    if (LOG.isDebugEnabled() && dbgStatus[2] > dbgStatus[1]) {
-      dbgStatus[0] = 0;
-      dbgTimeMeasure = new TimeMeasure();
-    }
+    // show a progress status in 1% steps
+    int[] runStatus = new int[]{0, (int) (terms.size() * 0.01), terms.size(),
+      0}; // counter, step, max, percentage
+    TimeMeasure runTimeMeasure = new TimeMeasure().start();
 
     for (BytesWrap term : terms) {
       // debug operating indicator
-      if (dbgStatus[0] >= 0 && ++dbgStatus[0] % dbgStatus[1] == 0) {
-        LOG.info("{} of {} terms calculated ({}s)", dbgStatus[0],
-                dbgStatus[2], dbgTimeMeasure.stop().getElapsedSeconds());
-        dbgTimeMeasure.start();
+      if (runStatus[0] >= 0 && ++runStatus[0] % runStatus[1] == 0) {
+        LOG.info("{} of {} terms calculated ({}s, {}%)", runStatus[0],
+                runStatus[2], runTimeMeasure.stop().getElapsedSeconds(),
+                ++runStatus[3]);
+        runTimeMeasure.start();
       }
 
-      if (this.termFreqMap.containsKey(term)) {
-        rTermFreq = (double) this.termFreqMap.get(term).getTotalFreq() / cFreq;
-        updateTermFreqValue(term, rTermFreq);
+      termFreq = getTermFrequency(term);
+      if (termFreq != null) {
+        final double rTermFreq = (double) termFreq / cFreq;
+        setTermFreqValue(term, rTermFreq);
       }
     }
 
     timeMeasure.stop();
     LOG.info("Calculation of relative term frequencies "
-            + "for {} unique terms in index took {} seconds.",
-            getTermFreqMapSize(), timeMeasure.getElapsedSeconds());
-  }
-
-  @Override
-  public final long getTermFrequency() {
-    if (this.overallTermFreq == null) {
-      LOG.info("Collection term frequency not found. Need to recalculate.");
-      this.overallTermFreq = 0L;
-      for (TermFreqData freq : this.termFreqMap.values()) {
-        if (freq == null) {
-          // value should never be null
-          throw new IllegalStateException("Frequency value was null.");
-        } else {
-          this.overallTermFreq += freq.getTotalFreq();
-        }
-      }
-      LOG.debug("Calculated collection term frequency: {}",
-              this.overallTermFreq);
-    }
-
-    return this.overallTermFreq;
-  }
-
-  @Override
-  public final long getTermFrequency(final BytesWrap term) {
-    final TermFreqData freq = this.termFreqMap.get(term);
-    long value;
-
-    if (freq == null) {
-      // term not found
-      value = 0L;
-    } else {
-      value = freq.getTotalFreq();
-    }
-
-    LOG.trace("TermFrequency t={} f={}", term, value);
-    return value;
-  }
-
-  @Override
-  public final double getRelativeTermFrequency(final BytesWrap term) {
-    final TermFreqData freq = this.termFreqMap.get(term);
-    double value;
-
-    if (freq == null) {
-      // term not found
-      value = 0d;
-    } else {
-      value = freq.getRelFreq();
-    }
-
-    return value;
-  }
-
-  @Override
-  public final long getTermsCount() {
-    return getTermFreqMapSize();
-  }
-
-  @Override
-  public final Iterator<BytesWrap> getTermsIterator() {
-    return Collections.unmodifiableSet(this.termFreqMap.keySet()).iterator();
+            + "for {} unique terms in index took {}.",
+            getTermsCount(), timeMeasure.getElapsedTimeString());
   }
 
   @Override
   public final String[] getTargetFields() {
     return this.fields.clone();
-  }
-
-  @Override
-  public final DocumentModel getDocumentModel(final int docId) {
-    return this.docModelMap.get(docId);
-  }
-
-  @Override
-  public final Iterator<DocumentModel> getDocModelIterator() {
-    return Collections.unmodifiableCollection(this.docModelMap.values()).
-            iterator();
-  }
-
-  @Override
-  public final long getDocModelCount() {
-    return getDocModelMapSize();
   }
 
   /**
@@ -476,59 +313,171 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * @param newFields List of field names
    */
   protected final void setFields(final String[] newFields) {
+    if (newFields == null || newFields.length == 0) {
+      throw new IllegalArgumentException("Empty fields specified.");
+    }
     this.fields = newFields.clone();
   }
 
   /**
-   * Get the size of the local term frequency map.
-   *
-   * @return Term frequency map size
+   * Worker thread to create {@link DocumentModel}s.
    */
-  protected abstract long getTermFreqMapSize();
+  private final class DocumentModelCreator implements Runnable {
 
-  /**
-   * Set the size of the local term frequency map.
-   */
-  protected abstract void setTermFreqMapSize(final long value);
+    /**
+     * Global configuration object.
+     */
+    private final ClarityScoreConfiguration conf
+            = ClarityScoreConfiguration.getInstance();
+    /**
+     * Prefix used to store configuration.
+     */
+    private static final String CONF_PREFIX = "DMCreator_";
+    /**
+     * Gather terms found in the document.
+     */
+    private Map<BytesWrap, Number> docTerms;
+    /**
+     * Enumerator enumerating over all specified document fields.
+     */
+    private final DocFieldsTermsEnum dftEnum;
+    /**
+     * Name of this thread.
+     */
+    private String tName;
+    /**
+     * Termination flag.
+     */
+    private boolean terminate = false;
+    /**
+     * Queue of doc-ids waiting to get processed.
+     */
+    private final BlockingQueue<Integer> docQueue;
+    /**
+     * Global latch to track running threads.
+     */
+    private final CountDownLatch latch;
+    /**
+     * Maximum time (s) to wait for a new document-id to become available.
+     */
+    private final int maxWait = conf.
+            getInt(CONF_PREFIX + "docIdMaxWait", 1);
 
-  /**
-   * Increase the size counter of the local term frequency map.
-   */
-  protected abstract void incTermFreqMapSize();
+    /**
+     * Create a new worker thread.
+     *
+     * @param reader Index reader, to access the Lucene index
+     * @param documentQueue Queue of documents to process
+     * @param trackingLatch Shared latch to track running threads
+     * @throws IOException Thrown on low-level I/O errors
+     */
+    public DocumentModelCreator(final IndexReader reader,
+            final BlockingQueue<Integer> documentQueue,
+            final CountDownLatch trackingLatch) throws IOException {
+      if (reader == null) {
+        throw new IllegalArgumentException("Reader was null.");
+      }
+      if (documentQueue == null) {
+        throw new IllegalArgumentException("Queue was null.");
+      }
+      if (trackingLatch == null) {
+        throw new IllegalArgumentException("Latch was null.");
+      }
+      this.dftEnum = new DocFieldsTermsEnum(reader,
+              AbstractIndexDataProvider.this.fields);
+      this.docQueue = documentQueue;
+      this.latch = trackingLatch;
+    }
 
-  /**
-   * Decrease the size counter of the local term frequency map.
-   */
-  protected abstract void decTermFreqMapSize();
+    /**
+     * Set the termination flag for this thread causing it to finish the current
+     * work and exit.
+     */
+    public void terminate() {
+      LOG.debug("({}) Thread got terminating signal.", this.tName);
+      this.terminate = true;
+    }
 
-  /**
-   * Get the size of the local document model map.
-   *
-   * @return Document model map size
-   */
-  protected abstract long getDocModelMapSize();
+    @Override
+    public void run() {
+      this.tName = Thread.currentThread().getName();
+      final long[] docTermEsitmate = new long[]{0L, 0L, 100L};
 
-  /**
-   * Set the size counter of the local document model map.
-   */
-  protected abstract void setDocModelMapSize(final long value);
+      Integer docId;
+      BytesRef bytesRef;
+      try {
+        while (!Thread.currentThread().isInterrupted() && !(this.terminate
+                && this.docQueue.isEmpty())) {
+          docId = this.docQueue.poll(maxWait, TimeUnit.SECONDS);
+          if (docId == null) {
+            continue;
+          }
 
-  /**
-   * Increase the size counter of the local document model map.
-   */
-  protected abstract void incDocModelMapSize();
+          try {
+            // go through all document fields..
+            dftEnum.setDocument(docId);
+          } catch (IOException ex) {
+            LOG.error("Error retrieving document id={}.", docId, ex);
+            continue;
+          }
 
-  /**
-   * Decrease the size counter of the local document model map.
-   */
-  protected abstract void decDocModelMapSize();
+          try {
+            // iterate over all terms in all specified fields
+            bytesRef = dftEnum.next();
+            if (bytesRef == null) {
+              // nothing found
+              continue;
+            }
+            docTerms = new HashMap<>((int) docTermEsitmate[2]);
+            while (bytesRef != null) {
+              final BytesWrap term = new BytesWrap(bytesRef);
 
-  /**
-   * Set the overall frequency of all terms in the index.
-   *
-   * @param oTermFreq Overall frequency of all terms in the index
-   */
-  protected final void setTermFrequency(final Long oTermFreq) {
-    this.overallTermFreq = oTermFreq;
+              // update frequency counter for current term
+              if (!docTerms.containsKey(term)) {
+                docTerms.put(term.clone(), new AtomicLong(dftEnum.
+                        getTotalTermFreq()));
+              } else {
+                ((AtomicLong) docTerms.get(term)).getAndAdd(dftEnum.
+                        getTotalTermFreq());
+              }
+              LOG.trace("TermCount doc={} term={} count={}", docId, bytesRef.
+                      utf8ToString(), dftEnum.getTotalTermFreq());
+
+              bytesRef = dftEnum.next();
+            }
+          } catch (IOException ex) {
+            LOG.error("Error while getting terms for document id {}", docId,
+                    ex);
+            continue;
+          }
+
+          final DocumentModel.DocumentModelBuilder dmBuilder
+                  = new DocumentModel.DocumentModelBuilder(docId,
+                          docTerms.size());
+
+          // All terms from all document fields are gathered.
+          // Store the document frequency of each document term to the model
+          dmBuilder.setTermFrequency(docTerms);
+
+          if (!AbstractIndexDataProvider.this.addDocumentModel(dmBuilder.
+                  getModel())) {
+            throw new IllegalArgumentException(
+                    "Document model already known at creation time.");
+          }
+
+          // estimate size for term buffer
+          docTermEsitmate[0] += docTerms.size();
+          docTermEsitmate[1]++;
+          docTermEsitmate[2] = docTermEsitmate[0] / docTermEsitmate[1];
+          // take the default load factor into account
+          docTermEsitmate[2] += docTermEsitmate[2] * 0.8;
+        }
+      } catch (InterruptedException ex) {
+        LOG.warn("({}) Thread interrupted.", this.tName, ex);
+      }
+
+      this.latch.countDown();
+      LOG.debug("({}) Thread terminated.", this.tName);
+    }
   }
 }

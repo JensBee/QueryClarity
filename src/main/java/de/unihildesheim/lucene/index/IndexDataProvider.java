@@ -16,7 +16,7 @@
  */
 package de.unihildesheim.lucene.index;
 
-import de.unihildesheim.lucene.document.DocumentModel;
+import de.unihildesheim.lucene.document.model.DocumentModel;
 import de.unihildesheim.lucene.util.BytesWrap;
 import java.util.Iterator;
 
@@ -45,9 +45,9 @@ public interface IndexDataProvider {
    * Get the term frequency of a single term in the index.
    *
    * @param term Term to lookup
-   * @return The frequency of the term in the index
+   * @return The frequency of the term in the index, or null if none was stored
    */
-  long getTermFrequency(final BytesWrap term);
+  Long getTermFrequency(final BytesWrap term);
 
   /**
    * Get the relative term frequency for a term in the index.
@@ -78,6 +78,12 @@ public interface IndexDataProvider {
   Iterator<BytesWrap> getTermsIterator();
 
   /**
+   * Get an iterator over all known document-ids.
+   * @return Iterator over document-ids
+   */
+  Iterator<Integer> getDocIdIterator();
+
+  /**
    * Get the number of unique terms in the index.
    *
    * @return Number of unique terms in the index
@@ -85,25 +91,57 @@ public interface IndexDataProvider {
   long getTermsCount();
 
   /**
-   * Get an {@link Iterator} over all known {@link DocumentModel} instances.
+   * Store enhanced data for a document & term combination with a custom prefix.
+   * <tt>Null</tt> is not allowed for any parameter value.
    *
-   * @return Iterator over all {@link DocumentModel} instances
+   * @param prefix Custom prefix, to identify where the data belongs to. Must
+   * not start with an underscore.
+   * @param documentId Document identifier
+   * @param term Term to which the data is associated.
+   * @param key Storage key.
+   * @param value Storage value
+   * @return Any previously set value or null, if there was none
    */
-  Iterator<DocumentModel> getDocModelIterator();
+  Object setTermData(final String prefix, final int documentId,
+          final BytesWrap term, final String key, final Object value);
+
+  /**
+   * Get enhanced data stored with a prefix (to distinguish data types) for a
+   * document-id and a term. The data is accessed via a key.
+   *
+   * @param prefix Prefix to stored data
+   * @param documentId Document-id the data is attached to
+   * @param term Term the data is attached to
+   * @param key Key to identify the data
+   * @return Data stored at the given location or <tt>null</tt> if there was
+   * none
+   */
+  Object getTermData(final String prefix, final int documentId,
+          final BytesWrap term, final String key);
 
   /**
    * Get a {@link DocumentModel} instance for the document with the given id.
-   * The returned {@link DocumentModel} should be immutable and for reading
-   * only. It's advised to use a {@link ImmutableDocumentModel} for returning.
-   *
-   * To actually modify a document model you should use the
-   * {@link IndexDataProvider#removeDocumentModel(int)} and
-   * {@link IndexDataProvider#addDocumentModel(DocumentModel)} methods.
    *
    * @param docId Lucene document-id
    * @return Document model associated with the given Lucene document-id
    */
   DocumentModel getDocumentModel(final int docId);
+
+  /**
+   * Add a new document model to the list if it is not already known.
+   *
+   * @param docModel DocumentModel to add
+   * @return True, if the model was added, false if there's already a model
+   * known by the model's id
+   */
+  boolean addDocumentModel(final DocumentModel docModel);
+
+  /**
+   * Test if a model for the specific document-id is known.
+   * @param docId Document-id to lookup
+   * @return True if a model is known, false otherwise
+   */
+  boolean hasDocumentModel(final Integer docId);
 
   /**
    * Updates an already stored {@link DocumentModel}. Use this to update any
@@ -155,4 +193,28 @@ public interface IndexDataProvider {
    */
   String getProperty(final String prefix, final String key,
           final String defaultValue);
+
+  /**
+   * Hook for any external data-changing function to signal that now is a good
+   * moment to commit any pending data (if necessary).
+   */
+  void commitHook();
+
+  /**
+   * Set a transaction hook indicating that the following data commits should be
+   * atomic. There can only be one transaction hook set at a time.
+   *
+   * @return True, if the hook was set. False, if a hook is already set.
+   */
+  boolean transactionHookRequest();
+
+  /**
+   * Release the currently set transaction hook.
+   */
+  void transactionHookRelease();
+
+  /**
+   * Rollback any changes made since setting a transaction hook.
+   */
+  void transactionHookRoolback();
 }

@@ -23,7 +23,7 @@ import java.util.Objects;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class Tuple {
+public final class Tuple {
 
   /**
    * Private constructor for utility class.
@@ -42,11 +42,11 @@ public class Tuple {
   }
 
   public static <A, B> Tuple2<A, B> tuple2(A a, B b) {
-    return new Tuple2(a, b);
+    return new Tuple2<A, B>(a, b);
   }
 
   public static <A, B, C> Tuple3<A, B, C> tuple3(A a, B b, C c) {
-    return new Tuple3(a, b, c);
+    return new Tuple3<A, B, C>(a, b, c);
   }
 
   @SuppressWarnings("PublicInnerClass")

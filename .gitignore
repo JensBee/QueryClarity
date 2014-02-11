@@ -1,9 +1,12 @@
 /nbactions.xml
 /nb-configuration.xml
+/clarity.properties
 /*.log
+/*.unison.*
 /target/
 /data/
 /luke/
+/logs/
 /profiler/
 /results.txt
 /contrib/*_output.xml

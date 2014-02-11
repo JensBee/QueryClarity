@@ -16,44 +16,21 @@
  */
 package de.unihildesheim.lucene.scoring.clarity;
 
-import de.unihildesheim.lucene.LuceneDefaults;
-import de.unihildesheim.lucene.document.DocumentModel;
-import de.unihildesheim.lucene.document.DocumentModelPool;
-import de.unihildesheim.lucene.document.DocumentModelPoolObserver;
+import de.unihildesheim.lucene.document.model.DocumentModel;
 import de.unihildesheim.lucene.document.Feedback;
-import de.unihildesheim.lucene.document.TermDataManager;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.query.QueryUtils;
-import de.unihildesheim.lucene.util.BytesWrapUtil;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.TimeMeasure;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.queryparser.classic.QueryParser;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.util.BytesRef;
 import org.slf4j.LoggerFactory;
 
@@ -79,10 +56,22 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
           DefaultClarityScore.class);
 
   /**
+   * Global configuration object.
+   */
+  private static final ClarityScoreConfiguration CONF
+          = ClarityScoreConfiguration.getInstance();
+
+  /**
+   * Prefix used to store configuration.
+   */
+  private static final String CONF_PREFIX = "DCS_";
+
+  /**
    * Prefix to use to store calculated term-data values in cache and access
    * properties stored in the {@link DataProvider}.
    */
-  private static final String PREFIX = "DCS";
+  private static final String PREFIX = CONF.get(CONF_PREFIX + "dataPrefix",
+          "DCS");
 
   /**
    * Keys to store calculation results in document models and access properties
@@ -93,7 +82,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     /**
      * Stores the document model for a specific term in a {@link DocumentModel}.
      */
-    DOC_MODEL,
+    docModel,
     /**
      * Flag to indicate, if all document-models have already been
      * pre-calculated. Stored in the {@link IndexDataProvider}.
@@ -104,7 +93,8 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
   /**
    * Default multiplier value for relative term frequency inside documents.
    */
-  private static final double DEFAULT_LANGMODEL_WEIGHT = 0.6d;
+  private static final double DEFAULT_LANGMODEL_WEIGHT = CONF.getDouble(
+          CONF_PREFIX + "defaultLangModelWeight", 0.6d);
 
   /**
    * Multiplier for relative term frequency inside documents.
@@ -115,29 +105,24 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * Default number of feedback documents to use. Cronen-Townsend et al.
    * recommend 500 documents.
    */
-  private static final int DEFAULT_FEDDBACK_DOCS_COUNT = 500;
+  private static final int DEFAULT_FEEDBACK_DOCS_COUNT = CONF.getInt(
+          CONF_PREFIX + "defaultFeedbackDocCount", 500);
 
   /**
    * Number of feedback documents to use.
    */
-  private int fbDocCount = DEFAULT_FEDDBACK_DOCS_COUNT;
+  private int fbDocCount = DEFAULT_FEEDBACK_DOCS_COUNT;
 
   /**
    * Provider for statistical index related informations. Accessed from nested
    * thread class.
    */
-  protected final IndexDataProvider dataProv;
+  private final IndexDataProvider dataProv;
 
   /**
    * Index reader used by this instance. Accessed from nested thread class.
    */
-  protected final IndexReader reader;
-
-  /**
-   * {@link TermDataManager} to access to extended data storage for
-   * {@link DocumentModel} data storage.
-   */
-  private final TermDataManager tdMan;
+  private final IndexReader reader;
 
   /**
    * Default constructor using the {@link IndexDataProvider} for statistical
@@ -152,7 +137,6 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     this.langmodelWeight = DEFAULT_LANGMODEL_WEIGHT;
     this.reader = indexReader;
     this.dataProv = dataProvider;
-    this.tdMan = new TermDataManager(PREFIX);
   }
 
   /**
@@ -178,15 +162,13 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
   protected double calcDocumentModel(final DocumentModel docModel,
           final BytesWrap term, final boolean update) {
     // no value was stored, so calculate it
-    final double model = langmodelWeight * ((double) docModel.getTermFrequency(
-            term) / (double) docModel.getTermFrequency())
+    final double model = langmodelWeight * ((double) docModel.
+            termFrequency(term) / (double) docModel.termFrequency)
             + calcDefaultDocumentModel(term);
     // update document model
     if (update) {
-      docModel.unlock();
-      this.tdMan.setTermData(docModel, term, DataKeys.DOC_MODEL.name(), model);
-      docModel.setChanged(true);
-      docModel.lock();
+      this.dataProv.setTermData(PREFIX, docModel.id, term, DataKeys.docModel.
+              name(), model);
     }
     return model;
   }
@@ -204,11 +186,11 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
           final BytesWrap term, final boolean force) {
     Double model = null;
 
-    if (docModel.containsTerm(term)) {
+    if (docModel.contains(term)) {
       if (!force) {
         // try to get the already calculated value
-        model = (Double) this.tdMan.getTermData(docModel, term,
-                DataKeys.DOC_MODEL.name());
+        model = (Double) this.dataProv.getTermData(PREFIX, docModel.id, term,
+                DataKeys.docModel.name());
       }
 
       if (force || model == null) {
@@ -232,15 +214,14 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
   private Map<DocumentModel, Double> calculateQueryModelWeight(
           final Set<DocumentModel> docModels,
           final BytesRef[] queryTerms) {
-    final Map<DocumentModel, Double> weights = new HashMap(docModels.size());
-    @SuppressWarnings("UnusedAssignment")
-    double modelWeight;
+    final Map<DocumentModel, Double> weights
+            = new HashMap<DocumentModel, Double>(docModels.size());
 
     for (DocumentModel docModel : docModels) {
-      modelWeight = 1d;
+      LOG.debug("calculateQueryModelWeight {}", docModel.id);
+      double modelWeight = 1d;
       for (BytesRef term : queryTerms) {
-        modelWeight *= getDocumentModel(docModel, BytesWrap.wrap(term),
-                false);
+        modelWeight *= getDocumentModel(docModel, new BytesWrap(term), false);
       }
       weights.put(docModel, modelWeight);
     }
@@ -292,9 +273,8 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
             docModels, queryTerms);
 
     // iterate over all terms in index
-    BytesWrap term;
     while (idxTermsIt.hasNext()) {
-      term = idxTermsIt.next();
+      BytesWrap term = idxTermsIt.next();
 
       // calculate the query probability of the current term
       qLangMod = 0d;
@@ -318,8 +298,8 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
 
     timeMeasure.stop();
     LOG.debug("Calculating default clarity score for query {} "
-            + "with {} document models took {} seconds.", queryTerms, docModels.
-            size(), timeMeasure.getElapsedSeconds());
+            + "with {} document models took {}.", queryTerms, docModels.
+            size(), timeMeasure.getElapsedTimeString());
 
     return result;
   }
@@ -358,7 +338,8 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
       preCalcDocumentModels(false);
     }
 
-    final Set<DocumentModel> docModels = new HashSet(fbDocIds.length);
+    final Set<DocumentModel> docModels = new HashSet<DocumentModel>(
+            fbDocIds.length);
 
     for (Integer docId : fbDocIds) {
       docModels.add(this.dataProv.getDocumentModel(docId));

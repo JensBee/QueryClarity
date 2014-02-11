@@ -16,8 +16,12 @@
  */
 package de.unihildesheim.lucene.scoring.clarity;
 
+import de.unihildesheim.lucene.scoring.Scoring;
+import com.beust.jcommander.JCommander;
+import com.beust.jcommander.Parameter;
+import com.beust.jcommander.ParameterException;
 import de.unihildesheim.lucene.LuceneDefaults;
-import de.unihildesheim.lucene.document.DocumentModelException;
+import de.unihildesheim.lucene.document.model.DocumentModelException;
 import de.unihildesheim.lucene.index.CachedIndexDataProvider;
 import java.io.File;
 import java.io.IOException;
@@ -40,10 +44,73 @@ import org.slf4j.LoggerFactory;
 public final class Main {
 
   /**
-   * Private constructor for static main class.
+   * CLI-parameter to specify the query to run.
+   */
+  @Parameter(names = "-query", description = "Query string", required = true)
+  private String queryString;
+  /**
+   * CLI-parameter to specify the Lucene index directory.
+   */
+  @Parameter(names = "-index", description = "Lucene index", required = true)
+  private String indexDir;
+
+  /**
+   * Private constructor for utility class.
    */
   private Main() {
+    // empty constructor for utility class
+  }
 
+  /**
+   * Private constructor for static main class.
+   *
+   * @throws IOException If index could not be read
+   * @throws org.apache.lucene.queryparser.classic.ParseException If the
+   * {@link Query} could not be parsed
+   * @throws DocumentModelException If a requested document model needed for
+   * calculation could not be created
+   */
+  private void runMain() throws IOException, DocumentModelException,
+          ParseException {
+    LOG.debug("Starting");
+
+    if (this.indexDir.isEmpty() || this.queryString.isEmpty()) {
+      LOG.error("No index or query specified.");
+      Runtime.getRuntime().exit(1);
+    }
+
+    // index field to operate on
+    final String[] fields = new String[]{"text"};
+
+    // open index
+    final Directory directory = FSDirectory.open(new File(this.indexDir));
+
+    try (IndexReader reader = DirectoryReader.open(directory)) {
+      final String storageId = "clef";
+      final CachedIndexDataProvider dataProv = new CachedIndexDataProvider(
+              storageId);
+      if (!dataProv.tryGetStoredData()) {
+        dataProv.recalculateData(reader, fields, false);
+      }
+
+      final Scoring calculation = new Scoring(dataProv, reader);
+
+      final Analyzer analyzer = new StandardAnalyzer(LuceneDefaults.VERSION);
+
+      LOG.debug("Building query ({}).", queryString);
+      final QueryParser parser = new QueryParser(LuceneDefaults.VERSION,
+              fields[0], analyzer);
+      final Query query = parser.parse(queryString);
+
+      final ClarityScoreCalculation csCalc = calculation.newInstance(
+              Scoring.ClarityScore.DEFAULT);
+      csCalc.calculateClarity(query);
+
+      LOG.debug("Closing lucene index.");
+      dataProv.dispose();
+    }
+
+    LOG.debug("Finished");
   }
 
   /**
@@ -56,71 +123,20 @@ public final class Main {
    * @throws IOException If index could not be read
    * @throws org.apache.lucene.queryparser.classic.ParseException If the
    * {@link Query} could not be parsed
-   * @throws de.unihildesheim.lucene.document.DocumentModelException If a
-   * requested document model needed for calculation could not be created
+   * @throws DocumentModelException If a requested document model needed for
+   * calculation could not be created
    */
   public static void main(final String[] args) throws IOException,
-          ParseException,
-          DocumentModelException {
-    LOG.debug("Starting");
-    if (args.length == 0 || (args.length > 0 && ("-h".equals(args[0])
-            || "-help".equals(args[0])))) {
-      final String usage = "Usage:\t" + Main.class.getCanonicalName()
-              + " -index <dir> -query <query>.";
-      LOG.info(usage);
-      Runtime.getRuntime().exit(0);
+          DocumentModelException, ParseException {
+    final Main main = new Main();
+    final JCommander jc = new JCommander(main);
+    try {
+      jc.parse(args);
+    } catch (ParameterException ex) {
+      System.out.println(ex.getMessage() + "\n");
+      jc.usage();
+      System.exit(1);
     }
-
-    String index = ""; // NOPMD
-    String queryString = ""; // NOPMD
-    for (int i = 0; i < args.length; i++) {
-      switch (args[i]) { // NOPMD
-        case "-index":
-          index = args[i + 1];
-          i++; // NOPMD
-          break;
-        case "-query":
-          queryString = args[i + 1];
-          i++; // NOPMD
-          break;
-      }
-    }
-
-    if (index.isEmpty() || queryString.isEmpty()) {
-      LOG.error("No index or query specified.");
-      Runtime.getRuntime().exit(1);
-    }
-
-    // index field to operate on
-    final String[] fields = new String[]{"text"};
-
-    // open index
-    final Directory directory = FSDirectory.open(new File(index));
-
-    try (IndexReader reader = DirectoryReader.open(directory)) {
-      final String cachePath = "data/cache/";
-      final String storageId = "clef";
-      final CachedIndexDataProvider dataProv = new CachedIndexDataProvider(
-              cachePath, storageId);
-      if (!dataProv.tryGetStoredData()) {
-        dataProv.recalculateData(reader, fields, false);
-      }
-
-      final Calculation calculation = new Calculation(dataProv, reader);
-
-      final Analyzer analyzer = new StandardAnalyzer(LuceneDefaults.VERSION);
-
-      LOG.debug("Building query ({}).", queryString);
-      final QueryParser parser = new QueryParser(LuceneDefaults.VERSION,
-              fields[0], analyzer);
-      final Query query = parser.parse(queryString);
-
-      calculation.calculateClarity(query);
-
-      LOG.debug("Closing lucene index ({}).", index);
-      dataProv.dispose();
-    }
-
-    LOG.debug("Finished");
+    main.runMain();
   }
 }

@@ -14,52 +14,76 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.lucene.document;
+package de.unihildesheim.lucene.document.model.processing;
 
-import de.unihildesheim.lucene.index.IndexDataProvider;
-import de.unihildesheim.lucene.scoring.clarity.ClarityScorePrecalculator;
+import de.unihildesheim.lucene.document.model.DocumentModel;
+import de.unihildesheim.lucene.document.model.DocumentModelPool;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.lucene.util.BytesWrapUtil;
-import de.unihildesheim.util.TimeMeasure;
-import java.util.Set;
 import org.slf4j.LoggerFactory;
 
 /**
- * Updater thread instance for threaded document model pre-calculation. Used by
- * {@link DocumentModelCalulator}.
+ * {@link ProcessingWorker.DocTerms} processing worker. Gets instantiated by a
+ * {@link ThreadFactory} and works on a single document processing a list of
+ * terms.
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public abstract class DocumentModelUpdater implements Runnable {
+public abstract class WorkerDocumentTerm implements ProcessingWorker.DocTerms {
 
   /**
    * Logger instance for this class.
    */
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
-          DocumentModelUpdater.class);
-  /**
-   * {@link ClarityScorePrecalculator} instance using this updater.
-   */
-  private final ClarityScorePrecalculator cspInstance;
+          WorkerDocumentTerm.class);
+
   /**
    * Id of the document this updater works on.
    */
-  protected final Integer docId;
+  private final Integer docId;
   /**
    * List of terms to check.
    */
-  protected final BytesWrap[] queryTerms;
+  private final BytesWrap[] terms;
   /**
    * Name of this thread.
    */
-  protected String tName;
+  private String tName;
+  /**
+   * Shared pool of cached document models.
+   */
+  private final DocumentModelPool pool;
 
-  public DocumentModelUpdater(final ClarityScorePrecalculator pCalcInstance,
+  /**
+   * Create a new updater working thread.
+   *
+   * @param docModelPool Shared pool of cached document models
+   * @param currentDocId Document-id to update
+   * @param newTerms Terms to use for updating
+   */
+  public WorkerDocumentTerm(
+          final DocumentModelPool docModelPool,
           final Integer currentDocId,
-          final BytesWrap[] terms) {
+          final BytesWrap[] newTerms) {
+    if (currentDocId == null) {
+      throw new IllegalArgumentException("Document-id was null.");
+    }
+    if (docModelPool == null) {
+      throw new IllegalArgumentException("Document-pool was null.");
+    }
+    if (newTerms == null) {
+      throw new IllegalArgumentException("Terms were null.");
+    }
     this.docId = currentDocId;
-    this.queryTerms = terms;
-    this.cspInstance = pCalcInstance;
+    this.pool = docModelPool;
+    this.terms = new BytesWrap[newTerms.length];
+    // make a local copy of the passed in terms
+    int idx = 0;
+    for (BytesWrap term : newTerms) {
+      if (term != null) {
+        this.terms[idx++] = term.clone();
+      }
+    }
   }
 
   /**
@@ -68,8 +92,13 @@ public abstract class DocumentModelUpdater implements Runnable {
    * @param docModel Document model to calculate
    * @param term Term to do the calculation for
    */
-  protected abstract void calculate(final DocumentModel docModel,
+  protected abstract void doWork(final DocumentModel docModel,
           final BytesWrap term);
+
+  @Override
+  public void terminate() {
+    throw new UnsupportedOperationException("Not supported yet.");
+  }
 
   @Override
   public final void run() {
@@ -77,30 +106,22 @@ public abstract class DocumentModelUpdater implements Runnable {
     LOG.trace("({}) Updating {}", this.tName, this.docId);
     // wrapped in try block, to ensure model gets unlocked and the latch
     // gets decreased
-    try { // FIXME: replace try catch block
-      DocumentModel docModel = this.cspInstance.getDocumentModelPool().get(
-              this.docId);
+    try {
+      // document is already locked for this updater
+      DocumentModel docModel = this.pool.get(this.docId);
       if (docModel == null) {
-        docModel = this.cspInstance.getDataProvider().getDocumentModel(
-                this.docId);
-        if (docModel == null) {
-          LOG.warn("({}) Error retrieving document with id={}. Got null.",
-                  this.tName, this.docId);
-          // error - release model and continue with next
-          this.cspInstance.getLockedModelsSet().remove(this.docId);
-          LOG.trace("({}) Finished updating {}", this.tName, this.docId);
-          return;
-        }
+        LOG.warn("({}) Error retrieving document with id={}. Got null.",
+                this.tName, this.docId);
+        LOG.trace("({}) Finished updating {}", this.tName, this.docId);
+        return;
       }
-      this.cspInstance.getDocumentModelPool().put(docModel);
 
       // go through all query terms..
-      final TimeMeasure tm = new TimeMeasure().start();
-      for (BytesWrap term : queryTerms) {
+      for (BytesWrap term : this.terms) {
         // .. and check if the current document matched it
-        if (docModel.containsTerm(term)) {
+        if (docModel.contains(term)) {
           try {
-            this.calculate(docModel, term);
+            this.doWork(docModel, term);
           } catch (NullPointerException ex) {
             LOG.error("({}) NPE docModel={} docId={} term={}", this.tName,
                     docModel, this.docId, BytesWrapUtil.bytesWrapToString(
@@ -109,15 +130,11 @@ public abstract class DocumentModelUpdater implements Runnable {
         }
       }
       LOG.trace("({}) Finished updating {}", this.tName, this.docId);
-      tm.stop();
-      if (((int) tm.getElapsedSeconds()) > 0) {
-        LOG.debug("({}) Updating model for {} terms took {}.", this.tName,
-                queryTerms.length, tm.getElapsedTimeString());
-      }
     } catch (Exception ex) {
       LOG.error("({}) Updater caught an exception.", this.tName, ex);
     } finally {
-      this.cspInstance.getLockedModelsSet().remove(this.docId);
+      // make sure we unlock the model
+      this.pool.unLock(docId);
     }
   }
 }

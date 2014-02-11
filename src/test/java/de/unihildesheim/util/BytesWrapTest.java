@@ -98,7 +98,7 @@ public class BytesWrapTest {
     LOG.debug("origin={} wrap={} - before mod", expResult.getBytes(), result.
             getBytes());
 
-    result.duplicate();
+    result.snapshot();
     existingBytes[0] = 0x0;
 
     LOG.debug("origin={} wrap={} - after mod (should be equal)", expResult.
@@ -116,7 +116,7 @@ public class BytesWrapTest {
     System.out.println("duplicate");
     BytesWrap instance = null;
     BytesWrap expResult = null;
-    BytesWrap result = instance.duplicate();
+    BytesWrap result = instance.snapshot();
     assertEquals(expResult, result);
     // TODO review the generated test code and remove the default call to fail.
     fail("The test case is a prototype.");

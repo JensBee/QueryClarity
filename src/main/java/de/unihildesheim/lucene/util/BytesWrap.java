@@ -16,6 +16,9 @@
  */
 package de.unihildesheim.lucene.util;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.Arrays;
 import org.apache.lucene.util.BytesRef;
@@ -25,7 +28,7 @@ import org.apache.lucene.util.BytesRef;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public final class BytesWrap implements Serializable {
+public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
 
   /**
    * Serialization class version id.
@@ -35,147 +38,79 @@ public final class BytesWrap implements Serializable {
   /**
    * Copy of the original byte array passed at construction time.
    */
-  private byte[] data;
-
-  /**
-   * True, if the wrapped data has been duplicated (a local copy was made).
-   */
-  private boolean isDuplicated = false;
+  private final byte[] data;
 
   /**
    * Pre-calculated hash code of this instance. A hash code of 0 means that the
    * bytes of this instance are referenced and a hash code must be calculated
    * ad-hoc.
    */
-  private int hash = 0;
+  private final transient Integer hash;
 
   /**
-   * Array offset.
-   */
-  private int offset = 0;
-
-  /**
-   * Length of data. <tt>-1</tt> means return the full array on request.
-   */
-  private int length = -1;
-
-  /**
-   * Creates a new wrapper around the given bytes array, optionally making a
-   * local copy of the array.
+   * Creates a new wrapper around the given bytes array, making a local copy of
+   * the array.
    *
-   * @param existingData Byte array to wrap
-   * @param duplicate If true, a local copy will be made
+   * @param existingBytes Byte array to wrap
    */
-  public BytesWrap(final byte[] existingData, final boolean duplicate) {
-    if (existingData == null) {
-      throw new IllegalArgumentException("Byte array was empty or null.");
+  public BytesWrap(final byte[] existingBytes) {
+    if (existingBytes == null || existingBytes.length == 0) {
+      throw new IllegalArgumentException("Empty bytes given.");
     }
-    if (duplicate) {
-      this.data = existingData.clone();
-      doDuplicate();
-    } else {
-      this.data = existingData; // ref only - mutable
-    }
+
+    this.data = snapshot(existingBytes);
+    this.hash = Arrays.hashCode(this.data);
   }
 
   /**
    * Creates a wrapper around the byte array contained in the given
-   * {@link BytesRef}, optionally creating a local copy of the array.
+   * {@link BytesRef}, creating a local copy of the array. This is only a
+   * snapshot, taking the offset and length of the byte array as defined when
+   * calling this constructor. Those values won't be updated anymore.
    *
    * @param bytesRef BytesRef instance with bytes to wrap
-   * @param duplicate If true, a local copy of the bytes array will be made
    */
-  public BytesWrap(final BytesRef bytesRef, final boolean duplicate) {
+  public BytesWrap(final BytesRef bytesRef) {
     if (bytesRef.length == 0) {
-      throw new IllegalArgumentException("Byte array was empty or null.");
+      throw new IllegalArgumentException("Empty bytes given.");
     }
-    if (duplicate) {
-      this.data = Arrays.copyOfRange(bytesRef.bytes, bytesRef.offset,
-              bytesRef.length);
-      doDuplicate();
-    } else {
-      this.data = bytesRef.bytes; // ref only - mutable
-      this.offset = bytesRef.offset;
-      this.length = bytesRef.length;
-    }
+
+    this.data = snapshot(bytesRef.bytes, bytesRef.offset, bytesRef.length
+            - bytesRef.offset);
+    this.hash = Arrays.hashCode(this.data);
   }
 
   /**
-   * Creates a new {@link BytesWrap} instance by referencing the given array.
-   * This means any changes to the passed in array will be reflected by this
+   * Create a local copy of (a portion of) a given array.
+   * @param toClone Array to clone
+   * @param offset Offset to start copy from
+   * @param length Number of bytes to copy
+   * @return Copy of the input array as defined
+   */
+  private byte[] snapshot(final byte[] toClone, final int offset,
+          final int length) {
+    final byte[] newData = new byte[length];
+    System.arraycopy(toClone, offset, newData, 0, length);
+    return newData;
+  }
+
+  /**
+   * Creates a full copy of the given array.
+   * @param toClone Array to copy
+   * @return Copy of the given array
+   */
+  private byte[] snapshot(final byte[] toClone) {
+    return snapshot(toClone, 0, toClone.length);
+  }
+
+  /**
+   * Create a cloned copy of this instance.
+   *
+   * @return Instance with an independent byte array cloned from the current
    * instance.
-   *
-   * @param existingBytes Array to reference
-   * @return Instance with the referenced array set
    */
-  public static BytesWrap wrap(final byte[] existingBytes) {
-    return new BytesWrap(existingBytes, false);
-  }
-
-  /**
-   * Creates a new {@link BytesWrap} instance by referencing the bytes array of
-   * the given {@link BytesRef}. This means any changes to the passed in array
-   * will be reflected by this instance.
-   *
-   * @param exBytesRef BytesRef instance with bytes array to reference
-   * @return Instance with the bytes array wrapped
-   */
-  public static BytesWrap wrap(final BytesRef exBytesRef) {
-    return new BytesWrap(exBytesRef, false);
-  }
-
-  /**
-   * Creates a new {@link BytesWrap} instance by duplicating (making a local
-   * copy) of the given array. This means any changes to the passed in array
-   * will <b>not</b> be reflected by this instance.
-   *
-   * @param bytesToClone Array to create a copy of
-   * @return Instance with the copy of the given array set
-   */
-  public static BytesWrap duplicate(final byte[] bytesToClone) {
-    return new BytesWrap(bytesToClone, true);
-  }
-
-  /**
-   * Creates a new {@link BytesWrap} instance by duplicating (making a local
-   * copy) of the bytes array contained in the given {@link BytesRef} instance.
-   * This means any changes to the passed in array will <b>not</b> be reflected
-   * by this instance.
-   *
-   * @param exBytesRef BytesRef instance whose array should be copied
-   * @return Instance with the copy of the given array set
-   */
-  public static BytesWrap duplicate(final BytesRef exBytesRef) {
-    return new BytesWrap(exBytesRef, true);
-  }
-
-  /**
-   * Create a local copy of the referenced byte array. This will do nothing, if
-   * the copying was already done.
-   *
-   * @return Self reference
-   */
-  public BytesWrap duplicate() {
-    if (!this.isDuplicated) {
-      if (this.length == -1) {
-        // clone full array
-        this.data = this.data.clone();
-      } else {
-        // we only want a portion
-        this.data = Arrays.copyOfRange(this.data, this.offset, this.length);
-      }
-      doDuplicate();
-    }
-    return this;
-  }
-
-  /**
-   * Duplicates the currently referenced byte array.
-   */
-  private void doDuplicate() {
-    this.hash = Arrays.hashCode(data);
-    this.isDuplicated = true;
-    this.length = this.data.length;
+  public BytesWrap clone() {
+    return new BytesWrap(this.data);
   }
 
   /**
@@ -186,11 +121,7 @@ public final class BytesWrap implements Serializable {
    */
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
   public byte[] getBytes() {
-    if (this.length == -1) {
-      return this.data;
-    } else {
-      return Arrays.copyOfRange(this.data, this.offset, this.length);
-    }
+    return this.data;
   }
 
   @Override
@@ -203,6 +134,60 @@ public final class BytesWrap implements Serializable {
 
   @Override
   public int hashCode() {
-    return this.isDuplicated ? this.hash : Arrays.hashCode(data);
+    return this.hash;
+  }
+
+  @Override
+  @SuppressWarnings("AccessingNonPublicFieldOfAnotherObject")
+  public int compareTo(final BytesWrap o) {
+    if (this == o) {
+      return 0;
+    }
+
+    int minSameSize = Math.min(data.length, o.data.length);
+    for (int i = 0; i < minSameSize; ++i) {
+      if (this.data[i] != o.data[i]) {
+        // compare bytes int values
+        return this.data[i] & 0xFF - o.data[i] & 0xFF;
+      }
+    }
+    return data.length - o.data.length;
+  }
+
+  /**
+   * Custom {@link Serializer} for {@link BytesWrap} objects.
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public static final class Serializer implements
+          org.mapdb.Serializer<BytesWrap>, Serializable {
+
+    /**
+     * Serialization class version id.
+     */
+    private static final long serialVersionUID = 0L;
+
+    @Override
+    public void serialize(final DataOutput out, final BytesWrap value) throws
+            IOException {
+      final byte[] bytes = value.getBytes();
+      out.writeInt(bytes.length);
+      out.write(bytes);
+    }
+
+    @Override
+    public BytesWrap deserialize(final DataInput in, final int available) throws
+            IOException {
+      if (available == 0) {
+        return null;
+      }
+      final byte[] bytes = new byte[in.readInt()];
+      in.readFully(bytes);
+      return new BytesWrap(bytes);
+    }
+
+    @Override
+    public int fixedSize() {
+      return -1;
+    }
   }
 }

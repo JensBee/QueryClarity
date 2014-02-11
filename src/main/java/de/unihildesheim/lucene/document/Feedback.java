@@ -92,15 +92,17 @@ public final class Feedback {
 
     timeMeasure.stop();
     LOG.debug("Getting {} feedback documents for query {} "
-            + "took {} seconds.", fbDocCnt, query, timeMeasure.
-            getElapsedSeconds());
+            + "took {}.", fbDocCnt, query, timeMeasure.
+            getElapsedTimeString());
     return results;
   }
 
   /**
-   * Same as {@link Feedback#get(IndexReader, Query, int)}, except that, if the
-   * maximum number of feedback documents matching the query is not reached,
-   * then random documents will be picked from the index to reach this value.
+   * Same as
+   * {@link Feedback#get(org.apache.lucene.index.IndexReader, org.apache.lucene.search.Query, int)},
+   * except that, if the maximum number of feedback documents matching the query
+   * is not reached, then random documents will be picked from the index to
+   * reach this value.
    *
    * @param reader Reader to access Lucene's index
    * @param query Query to get matching documents
@@ -132,7 +134,7 @@ public final class Feedback {
     Collection<Integer> docIds;
     if (allDocs) {
       // get all documents from collection
-      docIds = new ArrayList(maxRetDocs);
+      docIds = new ArrayList<>(maxRetDocs);
       final Bits liveDocs = MultiFields.getLiveDocs(reader); // NOPMD
 
       for (int i = 0; i < reader.maxDoc(); i++) {
@@ -147,7 +149,7 @@ public final class Feedback {
       // get a set of random documents
       final TopDocs initialDocs = get(reader, query, maxRetDocs);
 
-      docIds = new HashSet(initialDocs.scoreDocs.length);
+      docIds = new HashSet<>(initialDocs.scoreDocs.length);
       // add the matching documents to the list
       for (ScoreDoc scoreDoc : initialDocs.scoreDocs) {
         docIds.add(scoreDoc.doc);
@@ -182,8 +184,8 @@ public final class Feedback {
 
     timeMeasure.stop();
     LOG.debug("Getting {} feedback documents for query {} "
-            + "took {} seconds.", maxRetDocs, query, timeMeasure.
-            getElapsedSeconds());
+            + "took {}.", maxRetDocs, query, timeMeasure.
+            getElapsedTimeString());
     return docIds.toArray(new Integer[docIds.size()]);
   }
 }
