@@ -204,7 +204,7 @@ public final class TargetSearch implements ProcessingTarget.TermQueue {
           queryString.append(BytesWrapUtil.bytesWrapToString(term)).append(
                   " ");
           // store term for later
-          queryTerms[termsReceived] = term; // SEGVMARK
+          queryTerms[termsReceived] = term;
           // inc query term counter
           termsReceived++;
         }

@@ -118,8 +118,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * @throws IOException Thrown, if the index could not be opened
    */
   protected final void calculateTermFrequencies(final IndexReader reader)
-          throws
-          IOException {
+          throws IOException {
     if (reader == null) {
       throw new IllegalArgumentException("Reader was null.");
     }
@@ -142,7 +141,6 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
         // ..iterate over them..
         BytesRef bytesRef = fieldTermsEnum.next();
         while (bytesRef != null) {
-
           // fast forward seek to term..
           if (fieldTermsEnum.seekExact(bytesRef)) {
             // ..and update the frequency value for term
@@ -398,6 +396,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     @Override
     public void run() {
       this.tName = Thread.currentThread().getName();
+      LOG.debug("({}) Runnable starting", this.tName);
       final long[] docTermEsitmate = new long[]{0L, 0L, 100L};
 
       Integer docId;
@@ -407,6 +406,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
                 && this.docQueue.isEmpty())) {
           docId = this.docQueue.poll(maxWait, TimeUnit.SECONDS);
           if (docId == null) {
+            LOG.debug("({}) No doc received in {}s", maxWait);
             continue;
           }
 
@@ -470,11 +470,11 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
           docTermEsitmate[2] += docTermEsitmate[2] * 0.8;
         }
       } catch (InterruptedException ex) {
-        LOG.warn("({}) Thread interrupted.", this.tName, ex);
+        LOG.warn("({}) Runnable interrupted.", this.tName, ex);
       }
 
       this.latch.countDown();
-      LOG.debug("({}) Thread terminated.", this.tName);
+      LOG.debug("({}) Runnable terminated.", this.tName);
     }
   }
 }

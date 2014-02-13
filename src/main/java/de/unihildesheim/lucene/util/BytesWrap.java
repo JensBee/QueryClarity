@@ -20,8 +20,11 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.apache.lucene.util.BytesRef;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Based on: https://stackoverflow.com/a/1058169.
@@ -29,6 +32,12 @@ import org.apache.lucene.util.BytesRef;
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
+
+  /**
+   * Logger instance for this class.
+   */
+  private static final Logger LOG = LoggerFactory.getLogger(
+          BytesWrap.class);
 
   /**
    * Serialization class version id.
@@ -41,15 +50,15 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
   private final byte[] data;
 
   /**
-   * Pre-calculated hash code of this instance. A hash code of 0 means that the
-   * bytes of this instance are referenced and a hash code must be calculated
-   * ad-hoc.
+   * Pre-calculated hash code of this instance. A hash code of 0 means that
+   * the bytes of this instance are referenced and a hash code must be
+   * calculated ad-hoc.
    */
   private final transient Integer hash;
 
   /**
-   * Creates a new wrapper around the given bytes array, making a local copy of
-   * the array.
+   * Creates a new wrapper around the given bytes array, making a local copy
+   * of the array.
    *
    * @param existingBytes Byte array to wrap
    */
@@ -71,7 +80,8 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
    * @param bytesRef BytesRef instance with bytes to wrap
    */
   public BytesWrap(final BytesRef bytesRef) {
-    if (bytesRef.length == 0) {
+    if (bytesRef == null || bytesRef.length == 0
+            || bytesRef.bytes.length == 0) {
       throw new IllegalArgumentException("Empty bytes given.");
     }
 
@@ -82,6 +92,7 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
 
   /**
    * Create a local copy of (a portion of) a given array.
+   *
    * @param toClone Array to clone
    * @param offset Offset to start copy from
    * @param length Number of bytes to copy
@@ -96,6 +107,7 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
 
   /**
    * Creates a full copy of the given array.
+   *
    * @param toClone Array to copy
    * @return Copy of the given array
    */
@@ -114,8 +126,8 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
   }
 
   /**
-   * Returns a reference to the internal used or referenced byte array. Meant to
-   * be used in serialization.
+   * Returns a reference to the internal used or referenced byte array. Meant
+   * to be used in serialization.
    *
    * @return Internal used or referenced byte array
    */
@@ -140,15 +152,21 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
   @Override
   @SuppressWarnings("AccessingNonPublicFieldOfAnotherObject")
   public int compareTo(final BytesWrap o) {
+    // same object
     if (this == o) {
       return 0;
     }
 
+    // same array values
+    if (equals(o)) {
+      return 0;
+    }
+
     int minSameSize = Math.min(data.length, o.data.length);
-    for (int i = 0; i < minSameSize; ++i) {
-      if (this.data[i] != o.data[i]) {
-        // compare bytes int values
-        return this.data[i] & 0xFF - o.data[i] & 0xFF;
+    for (int i = 0; i < minSameSize; i++) {
+      final int cmp = Byte.compare(this.data[i], o.data[i]);
+      if (cmp != 0) {
+        return cmp;
       }
     }
     return data.length - o.data.length;
@@ -175,7 +193,8 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
     }
 
     @Override
-    public BytesWrap deserialize(final DataInput in, final int available) throws
+    public BytesWrap deserialize(final DataInput in, final int available)
+            throws
             IOException {
       if (available == 0) {
         return null;

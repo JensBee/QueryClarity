@@ -23,19 +23,21 @@ import de.unihildesheim.lucene.document.model.DocumentModel;
 import de.unihildesheim.lucene.index.CachedIndexDataProvider;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.lucene.util.BytesWrapUtil;
+import de.unihildesheim.util.TextTable;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.InputMismatchException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Scanner;
-import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.lucene.util.BytesRef;
 import org.mapdb.BTreeMap;
 import org.mapdb.Fun;
@@ -56,15 +58,20 @@ public final class CachedIndexViewer {
   private String storageId;
 
   /**
+   * Print data to console as formatted table.
+   */
+  private final TextTable txtTbl;
+
+  /**
    * Standard input for reading commands.
    */
   private final BufferedReader br = new BufferedReader(
           new InputStreamReader(System.in));
 
   /**
-   * Used to tokenize commands.
+   * Current command entered by the user. Tokenized at spaces.
    */
-  private Scanner inputScan;
+  private String[] command = new String[]{""};
 
   /**
    * Cached data storage to browse.
@@ -72,10 +79,16 @@ public final class CachedIndexViewer {
   private CachedIndexDataProvider dataProv;
 
   /**
+   * Output stream to write to.
+   */
+  private final PrintStream out;
+
+  /**
    * Private constructor for tool class.
    */
   private CachedIndexViewer() {
-    // empty for tool class
+    this.out = System.out;
+    this.txtTbl = new TextTable(this.out);
   }
 
   /**
@@ -110,6 +123,8 @@ public final class CachedIndexViewer {
             + "for the given document id.");
     commands.add("* showtermdata [prefix] [key] [docId] [term] - "
             + "shows all known term-data. Keys are case sensitive!");
+    commands.add("* showtermdatavalues [start] [count] - "
+            + "show values of stored term-data.");
     commands.add("* showtermdatakeys - shows all known term-data keys.");
     commands.add("* status - show cache status data.");
     for (String cmd : commands) {
@@ -118,49 +133,98 @@ public final class CachedIndexViewer {
   }
 
   /**
+   * Get a part of the entered command as integer value, if available.
+   *
+   * @param i Position in input
+   * @param defaultValue Default value
+   * @return Value, or null if there was none
+   */
+  private Integer getIntParam(final int i, final Integer defaultValue) {
+    Integer ret = defaultValue;
+    if (this.command.length >= (i + 1)) {
+      try {
+        ret = Integer.parseInt(this.command[i]);
+      } catch (NumberFormatException ex) {
+        this.out.println("Expected an integer value at " + i + ".");
+      }
+    }
+    return ret;
+  }
+
+  /**
+   * Get a part of the entered command as long value, if available.
+   *
+   * @param i Position in input
+   * @param defaultValue Default value
+   * @return Value, or null if there was none
+   */
+  private Long getLongParam(final int i, final Long defaultValue) {
+    Long ret = defaultValue;
+    if (this.command.length >= (i + 1)) {
+      try {
+        ret = Long.parseLong(this.command[i]);
+      } catch (NumberFormatException ex) {
+        this.out.println("Expected a long value at " + i + ".");
+      }
+    }
+    return ret;
+  }
+
+  /**
+   * Get a part of the entered command as string value, if available.
+   *
+   * @param i Position in input
+   * @param defaultValue Default value
+   * @return Value, or null if there was none
+   */
+  private String getParam(final int i, final String defaultValue) {
+    String ret = defaultValue;
+    if (this.command.length >= i) {
+      ret = this.command[i];
+    }
+    return ret;
+  }
+
+  /**
    * Reads a new command entered by the user.
    *
    * @param prompt Command prompt message to display
    */
   private void readCommand(final String prompt) {
-    String command = "";
     boolean quit = false;
 
     while (!quit) {
       System.out.print(prompt + ": ");
+
       try {
-        this.inputScan = new Scanner(br.readLine());
+        this.command = br.readLine().trim().split(" ");
       } catch (IOException ioe) {
         System.out.println("IO error trying to read your name!");
         System.exit(1);
       }
 
-      if (inputScan.hasNext()) {
-        command = inputScan.next();
-      } else {
-        System.exit(0);
-      }
-
-      if ("?".equals(command)) {
+      if ("?".equals(this.command[0])) {
         printHelp();
-      } else if ("status".equals(command)) {
+      } else if ("status".equals(this.command[0])) {
         cmdStatus();
-      } else if (command.matches("^listmodels.*")) {
+      } else if (this.command[0].matches("^listmodels.*")) {
         cmdListModels();
-      } else if (command.matches("^showmodel.*")) {
+      } else if (this.command[0].matches("^showmodel.*")) {
         cmdShowModel();
-      } else if ("showtermdatakeys".equals(command)) {
+      } else if ("showtermdatakeys".equals(this.command[0])) {
         cmdShowTermDataKeys();
-      } else if (command.matches("^showtermdata.*")) {
+      } else if ("showtermdatavalues".equals(this.command[0])) {
+        cmdShowTermDataValues();
+      } else if (this.command[0].matches("^showtermdata.*")) {
         cmdShowTermData();
-      } else if (command.matches("^listterms.*")) {
+      } else if (this.command[0].matches("^listterms.*")) {
         cmdListTerms();
       } else {
-        if ("q".equals(command)) {
+        if ("q".equals(this.command[0])) {
           System.out.println("Quit.");
           quit = true;
         } else {
-          System.out.println("Unknown command '" + command
+          System.out.println("Unknown command '" + this.command[0]
                   + "'. Type <q> to quit or <?> for help.");
         }
       }
@@ -176,89 +240,16 @@ public final class CachedIndexViewer {
   }
 
   /**
-   * Repeat a string a given amount of times.
-   *
-   * @param times How many times to repeat
-   * @param string String to repeat
-   * @return New string with the given string <tt>times</tt> repeated
-   */
-  private String repeatPrint(final int times, final String string) {
-    if (times > 0) {
-      return new String(new char[times]).replace("\0", string);
-    } else {
-      return "";
-    }
-  }
-
-  /**
-   * Print a table cell line for the given cells to {@link System#out}.
-   *
-   * @param cells Cells specified by their width
-   */
-  private void printTableCellLine(final int... cells) {
-    boolean start;
-    boolean end = false;
-
-    for (int i = 0; i < cells.length; i++) {
-      start = i == 0;
-      if (i + 1 == cells.length) {
-        end = true;
-      }
-
-      if (start) {
-        System.out.print("+");
-      }
-      System.out.print("-" + repeatPrint(cells[i], "-") + "-+");
-      if (end) {
-        System.out.print("\n");
-      }
-    }
-  }
-
-  /**
    * Shows term data filtered by key elements entered by the user.
    */
   private void cmdShowTermData() {
     BTreeMap<Fun.Tuple4<String, String, Integer, BytesWrap>, Object> dataMap
             = this.dataProv.debugGetTermDataMap();
 
-    String prefix = null;
-    String key = null;
-    Integer docId = null;
-    String term = null;
-
-    if (inputScan.hasNext()) {
-      try {
-        prefix = inputScan.next();
-      } catch (InputMismatchException ex) {
-        System.out.println("Invalid [prefix] value.");
-        return;
-      }
-    }
-    if (inputScan.hasNext()) {
-      try {
-        key = inputScan.next();
-      } catch (InputMismatchException ex) {
-        System.out.println("Invalid [key] value.");
-        return;
-      }
-    }
-    if (inputScan.hasNext()) {
-      try {
-        docId = inputScan.nextInt();
-      } catch (InputMismatchException ex) {
-        System.out.println("Invalid [docId] value.");
-        return;
-      }
-    }
-    if (inputScan.hasNext()) {
-      try {
-        term = inputScan.next();
-      } catch (InputMismatchException ex) {
-        System.out.println("Invalid [term] value.");
-        return;
-      }
-    }
+    String prefix = getParam(1, null);
+    String key = getParam(2, null);
+    Integer docId = getIntParam(3, null);
+    String term = getParam(4, null);
 
     if (term != null) {
       System.out.println("Termdata for prefix=" + prefix + " key=" + key
@@ -274,8 +265,7 @@ public final class CachedIndexViewer {
         BytesWrap bw = tfIt.next();
         System.out.println("prefix=" + prefix + " key=" + key + " term="
                 + BytesWrapUtil.bytesWrapToString(bw) + " data=" + dataMap.
-                get(
-                        Fun.t4(prefix, key, docId, bw)));
+                get(Fun.t4(prefix, key, docId, bw)));
       }
     } else if (key != null) {
       System.out.
@@ -308,16 +298,36 @@ public final class CachedIndexViewer {
       }
     } else {
       System.out.println("All termdata.");
-      Iterator<Fun.Tuple4<String, String, Integer, BytesWrap>> dataIt
-              = dataMap.
-              keySet().iterator();
-      while (dataIt.hasNext()) {
-        final Fun.Tuple4<String, String, Integer, BytesWrap> t4 = dataIt.
-                next();
+
+      for (Entry<Fun.Tuple4<String, String, Integer, BytesWrap>, Object> entry
+              : dataMap.entrySet()) {
+        final Fun.Tuple4<String, String, Integer, BytesWrap> t4 = entry.
+                getKey();
         System.out.println("prefix=" + t4.a + " key=" + t4.b + " docId="
-                + t4.c
-                + " term=" + BytesWrapUtil.bytesWrapToString(t4.d) + " data="
-                + dataMap.get(t4));
+                + t4.c + " term=" + BytesWrapUtil.bytesWrapToString(t4.d)
+                + " data=" + entry.getValue());
+      }
+    }
+  }
+
+  private void cmdShowTermDataValues() {
+    Collection<Object> dataValues = this.dataProv.debugGetTermDataMap().
+            values();
+
+    Long start = getLongParam(1, 0L);
+    Long amount = getLongParam(2, 100L);
+
+    Iterator<Object> valuesIt = dataValues.iterator();
+    int digitLength = String.valueOf(Math.max(start, start + amount)).length();
+    long itemCounter = 0;
+    long showCounter = 1;
+    System.out.println("getting terms..");
+    while (valuesIt.hasNext() && showCounter <= amount) {
+      if (itemCounter++ >= start && showCounter++ <= amount) {
+        System.out.printf("[%" + digitLength + "d] value=%s\n", itemCounter,
+                valuesIt.next());
+      } else {
+        valuesIt.next();
       }
     }
   }
@@ -326,21 +336,36 @@ public final class CachedIndexViewer {
    * Show all known prefix + key term-data.
    */
   private void cmdShowTermDataKeys() {
-    Map<Fun.Tuple4<String, String, Integer, BytesWrap>, Object> dataMap
-            = this.dataProv.debugGetTermDataMap();
+    Iterator<Fun.Tuple4<String, String, Integer, BytesWrap>> dataIt
+            = this.dataProv.debugGetTermDataMap().keySet().iterator();
 
     System.out.println("Gathering keys. This may take some time.");
 
-    final Map<String, Set<String>> prefixKeys = new HashMap<>();
+    final Map<String, Map<String, AtomicLong>> prefixData = new HashMap();
     int prefixSize = 0;
     int keySize = 0;
-    for (Fun.Tuple4<String, String, Integer, BytesWrap> t4 : dataMap.keySet()) {
-      if (prefixKeys.containsKey(t4.a)) {
-        prefixKeys.get(t4.a).add(t4.b);
+    int countSize = 0;
+
+    while (dataIt.hasNext()) {
+      final Fun.Tuple4<String, String, Integer, BytesWrap> t4 = dataIt.next();
+      Map<String, AtomicLong> keyData;
+      // check, if prefix is known
+      if (prefixData.containsKey(t4.a)) {
+        keyData = prefixData.get(t4.a);
       } else {
-        final Set<String> keys = new HashSet<>();
-        keys.add(t4.b);
-        prefixKeys.put(t4.a, keys);
+        keyData = new HashMap<>();
+        prefixData.put(t4.a, keyData);
+      }
+      // update key
+      if (keyData.containsKey(t4.b)) {
+        keyData.get(t4.b).incrementAndGet();
+      } else {
+        keyData.put(t4.b, new AtomicLong(0));
+      }
+
+      // get print sizes
+      if (keyData.get(t4.b).toString().length() > countSize) {
+        countSize = keyData.get(t4.b).toString().length();
       }
       if (t4.a.length() > prefixSize) {
         prefixSize = t4.a.length();
@@ -350,45 +375,40 @@ public final class CachedIndexViewer {
       }
     }
 
-    final String prefixHeader = "prefix";
-    final String keyHeader = "key";
-    prefixSize = Math.max(prefixHeader.length(), prefixSize);
-    keySize = Math.max(keyHeader.length(), keySize);
+    // create table layout
+    final String[] tblColumns = new String[]{"prefix", "key", "count"};
+    final int[] tblCellWidths = this.txtTbl.getCellWidths(tblColumns,
+            new int[]{prefixSize, keySize, countSize});
+    this.txtTbl.setDefaultRowFormat(new String[]{"%s", "%s", "%d"});
+    this.txtTbl.setCellWidths(tblColumns, tblCellWidths);
+    this.txtTbl.header("TermData", tblColumns);
 
-    final String kHeader = "TermData";
-    printTableCellLine(keySize + prefixSize + 3);
-    System.out.printf("| %" + (keySize + prefixSize + 3) + "s |\n", kHeader);
-    printTableCellLine(keySize + prefixSize + 3);
-    System.out.printf("| %" + prefixSize + "s | %" + keySize + "s |\n",
-            prefixHeader, keyHeader);
-    printTableCellLine(prefixSize, keySize);
-
-    for (Entry<String, Set<String>> entry : prefixKeys.entrySet()) {
+    for (Entry<String, Map<String, AtomicLong>> entryPrefix : prefixData.
+            entrySet()) {
       boolean first = true;
-      final Set<String> keySet = entry.getValue();
-      for (String key : keySet) {
+      for (Entry<String, AtomicLong> entryKey : entryPrefix.getValue().
+              entrySet()) {
         if (first) {
-          System.out.printf("| %" + prefixSize + "s | %" + keySize + "s |\n",
-                  entry.getKey(), key);
+          this.txtTbl.row(new Object[]{entryPrefix.getKey(),
+            entryKey.getKey(), entryKey.getValue().longValue()});
           first = false;
         } else {
-          System.out.printf("| %" + prefixSize + "s | %" + keySize + "s |\n",
-                  "", key);
+          this.txtTbl.row(new Object[]{"", entryKey.getKey(), entryKey.
+            getValue().longValue()});
         }
       }
     }
-    printTableCellLine(prefixSize, keySize);
+    this.txtTbl.hLine();
   }
 
   /**
    * Show data from a document model.
    */
   private void cmdShowModel() {
-    Integer docId;
-    try {
-      docId = inputScan.nextInt();
-    } catch (InputMismatchException ex) {
-      System.out.println("Invalid [docId] value.");
+    Integer docId = getIntParam(1, null);
+
+    if (docId == null) {
+      this.out.println("No document id specified.");
       return;
     }
 
@@ -406,50 +426,35 @@ public final class CachedIndexViewer {
       }
     }
 
-    printTableCellLine(maxTermLen + maxValLen + 3);
-    System.out.printf("| %" + (maxTermLen + maxValLen + 3) + "s |\n",
-            "DocId: " + docId);
+    // create table layout
+    final String[] tblColumns = new String[]{"term", "value"};
+    final int[] tblCellWidths = this.txtTbl.getCellWidths(tblColumns,
+            new int[]{maxTermLen, maxValLen});
+    this.txtTbl.setDefaultRowFormat(new String[]{"%s", "%d"});
+    this.txtTbl.setCellWidths(tblColumns, tblCellWidths);
+    this.txtTbl.header("DocId: " + docId, tblColumns);
 
-    printTableCellLine(maxTermLen, maxValLen);
     for (Entry<BytesWrap, Long> entry : docModel.termFreqMap.entrySet()) {
-      System.out.printf("| %" + maxTermLen + "s | %" + maxValLen + "d |\n",
-              BytesWrapUtil.bytesWrapToString(entry.getKey()),
-              entry.getValue());
+      this.txtTbl.row(new Object[]{
+        BytesWrapUtil.bytesWrapToString(entry.getKey()), entry.getValue()});
     }
-    printTableCellLine(maxTermLen, maxValLen);
+    this.txtTbl.hLine();
   }
 
   /**
    * List terms from cache.
    */
   private void cmdListTerms() {
-    Long start;
-    Long amount = 100L;
+    Long start = getLongParam(1, 0L);
+    Long amount = getLongParam(2, 100L);
 
-    try {
-      start = inputScan.nextLong();
-    } catch (InputMismatchException ex) {
-      System.out.println("Invalid [start] value.");
-      return;
-    }
-    if (inputScan.hasNext()) {
-      try {
-        amount = inputScan.nextLong();
-      } catch (InputMismatchException ex) {
-        System.out.println("Invalid [amount] value.");
-        return;
-      }
-    }
-
-    System.out.println("Start at " + start + " list " + amount);
-
-    List<BytesWrap> terms = new ArrayList<>(Long.valueOf(amount).intValue());
+    List<BytesWrap> terms = new ArrayList<>((int) (long) amount);
     Iterator<BytesWrap> termsIt = this.dataProv.getTermsIterator();
     int termCharLength = 0;
     long itemCounter = 0;
     long showCounter = 1;
     System.out.println("getting terms..");
-    while (termsIt.hasNext()) {
+    while (termsIt.hasNext() && showCounter <= amount) {
       if (itemCounter++ >= start && showCounter++ <= amount) {
         final BytesWrap term = termsIt.next();
         final String termString = BytesWrapUtil.bytesWrapToString(term);
@@ -463,7 +468,7 @@ public final class CachedIndexViewer {
       }
     }
 
-    List<Long> termFreq = new ArrayList<>(Long.valueOf(amount).intValue());
+    List<Long> termFreq = new ArrayList<>((int) (long) amount);
     int tfDigitLength = 0;
     System.out.println("getting frequency data..");
     for (BytesWrap term : terms) {
@@ -475,74 +480,53 @@ public final class CachedIndexViewer {
       termFreq.add(termFrequency);
     }
 
-    List<Double> rTermFreq = new ArrayList<>(Long.valueOf(amount).intValue());
+    List<Double> rTermFreq = new ArrayList<>((int) (long) amount);
     int rtfDigitLength = 0;
     System.out.println("getting relative frequency data..");
     for (BytesWrap term : terms) {
       final Double rTermFrequency = this.dataProv.getRelativeTermFrequency(
               term);
       // nice print
-      if (String.valueOf(rTermFrequency).length() > rtfDigitLength) {
-        rtfDigitLength = String.valueOf(rTermFrequency).length();
+      if (rTermFrequency.toString().length() > rtfDigitLength) {
+        rtfDigitLength = rTermFrequency.toString().length();
       }
       rTermFreq.add(rTermFrequency);
     }
 
-    // print table
-    final String idxHeader = "#";
-    final String idHeader = "term";
-    final String tfHeader = "frequency";
-    final String rtfHeader = "rel. frequency";
-    int idxDigits = Math.max(idxHeader.length(), Long.valueOf(start + amount).
-            toString().length());
-    int idDigits = Math.max(idHeader.length(), termCharLength);
-    int tfDigits = Math.max(tfHeader.length(), tfDigitLength);
-    int rtfDigits = Math.max(rtfHeader.length(), rtfDigitLength);
-    printTableCellLine(idxDigits, idDigits, tfDigits, rtfDigits);
-    System.out.printf("| %" + idxDigits + "s | %" + idDigits + "s | %"
-            + tfDigits + "s | %" + rtfDigits + "s |\n", idxHeader, idHeader,
-            tfHeader, rtfHeader);
-    printTableCellLine(idxDigits, idDigits, tfDigits, rtfDigits);
+    // create table layout
+    final String[] tblColumns = new String[]{"#", "term", "frequency",
+      "rel. frequency"};
+    final int[] tblCellWidths = this.txtTbl.getCellWidths(tblColumns,
+            new int[]{Long.valueOf(start + amount - 1).
+              toString().length(), termCharLength, tfDigitLength,
+              rtfDigitLength});
+    this.txtTbl.setDefaultRowFormat(new String[]{"%s", "%s", "%d", "%f"});
+    this.txtTbl.setCellWidths(tblColumns, tblCellWidths);
+    this.txtTbl.header("Terms " + start + " - " + (start + amount - 1),
+            tblColumns);
+
     for (int i = 0; i < terms.size(); i++) {
-      System.out.printf("| %" + idxDigits + "s | %" + idDigits + "s | %"
-              + tfDigits + "d | %" + rtfDigits + "f |\n", start + i,
-              BytesWrapUtil.bytesWrapToString(terms.get(i)), termFreq.get(i),
-              rTermFreq.get(i));
+      this.txtTbl.row(new Object[]{start + i,
+        BytesWrapUtil.bytesWrapToString(terms.get(i)), termFreq.get(i),
+        rTermFreq.get(i)});
     }
-    printTableCellLine(idxDigits, idDigits, tfDigits, rtfDigits);
+    this.txtTbl.hLine();
   }
 
   /**
    * List models from cache.
    */
   private void cmdListModels() {
-    Long start;
-    Long amount = 100L;
+    Long start = getLongParam(1, 0L);
+    Long amount = getLongParam(2, 100L);
 
-    try {
-      start = inputScan.nextLong();
-    } catch (InputMismatchException ex) {
-      System.out.println("Invalid [start] value.");
-      return;
-    }
-    if (inputScan.hasNext()) {
-      try {
-        amount = inputScan.nextLong();
-      } catch (InputMismatchException ex) {
-        System.out.println("Invalid [amount] value.");
-        return;
-      }
-    }
-
-    System.out.println("Start at " + start + " list " + amount);
-
-    List<Integer> docIds = new ArrayList<>(Long.valueOf(amount).intValue());
+    List<Integer> docIds = new ArrayList<>((int) (long) amount);
     Iterator<Integer> docIdIt = this.dataProv.getDocIdIterator();
     int idDigitLength = 0;
     long itemCounter = 0;
     long showCounter = 1;
     System.out.println("getting models..");
-    while (docIdIt.hasNext()) {
+    while (docIdIt.hasNext() && showCounter <= amount) {
       if (itemCounter++ >= start && showCounter++ <= amount) {
         final Integer docId = docIdIt.next();
         // nice print
@@ -555,7 +539,7 @@ public final class CachedIndexViewer {
       }
     }
 
-    List<Long> termFreq = new ArrayList<>(Long.valueOf(amount).intValue());
+    List<Long> termFreq = new ArrayList<>((int) (long) amount);
     int tfDigitLength = 0;
     System.out.println("getting frequency data..");
     for (Integer docId : docIds) {
@@ -567,23 +551,21 @@ public final class CachedIndexViewer {
       termFreq.add(docModel.termFrequency);
     }
 
-    // print table
-    final String idxHeader = "#";
-    final String idHeader = "id";
-    final String tfHeader = "term-frequency";
-    int idxDigits = Math.max(idxHeader.length(), Long.valueOf(start + amount).
-            toString().length());
-    int idDigits = Math.max(idHeader.length(), idDigitLength);
-    int tfDigits = Math.max(tfHeader.length(), tfDigitLength);
-    printTableCellLine(idxDigits, idDigits, tfDigits);
-    System.out.printf("| %" + idxDigits + "s | %" + idDigits + "s | %"
-            + tfDigits + "s |\n", idxHeader, idHeader, tfHeader);
-    printTableCellLine(idxDigits, idDigits, tfDigits);
+    // create table layout
+    final String[] tblColumns = new String[]{"#", "id", "term-frequency"};
+    final int[] tblCellWidths = this.txtTbl.getCellWidths(tblColumns,
+            new int[]{Long.valueOf(start + amount - 1).
+              toString().length(), idDigitLength, tfDigitLength});
+    this.txtTbl.setDefaultRowFormat(new String[]{"%s", "%d", "%d"});
+    this.txtTbl.setCellWidths(tblColumns, tblCellWidths);
+    this.txtTbl.header("Models " + start + " - " + (start + amount - 1),
+            tblColumns);
+
     for (int i = 0; i < docIds.size(); i++) {
-      System.out.printf("| %" + idxDigits + "s | %" + idDigits + "d | %"
-              + tfDigits + "d |\n", start + i, docIds.get(i), termFreq.get(i));
+      this.txtTbl.row(new Object[]{start + i, docIds.get(i),
+        termFreq.get(i)});
     }
-    printTableCellLine(idxDigits, idDigits, tfDigits);
+    this.txtTbl.hLine();
   }
 
   /**
@@ -607,12 +589,19 @@ public final class CachedIndexViewer {
       }
     }
 
-    printTableCellLine(titleLength, dataLength);
+    // create table layout
+    final String[] tblColumns = new String[]{"Property", "Value"};
+    final int[] tblCellWidths = this.txtTbl.getCellWidths(tblColumns,
+            new int[]{titleLength, dataLength});
+    this.txtTbl.setDefaultRowFormat(new String[]{"%s", "%s"});
+    this.txtTbl.setCellWidths(tblColumns, tblCellWidths);
+    this.txtTbl.header("Status", tblColumns);
+
     for (Entry<String, Object> dataEntry : data.entrySet()) {
-      System.out.printf("| %" + titleLength + "s | %" + dataLength + "s |\n",
-              dataEntry.getKey(), dataEntry.getValue().toString());
+      this.txtTbl.row(new Object[]{dataEntry.getKey(), dataEntry.getValue().
+        toString()});
     }
-    printTableCellLine(titleLength, dataLength);
+    this.txtTbl.hLine();
   }
 
   /**

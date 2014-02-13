@@ -216,12 +216,12 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     try {
       final DBMaker dbMkr = DBMaker.newFileDB(new File(this.storagePath,
               this.storageId));
-      //dbMkr.transactionDisable(); // wo do not need transactions
+//      dbMkr.transactionDisable(); // wo do not need transactions
       dbMkr.mmapFileEnableIfSupported(); // use mmaped files, if supported
-      dbMkr.asyncWriteFlushDelay(100); // reduce record fragmentation
+//      dbMkr.asyncWriteFlushDelay(100); // reduce record fragmentation
       dbMkr.fullChunkAllocationEnable(); // allocate space in 1GB steps
-      dbMkr.cacheLRUEnable(); // enable last-recent-used cache
-      dbMkr.cacheHardRefEnable(); // use hard reference map
+//      dbMkr.cacheLRUEnable(); // enable last-recent-used cache
+//      dbMkr.cacheHardRefEnable(); // use hard reference map
 //      dbMkr.closeOnJvmShutdown(); // auto close db on exit
       this.db = dbMkr.make();
     } catch (RuntimeException ex) {
@@ -398,12 +398,12 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
                     new BytesWrap.Serializer());
     dmTD.keySerializer(dmTDKeySerializer); // BTreeKeySerializer.TUPLE4
     dmTD.valueSerializer(Serializer.JAVA);
+    dmTD.valuesOutsideNodesEnable();
     dmTD.counterEnable();
 
-    final DB.BTreeMapMaker tfmMkr = this.db.createTreeMap(
+    final DB.HTreeMapMaker tfmMkr = this.db.createHashMap(
             DataKeys.dbIndexTermFreq.name());
-    tfmMkr.keySerializerWrap(new BytesWrap.Serializer());
-    tfmMkr.counterEnable();
+    tfmMkr.keySerializer(new BytesWrap.Serializer());
 
     if (clear) {
       LOG.debug("Clearing all stored data.");
@@ -677,6 +677,9 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     }
 
     for (Entry<BytesWrap, Long> entry : docModel.termFreqMap.entrySet()) {
+      if (entry.getValue() == null) {
+        throw new NullPointerException("Value was null.");
+      }
       this.docTermData.putIfAbsent(Fun.
               t4(INTERNAL_PREFIX, DataKeys._TF.name(), docModel.id,
                       entry.getKey()), entry.getValue());
@@ -790,18 +793,23 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
 
     Fun.Tuple2<Long, Double> oldValue;
 
-    for (;;) {
-      oldValue = this.termFreqMap.putIfAbsent(term, Fun.t2(value, 0d));
-      if (oldValue == null) {
-        // data was not already stored
-        break;
-      }
+    try {
+      for (;;) {
+        oldValue = this.termFreqMap.putIfAbsent(term, Fun.t2(value, 0d));
+        if (oldValue == null) {
+          // data was not already stored
+          break;
+        }
 
-      if (this.termFreqMap.replace(term, oldValue, Fun.t2(oldValue.a + value,
-              oldValue.b))) {
-        // replacing actually worked
-        break;
+        if (this.termFreqMap.replace(term, oldValue, Fun.
+                t2(oldValue.a + value,
+                        oldValue.b))) {
+          // replacing actually worked
+          break;
+        }
       }
+    } catch (Exception ex) {
+      LOG.error("Catched exception while updating term frequency value.", ex);
     }
     this.setTermFrequency(this.getTermFrequency() + value);
   }
