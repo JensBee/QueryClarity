@@ -18,20 +18,21 @@ package de.unihildesheim.lucene.scoring.clarity;
 
 import de.unihildesheim.lucene.document.model.DocumentModel;
 import de.unihildesheim.lucene.document.Feedback;
+import de.unihildesheim.lucene.document.model.Processing;
+import de.unihildesheim.lucene.document.model.Processing.Source;
+import de.unihildesheim.lucene.document.model.Processing.Target;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.query.QueryUtils;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.TimeMeasure;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -75,7 +76,8 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
 
     /**
      * Stores the document model for a specific term in a
-     * {@link DocumentModel}.
+     * {@link DocumentModel}. This get suffixed by the currently set
+     * {@link #langmodelWeight} do distinguish different calculation values.
      */
     docModel,
     /**
@@ -84,6 +86,8 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
      */
     DOCMODELS_PRECALCULATED
   }
+
+  private final String docModelDataKey;
 
   /**
    * Default multiplier value for relative term frequency inside documents.
@@ -121,6 +125,9 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    */
   private final IndexReader reader;
 
+  private Collection<BytesWrap> queryTerms;
+  private Map<Integer, Double> queryModels = new ConcurrentHashMap<>();
+
   /**
    * Default constructor using the {@link IndexDataProvider} for statistical
    * index data.
@@ -134,6 +141,8 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     this.langmodelWeight = DEFAULT_LANGMODEL_WEIGHT;
     this.reader = indexReader;
     this.dataProv = dataProvider;
+    this.docModelDataKey = DataKeys.docModel.name() + "_"
+            + this.langmodelWeight;
   }
 
   /**
@@ -149,81 +158,45 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
   }
 
   /**
-   * Calculate the document model for the given term.
+   * Calculate the document model for the given document and terms.
    *
-   * @param docModel Document data model to use
-   * @param term Term do do the calculation for
-   * @param update If true, value will be written to the documents data model
-   * @return Calculated model value
+   * @param docModel Document model to do the calculation for
+   * @param terms List of terms to calculate
    */
-  protected double calcDocumentModel(final DocumentModel docModel,
-          final BytesWrap term, final boolean update) {
-    // no value was stored, so calculate it
-    final double model = langmodelWeight * ((double) docModel.
-            termFrequency(term) / (double) docModel.termFrequency)
-            + calcDefaultDocumentModel(term);
-    // update document model
-    if (update) {
-      this.dataProv.setTermData(PREFIX, docModel.id, term, DataKeys.docModel.
-              name(), model);
+  protected void calcDocumentModel(final DocumentModel docModel,
+          Collection<BytesWrap> terms) {
+    final double termFreq = docModel.termFrequency;
+
+    for (BytesWrap term : terms) {
+      if (docModel.contains(term)) {
+        final double model = langmodelWeight * ((double) docModel.
+                termFrequency(term) / termFreq) + calcDefaultDocumentModel(
+                        term);
+        this.dataProv.setTermData(PREFIX, docModel.id, term,
+                this.docModelDataKey, model);
+      }
     }
-    return model;
   }
 
   /**
    * Calculate the document language model for a given term.
    *
-   * @param docModel Document model to do the calculation for
+   * @param docId Document model to do the calculation for
    * @param term Term to do the calculation for
-   * @param force If true, the recalculation of the stored model values is
-   * forced
    * @return Calculated language model for the given document and term
    */
-  private double getDocumentModel(final DocumentModel docModel,
-          final BytesWrap term, final boolean force) {
-    Double model = null;
+  private double getDocumentModel(final Integer docId, final BytesWrap term) {
+    Double model;
 
-    if (docModel.contains(term)) {
-      if (!force) {
-        // try to get the already calculated value
-        model = (Double) this.dataProv.getTermData(PREFIX, docModel.id, term,
-                DataKeys.docModel.name());
-      }
-
-      if (force || model == null) {
-        // no value was stored, so calculate and store it
-        model = calcDocumentModel(docModel, term, true);
-      }
+    if (this.dataProv.documentContains(docId, term)) {
+      // try to get the already calculated value
+      model = (Double) this.dataProv.getTermData(PREFIX, docId, term,
+              this.docModelDataKey);
     } else {
       // term not in document
       model = calcDefaultDocumentModel(term);
     }
     return model;
-  }
-
-  /**
-   * Calculate the weighting value for all terms in the query.
-   *
-   * @param docModels Document models to use for calculation
-   * @param queryTerms Terms of the originating query
-   * @return Mapping of {@link DocumentModel} to calculated language
-   * modelString
-   */
-  private Map<DocumentModel, Double> calculateQueryModelWeight(
-          final Set<DocumentModel> docModels,
-          final BytesRef[] queryTerms) {
-    final Map<DocumentModel, Double> weights
-            = new HashMap<DocumentModel, Double>(docModels.size());
-
-    for (DocumentModel docModel : docModels) {
-      LOG.debug("calculateQueryModelWeight {}", docModel.id);
-      double modelWeight = 1d;
-      for (BytesRef term : queryTerms) {
-        modelWeight *= getDocumentModel(docModel, new BytesWrap(term), false);
-      }
-      weights.put(docModel, modelWeight);
-    }
-    return weights;
   }
 
   /**
@@ -238,94 +211,19 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
   public void preCalcDocumentModels(final boolean force) {
     final DefaultClarityScorePrecalculator dcsP
             = new DefaultClarityScorePrecalculator(this);
-    if (dcsP.preCalculate()) {
-      // store that we have pre-calculated values
-      this.dataProv.setProperty(PREFIX, DataKeys.DOCMODELS_PRECALCULATED.
-              name(), "true");
-    } else {
-      // calculation failed
-      this.dataProv.setProperty(PREFIX, DataKeys.DOCMODELS_PRECALCULATED.
-              name(), "false");
-    }
+
+    dcsP.preCalculate();
+
+    // store that we have pre-calculated values
+    this.dataProv.setProperty(PREFIX, DataKeys.DOCMODELS_PRECALCULATED.
+            name(), "true");
   }
 
   /**
-   * Calculate the clarity score.
-   *
-   * @param docModels Document models to use for calculation
-   * @param idxTermsIt Iterator over all terms from the index
-   * @param queryTerms Terms contained in the originating query
-   * @return Result of the calculation
+   * Check, if pre-calculated document models are available. Starts
+   * re-calculation, if no pre-calculated data could be found.
    */
-  private ClarityScoreResult calculateClarity(
-          final Set<DocumentModel> docModels,
-          final Iterator<BytesWrap> idxTermsIt,
-          final BytesRef[] queryTerms) {
-    final TimeMeasure timeMeasure = new TimeMeasure().start();
-    double score = 0d;
-    double log;
-    double qLangMod;
-
-    LOG.debug("Calculating clarity score query={}", (Object[]) queryTerms);
-
-    Map<DocumentModel, Double> modelWeights = calculateQueryModelWeight(
-            docModels, queryTerms);
-
-    // iterate over all terms in index
-    while (idxTermsIt.hasNext()) {
-      BytesWrap term = idxTermsIt.next();
-
-      // calculate the query probability of the current term
-      qLangMod = 0d;
-      for (DocumentModel docModel : docModels) {
-        qLangMod += getDocumentModel(docModel, term, false) * modelWeights.
-                get(
-                        docModel);
-      }
-
-      // calculate logarithmic part of the formular
-      log = (Math.log(qLangMod) / Math.log(2)) / (Math.log(
-              dataProv.getRelativeTermFrequency(term)) / Math.log(2));
-      // add up final score for each term
-      score += qLangMod * log;
-    }
-
-    LOG.debug("Calculation results: query={} docModels={} score={} ({}).",
-            queryTerms, docModels.size(), score, score);
-
-    final ClarityScoreResult result = new ClarityScoreResult(this.getClass(),
-            score);
-
-    timeMeasure.stop();
-    LOG.debug("Calculating default clarity score for query {} "
-            + "with {} document models took {}.", queryTerms, docModels.
-            size(), timeMeasure.getElapsedTimeString());
-
-    return result;
-  }
-
-  /**
-   * Same as {@link DefaultClarityScore#calculateClarity(Query)}, but allows
-   * to pass in the list of feedback documents.
-   *
-   * @param query Query used for term extraction
-   * @param fbDocIds List of document-ids to use for feedback calculation
-   * @return Calculated clarity score for the given terms
-   * @throws org.apache.lucene.queryparser.classic.ParseException Thrown if
-   * query could not be parsed
-   * @throws java.io.IOException Thrown on low-level I/O errors
-   */
-  public ClarityScoreResult calculateClarity(final Query query,
-          final Integer[] fbDocIds) throws ParseException, IOException {
-    if (query == null) {
-      throw new IllegalArgumentException("Query was null.");
-    }
-    if (fbDocIds == null || fbDocIds.length == 0) {
-      throw new IllegalArgumentException("No feedback documents given.");
-    }
-
-    ClarityScoreResult result;
-
+  private void checkPrecalculatedModels() {
     // check if document models are pre-calculated and stored
     final boolean hasPrecalcData = Boolean.parseBoolean(this.dataProv.
             getProperty(PREFIX, DataKeys.DOCMODELS_PRECALCULATED.name()));
@@ -337,21 +235,69 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
       LOG.info("No pre-calculated document models found. Need to calculate.");
       preCalcDocumentModels(false);
     }
+  }
 
-    final Set<DocumentModel> docModels = new HashSet<DocumentModel>(
-            fbDocIds.length);
+  /**
+   * Calculate the clarity score.
+   *
+   * @param feedbackDocuments Document ids of feedback documents
+   * @param newQueryTerms Terms contained in the originating query
+   * @return Result of the calculation
+   */
+  @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
+  private ClarityScoreResult calculateClarity(
+          final Collection<BytesWrap> newQueryTerms,
+          final Collection<Integer> feedbackDocuments) {
+    // check if models are pre-calculated
+    checkPrecalculatedModels();
 
-    for (Integer docId : fbDocIds) {
-      docModels.add(this.dataProv.getDocumentModel(docId));
+    // make query terms globally accessible for calculation threads
+    this.queryTerms = newQueryTerms;
+
+    final TimeMeasure timeMeasure = new TimeMeasure().start();
+    double score = 0d;
+    double log;
+    double qLangMod;
+    final Iterator<BytesWrap> idxTermsIt = this.dataProv.getTermsIterator();
+
+    LOG.debug("Calculating clarity score. query={}", this.queryTerms);
+
+    // calculate query models for feedback documents.
+    LOG.debug("Calculating query models..");
+    Processing pPipe = new Processing(new TargetQueryModelCalulator(
+            new Processing.CollectionSource<>(feedbackDocuments)));
+    pPipe.process();
+    LOG.debug("Query models calculated.");
+
+    // iterate over all terms in index
+    while (idxTermsIt.hasNext()) {
+      BytesWrap term = idxTermsIt.next();
+
+      // calculate the query probability of the current term
+      qLangMod = 0d;
+
+      for (Integer docId : feedbackDocuments) {
+        qLangMod += getDocumentModel(docId, term) * this.queryModels.
+                get(docId);
+      }
+
+      // calculate logarithmic part of the formular
+      log = (Math.log(qLangMod) / Math.log(2)) / (Math.log(
+              dataProv.getRelativeTermFrequency(term)) / Math.log(2));
+      // add up final score for each term
+      score += qLangMod * log;
     }
 
-    try {
-      result = calculateClarity(docModels, this.dataProv.getTermsIterator(),
-              QueryUtils.getQueryTerms(this.reader, query));
-    } catch (IOException ex) {
-      result = new ClarityScoreResult(this.getClass());
-      LOG.error("Caught exception while calculating clarity score.", ex);
-    }
+    LOG.debug("Calculation results: query={} docModels={} score={} ({}).",
+            this.queryTerms, feedbackDocuments.size(), score, score);
+
+    final ClarityScoreResult result = new ClarityScoreResult(this.getClass(),
+            score);
+
+    timeMeasure.stop();
+    LOG.debug("Calculating default clarity score for query {} "
+            + "with {} document models took {}.", this.queryTerms,
+            feedbackDocuments.size(), timeMeasure.getElapsedTimeString());
 
     return result;
   }
@@ -362,21 +308,26 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
       throw new IllegalArgumentException("Query was null.");
     }
 
-    ClarityScoreResult result;
+    Collection<BytesWrap> newQueryTerms;
+    final Collection<Integer> feedbackDocuments;
     try {
-      // get feedback documents..
-      final Integer[] fbDocIds = Feedback.getFixed(this.reader, query,
+      newQueryTerms = QueryUtils.getQueryTerms(this.reader, query);
+      feedbackDocuments = Feedback.getFixed(this.reader, query,
               this.fbDocCount);
-      // ..and calculate score
-      result = calculateClarity(query, fbDocIds);
     } catch (IOException ex) {
-      LOG.error("Error while trying to get feedback documents.", ex);
-      // return an empty result on errors
-      result = new ClarityScoreResult(this.getClass());
-    } catch (ParseException ex) {
-      LOG.error("Error while calculating document models.", ex);
-      result = new ClarityScoreResult(this.getClass());
+      LOG.error("Caught exception while preparing calculation.", ex);
+      return null;
     }
+
+    if (newQueryTerms == null || newQueryTerms.isEmpty()) {
+      throw new IllegalStateException("No query terms.");
+    }
+    if (feedbackDocuments == null || feedbackDocuments.isEmpty()) {
+      throw new IllegalStateException("No feedback documents.");
+    }
+
+    ClarityScoreResult result = calculateClarity(newQueryTerms,
+            feedbackDocuments);
 
     return result;
   }
@@ -389,5 +340,96 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
   @Override
   public IndexReader getReader() {
     return this.reader;
+  }
+
+  /**
+   * Runnable {@link ProcessPipe.Target} to calculate query models.
+   */
+  private class TargetQueryModelCalulator
+          extends Processing.Target<Integer> {
+
+    /**
+     * Flag to indicate, if this {@link Runnable} should terminate.
+     */
+    private volatile boolean terminate = false;
+    /**
+     * Name to identify this {@link Runnable}.
+     */
+    private final String rId = "(" + TargetQueryModelCalulator.class + "-"
+            + this.hashCode() + ")";
+    /**
+     * Shared latch to track running threads.
+     */
+    private final CountDownLatch latch;
+
+    /**
+     * Base constructor without setting a {@link CountDownLatch}. This
+     * instance is not able to be run.
+     *
+     * @param source {@link Source} for this {@link Target}
+     */
+    TargetQueryModelCalulator(final Processing.Source<Integer> source) {
+      super(source);
+      this.latch = null;
+    }
+
+    /**
+     * Creates a new instance able to run. Meant to be called from the factory
+     * method.
+     *
+     * @param source @param source {@link Source} for this {@link Target}
+     * @param newLatch Shared latch to track running threads
+     */
+    private TargetQueryModelCalulator(final Processing.Source<Integer> source,
+            final CountDownLatch newLatch) {
+      super(source);
+      this.latch = newLatch;
+    }
+
+    @Override
+    public void terminate() {
+      LOG.debug("{} Received termination signal.", this.rId);
+      this.terminate = true;
+    }
+
+    @Override
+    public Processing.Target<Integer> newInstance(
+            final CountDownLatch newLatch) {
+      return new TargetQueryModelCalulator(this.getSource(), newLatch);
+    }
+
+    @Override
+    public void run() {
+      try {
+        if (this.latch == null) {
+          throw new IllegalStateException(this.rId
+                  + " Tracking latch not set.");
+        }
+
+        while (!this.terminate) {
+          if (this.getSource().hasNext()) {
+            final Integer docId = this.getSource().next();
+            if (docId == null) {
+              LOG.warn("{} Document-id was null.", this.rId);
+              continue;
+            }
+            double modelWeight = 1d;
+
+//            LOG.debug("{} Calculate QueryModelWeight {}", this.rId, docId);
+
+            for (BytesWrap term : DefaultClarityScore.this.queryTerms) {
+              modelWeight *= getDocumentModel(docId, term);
+            }
+            DefaultClarityScore.this.queryModels.put(docId, modelWeight);
+          }
+        }
+
+        LOG.debug("{} Terminating.", this.rId);
+      } catch (Exception ex) {
+        LOG.debug("{} Caught exception. Terminating.", this.rId, ex);
+      } finally {
+        this.latch.countDown();
+      }
+    }
   }
 }

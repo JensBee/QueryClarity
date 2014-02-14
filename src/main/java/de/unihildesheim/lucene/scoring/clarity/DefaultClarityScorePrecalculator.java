@@ -16,18 +16,17 @@
  */
 package de.unihildesheim.lucene.scoring.clarity;
 
+import de.unihildesheim.lucene.document.DocFieldsTermsEnum;
 import de.unihildesheim.lucene.document.model.DocumentModel;
-import de.unihildesheim.lucene.document.model.DocumentModelPool;
-import de.unihildesheim.lucene.document.model.processing.WorkerDocumentTerm;
-import de.unihildesheim.lucene.document.model.processing.Processing;
-import de.unihildesheim.lucene.document.model.processing.ProcessingSource;
-import de.unihildesheim.lucene.document.model.processing.ProcessingWorker;
-import de.unihildesheim.lucene.document.model.processing.ProcessingWorker.DocTerms;
-import de.unihildesheim.lucene.document.model.processing.TargetDocTerms;
-import de.unihildesheim.lucene.scoring.clarity.DefaultClarityScorePrecalculator.WorkerFactory;
+import de.unihildesheim.lucene.document.model.Processing;
+import de.unihildesheim.lucene.document.model.Processing.Source;
+import de.unihildesheim.lucene.document.model.Processing.Target;
+import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.util.BytesWrap;
-import java.util.Iterator;
-import org.apache.lucene.index.IndexReader;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.concurrent.CountDownLatch;
+import org.apache.lucene.util.BytesRef;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -37,8 +36,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public final class DefaultClarityScorePrecalculator extends
-        ProcessingSource.DocQueue {
+public final class DefaultClarityScorePrecalculator {
 
   /**
    * Logger instance for this class.
@@ -57,117 +55,134 @@ public final class DefaultClarityScorePrecalculator extends
   private final DefaultClarityScore dcsInstance;
 
   /**
-   * Number of threads to use for model pre-calculation. Default takes the
-   * number of processors times two.
-   */
-  private static final int THREADS = ClarityScoreConfiguration.INSTANCE.
-          getInt(CONF_PREFIX + "threads", Runtime.getRuntime().
-                  availableProcessors());
-
-  /**
    * Creates a new document-model pre-calculator for the given
    * {@link DefaultClarityScore} instance.
    *
    * @param dcs Instance to run the calculation for
    */
   public DefaultClarityScorePrecalculator(final DefaultClarityScore dcs) {
-    super(dcs.getIndexDataProvider());
     this.dcsInstance = dcs;
   }
 
   /**
    * Pre-calculate all document models for all terms known from the index.
-   *
-   * @return True, if the pre-calculation finished without errors
    */
-  public boolean preCalculate() {
-    boolean success = true;
-    final Processing processing = new Processing(THREADS);
-    final Processing.QueueProcessor processingQueue = processing.
-            getDocQueueInstance(this, new TargetDocTerms.Factory(this,
-                            new WorkerFactory()));
-    try {
-      if (!this.dcsInstance.getIndexDataProvider().transactionHookRequest()) {
-        throw new IllegalStateException("Failed to aquire transaction hook.");
-      }
-      processingQueue.process();
-      this.dcsInstance.getIndexDataProvider().transactionHookRelease();
-    } catch (InterruptedException ex) {
-      LOG.error("Model pre-calculation thread interrupted. "
-              + "This may have caused data corruption.", ex);
-      success = false;
-    }
-    return success;
+  public void preCalculate() {
+    final Processing pPipe = new Processing(new DocumentModelCalculator(
+            this.dcsInstance.getIndexDataProvider().getDocumentIdSource()));
+    pPipe.process();
   }
 
-  @Override
-  public long getNumberOfItemsToProcess() {
-    return getDataProvider().getDocModelCount();
-  }
-
-  @Override
-  public Iterator<Integer> getItemsToProcessIterator() {
-    return getDataProvider().getDocIdIterator();
-  }
-
-  @Override
-  public IndexReader getIndexReader() {
-    return this.dcsInstance.getReader();
-  }
-
-  /**
-   * Worker instance calculating the document model for a single document and
-   * a list of terms.
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public final class Worker extends WorkerDocumentTerm {
+  public final class DocumentModelCalculator
+          extends Processing.Target<Integer> {
 
     /**
-     * Create a new worker with a caching pool attached and a specific
-     * document and list of terms.
+     * Name to identify this {@link Runnable}.
+     */
+    private final String rId = "(" + DocumentModelCalculator.class + "-"
+            + this.hashCode() + ")";
+    /**
+     * Flag to indicate, if this {@link Runnable} should terminate.
+     */
+    private volatile boolean terminate;
+    /**
+     * Shared latch to track running threads.
+     */
+    private final CountDownLatch latch;
+
+    /**
+     * Base constructor without setting a {@link CountDownLatch}. This
+     * instance is not able to be run.
      *
-     * @param docModelPool Cached document models pool
-     * @param currentDocId Document id to process
-     * @param terms List of terms to process
+     * @param source {@link Source} for this {@link Target}
      */
-    public Worker(final DocumentModelPool docModelPool,
-            final Integer currentDocId, final BytesWrap[] terms) {
-      super(docModelPool, currentDocId, terms);
+    DocumentModelCalculator(final Processing.Source<Integer> source) {
+      super(source);
+      this.terminate = false;
+      this.latch = null;
     }
-
-    @Override
-    protected void doWork(final DocumentModel docModel, final BytesWrap term) {
-      // call the calculation method of the main class for each document and
-      // term that is available for processing
-      DefaultClarityScorePrecalculator.this.dcsInstance.calcDocumentModel(
-              docModel, term, true);
-    }
-  }
-
-  /**
-   * Factory creating new worker instances to do the default clarity score
-   * model calculation.
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public final class WorkerFactory implements
-          ProcessingWorker.DocTerms.Factory {
 
     /**
-     * Track the number of threads spawned.
+     * Creates a new instance able to run. Meant to be called from the factory
+     * method.
+     *
+     * @param source @param source {@link Source} for this {@link Target}
+     * @param newLatch Shared latch to track running threads
      */
-    private int threadCounter = 0;
-
-    @Override
-    public DocTerms newInstance(final Integer docId, final BytesWrap[] terms) {
-      return new Worker(DefaultClarityScorePrecalculator.this.
-              getDocumentModelPool(), docId, terms);
+    private DocumentModelCalculator(final Processing.Source<Integer> source,
+            final CountDownLatch newLatch) {
+      super(source);
+      this.terminate = false;
+      this.latch = newLatch;
     }
 
     @Override
-    public Thread newThread(final Runnable r) {
-      return new Thread(r, "DefaultClarityScorePrecalculator_Worker-"
-              + (++threadCounter));
+    public void terminate() {
+      LOG.debug("{} Received termination signal.", this.rId);
+      this.terminate = true;
     }
 
+    @Override
+    public Processing.Target<Integer> newInstance(
+            final CountDownLatch newLatch) {
+      return new DocumentModelCalculator(this.getSource(), newLatch);
+    }
+
+    @Override
+    public void run() {
+      final IndexDataProvider dataProv
+              = DefaultClarityScorePrecalculator.this.dcsInstance.
+              getIndexDataProvider();
+      try {
+        if (this.latch == null) {
+          throw new IllegalStateException(this.rId
+                  + " Tracking latch not set.");
+        }
+
+        final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(
+                DefaultClarityScorePrecalculator.this.dcsInstance.getReader(),
+                dataProv.getTargetFields());
+
+        while (!this.terminate) {
+          if (this.getSource().hasNext()) {
+            final Integer docId = this.getSource().next();
+            if (docId == null) {
+              LOG.warn("{} Document-id was null.", this.rId);
+              continue;
+            }
+
+            dftEnum.setDocument(docId);
+            BytesRef bytesRef = dftEnum.next();
+            Collection<BytesWrap> termList = new ArrayList<>();
+            while (bytesRef != null) {
+              termList.add(new BytesWrap(bytesRef));
+              bytesRef = dftEnum.next();
+            }
+
+            if (termList.isEmpty()) {
+              LOG.warn("{} Empty term list for document-id {}", this.rId,
+                      docId);
+            } else {
+              DocumentModel docModel = dataProv.getDocumentModel(docId);
+              if (docModel == null) {
+                LOG.warn("{} Model for document-id {} was null.", this.rId,
+                        docId);
+              } else {
+                // call the calculation method of the main class for each
+                // document and term that is available for processing
+                DefaultClarityScorePrecalculator.this.dcsInstance.
+                        calcDocumentModel(docModel, termList);
+              }
+            }
+          }
+        }
+
+        LOG.debug("{} Terminating.", this.rId);
+      } catch (Exception ex) {
+        LOG.debug("{} Caught exception. Terminating.", this.rId, ex);
+      } finally {
+        this.latch.countDown();
+      }
+    }
   }
 }

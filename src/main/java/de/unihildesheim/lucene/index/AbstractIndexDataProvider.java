@@ -324,6 +324,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * Worker thread to create {@link DocumentModel}s.
    */
   private final class DocumentModelCreator implements Runnable {
+
     /**
      * Prefix used to store configuration.
      */

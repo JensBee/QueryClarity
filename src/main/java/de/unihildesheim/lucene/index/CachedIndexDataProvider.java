@@ -19,6 +19,7 @@ package de.unihildesheim.lucene.index;
 import de.unihildesheim.lucene.document.model.DocumentModel;
 import de.unihildesheim.lucene.document.model.DocumentModel.DocumentModelBuilder;
 import de.unihildesheim.lucene.document.model.DocumentModelException;
+import de.unihildesheim.lucene.document.model.Processing;
 import de.unihildesheim.util.StringUtils;
 import de.unihildesheim.lucene.scoring.clarity.ClarityScoreConfiguration;
 import de.unihildesheim.lucene.util.BytesWrap;
@@ -835,7 +836,6 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   }
 
   @Override
-  // FIXME: optimize with bind keys
   public DocumentModel getDocumentModel(final int docId) {
     if (this.hasDocumentModel(docId)) {
       final DocumentModelBuilder dmBuilder = new DocumentModelBuilder(docId);
@@ -977,5 +977,16 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     transactionHookRelease();
     LOG.info("Rolling back changes.");
     this.db.rollback();
+  }
+
+  @Override
+  public boolean documentContains(final int documentId, final BytesWrap term) {
+    return this.docTermData.get(Fun.t4(INTERNAL_PREFIX, DataKeys._TF.name(),
+            documentId, term)) != null;
+  }
+
+  @Override
+  public Processing.Source<Integer> getDocumentIdSource() {
+    return new Processing.CollectionSource<>(this.docModels.keySet());
   }
 }

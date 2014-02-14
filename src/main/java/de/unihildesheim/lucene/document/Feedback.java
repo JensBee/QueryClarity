@@ -110,7 +110,7 @@ public final class Feedback {
    * @return List of Lucene document ids
    * @throws java.io.IOException Thrown on low-level I/O errors
    */
-  public static Integer[] getFixed(final IndexReader reader,
+  public static Collection<Integer> getFixed(final IndexReader reader,
           final Query query,
           final int docCount) throws IOException {
     final TimeMeasure timeMeasure = new TimeMeasure().start();
@@ -186,6 +186,6 @@ public final class Feedback {
     LOG.debug("Getting {} feedback documents for query {} "
             + "took {}.", maxRetDocs, query, timeMeasure.
             getElapsedTimeString());
-    return docIds.toArray(new Integer[docIds.size()]);
+    return docIds;
   }
 }

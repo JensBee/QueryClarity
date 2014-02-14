@@ -17,11 +17,13 @@
 package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.lucene.document.model.DocumentModel;
+import de.unihildesheim.lucene.document.model.Processing;
 import de.unihildesheim.lucene.util.BytesWrap;
 import java.util.Iterator;
 
 /**
- * IndexDataProvider provides statistical data from the underlying Lucene index.
+ * IndexDataProvider provides statistical data from the underlying Lucene
+ * index.
  *
  * Calculated values may be cached. So any call to those functions may not
  * trigger a recalculation of the values. If this is not desired, then needed
@@ -45,7 +47,8 @@ public interface IndexDataProvider {
    * Get the term frequency of a single term in the index.
    *
    * @param term Term to lookup
-   * @return The frequency of the term in the index, or null if none was stored
+   * @return The frequency of the term in the index, or null if none was
+   * stored
    */
   Long getTermFrequency(final BytesWrap term);
 
@@ -79,9 +82,16 @@ public interface IndexDataProvider {
 
   /**
    * Get an iterator over all known document-ids.
+   *
    * @return Iterator over document-ids
    */
   Iterator<Integer> getDocIdIterator();
+
+  /**
+   * Get a {@link ProcessPipeSource} providing all known document ids.
+   * @return {@link ProcessPipeSource} providing all known document ids
+   */
+  Processing.Source<Integer> getDocumentIdSource();
 
   /**
    * Get the number of unique terms in the index.
@@ -91,7 +101,8 @@ public interface IndexDataProvider {
   long getTermsCount();
 
   /**
-   * Store enhanced data for a document & term combination with a custom prefix.
+   * Store enhanced data for a document & term combination with a custom
+   * prefix.
    * <tt>Null</tt> is not allowed for any parameter value.
    *
    * @param prefix Custom prefix, to identify where the data belongs to. Must
@@ -138,6 +149,7 @@ public interface IndexDataProvider {
 
   /**
    * Test if a model for the specific document-id is known.
+   *
    * @param docId Document-id to lookup
    * @return True if a model is known, false otherwise
    */
@@ -147,8 +159,8 @@ public interface IndexDataProvider {
    * Updates an already stored {@link DocumentModel}. Use this to update any
    * model, that have been changed externally.
    *
-   * @param docModel Document model to update. It must already have been in the
-   * collection of known models.
+   * @param docModel Document model to update. It must already have been in
+   * the collection of known models.
    */
   void updateDocumentModel(final DocumentModel docModel);
 
@@ -160,8 +172,8 @@ public interface IndexDataProvider {
   long getDocModelCount();
 
   /**
-   * Stores a property value to the {@link IndexDataProvider}. Depending on the
-   * implementation this property may be persistent.
+   * Stores a property value to the {@link IndexDataProvider}. Depending on
+   * the implementation this property may be persistent.
    *
    * @param prefix Prefix to identify the property store
    * @param key Key to assign a property to
@@ -201,8 +213,8 @@ public interface IndexDataProvider {
   void commitHook();
 
   /**
-   * Set a transaction hook indicating that the following data commits should be
-   * atomic. There can only be one transaction hook set at a time.
+   * Set a transaction hook indicating that the following data commits should
+   * be atomic. There can only be one transaction hook set at a time.
    *
    * @return True, if the hook was set. False, if a hook is already set.
    */
@@ -217,4 +229,13 @@ public interface IndexDataProvider {
    * Rollback any changes made since setting a transaction hook.
    */
   void transactionHookRoolback();
+
+  /**
+   * Check if a document contains the given term.
+   *
+   * @param documentId Id of the document to check
+   * @param term Term to lookup
+   * @return True, if it contains the term, false otherwise
+   */
+  boolean documentContains(final int documentId, final BytesWrap term);
 }

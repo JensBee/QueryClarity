@@ -16,7 +16,9 @@
  */
 package de.unihildesheim.lucene.query;
 
+import de.unihildesheim.lucene.util.BytesWrap;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 import org.apache.lucene.index.IndexReader;
@@ -40,12 +42,13 @@ public final class QueryUtils {
 
   /**
    * Extract all terms of the given {@link Query}.
+   *
    * @param reader Reader to use
    * @param query Query object to parse
    * @return Terms of the rewritten {@link Query}
    * @throws IOException Thrown on low-level I/O errors
    */
-  public static BytesRef[] getQueryTerms(final IndexReader reader,
+  public static Collection<BytesWrap> getQueryTerms(final IndexReader reader,
           final Query query) throws IOException {
     final Query rwQuery = query.rewrite(reader);
 
@@ -54,13 +57,13 @@ public final class QueryUtils {
             rwQuery, true);
 
     // stores all plain terms from the weighted query terms
-    final Set<BytesRef> queryTerms = new HashSet<>(wqTerms.length);
+    final Set<BytesWrap> queryTerms = new HashSet<>(wqTerms.length);
 
     // store all plain query terms
     for (WeightedTerm wTerm : wqTerms) {
-      queryTerms.add(new BytesRef(wTerm.getTerm()));
+      queryTerms.add(new BytesWrap(new BytesRef(wTerm.getTerm())));
     }
 
-    return queryTerms.toArray(new BytesRef[queryTerms.size()]);
+    return queryTerms;
   }
 }
