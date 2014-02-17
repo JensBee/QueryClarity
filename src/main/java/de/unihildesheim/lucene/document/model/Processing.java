@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.LoggerFactory;
 
 /**
- * One source, one or more targets, none or more workers.
+ * One source, one or more targets.
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
@@ -137,22 +137,60 @@ public class Processing {
 
   private interface ObservableSource {
 
+    /**
+     * Get the number of items that will be provided.
+     *
+     * @return Number of items, or <tt>null</tt> if there is no such
+     * information.
+     */
     Integer getItemCount();
 
+    /**
+     * Get the number of items already served.
+     *
+     * @return Number of items served
+     */
     int getSourcedItemCount();
   }
 
   private static class ProcessStatus implements Runnable {
 
+    /**
+     * {@link Source} to observe.
+     */
     private final ObservableSource source;
+    /**
+     * Overall time taken.
+     */
     private final TimeMeasure overallTime;
+    /**
+     * Time taken between two status messages.
+     */
     private final TimeMeasure runTime;
-    private long[] runStatus; // counter, step, max, percentage
+    /**
+     * Flag indicating if {@link Source} provides the number of items it will
+     * provide.
+     */
     private boolean hasItemCount;
+    /**
+     * Update interval in seconds. Used,if {@link Source} does not provide the
+     * expected number of items.
+     */
     private static final int INTERVAL = 15;
+    /**
+     * Flag indicating, if this instance should terminate.
+     */
     private volatile boolean terminate;
+    /**
+     * Thread running this {@link Runnable} instance.
+     */
     private Thread oThread;
 
+    /**
+     * Attach a status observer to a specified {@link Source}.
+     *
+     * @param newSource Source whose process to observe
+     */
     ProcessStatus(final ObservableSource newSource) {
       this.terminate = false;
       this.source = newSource;
@@ -160,17 +198,17 @@ public class Processing {
       this.runTime = new TimeMeasure();
     }
 
+    /**
+     * Start observing the process.
+     */
     public void observe() {
-      if (this.source.getItemCount() != null) {
-        this.hasItemCount = true;
-      } else {
-        this.hasItemCount = false;
-      }
-
       oThread = new Thread(this);
       oThread.start();
     }
 
+    /**
+     * Stop observing and terminate.
+     */
     public void terminate() {
       this.terminate = true;
     }
@@ -183,10 +221,12 @@ public class Processing {
       int itemCount, step;
       int lastStatus = 0;
       int status = 0;
-      if (this.hasItemCount) {
+      if (this.source.getItemCount() != null) {
+        this.hasItemCount = true;
         step = (int) (this.source.getItemCount() * 0.01);
         itemCount = this.source.getItemCount();
       } else {
+        this.hasItemCount = false;
         step = 0;
         itemCount = 0;
       }
@@ -195,7 +235,7 @@ public class Processing {
           // timed status
           if (this.runTime.getElapsedSeconds() > INTERVAL) {
             this.runTime.stop();
-            LOG.info("Source {} provided {} items after {}s, running for {}.",
+            LOG.info("Processing {} of {} items after {}s, running for {}.",
                     this.source.hashCode(), this.source.getSourcedItemCount(),
                     this.runTime.getElapsedSeconds(), this.overallTime.
                     getElapsedTimeString());
@@ -210,11 +250,13 @@ public class Processing {
               runTime.stop();
               final long estimate = (long) ((itemCount - lastStatus)
                       / (lastStatus / overallTime.getElapsedSeconds()));
-              LOG.info("Source provided {} items of {} ({}s, {}%) after {}. "
+              LOG.info("Processing {} of {} items ({}%). "
+                      + "{}s since last status. Running for {}. "
                       + "Estimated time needed {}.", lastStatus, itemCount,
-                      runTime.getElapsedSeconds(), ((lastStatus * 100)
-                      / itemCount), overallTime.getElapsedTimeString(),
+                      ((lastStatus * 100) / itemCount), runTime.stop().
+                      getElapsedSeconds(), overallTime.getElapsedTimeString(),
                       TimeMeasure.getTimeString(estimate));
+              runTime.start();
             }
           }
         }

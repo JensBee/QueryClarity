@@ -989,4 +989,9 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   public Processing.Source<Integer> getDocumentIdSource() {
     return new Processing.CollectionSource<>(this.docModels.keySet());
   }
+
+  @Override
+  public Processing.Source<BytesWrap> getTermsSource() {
+    return new Processing.CollectionSource<>(this.termFreqMap.keySet());
+  }
 }

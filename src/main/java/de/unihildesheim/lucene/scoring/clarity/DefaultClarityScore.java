@@ -30,6 +30,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CountDownLatch;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
@@ -164,7 +165,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * @param terms List of terms to calculate
    */
   protected void calcDocumentModel(final DocumentModel docModel,
-          Collection<BytesWrap> terms) {
+          final Collection<BytesWrap> terms) {
     final double termFreq = docModel.termFrequency;
 
     for (BytesWrap term : terms) {
@@ -187,11 +188,13 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    */
   private double getDocumentModel(final Integer docId, final BytesWrap term) {
     Double model;
-
     if (this.dataProv.documentContains(docId, term)) {
       // try to get the already calculated value
       model = (Double) this.dataProv.getTermData(PREFIX, docId, term,
               this.docModelDataKey);
+      if (model == null) {
+        throw new IllegalStateException("Got null model value.");
+      }
     } else {
       // term not in document
       model = calcDefaultDocumentModel(term);
@@ -263,33 +266,24 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     LOG.debug("Calculating clarity score. query={}", this.queryTerms);
 
     // calculate query models for feedback documents.
-    LOG.debug("Calculating query models..");
-    Processing pPipe = new Processing(new TargetQueryModelCalulator(
+    LOG.info("Calculating query models.");
+    Processing qmPPipe = new Processing(new TargetQueryModelCalulator(
             new Processing.CollectionSource<>(feedbackDocuments)));
-    pPipe.process();
-    LOG.debug("Query models calculated.");
+    qmPPipe.process();
 
-    // iterate over all terms in index
-    while (idxTermsIt.hasNext()) {
-      BytesWrap term = idxTermsIt.next();
+    Collection<Double> qProbabilities = new ConcurrentSkipListSet();
+    LOG.info("Calculating query probability values.");
+    Processing qpPPipe = new Processing(new TargetQueryProbabilityCalulator(
+            this.dataProv.getTermsSource(), feedbackDocuments,
+            this.queryModels, qProbabilities));
+    qpPPipe.process();
 
-      // calculate the query probability of the current term
-      qLangMod = 0d;
-
-      for (Integer docId : feedbackDocuments) {
-        qLangMod += getDocumentModel(docId, term) * this.queryModels.
-                get(docId);
-      }
-
-      // calculate logarithmic part of the formular
-      log = (Math.log(qLangMod) / Math.log(2)) / (Math.log(
-              dataProv.getRelativeTermFrequency(term)) / Math.log(2));
-      // add up final score for each term
-      score += qLangMod * log;
+    for (Double result : qProbabilities) {
+      score += result;
     }
 
-    LOG.debug("Calculation results: query={} docModels={} score={} ({}).",
-            this.queryTerms, feedbackDocuments.size(), score, score);
+    LOG.debug("Calculation results: query={} docModels={} score={}.",
+            this.queryTerms, feedbackDocuments.size(), score);
 
     final ClarityScoreResult result = new ClarityScoreResult(this.getClass(),
             score);
@@ -415,8 +409,6 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
             }
             double modelWeight = 1d;
 
-//            LOG.debug("{} Calculate QueryModelWeight {}", this.rId, docId);
-
             for (BytesWrap term : DefaultClarityScore.this.queryTerms) {
               modelWeight *= getDocumentModel(docId, term);
             }
@@ -424,6 +416,109 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
           }
         }
 
+        LOG.debug("{} Terminating.", this.rId);
+      } catch (Exception ex) {
+        LOG.debug("{} Caught exception. Terminating.", this.rId, ex);
+      } finally {
+        this.latch.countDown();
+      }
+    }
+  }
+
+  /**
+   * Runnable {@link ProcessPipe.Target} to calculate query models.
+   */
+  private class TargetQueryProbabilityCalulator
+          extends Processing.Target<BytesWrap> {
+
+    /**
+     * Flag to indicate, if this {@link Runnable} should terminate.
+     */
+    private volatile boolean terminate = false;
+    /**
+     * Name to identify this {@link Runnable}.
+     */
+    private final String rId = "(" + TargetQueryModelCalulator.class + "-"
+            + this.hashCode() + ")";
+    /**
+     * Shared latch to track running threads.
+     */
+    private final CountDownLatch latch;
+    /**
+     * Shared {@link Collection} to gather results.
+     */
+    private Collection<Double> results;
+    /**
+     * List of feedback document-ids.
+     */
+    private Collection<Integer> fbDocIds;
+    /**
+     * Pre-Calculated query models.
+     */
+    private Map<Integer, Double> qModels;
+
+    public TargetQueryProbabilityCalulator(
+            final Processing.Source<BytesWrap> source,
+            final Collection<Integer> feedbackDocuments,
+            final Map<Integer, Double> queryModels,
+            final Collection<Double> resultsCollection) {
+      super(source);
+      this.latch = null;
+      this.results = resultsCollection;
+      this.fbDocIds = feedbackDocuments;
+      this.qModels = queryModels;
+    }
+
+    public TargetQueryProbabilityCalulator(
+            final Processing.Source<BytesWrap> source,
+            final Collection<Integer> feedbackDocuments,
+            final Map<Integer, Double> queryModels,
+            final Collection<Double> resultsCollection,
+            final CountDownLatch newLatch) {
+      super(source);
+      this.latch = newLatch;
+      this.results = resultsCollection;
+      this.fbDocIds = feedbackDocuments;
+      this.qModels = queryModels;
+    }
+
+    @Override
+    public void terminate() {
+      this.terminate = true;
+    }
+
+    @Override
+    public Target<BytesWrap> newInstance(CountDownLatch newLatch) {
+      return new TargetQueryProbabilityCalulator(this.getSource(),
+              this.fbDocIds, this.qModels, this.results, newLatch);
+    }
+
+    @Override
+    public void run() {
+      try {
+        if (this.latch == null) {
+          throw new IllegalStateException(this.rId
+                  + " Tracking latch not set.");
+        }
+
+        while (!this.terminate) {
+          if (this.getSource().hasNext()) {
+            final BytesWrap term = this.getSource().next();
+            // calculate the query probability of the current term
+            double qLangMod = 0d;
+
+            for (Integer docId : this.fbDocIds) {
+              qLangMod += getDocumentModel(docId, term) * this.qModels.
+                      get(docId);
+            }
+
+            // calculate logarithmic part of the formular
+            final double log = (Math.log(qLangMod) / Math.log(2)) / (Math.log(
+                    dataProv.getRelativeTermFrequency(term)) / Math.log(2));
+            // add up final score for each term
+            this.results.add(qLangMod * log);
+          }
+        }
         LOG.debug("{} Terminating.", this.rId);
       } catch (Exception ex) {
         LOG.debug("{} Caught exception. Terminating.", this.rId, ex);

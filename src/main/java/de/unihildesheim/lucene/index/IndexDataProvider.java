@@ -81,6 +81,12 @@ public interface IndexDataProvider {
   Iterator<BytesWrap> getTermsIterator();
 
   /**
+   * Get a {@link ProcessPipe.Source} providing all known terms.
+   * @return {@link ProcessPipe.Source} providing all known terms
+   */
+  Processing.Source<BytesWrap> getTermsSource();
+
+  /**
    * Get an iterator over all known document-ids.
    *
    * @return Iterator over document-ids
@@ -88,8 +94,8 @@ public interface IndexDataProvider {
   Iterator<Integer> getDocIdIterator();
 
   /**
-   * Get a {@link ProcessPipeSource} providing all known document ids.
-   * @return {@link ProcessPipeSource} providing all known document ids
+   * Get a {@link ProcessPipe.Source} providing all known document ids.
+   * @return {@link ProcessPipe.Source} providing all known document ids
    */
   Processing.Source<Integer> getDocumentIdSource();
 

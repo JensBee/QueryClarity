@@ -457,10 +457,15 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
           // Store the document frequency of each document term to the model
           dmBuilder.setTermFrequency(docTerms);
 
-          if (!AbstractIndexDataProvider.this.addDocumentModel(dmBuilder.
-                  getModel())) {
-            throw new IllegalArgumentException(
-                    "Document model already known at creation time.");
+          try {
+            if (!AbstractIndexDataProvider.this.addDocumentModel(dmBuilder.
+                    getModel())) {
+              throw new IllegalArgumentException(
+                      "Document model already known at creation time.");
+            }
+          } catch (Exception ex) {
+            LOG.error("Caught exception while adding document model.", ex);
+            continue;
           }
 
           // estimate size for term buffer
