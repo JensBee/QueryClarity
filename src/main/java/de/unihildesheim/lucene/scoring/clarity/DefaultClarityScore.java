@@ -24,7 +24,6 @@ import de.unihildesheim.util.Processing.Target;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.query.QueryUtils;
 import de.unihildesheim.lucene.util.BytesWrap;
-import de.unihildesheim.lucene.util.BytesWrapUtil;
 import de.unihildesheim.util.ProcessingException;
 import de.unihildesheim.util.TimeMeasure;
 import java.io.IOException;
@@ -90,6 +89,10 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     DOCMODELS_PRECALCULATED
   }
 
+  /**
+   * Combined key to store data. Identifies this class and the weighting
+   * parameters used for calculation.
+   */
   private final String docModelDataKey;
 
   /**
@@ -128,8 +131,14 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    */
   private final IndexReader reader;
 
+  /**
+   * List of terms used in originating query.
+   */
   private Collection<BytesWrap> queryTerms;
 
+  /**
+   * Models generated for the query model calculation.
+   */
   private Map<Integer, Double> queryModels = new ConcurrentHashMap<>();
 
   /**
@@ -161,23 +170,51 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
             getRelativeTermFrequency(term));
   }
 
+  /**
+   * Get the collection of query terms.
+   *
+   * @return Query terms
+   */
   protected Collection<BytesWrap> getQueryTerms() {
     return Collections.unmodifiableCollection(queryTerms);
   }
 
+  /**
+   * Add a calculated model to the list of query models.
+   *
+   * @param documentId Document-id of the feedback-document used
+   * @param value Calculated model value
+   */
   protected void addQueryModel(final Integer documentId,
           final Double value) {
     this.queryModels.put(documentId, value);
   }
 
+  /**
+   * Get a specific query model from the list of calculated query models.
+   *
+   * @param documentId Document-id to identify the document
+   * @return Model calculated for the given document identified by it's id
+   */
   protected Double getQueryModel(final Integer documentId) {
     return this.queryModels.get(documentId);
   }
 
+  /**
+   * Get the {@link IndexDataProvider} used.
+   *
+   * @return Data provider
+   */
   protected IndexDataProvider getDataProv() {
     return dataProv;
   }
 
+  /**
+   * Get the language model weighting value used for calculation of document
+   * and query models.
+   *
+   * @return Weighting value
+   */
   protected double getLangmodelWeight() {
     return langmodelWeight;
   }
@@ -467,6 +504,15 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
      */
     private final Collection<Integer> fbDocIds;
 
+    /**
+     * {@link Processing.Target} reading document-ids and calculate the
+     * corresponding query models. This constructor is used as initializer and
+     * is not able to run.
+     *
+     * @param source {@link Processing.Source} providing document-ids
+     * @param feedbackDocuments Feedback documents to use for calculation
+     * @param resultsCollection Collection to gather the calculation results
+     */
     public TargetQueryProbabilityCalulator(
             final Processing.Source<BytesWrap> source,
             final Collection<Integer> feedbackDocuments,
@@ -477,6 +523,15 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
       this.fbDocIds = feedbackDocuments;
     }
 
+    /**
+     * {@link Processing.Target} reading document-ids and calculate the
+     * corresponding query models.
+     *
+     * @param source {@link Processing.Source} providing document-ids
+     * @param feedbackDocuments Feedback documents to use for calculation
+     * @param resultsCollection Collection to gather the calculation results
+     * @param newLatch Latch to track running threads
+     */
     public TargetQueryProbabilityCalulator(
             final Processing.Source<BytesWrap> source,
             final Collection<Integer> feedbackDocuments,
@@ -494,7 +549,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     }
 
     @Override
-    public Target<BytesWrap> newInstance(CountDownLatch newLatch) {
+    public Target<BytesWrap> newInstance(final CountDownLatch newLatch) {
       return new TargetQueryProbabilityCalulator(getSource(),
               this.fbDocIds, this.results, newLatch);
     }

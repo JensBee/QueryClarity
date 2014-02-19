@@ -227,6 +227,12 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
      */
     private int currentNum;
 
+    /**
+     * Create a new {@link Processing.Source} providing document-ids. Used to
+     * generate document models.
+     *
+     * @param newReader Reader to access Lucene index
+     */
     DocModelCreatorSource(final IndexReader newReader) {
       super();
       this.itemsCount = newReader.maxDoc();
@@ -275,7 +281,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
      */
     private final CountDownLatch latch;
     /**
-     * Reader to access Lucene index
+     * Reader to access Lucene index.
      */
     private final IndexReader reader;
 
@@ -283,7 +289,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
      * Base constructor without setting a {@link CountDownLatch}. This
      * instance is not able to be run.
      *
-     * @param source {@link Source} for this {@link Target}
+     * @param newSource {@link Source} for this {@link Target}
      * @param newReader Reader to access Lucene index
      */
     public DocModelCreator(final Processing.Source<Integer> newSource,
@@ -418,7 +424,8 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * {@link Processing.Target} create document models from a document-id
    * {@link Processing.Source}.
    */
-  private final class RelTermFreqCalculator extends Processing.Target<BytesWrap> {
+  private final class RelTermFreqCalculator
+          extends Processing.Target<BytesWrap> {
 
     /**
      * Name to identify this {@link Runnable}.
@@ -450,7 +457,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
      * Creates a new instance able to run. Meant to be called from the factory
      * method.
      *
-     * @param newSource {@link Source} for this {@link Target}
+     * @param source {@link Source} for this {@link Target}
      * @param newLatch Shared latch to track running threads
      */
     private RelTermFreqCalculator(final Processing.Source<BytesWrap> source,
@@ -467,8 +474,8 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     }
 
     @Override
-    public Target<BytesWrap> newInstance(final CountDownLatch latch) {
-      return new RelTermFreqCalculator(getSource(), latch);
+    public Target<BytesWrap> newInstance(final CountDownLatch newLatch) {
+      return new RelTermFreqCalculator(getSource(), newLatch);
     }
 
     @Override

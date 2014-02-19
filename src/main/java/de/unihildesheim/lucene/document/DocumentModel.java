@@ -47,6 +47,7 @@ public final class DocumentModel {
    *
    * @param builder Builder to use
    */
+  @SuppressWarnings("AccessingNonPublicFieldOfAnotherObject")
   private DocumentModel(final DocumentModelBuilder builder) {
     if (builder == null) {
       throw new NullPointerException("Builder was null.");

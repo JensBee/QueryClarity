@@ -20,11 +20,8 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.apache.lucene.util.BytesRef;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Based on: https://stackoverflow.com/a/1058169.
@@ -32,12 +29,6 @@ import org.slf4j.LoggerFactory;
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
-
-  /**
-   * Logger instance for this class.
-   */
-  private static final Logger LOG = LoggerFactory.getLogger(
-          BytesWrap.class);
 
   /**
    * Serialization class version id.

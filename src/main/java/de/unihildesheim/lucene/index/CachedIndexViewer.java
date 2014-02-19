@@ -37,8 +37,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.mapdb.Fun;
 
 /**
@@ -56,6 +54,9 @@ public final class CachedIndexViewer {
           = "Storage id for CachedIndexDataProvider", required = true)
   private String storageId;
 
+  /**
+   * Default number of items to show, if no amount was given.
+   */
   private static final int DEFAULT_AMOUNT = 100;
 
   /**
@@ -108,6 +109,9 @@ public final class CachedIndexViewer {
     civ.start();
   }
 
+  /**
+   * List known prefixes for external term-data.
+   */
   @Command(description = "List known prefixes for external term-data.")
   public void listKnownPrefixes() {
     for (String prefix : this.dataProv.debugGetKnownPrefixes()) {
@@ -115,6 +119,10 @@ public final class CachedIndexViewer {
     }
   }
 
+  /**
+   * Show externally stored document-term data by prefix.
+   * @param prefix Prefix to use
+   */
   @Command(description = "Show externally stored document-term data "
           + "by prefix.")
   public void showExternalTermData(
@@ -123,6 +131,11 @@ public final class CachedIndexViewer {
     showExternalTermData(prefix, 0, DEFAULT_AMOUNT);
   }
 
+  /**
+   * Show externally stored document-term data by prefix.
+   * @param prefix Prefix to use
+   * @param start Offset to start at
+   */
   @Command(description = "Show externally stored document-term data "
           + "by prefix.")
   public void showExternalTermData(
@@ -133,6 +146,12 @@ public final class CachedIndexViewer {
     showExternalTermData(prefix, start, DEFAULT_AMOUNT);
   }
 
+  /**
+   * Show externally stored document-term data by prefix.
+   * @param prefix Prefix to use
+   * @param start Offset to start at
+   * @param amount Number of items to show
+   */
   @Command(description = "Show externally stored document-term data "
           + "by prefix.")
   public void showExternalTermData(

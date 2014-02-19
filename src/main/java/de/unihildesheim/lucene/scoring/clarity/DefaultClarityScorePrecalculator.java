@@ -21,7 +21,6 @@ import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.util.Processing;
 import de.unihildesheim.util.Processing.Source;
 import de.unihildesheim.util.Processing.Target;
-import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.ProcessingException;
 import java.util.ArrayList;
@@ -44,11 +43,6 @@ public final class DefaultClarityScorePrecalculator {
    */
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
           DefaultClarityScorePrecalculator.class);
-
-  /**
-   * Prefix used to store configuration.
-   */
-  private static final String CONF_PREFIX = "DCSPrecalc_";
 
   /**
    * Parent calculation instance.
@@ -142,6 +136,7 @@ public final class DefaultClarityScorePrecalculator {
     }
 
     @Override
+    @SuppressWarnings({"BroadCatchBlock", "TooBroadCatch"})
     public void run() {
       LOG.debug("{} Starting.", this.rId);
       if (this.latch == null) {

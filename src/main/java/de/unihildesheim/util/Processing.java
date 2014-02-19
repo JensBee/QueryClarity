@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -33,7 +34,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class Processing {
+public final class Processing {
 
   /**
    * Logger instance for this class.
@@ -124,8 +125,16 @@ public class Processing {
     final Thread sourceThread = new Thread(this.source);
     sourceThread.start();
 
-    while (!this.source.isRunning()) {
-      // wait for source to start
+    // wait until source has started
+    synchronized (this.source) {
+      while (!this.source.isRunning()) {
+        try {
+          this.source.wait();
+        } catch (InterruptedException ex) {
+          LOG.error("Interrupted.", ex);
+          return;
+        }
+      }
     }
 
     LOG.debug("Starting Processing-Target threads.");
@@ -133,8 +142,16 @@ public class Processing {
       thread.start();
     }
 
-    while (sourceThread.isAlive()) {
-      // wait until source has finished
+    // wait until source has finished
+    synchronized (this.source) {
+      while (this.source.isRunning()) {
+        try {
+          this.source.wait();
+        } catch (InterruptedException ex) {
+          LOG.error("Interrupted.", ex);
+          return;
+        }
+      }
     }
 
     LOG.debug("Processing-Source finished. Terminating Targets.");
@@ -163,6 +180,8 @@ public class Processing {
      *
      * @return Number of items, or <tt>null</tt> if there is no such
      * information.
+     * @throws de.unihildesheim.util.ProcessingException Thrown, if source has
+     * not been started, or has already finished
      */
     Integer getItemCount() throws ProcessingException;
 
@@ -294,7 +313,7 @@ public class Processing {
                 LOG.info("Processing {} of {} items ({}%). "
                         + "{}s since last status. Running for {}. "
                         + "Estimated time needed {}.", lastStatus, itemCount,
-                        ((lastStatus * 100) / itemCount), runTime.stop().
+                        (lastStatus * 100) / itemCount, runTime.stop().
                         getElapsedSeconds(), overallTime.
                         getElapsedTimeString(),
                         TimeMeasure.getTimeString(estimate));
@@ -385,6 +404,9 @@ public class Processing {
 
     /**
      * Signal the {@link Source}, that it should stop generating items.
+     *
+     * @throws de.unihildesheim.util.ProcessingException Thrown, if source has
+     * not been started or already finished
      */
     protected final synchronized void stop() throws ProcessingException {
       checkRunning(true);
@@ -397,6 +419,8 @@ public class Processing {
      * Get the next item to process.
      *
      * @return Next item to process
+     * @throws de.unihildesheim.util.ProcessingException Thrown, if source has
+     * not been started or already finished
      */
     public abstract T next() throws ProcessingException;
 
@@ -404,6 +428,8 @@ public class Processing {
      * Get the number of items to process.
      *
      * @return Number of items to process
+     * @throws de.unihildesheim.util.ProcessingException Thrown, if source has
+     * not been started or already finished
      */
     public abstract Integer getItemCount() throws ProcessingException;
 
@@ -431,9 +457,8 @@ public class Processing {
      *
      * @param fail If true, throws an exception, if not running
      * @return True, if running
-     * @throws
-     * de.unihildesheim.util.ProcessingException.SourceNotReadyException
-     * Thrown, if the {@link Processing.Source} has not been started and
+     * @throws ProcessingException.SourceNotReadyException Thrown, if the
+     * {@link Processing.Source} has not been started and
      * <tt>fail</tt> is <tt>true</tt>
      */
     protected final synchronized boolean checkRunning(final boolean fail)
@@ -456,17 +481,22 @@ public class Processing {
      * Set the flag indicating this {@link Processing.Source} is running.
      */
     protected final void setRunning() {
-      this.isRunning = true;
+      synchronized (this) {
+        this.isRunning = true;
+        this.notifyAll();
+      }
     }
 
     /**
      * Await termination.
      */
     protected final synchronized void awaitTermination() {
-      try {
-        this.wait();
-      } catch (InterruptedException ex) {
-        LOG.error("Interrupted.", ex);
+      while (this.isRunning) {
+        try {
+          this.wait();
+        } catch (InterruptedException ex) {
+          LOG.error("Interrupted.", ex);
+        }
       }
     }
   }
@@ -485,7 +515,7 @@ public class Processing {
     /**
      * Wrapped collection acting as source.
      */
-    private Collection<T> collection;
+    private final Collection<T> collection;
     /**
      * Iterator over the wrapped source.
      */
@@ -493,7 +523,7 @@ public class Processing {
     /**
      * Number of provided items.
      */
-    private volatile int sourcedItemCount;
+    private final AtomicInteger sourcedItemCount;
 
     /**
      * Wrap the specified collection using it as source.
@@ -502,7 +532,7 @@ public class Processing {
      */
     public CollectionSource(final Collection<T> coll) {
       super();
-      this.sourcedItemCount = 0;
+      this.sourcedItemCount = new AtomicInteger(0);
       this.collection = coll;
     }
 
@@ -510,7 +540,7 @@ public class Processing {
     public synchronized T next() throws ProcessingException {
       checkRunning(true);
       if (itemsIt.hasNext()) {
-        this.sourcedItemCount++;
+        this.sourcedItemCount.incrementAndGet();
         return itemsIt.next();
       }
       stop();
@@ -534,7 +564,7 @@ public class Processing {
 
     @Override
     public int getSourcedItemCount() {
-      return this.sourcedItemCount;
+      return this.sourcedItemCount.get();
     }
   }
 
@@ -580,7 +610,7 @@ public class Processing {
     public abstract void terminate();
 
     /**
-     * Create a new {@link Target} instance
+     * Create a new {@link Target} instance.
      *
      * @param latch Shared latch to track running threads.
      * @return New {@link Target} instance

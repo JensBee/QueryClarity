@@ -46,8 +46,8 @@ public final class TimeMeasure {
   private boolean stopped = false;
 
   /**
-   * Start the time measurement. If the measurement was paused, it will continue
-   * measuring. If it was stopped before it will be reset.
+   * Start the time measurement. If the measurement was paused, it will
+   * continue measuring. If it was stopped before it will be reset.
    *
    * @return Self reference
    */
@@ -141,7 +141,7 @@ public final class TimeMeasure {
    * @return Formatted elapsed time string
    */
   public String getElapsedTimeString(final double nanos) {
-    return getTimeString((long)(nanos / 1000000000.0));
+    return getTimeString((long) (nanos / 1000000000.0));
   }
 
   /**
@@ -156,10 +156,10 @@ public final class TimeMeasure {
 
     int day = (int) TimeUnit.SECONDS.toDays(elapsedTime);
     long hours = TimeUnit.SECONDS.toHours(elapsedTime) - (day * 24);
-    long minutes = TimeUnit.SECONDS.toMinutes(elapsedTime) - (TimeUnit.SECONDS.
-            toHours(elapsedTime) * 60);
-    long seconds = TimeUnit.SECONDS.toSeconds(elapsedTime) - (TimeUnit.SECONDS.
-            toMinutes(elapsedTime) * 60);
+    long minutes = TimeUnit.SECONDS.toMinutes(elapsedTime)
+            - (TimeUnit.SECONDS.toHours(elapsedTime) * 60);
+    long seconds = TimeUnit.SECONDS.toSeconds(elapsedTime)
+            - (TimeUnit.SECONDS.toMinutes(elapsedTime) * 60);
 
     if (day > 0) {
       timeStr.append(day).append("d ").append(hours).append("h ").append(

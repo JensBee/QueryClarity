@@ -24,7 +24,6 @@ import asg.cliche.ShellFactory;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
-import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.StringUtils;
 import java.io.File;
 import java.io.IOException;
@@ -44,7 +43,7 @@ import org.apache.lucene.util.BytesRef;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class IndexInfo {
+public final class IndexInfo {
 
   /**
    * CLI-parameter to specify the Lucene index directory.
@@ -67,6 +66,7 @@ public class IndexInfo {
 
   /**
    * List document fields from Lucene index.
+   * @throws java.io.IOException Thrown on low-level I/O errors
    */
   @Command(description = "List document fields from Lucene index.")
   public void listFields() throws IOException {
@@ -89,6 +89,11 @@ public class IndexInfo {
             + this.reader.numDeletedDocs() + ")");
   }
 
+  /**
+   * Get summed term frequency for a field.
+   * @param fieldName Field name
+   * @throws IOException Thrown on low-level I/O errors
+   */
   @Command(description = "Get summed term frequency for a field.")
   public void getFieldOverallTermFrequency(
           @Param(name = "fieldName", description = "Fields name.")
@@ -99,6 +104,11 @@ public class IndexInfo {
     System.out.println(fieldTerms.getSumTotalTermFreq());
   }
 
+  /**
+   * Get term frequencies for a field and each term.
+   * @param fieldName Field name
+   * @throws IOException Thrown on low-level I/O errors
+   */
   @Command(description
           = "Get term frequencies for a field.")
   public void getFieldTermFrequency(
@@ -124,14 +134,17 @@ public class IndexInfo {
     }
   }
 
-  @Command(description
-          = "Quit.")
+  /**
+   * Quit the instance.
+   */
+  @Command(description = "Quit.")
   public void quit() {
     System.exit(0);
   }
 
   /**
    * Run the instance.
+   * @throws IOException Thrown on low-level I/O errors
    */
   private void start() throws IOException {
     try {
@@ -159,8 +172,9 @@ public class IndexInfo {
 
   /**
    * @param args the command line arguments
+   * @throws java.io.IOException Thrown on low-level I/O errors
    */
-  public static void main(String[] args) throws IOException {
+  public static void main(final String[] args) throws IOException {
     final IndexInfo ii = new IndexInfo();
     final JCommander jc = new JCommander(ii);
     try {

@@ -116,13 +116,15 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   /**
    * Base document-term data. Store <tt>document-id, key, term -> value</tt>.
    */
-  private BTreeMap<Fun.Tuple3<Integer, String, BytesWrap>, Object> docTermDataInternal;
+  private BTreeMap<Fun.Tuple3<
+          Integer, String, BytesWrap>, Object> docTermDataInternal;
 
   /**
    * External passed in document-term data. Store each external data by it's
    * prefix. Data is mapped by <tt>document-id, term, key -> value</tt>.
    */
-  private Map<String, BTreeMap<Fun.Tuple3<Integer, BytesWrap, String>, Object>> docTermDataPrefixed;
+  private Map<String, BTreeMap<Fun.Tuple3<
+          Integer, BytesWrap, String>, Object>> docTermDataPrefixed;
 
   /**
    * List of known prefixes to stored data in {@link #docTermDataPrefixed}.
@@ -227,14 +229,32 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
       timestamp,
     }
 
+    /**
+     * Get a string representation of the given key.
+     *
+     * @param key Key to get as String
+     * @return String representation of the given key
+     */
     public static String get(final DataKeys key) {
       return key.name();
     }
 
+    /**
+     * Get a string representation of the given key.
+     *
+     * @param key Key to get as String
+     * @return String representation of the given key
+     */
     public static String get(final DataKeys.Properties key) {
       return key.name();
     }
 
+    /**
+     * Get a string representation of the given key.
+     *
+     * @param key Key to get as String
+     * @return String representation of the given key
+     */
     public static String get(final DataKeys.DataBase key) {
       return key.name();
     }
@@ -503,9 +523,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
    * @param all If true, all data will be recalculated. If false, only missing
    * data will be recalculated.
    * @throws java.io.IOException IOException Thrown, on low-level errors
-   * @throws de.unihildesheim.lucene.document.model.DocumentModelException
-   * Thrown, if the {@link DocumentModel} of the requested type could not be
-   * instantiated
+   * @throws DocumentModelException Thrown, if the {@link DocumentModel} of
+   * the requested type could not be instantiated
    */
   public void recalculateData(final IndexReader indexReader,
           final String[] targetFields, final boolean all) throws IOException,
@@ -634,6 +653,13 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     this.overallTermFreq = oTermFreq;
   }
 
+  /**
+   * Get the map of externally submitted document-term data entries. Creates a
+   * new map, if the requested does not exist.
+   *
+   * @param prefix Prefix to identify the map
+   * @return Data map associated with the given prefix
+   */
   private synchronized BTreeMap<Fun.Tuple3<Integer, BytesWrap, String>, Object>
           getPrefixedMap(final String prefix) {
     BTreeMap<Fun.Tuple3<Integer, BytesWrap, String>, Object> map
@@ -757,12 +783,10 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
             docModel.termFrequency);
 
     for (Entry<BytesWrap, Long> entry : docModel.termFreqMap.entrySet()) {
-      // TODO: remove, this is debug code!
       if (entry.getKey() == null || entry.getValue() == null) {
         throw new NullPointerException("Encountered null value in "
                 + "termFreqMap.");
       }
-      // end debug code
       ConcurrentMapTools.ensurePut(this.docTermDataInternal, Fun.t3(
               docModel.id, DataKeys.get(DataKeys._docTermFreq),
               entry.getKey()), entry.getValue());
@@ -980,14 +1004,29 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     return Collections.unmodifiableMap(this.docTermDataInternal);
   }
 
+  /**
+   * Get a list of known prefixes, needed to access externally stored
+   * document-term data. Meant only for debugging purpose.
+   *
+   * @return List of known prefixes.
+   */
   public Collection<String> debugGetKnownPrefixes() {
     return Collections.unmodifiableCollection(this.knownPrefixes);
   }
 
+  /**
+   * Get a map with externally stored document-term data entries, identified
+   * by the given prefix. Meant only for debugging purpose as changing data
+   * may cause inconsistency and break things.
+   *
+   * @param prefix Prefix to identify the map
+   * @return Map associated with the given prefix, or <tt>null</tt> if there
+   * was no map stored with the given prefix
+   */
   public Map<Fun.Tuple3<Integer, BytesWrap, String>, Object> debugGetPrefixMap(
           final String prefix) {
     if (debugGetKnownPrefixes().contains(prefix)) {
-      return getPrefixedMap(prefix);
+      return Collections.unmodifiableMap(getPrefixedMap(prefix));
     }
     return null;
   }

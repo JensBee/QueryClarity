@@ -135,7 +135,7 @@ public final class TextTable {
   private int getCellsWidth(final int... newCells) {
     int width = 0;
     for (int i = 0; i < newCells.length; i++) {
-      width += (newCells[i] + 2); // add spacing
+      width += newCells[i] + 2; // add spacing
     }
     return width;
   }
@@ -164,19 +164,19 @@ public final class TextTable {
    *
    * @param printMarkers If true, a vertical line marker will be printed for
    * each cell
-   * @param cells Cells specified by their width
+   * @param newCells Cells specified by their width
    */
-  public void hLine(final boolean printMarkers, final int... cells) {
+  public void hLine(final boolean printMarkers, final int... newCells) {
     boolean start;
     boolean end = false;
 
-    for (int i = 0; i < cells.length; i++) {
+    for (int i = 0; i < newCells.length; i++) {
       start = i == 0;
-      if (i + 1 == cells.length) {
+      if (i + 1 == newCells.length) {
         end = true;
       }
 
-      hLine(cells[i], printMarkers, start, end);
+      hLine(newCells[i], printMarkers, start, end);
     }
   }
 
@@ -224,7 +224,7 @@ public final class TextTable {
     int width = getCellsWidth(newCells);
     // fix spacing introduced by vertical lines
     if (newCells.length > 3) {
-      width += (newCells.length - 3);
+      width += newCells.length - 3;
     }
     this.out.printf("| %-" + width + "s |\n", title);
   }
