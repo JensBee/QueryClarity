@@ -19,7 +19,7 @@ package de.unihildesheim.lucene.scoring.clarity;
 import de.unihildesheim.lucene.LuceneDefaults;
 import de.unihildesheim.lucene.TestUtility;
 import de.unihildesheim.lucene.document.IDocumentModel;
-import de.unihildesheim.lucene.document.model.DocumentModelException;
+import de.unihildesheim.lucene.document.DocumentModelException;
 import de.unihildesheim.lucene.index.AbstractIndexDataProvider;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.index.MemoryIndex;

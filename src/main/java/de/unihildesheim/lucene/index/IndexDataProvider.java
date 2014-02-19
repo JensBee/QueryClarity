@@ -16,8 +16,8 @@
  */
 package de.unihildesheim.lucene.index;
 
-import de.unihildesheim.lucene.document.model.DocumentModel;
-import de.unihildesheim.lucene.document.model.Processing;
+import de.unihildesheim.lucene.document.DocumentModel;
+import de.unihildesheim.util.Processing;
 import de.unihildesheim.lucene.util.BytesWrap;
 import java.util.Iterator;
 

@@ -141,7 +141,7 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
     if (!(o instanceof BytesWrap)) {
       return false;
     }
-    return Arrays.equals(getBytes(), ((BytesWrap) o).getBytes());
+    return Arrays.equals(this.data, ((BytesWrap) o).data);
   }
 
   @Override
@@ -152,19 +152,14 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
   @Override
   @SuppressWarnings("AccessingNonPublicFieldOfAnotherObject")
   public int compareTo(final BytesWrap o) {
-    // same object
-    if (this == o) {
-      return 0;
-    }
-
-    // same array values
-    if (equals(o)) {
+    // same object, same array values
+    if (this == o || this.data == o.data || equals(o)) {
       return 0;
     }
 
     int minSameSize = Math.min(data.length, o.data.length);
     for (int i = 0; i < minSameSize; i++) {
-      final int cmp = Byte.compare(this.data[i], o.data[i]);
+      final int cmp = this.data[i] - o.data[i];
       if (cmp != 0) {
         return cmp;
       }

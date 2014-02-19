@@ -17,12 +17,13 @@
 package de.unihildesheim.lucene.scoring.clarity;
 
 import de.unihildesheim.lucene.document.DocFieldsTermsEnum;
-import de.unihildesheim.lucene.document.model.DocumentModel;
-import de.unihildesheim.lucene.document.model.Processing;
-import de.unihildesheim.lucene.document.model.Processing.Source;
-import de.unihildesheim.lucene.document.model.Processing.Target;
+import de.unihildesheim.lucene.document.DocumentModel;
+import de.unihildesheim.util.Processing;
+import de.unihildesheim.util.Processing.Source;
+import de.unihildesheim.util.Processing.Target;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.util.BytesWrap;
+import de.unihildesheim.util.ProcessingException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
@@ -65,6 +66,15 @@ public final class DefaultClarityScorePrecalculator {
   }
 
   /**
+   * Get the {@link DefaultClarityScore} instance using this calculator.
+   *
+   * @return {@link DefaultClarityScore} instance using this calculator
+   */
+  protected DefaultClarityScore getDcsInstance() {
+    return dcsInstance;
+  }
+
+  /**
    * Pre-calculate all document models for all terms known from the index.
    */
   public void preCalculate() {
@@ -73,7 +83,10 @@ public final class DefaultClarityScorePrecalculator {
     pPipe.process();
   }
 
-  public final class DocumentModelCalculator
+  /**
+   * {@link Processing.Target} creating document models.
+   */
+  private final class DocumentModelCalculator
           extends Processing.Target<Integer> {
 
     /**
@@ -125,59 +138,56 @@ public final class DefaultClarityScorePrecalculator {
     @Override
     public Processing.Target<Integer> newInstance(
             final CountDownLatch newLatch) {
-      return new DocumentModelCalculator(this.getSource(), newLatch);
+      return new DocumentModelCalculator(getSource(), newLatch);
     }
 
     @Override
     public void run() {
-      final IndexDataProvider dataProv
-              = DefaultClarityScorePrecalculator.this.dcsInstance.
-              getIndexDataProvider();
+      LOG.debug("{} Starting.", this.rId);
+      if (this.latch == null) {
+        throw new IllegalStateException(this.rId
+                + " Tracking latch not set.");
+      }
       try {
-        if (this.latch == null) {
-          throw new IllegalStateException(this.rId
-                  + " Tracking latch not set.");
-        }
-
         final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(
-                DefaultClarityScorePrecalculator.this.dcsInstance.getReader(),
-                dataProv.getTargetFields());
+                getDcsInstance().getReader(), getDcsInstance().
+                getIndexDataProvider().getTargetFields());
 
-        while (!this.terminate) {
-          if (this.getSource().hasNext()) {
-            final Integer docId = this.getSource().next();
-            if (docId == null) {
-              LOG.warn("{} Document-id was null.", this.rId);
-              continue;
-            }
+        while (!this.terminate && getSource().isRunning()) {
+          final Integer docId = getSource().next();
+          if (docId == null) {
+            continue;
+          }
 
-            dftEnum.setDocument(docId);
-            BytesRef bytesRef = dftEnum.next();
-            Collection<BytesWrap> termList = new ArrayList<>();
-            while (bytesRef != null) {
-              termList.add(new BytesWrap(bytesRef));
-              bytesRef = dftEnum.next();
-            }
+          dftEnum.setDocument(docId);
+          BytesRef bytesRef = dftEnum.next();
+          Collection<BytesWrap> termList = new ArrayList<>();
+          while (bytesRef != null) {
+            termList.add(new BytesWrap(bytesRef));
+            bytesRef = dftEnum.next();
+          }
 
-            if (termList.isEmpty()) {
-              LOG.warn("{} Empty term list for document-id {}", this.rId,
+          if (termList.isEmpty()) {
+            LOG.warn("{} Empty term list for document-id {}", this.rId,
+                    docId);
+          } else {
+            DocumentModel docModel
+                    = getDcsInstance().getIndexDataProvider().
+                    getDocumentModel(docId);
+            if (docModel == null) {
+              LOG.warn("{} Model for document-id {} was null.", this.rId,
                       docId);
             } else {
-              DocumentModel docModel = dataProv.getDocumentModel(docId);
-              if (docModel == null) {
-                LOG.warn("{} Model for document-id {} was null.", this.rId,
-                        docId);
-              } else {
                 // call the calculation method of the main class for each
-                // document and term that is available for processing
-                DefaultClarityScorePrecalculator.this.dcsInstance.
-                        calcDocumentModel(docModel, termList);
-              }
+              // document and term that is available for processing
+              getDcsInstance().calcDocumentModel(docModel, termList);
             }
           }
         }
 
         LOG.debug("{} Terminating.", this.rId);
+      } catch (ProcessingException.SourceHasFinishedException ex) {
+        LOG.debug("Source has finished unexpectedly.");
       } catch (Exception ex) {
         LOG.debug("{} Caught exception. Terminating.", this.rId, ex);
       } finally {

@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.lucene.document.model;
+package de.unihildesheim.lucene.document;
 
 import de.unihildesheim.lucene.scoring.clarity.ClarityScoreConfiguration;
 import de.unihildesheim.lucene.util.BytesWrap;
@@ -95,9 +95,8 @@ public final class DocumentModel {
      * Default number of terms to expect for a document. Used to initialize
      * data storage to a appropriate size.
      */
-    private static final int DEFAULT_TERMS_COUNT
-            = ClarityScoreConfiguration.INSTANCE.getInt(CONF_PREFIX
-                    + "defaultTermsCount", 100);
+    private static final int DEFAULT_TERMS_COUNT = ClarityScoreConfiguration.
+            getInt(CONF_PREFIX + "defaultTermsCount", 100);
     /**
      * Term -> frequency mapping for every known term in the document.
      */

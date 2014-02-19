@@ -67,7 +67,7 @@ public final class TimeMeasure {
    * @return Self reference
    */
   public TimeMeasure pause() {
-    this.elapsed = getElapsedNanos();
+    this.elapsed = getNanos();
     this.paused = true;
     return this;
   }
@@ -80,7 +80,7 @@ public final class TimeMeasure {
   public TimeMeasure stop() {
     this.paused = false;
     this.stopped = true;
-    this.elapsed += getElapsedNanos();
+    this.elapsed += getNanos();
     return this;
   }
 
@@ -90,8 +90,27 @@ public final class TimeMeasure {
    *
    * @return Elapsed nanoseconds
    */
-  private long getElapsedNanos() {
+  private long getNanos() {
     return System.nanoTime() - startTime;
+  }
+
+  /**
+   * Get the elapsed nanoseconds of the current measurement.
+   *
+   * @return elapsed nanoseconds, or <tt>0</tt> if no time was recorded
+   */
+  public double getElapsedNanos() {
+    double nanos;
+    if (!this.stopped) {
+      nanos = this.elapsed + getNanos();
+    } else {
+      if (this.elapsed > 0) {
+        nanos = this.elapsed;
+      } else {
+        nanos = 0d;
+      }
+    }
+    return nanos;
   }
 
   /**
@@ -100,16 +119,7 @@ public final class TimeMeasure {
    * @return elapsed seconds, or <tt>0</tt> if no time was recorded
    */
   public double getElapsedSeconds() {
-    double nanos;
-    if (!this.stopped) {
-      nanos = this.elapsed + getElapsedNanos();
-    } else {
-      if (this.elapsed > 0) {
-        nanos = this.elapsed;
-      } else {
-        nanos = 0d;
-      }
-    }
+    double nanos = getElapsedNanos();
     return nanos > 0 ? nanos / 1000000000.0 : 0d;
   }
 
@@ -121,6 +131,17 @@ public final class TimeMeasure {
    */
   public String getElapsedTimeString() {
     return getTimeString((long) getElapsedSeconds());
+  }
+
+  /**
+   * Get a string representation of the elapsed time formatted as <tt>DDd
+   * HH:MM:SS</tt> string.
+   *
+   * @param nanos Nanoseconds to convert
+   * @return Formatted elapsed time string
+   */
+  public String getElapsedTimeString(final double nanos) {
+    return getTimeString((long)(nanos / 1000000000.0));
   }
 
   /**

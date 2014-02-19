@@ -7,4 +7,4 @@ JVM_DEFAULT="-server" # -d64
 JVM="$JVM_DEFAULT $JVM_MEM"
 MAVEN_OPTS="$MAVEN_OPTS $JVM"
 
-mvn exec:java -Dexec.mainClass="de.unihildesheim.lucene.cli.CachedIndexViewer" -Dexec.args="-storageId clef"
+mvn exec:java -Dexec.mainClass="de.unihildesheim.lucene.index.CachedIndexViewer" -Dexec.args="-storageId clef $*"

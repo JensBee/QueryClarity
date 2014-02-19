@@ -17,26 +17,26 @@
 package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.lucene.document.DocFieldsTermsEnum;
-import de.unihildesheim.lucene.document.model.DocumentModel;
-import de.unihildesheim.lucene.document.model.DocumentModelException;
-import de.unihildesheim.lucene.scoring.clarity.ClarityScoreConfiguration;
+import de.unihildesheim.lucene.document.DocumentModel;
+import de.unihildesheim.lucene.document.DocumentModelException;
 import de.unihildesheim.lucene.util.BytesWrap;
+import de.unihildesheim.util.Processing;
+import de.unihildesheim.util.Processing.CollectionSource;
+import de.unihildesheim.util.Processing.Source;
+import de.unihildesheim.util.Processing.Target;
+import de.unihildesheim.util.ProcessingException;
 import de.unihildesheim.util.TimeMeasure;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,29 +65,9 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
           AbstractIndexDataProvider.class);
 
   /**
-   * Prefix used to store configuration.
-   */
-  private static final String CONF_PREFIX = "AbstractIDP_";
-
-  /**
    * Index fields to operate on.
    */
   private transient String[] fields = new String[0];
-
-  /**
-   * Number of threads to use for creating document models.
-   */
-  private static final int DOCMODEL_CREATOR_THREADS
-          = ClarityScoreConfiguration.INSTANCE.getInt(CONF_PREFIX
-                  + "creatorThreads", Runtime.getRuntime().
-                  availableProcessors());
-
-  /**
-   * Size of queue to feed document model creator worker threads.
-   */
-  private static final int DOCMODEL_CREATOR_QUEUE_CAPACITY
-          = ClarityScoreConfiguration.INSTANCE.getInt(CONF_PREFIX
-                  + "creatorQueueCap", DOCMODEL_CREATOR_THREADS * 10);
 
   /**
    * Updates the relative term frequency value for the given term. Thread
@@ -174,73 +154,9 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
       throw new IllegalArgumentException("Reader was null.");
     }
 
-    final TimeMeasure timeMeasure = new TimeMeasure().start();
-    final Bits liveDocs = MultiFields.getLiveDocs(reader);
-    final int maxDoc = reader.maxDoc();
-    LOG.info("Creating document models for approx. {} documents.", maxDoc);
-
-    // show a progress status in 1% steps
-    int[] runStatus = new int[]{0, (int) (maxDoc * 0.01),
-      maxDoc, 0}; // counter, step, max, percentage
-    TimeMeasure runTimeMeasure = new TimeMeasure();
-
-    // threading
-    final CountDownLatch trackingLatch = new CountDownLatch(
-            DOCMODEL_CREATOR_THREADS);
-    final BlockingQueue<Integer> docQueue = new ArrayBlockingQueue<Integer>(
-            DOCMODEL_CREATOR_QUEUE_CAPACITY);
-    final DocumentModelCreator[] dmcThreads
-            = new DocumentModelCreator[DOCMODEL_CREATOR_THREADS];
-    LOG.debug("Spawning {} threads for document model creation.",
-            DOCMODEL_CREATOR_THREADS);
-    for (int i = 0; i < DOCMODEL_CREATOR_THREADS; i++) {
-      dmcThreads[i]
-              = new DocumentModelCreator(reader, docQueue, trackingLatch);
-      final Thread t = new Thread(dmcThreads[i], "DMCreator-" + i);
-      t.start();
-    }
-
-    try {
-      for (int docId = 0; docId < maxDoc; docId++) {
-        // check if document is deleted
-        if (liveDocs != null && !liveDocs.get(docId)) {
-          // document is deleted
-          continue;
-        }
-
-        docQueue.put(docId);
-        // operating indicator
-        if (++runStatus[0] % runStatus[1] == 0) {
-          runTimeMeasure.stop();
-          // estimate time needed
-          long estimate = (long) ((runStatus[2] - runStatus[0])
-                  / (runStatus[0]
-                  / timeMeasure.getElapsedSeconds()));
-
-          LOG.info("{} models of approx. {} documents created ({}s, {}%). "
-                  + "Time left {}.", runStatus[0], runStatus[2],
-                  runTimeMeasure.
-                  getElapsedSeconds(), ++runStatus[3], TimeMeasure.
-                  getTimeString(estimate));
-
-          runTimeMeasure.start();
-        }
-      }
-
-      // clean up
-      for (int i = 0; i < DOCMODEL_CREATOR_THREADS; i++) {
-        dmcThreads[i].terminate();
-      }
-      // wait until all waiting models are processed
-      trackingLatch.await();
-    } catch (InterruptedException ex) {
-      LOG.error("Model creation thread interrupted. "
-              + "This may have caused data corruption.", ex);
-    }
-
-    timeMeasure.stop();
-    LOG.info("Calculation of document models for {} documents took {}.",
-            runStatus[0], timeMeasure.getElapsedTimeString());
+    new Processing(
+            new DocModelCreator(new DocModelCreatorSource(reader), reader)
+    ).process();
   }
 
   /**
@@ -252,41 +168,16 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * list of all terms known from the index.
    */
   protected final void calculateRelativeTermFrequencies(
-          final Set<BytesWrap> terms) {
+          final Collection<BytesWrap> terms) {
     if (terms == null) {
       throw new IllegalArgumentException("Term set was null.");
     }
     LOG.info("Calculating relative term frequencies for {} terms.", terms.
             size());
-    final TimeMeasure timeMeasure = new TimeMeasure().start();
-    final double cFreq = (double) getTermFrequency();
-    Long termFreq;
 
-    // show a progress status in 1% steps
-    int[] runStatus = new int[]{0, (int) (terms.size() * 0.01), terms.size(),
-      0}; // counter, step, max, percentage
-    TimeMeasure runTimeMeasure = new TimeMeasure().start();
-
-    for (BytesWrap term : terms) {
-      // debug operating indicator
-      if (runStatus[0] >= 0 && ++runStatus[0] % runStatus[1] == 0) {
-        LOG.info("{} of {} terms calculated ({}s, {}%)", runStatus[0],
-                runStatus[2], runTimeMeasure.stop().getElapsedSeconds(),
-                ++runStatus[3]);
-        runTimeMeasure.start();
-      }
-
-      termFreq = getTermFrequency(term);
-      if (termFreq != null) {
-        final double rTermFreq = (double) termFreq / cFreq;
-        setTermFreqValue(term, rTermFreq);
-      }
-    }
-
-    timeMeasure.stop();
-    LOG.info("Calculation of relative term frequencies "
-            + "for {} unique terms in index took {}.",
-            getTermsCount(), timeMeasure.getElapsedTimeString());
+    new Processing(
+            new RelTermFreqCalculator(new CollectionSource(terms))
+    ).process();
   }
 
   @Override
@@ -321,93 +212,131 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   }
 
   /**
-   * Worker thread to create {@link DocumentModel}s.
+   * {@link Processing.Source} providing document-ids to create document
+   * models.
    */
-  private final class DocumentModelCreator implements Runnable {
+  private final class DocModelCreatorSource extends Processing.Source<Integer>
+          implements Processing.ObservableSource {
 
     /**
-     * Prefix used to store configuration.
+     * Expected number of documents to retrieve from Lucene.
      */
-    private static final String CONF_PREFIX = "DMCreator_";
+    private final int itemsCount;
     /**
-     * Gather terms found in the document.
+     * Current number of items provided.
      */
-    private Map<BytesWrap, Number> docTerms;
+    private int currentNum;
+
+    DocModelCreatorSource(final IndexReader newReader) {
+      super();
+      this.itemsCount = newReader.maxDoc();
+      this.currentNum = -1;
+    }
+
+    @Override
+    public synchronized Integer next() throws ProcessingException {
+      Integer nextNum = null;
+      if (++this.currentNum < itemsCount) {
+        nextNum = this.currentNum;
+      } else {
+        stop();
+      }
+      return nextNum;
+    }
+
+    @Override
+    public Integer getItemCount() {
+      return this.itemsCount;
+    }
+
+    @Override
+    public int getSourcedItemCount() {
+      return this.currentNum < 0 ? 0 : this.currentNum;
+    }
+  }
+
+  /**
+   * {@link Processing.Target} create document models from a document-id
+   * {@link Processing.Source}.
+   */
+  private final class DocModelCreator extends Processing.Target<Integer> {
+
     /**
-     * Enumerator enumerating over all specified document fields.
+     * Name to identify this {@link Runnable}.
      */
-    private final DocFieldsTermsEnum dftEnum;
+    private final String rId = "(" + DocModelCreator.class + "-" + this.
+            hashCode() + ")";
     /**
-     * Name of this thread.
+     * Flag to indicate, if this {@link Runnable} should terminate.
      */
-    private String tName;
+    private volatile boolean terminate;
     /**
-     * Termination flag.
-     */
-    private boolean terminate = false;
-    /**
-     * Queue of doc-ids waiting to get processed.
-     */
-    private final BlockingQueue<Integer> docQueue;
-    /**
-     * Global latch to track running threads.
+     * Shared latch to track running threads.
      */
     private final CountDownLatch latch;
     /**
-     * Maximum time (s) to wait for a new document-id to become available.
+     * Reader to access Lucene index
      */
-    private final int maxWait = ClarityScoreConfiguration.INSTANCE.
-            getInt(CONF_PREFIX + "docIdMaxWait", 1);
+    private final IndexReader reader;
 
     /**
-     * Create a new worker thread.
+     * Base constructor without setting a {@link CountDownLatch}. This
+     * instance is not able to be run.
      *
-     * @param reader Index reader, to access the Lucene index
-     * @param documentQueue Queue of documents to process
-     * @param trackingLatch Shared latch to track running threads
-     * @throws IOException Thrown on low-level I/O errors
+     * @param source {@link Source} for this {@link Target}
+     * @param newReader Reader to access Lucene index
      */
-    public DocumentModelCreator(final IndexReader reader,
-            final BlockingQueue<Integer> documentQueue,
-            final CountDownLatch trackingLatch) throws IOException {
-      if (reader == null) {
-        throw new IllegalArgumentException("Reader was null.");
-      }
-      if (documentQueue == null) {
-        throw new IllegalArgumentException("Queue was null.");
-      }
-      if (trackingLatch == null) {
-        throw new IllegalArgumentException("Latch was null.");
-      }
-      this.dftEnum = new DocFieldsTermsEnum(reader,
-              AbstractIndexDataProvider.this.fields);
-      this.docQueue = documentQueue;
-      this.latch = trackingLatch;
+    public DocModelCreator(final Processing.Source<Integer> newSource,
+            final IndexReader newReader) {
+      super(newSource);
+      this.terminate = false;
+      this.reader = newReader;
+      this.latch = null;
     }
 
     /**
-     * Set the termination flag for this thread causing it to finish the
-     * current work and exit.
+     * Creates a new instance able to run. Meant to be called from the factory
+     * method.
+     *
+     * @param source {@link Source} for this {@link Target}
+     * @param newLatch Shared latch to track running threads
+     * @param newReader Reader to access Lucene index
      */
+    private DocModelCreator(final Processing.Source<Integer> source,
+            final CountDownLatch newLatch, final IndexReader newReader) {
+      super(source);
+      this.terminate = false;
+      this.reader = newReader;
+      this.latch = newLatch;
+    }
+
+    @Override
     public void terminate() {
-      LOG.debug("({}) Thread got terminating signal.", this.tName);
+      LOG.debug("{} Received termination signal.", this.rId);
       this.terminate = true;
     }
 
     @Override
-    public void run() {
-      this.tName = Thread.currentThread().getName();
-      LOG.debug("({}) Runnable starting", this.tName);
-      final long[] docTermEsitmate = new long[]{0L, 0L, 100L};
+    public Processing.Target<Integer> newInstance(
+            final CountDownLatch newLatch) {
+      return new DocModelCreator(getSource(), newLatch, this.reader);
+    }
 
-      Integer docId;
-      BytesRef bytesRef;
+    @Override
+    public void run() {
       try {
-        while (!Thread.currentThread().isInterrupted() && !(this.terminate
-                && this.docQueue.isEmpty())) {
-          docId = this.docQueue.poll(maxWait, TimeUnit.SECONDS);
+        LOG.debug("{} Starting.", this.rId);
+        final long[] docTermEsitmate = new long[]{0L, 0L, 100L};
+
+        final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(this.reader,
+                getFields());
+
+        BytesRef bytesRef;
+        Map<BytesWrap, Number> docTerms;
+
+        while (!this.terminate && getSource().isRunning()) {
+          final Integer docId = getSource().next();
           if (docId == null) {
-            LOG.debug("({}) No doc received in {}s", maxWait);
             continue;
           }
 
@@ -475,12 +404,99 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
           // take the default load factor into account
           docTermEsitmate[2] += docTermEsitmate[2] * 0.8;
         }
-      } catch (InterruptedException ex) {
-        LOG.warn("({}) Runnable interrupted.", this.tName, ex);
+      } catch (ProcessingException.SourceHasFinishedException ex) {
+        LOG.debug("Source has finished unexpectedly.");
+      } catch (Exception ex) {
+        LOG.debug("{} Caught exception. Terminating.", this.rId, ex);
+      } finally {
+        this.latch.countDown();
       }
+    }
+  }
 
-      this.latch.countDown();
-      LOG.debug("({}) Runnable terminated.", this.tName);
+  /**
+   * {@link Processing.Target} create document models from a document-id
+   * {@link Processing.Source}.
+   */
+  private final class RelTermFreqCalculator extends Processing.Target<BytesWrap> {
+
+    /**
+     * Name to identify this {@link Runnable}.
+     */
+    private final String rId = "(" + DocModelCreator.class + "-" + this.
+            hashCode() + ")";
+    /**
+     * Flag to indicate, if this {@link Runnable} should terminate.
+     */
+    private volatile boolean terminate;
+    /**
+     * Shared latch to track running threads.
+     */
+    private final CountDownLatch latch;
+
+    /**
+     * Base constructor without setting a {@link CountDownLatch}. This
+     * instance is not able to be run.
+     *
+     * @param source {@link Source} for this {@link Target}
+     */
+    public RelTermFreqCalculator(final Processing.Source<BytesWrap> source) {
+      super(source);
+      this.terminate = false;
+      this.latch = null;
+    }
+
+    /**
+     * Creates a new instance able to run. Meant to be called from the factory
+     * method.
+     *
+     * @param newSource {@link Source} for this {@link Target}
+     * @param newLatch Shared latch to track running threads
+     */
+    private RelTermFreqCalculator(final Processing.Source<BytesWrap> source,
+            final CountDownLatch newLatch) {
+      super(source);
+      this.terminate = false;
+      this.latch = newLatch;
+    }
+
+    @Override
+    public void terminate() {
+      LOG.debug("{} Received termination signal.", this.rId);
+      this.terminate = true;
+    }
+
+    @Override
+    public Target<BytesWrap> newInstance(final CountDownLatch latch) {
+      return new RelTermFreqCalculator(getSource(), latch);
+    }
+
+    @Override
+    public void run() {
+      final long collFreq = getTermFrequency();
+      try {
+        while (!this.terminate && getSource().isRunning()) {
+          try {
+            final BytesWrap term = getSource().next();
+            if (term == null) {
+              // nothing found
+              continue;
+            }
+            final Long termFreq = getTermFrequency(term);
+            if (termFreq != null) {
+              final double rTermFreq = (double) termFreq / collFreq;
+              setTermFreqValue(term, rTermFreq);
+            }
+          } catch (Exception ex) {
+            LOG.debug("{} Caught exception while processing term.", this.rId,
+                    ex);
+          }
+        }
+      } catch (ProcessingException.SourceHasFinishedException ex) {
+        LOG.debug("Source has finished unexpectedly.");
+      } finally {
+        this.latch.countDown();
+      }
     }
   }
 }

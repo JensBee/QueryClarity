@@ -21,7 +21,7 @@ import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import de.unihildesheim.lucene.LuceneDefaults;
-import de.unihildesheim.lucene.document.model.DocumentModelException;
+import de.unihildesheim.lucene.document.DocumentModelException;
 import de.unihildesheim.lucene.index.CachedIndexDataProvider;
 import java.io.File;
 import java.io.IOException;

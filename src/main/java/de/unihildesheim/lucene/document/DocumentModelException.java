@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.lucene.document.model;
+package de.unihildesheim.lucene.document;
 
 /**
  * Wrapper for {@link Exception}s thrown while working with document models.

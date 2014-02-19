@@ -132,7 +132,7 @@ public final class ClarityScoreConfiguration {
    * @return Integer value assigned to the key, or <tt>defaultValue</tt> if
    * there was none
    */
-  public Integer getInt(final String key, final Integer defaultValue) {
+  public static Integer getInt(final String key, final Integer defaultValue) {
     String value = get(key);
     if (value == null) {
       // push missing value to store
@@ -152,7 +152,7 @@ public final class ClarityScoreConfiguration {
    * @return Double value assigned to the key, or <tt>defaultValue</tt> if
    * there was none
    */
-  public Double getDouble(final String key, final Double defaultValue) {
+  public static Double getDouble(final String key, final Double defaultValue) {
     String value = get(key);
     if (value == null) {
       // push missing value to store

@@ -16,10 +16,10 @@
  */
 package de.unihildesheim.lucene.index;
 
-import de.unihildesheim.lucene.document.model.DocumentModel;
-import de.unihildesheim.lucene.document.model.DocumentModel.DocumentModelBuilder;
-import de.unihildesheim.lucene.document.model.DocumentModelException;
-import de.unihildesheim.lucene.document.model.Processing;
+import de.unihildesheim.lucene.document.DocumentModel;
+import de.unihildesheim.lucene.document.DocumentModel.DocumentModelBuilder;
+import de.unihildesheim.lucene.document.DocumentModelException;
+import de.unihildesheim.util.Processing;
 import de.unihildesheim.util.StringUtils;
 import de.unihildesheim.lucene.scoring.clarity.ClarityScoreConfiguration;
 import de.unihildesheim.lucene.util.BytesWrap;
@@ -37,7 +37,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentMap;
@@ -46,9 +48,9 @@ import org.apache.lucene.index.MultiFields;
 import org.mapdb.BTreeKeySerializer;
 import org.mapdb.BTreeMap;
 import org.mapdb.DB;
+import org.mapdb.DB.BTreeMapMaker;
 import org.mapdb.DBMaker;
 import org.mapdb.Fun;
-import org.mapdb.Fun.Tuple4;
 import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,8 +80,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
    * Separator to store field names.
    */
   private static final String FIELD_NAME_SEP
-          = ClarityScoreConfiguration.INSTANCE.get(CONF_PREFIX
-                  + "fieldNameSep", "\\|");
+          = ClarityScoreConfiguration.get(CONF_PREFIX + "fieldNameSep", "\\|");
 
   /**
    * Directory where cached data should be stored.
@@ -113,11 +114,25 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   private ConcurrentMap<Integer, Long> docModels;
 
   /**
-   * Document-term data. Store <tt>prefix -> key -> document-id -> term :
-   * value</tt>. Prefix is null for internal data.
+   * Base document-term data. Store <tt>document-id, key, term -> value</tt>.
    */
-  private BTreeMap<Fun.Tuple4<
-          String, String, Integer, BytesWrap>, Object> docTermData;
+  private BTreeMap<Fun.Tuple3<Integer, String, BytesWrap>, Object> docTermDataInternal;
+
+  /**
+   * External passed in document-term data. Store each external data by it's
+   * prefix. Data is mapped by <tt>document-id, term, key -> value</tt>.
+   */
+  private Map<String, BTreeMap<Fun.Tuple3<Integer, BytesWrap, String>, Object>> docTermDataPrefixed;
+
+  /**
+   * List of known prefixes to stored data in {@link #docTermDataPrefixed}.
+   */
+  private Collection<String> knownPrefixes;
+
+  /**
+   * How many external data maps to expect.
+   */
+  private static final int PREFIX_MAP_SIZE = 10;
 
   /**
    * Summed frequency of all terms in the index.
@@ -125,11 +140,9 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   private transient Long overallTermFreq = null;
 
   /**
-   * Prefix to use for internal data stored to {@link #docTermData}.
+   * Prefix to use for internal data stored to {@link #docTermDataInternal}.
    */
-  private static final String INTERNAL_PREFIX
-          = ClarityScoreConfiguration.INSTANCE.get(CONF_PREFIX
-                  + "internalPrefix", "_");
+  private static final String INTERNAL_PREFIX = "_";
 
   /**
    * Flag indicating if a database rollback should be done. Used, if
@@ -148,51 +161,83 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   private enum DataKeys {
 
     /**
-     * Properties: Fields indexed by this instance.
+     * Document-Data: External stored, from instances using this class.
      */
-    propFields,
-    /**
-     * Properties: Cache data last access date.
-     */
-    propTimestamp,
-    /**
-     * Properties: Boolean flag, if document-model, term-frequency data is
-     * available.
-     */
-    propDocumentModelTermFreq,
-    /**
-     * Properties: Boolean flag, if document-model data is available.
-     */
-    propDocumentModel,
-    /**
-     * Properties: Boolean flag, if document-model, term-data data is
-     * available.
-     */
-    propDocumentModelTermData,
-    /**
-     * Properties: Boolean flag, if index term-frequency data is available.
-     */
-    propIndexTermFreq,
-    /**
-     * Data backend: Name of document model, term frequency storage.
-     */
-    dbDocumentModelTermFreq,
-    /**
-     * Data backend: Name of document model storage.
-     */
-    dbDocumentModel,
-    /**
-     * Data backend: Name of document, term-data storage.
-     */
-    dbDocumentModelTermData,
-    /**
-     * Data backend: Name of index, term-frequency storage.
-     */
-    dbIndexTermFreq,
+    _external,
     /**
      * Document-Data: Term frequency.
      */
-    _TF
+    _docTermFreq;
+
+    /**
+     * Keys to identify objects in the database.
+     */
+    private enum DataBase {
+
+      /**
+       * Name of document model storage.
+       */
+      documentModel,
+      /**
+       * Name of document, term-data storage.
+       */
+      documentModelTermData,
+      /**
+       * Name of document model, term frequency storage.
+       */
+      documentModelTermFreq,
+      /**
+       * Name of index, term-frequency storage.
+       */
+      indexTermFreq,
+      /**
+       * List of known prefixes for external data store.
+       */
+      prefixes
+    }
+
+    /**
+     * Keys for storing properties to disk.
+     */
+    private enum Properties {
+
+      /**
+       * Boolean flag, if document-model data is available.
+       */
+      documentModel,
+      /**
+       * Boolean flag, if document-model, term-data data is available.
+       */
+      documentModelTermData,
+      /**
+       * Boolean flag, if document-model, term-frequency data is available.
+       */
+      documentModelTermFreq,
+      /**
+       * Fields indexed by this instance.
+       */
+      fields,
+      /**
+       * Boolean flag, if index term-frequency data is available.
+       */
+      indexTermFreq,
+      /**
+       * Cache data last access date.
+       */
+      timestamp,
+    }
+
+    public static String get(final DataKeys key) {
+      return key.name();
+    }
+
+    public static String get(final DataKeys.Properties key) {
+      return key.name();
+    }
+
+    public static String get(final DataKeys.DataBase key) {
+      return key.name();
+    }
   }
 
   /**
@@ -207,7 +252,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
       throw new IllegalArgumentException("Missing storage information.");
     }
 
-    this.storagePath = ClarityScoreConfiguration.INSTANCE.get(CONF_PREFIX
+    this.storagePath = ClarityScoreConfiguration.get(CONF_PREFIX
             + "storagePath", "data/cache/");
     LOG.info("Created IndexDataProvider::{} instance storage={}.", this.
             getClass().getCanonicalName(), this.storagePath);
@@ -217,13 +262,10 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     try {
       final DBMaker dbMkr = DBMaker.newFileDB(new File(this.storagePath,
               this.storageId));
-//      dbMkr.transactionDisable(); // wo do not need transactions
-      dbMkr.mmapFileEnableIfSupported(); // use mmaped files, if supported
-//      dbMkr.asyncWriteFlushDelay(100); // reduce record fragmentation
-      dbMkr.fullChunkAllocationEnable(); // allocate space in 1GB steps
-//      dbMkr.cacheLRUEnable(); // enable last-recent-used cache
-//      dbMkr.cacheHardRefEnable(); // use hard reference map
-//      dbMkr.closeOnJvmShutdown(); // auto close db on exit
+//      dbMkr.mmapFileEnableIfSupported(); // use mmaped files, if supported
+//      dbMkr.fullChunkAllocationEnable(); // allocate space in 1GB steps
+      dbMkr.cacheLRUEnable(); // enable last-recent-used cache
+      dbMkr.cacheSoftRefEnable();
       this.db = dbMkr.make();
     } catch (RuntimeException ex) {
       LOG.error("Caught runtime exception. Maybe your classes have changed."
@@ -232,6 +274,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
 
     // create a shutdown hooking thread to handle db closing and rollbacks
     this.shutdowHandler = new Thread(new Runnable() {
+      @Override
       public void run() {
         if (!CachedIndexDataProvider.this.db.isClosed()) {
           if (CachedIndexDataProvider.this.rollback) {
@@ -267,7 +310,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
       }
 
       final String targetFields = this.storageProp.getProperty(
-              DataKeys.propFields.name());
+              DataKeys.get(DataKeys.Properties.fields));
       if (targetFields == null) {
         // no fields specified
         this.setFields(new String[0]);
@@ -290,7 +333,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
    */
   private boolean hasDocModels() {
     final boolean state = Boolean.parseBoolean(this.storageProp.getProperty(
-            DataKeys.propDocumentModel.name(), "false"));
+            DataKeys.get(DataKeys.Properties.documentModel), "false"));
     return state && !this.docModels.isEmpty();
   }
 
@@ -301,7 +344,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
    */
   private boolean hasDocTermData() {
     final boolean state = Boolean.parseBoolean(this.storageProp.getProperty(
-            DataKeys.propDocumentModelTermData.name(), "false"));
+            DataKeys.get(DataKeys.Properties.documentModelTermData), "false"));
     // the data store may be empty, so no check here
     return state;
   }
@@ -313,7 +356,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
    */
   private boolean hasTermFreqMap() {
     final boolean state = Boolean.parseBoolean(this.storageProp.getProperty(
-            DataKeys.propIndexTermFreq.name(), "false"));
+            DataKeys.get(DataKeys.Properties.indexTermFreq), "false"));
     return state && !this.termFreqMap.isEmpty();
   }
 
@@ -384,42 +427,42 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
    */
   private void initStorage(final boolean clear) {
     // base document->term-frequency data
-    DB.HTreeMapMaker dmBase = this.db.createHashMap(DataKeys.dbDocumentModel.
-            name());
+    DB.HTreeMapMaker dmBase = this.db.createHashMap(DataKeys.get(
+            DataKeys.DataBase.documentModel));
     dmBase.keySerializer(Serializer.INTEGER);
     dmBase.valueSerializer(Serializer.LONG);
     dmBase.counterEnable();
 
     DB.BTreeMapMaker dmTD = this.db.createTreeMap(
-            DataKeys.dbDocumentModelTermData.name());
+            DataKeys.get(DataKeys.DataBase.documentModelTermData));
     // comparators set to null to use default values
     final BTreeKeySerializer dmTDKeySerializer
-            = new BTreeKeySerializer.Tuple4KeySerializer(null, null, null,
-                    Serializer.STRING, Serializer.STRING, Serializer.INTEGER,
+            = new BTreeKeySerializer.Tuple3KeySerializer(null, null,
+                    Serializer.INTEGER, Serializer.STRING_INTERN,
                     new BytesWrap.Serializer());
-    dmTD.keySerializer(dmTDKeySerializer); // BTreeKeySerializer.TUPLE4
+    dmTD.keySerializer(dmTDKeySerializer);
     dmTD.valueSerializer(Serializer.JAVA);
-    dmTD.valuesOutsideNodesEnable();
+//    dmTD.valuesOutsideNodesEnable();
     dmTD.counterEnable();
 
     final DB.HTreeMapMaker tfmMkr = this.db.createHashMap(
-            DataKeys.dbIndexTermFreq.name());
+            DataKeys.get(DataKeys.DataBase.indexTermFreq));
     tfmMkr.keySerializer(new BytesWrap.Serializer());
 
     if (clear) {
       LOG.debug("Clearing all stored data.");
       this.docModels = dmBase.make();
-      this.docTermData = dmTD.make();
+      this.docTermDataInternal = dmTD.make();
       this.termFreqMap = tfmMkr.make();
     } else {
       this.docModels = dmBase.makeOrGet();
       if (!this.docModels.isEmpty()) {
         LOG.info("DocumentModels loaded. ({} entries)", this.docModels.size());
       }
-      this.docTermData = dmTD.makeOrGet();
-      if (!this.docTermData.isEmpty()) {
+      this.docTermDataInternal = dmTD.makeOrGet();
+      if (!this.docTermDataInternal.isEmpty()) {
         LOG.info("DocumentModel TermData loaded. ({} entries)",
-                this.docTermData.size());
+                this.docTermDataInternal.size());
       }
       this.termFreqMap = tfmMkr.makeOrGet();
       if (!this.termFreqMap.isEmpty()) {
@@ -427,6 +470,9 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
                 size());
       }
     }
+    this.docTermDataPrefixed = new HashMap(PREFIX_MAP_SIZE);
+    this.knownPrefixes = this.db.getTreeSet(DataKeys.get(
+            DataKeys.DataBase.prefixes));
   }
 
   /**
@@ -495,8 +541,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
 
     checkFields(indexReader);
     // update field data
-    this.storageProp.setProperty(DataKeys.propFields.name(), StringUtils.join(
-            targetFields, FIELD_NAME_SEP));
+    this.storageProp.setProperty(DataKeys.get(DataKeys.Properties.fields),
+            StringUtils.join(targetFields, FIELD_NAME_SEP));
     saveMetadata();
 
     // if we don't have term frequency values, we need to recalculate all data
@@ -511,12 +557,15 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
       // clear any possible existing data
       LOG.debug("Recalculation of all cached data triggered.");
       initStorage(true); // clear all data
-      this.storageProp.setProperty(DataKeys.propIndexTermFreq.name(), "false");
-      this.storageProp.setProperty(DataKeys.propDocumentModel.name(), "false");
-      this.storageProp.setProperty(DataKeys.propDocumentModelTermData.name(),
+      this.storageProp.setProperty(DataKeys.get(
+              DataKeys.Properties.indexTermFreq), "false");
+      this.storageProp.setProperty(DataKeys.get(
+              DataKeys.Properties.documentModel), "false");
+      this.storageProp.setProperty(DataKeys.get(
+              DataKeys.Properties.documentModelTermData),
               "false");
-      this.storageProp.setProperty(DataKeys.propDocumentModelTermFreq.name(),
-              "false");
+      this.storageProp.setProperty(DataKeys.get(
+              DataKeys.Properties.documentModelTermFreq), "false");
       saveMetadata();
     }
 
@@ -534,12 +583,11 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
       commitHook();
 
       // save state
-      this.storageProp.setProperty(DataKeys.propIndexTermFreq.name(), "true");
+      this.storageProp.setProperty(DataKeys.get(
+              DataKeys.Properties.indexTermFreq), "true");
       saveMetadata();
     }
 
-//    LOG.error("--STOP--HERE-- {}");
-//    System.exit(0);
     // 3. Create document models
     if (recalcAll || !hasDocModels() || !hasDocTermData()) {
       // calculate
@@ -549,16 +597,15 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
       // save results
       commitHook();
       // save state
-      this.storageProp.setProperty(DataKeys.propDocumentModel.name(), "true");
-      this.storageProp.setProperty(DataKeys.propDocumentModelTermData.name(),
-              "true");
-      this.storageProp.setProperty(DataKeys.propDocumentModelTermFreq.name(),
-              "true");
+      this.storageProp.setProperty(DataKeys.get(
+              DataKeys.Properties.documentModel), "true");
+      this.storageProp.setProperty(DataKeys.get(
+              DataKeys.Properties.documentModelTermData), "true");
+      this.storageProp.setProperty(DataKeys.get(
+              DataKeys.Properties.documentModelTermFreq), "true");
       saveMetadata();
     }
 
-//    LOG.error("--STOP--HERE--");
-//    System.exit(0);
     // update meta data
     saveMetadata();
   }
@@ -569,7 +616,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
    * @throws IOException If there where any low-level I/O errors
    */
   private void saveMetadata() throws IOException {
-    this.storageProp.setProperty(DataKeys.propTimestamp.name(),
+    this.storageProp.setProperty(DataKeys.get(DataKeys.Properties.timestamp),
             new SimpleDateFormat("MM/dd/yyyy h:mm:ss a").format(new Date()));
     final File propFile = new File(this.storagePath, this.storageId
             + ".properties");
@@ -587,17 +634,31 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     this.overallTermFreq = oTermFreq;
   }
 
+  private synchronized BTreeMap<Fun.Tuple3<Integer, BytesWrap, String>, Object>
+          getPrefixedMap(final String prefix) {
+    BTreeMap<Fun.Tuple3<Integer, BytesWrap, String>, Object> map
+            = this.docTermDataPrefixed.get(prefix);
+    if (map == null) {
+      LOG.debug("Creating a new docTermData map with prefix '{}'", prefix);
+      // create a new map
+      BTreeMapMaker mapMkr = this.db.createTreeMap(DataKeys.get(
+              DataKeys._external) + "_" + prefix);
+      final BTreeKeySerializer mapKeySerializer
+              = new BTreeKeySerializer.Tuple3KeySerializer(null, null,
+                      Serializer.INTEGER, new BytesWrap.Serializer(),
+                      Serializer.STRING_INTERN);
+      mapMkr.keySerializer(mapKeySerializer);
+      mapMkr.valueSerializer(Serializer.JAVA);
+      map = mapMkr.makeOrGet();
+      // store for reference
+      this.docTermDataPrefixed.put(prefix, map);
+      this.knownPrefixes.add(prefix);
+    }
+    return map;
+  }
+
   @Override
   public void dispose() {
-    // debug
-    if (LOG.isTraceEnabled()) {
-      for (Entry<BytesWrap, Fun.Tuple2<Long, Double>> data : this.termFreqMap.
-              entrySet()) {
-        LOG.trace("store: t={} f={} rf={}", data.getKey(), data.getValue().a,
-                data.getValue().b);
-      }
-    }
-
     try {
       // update meta-data
       saveMetadata();
@@ -681,9 +742,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
       if (entry.getValue() == null) {
         throw new NullPointerException("Value was null.");
       }
-      this.docTermData.putIfAbsent(Fun.
-              t4(INTERNAL_PREFIX, DataKeys._TF.name(), docModel.id,
-                      entry.getKey()), entry.getValue());
+      this.docTermDataInternal.putIfAbsent(Fun.t3(docModel.id, DataKeys.get(
+              DataKeys._docTermFreq), entry.getKey()), entry.getValue());
     }
     return true;
   }
@@ -703,9 +763,9 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
                 + "termFreqMap.");
       }
       // end debug code
-      ConcurrentMapTools.ensurePut(this.docTermData, Fun.t4(INTERNAL_PREFIX,
-              DataKeys._TF.name(), docModel.id, entry.getKey()), entry.
-              getValue());
+      ConcurrentMapTools.ensurePut(this.docTermDataInternal, Fun.t3(
+              docModel.id, DataKeys.get(DataKeys._docTermFreq),
+              entry.getKey()), entry.getValue());
     }
   }
 
@@ -764,16 +824,11 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     }
 
     final Fun.Tuple2<Long, Double> freq = this.termFreqMap.get(term);
-    double value;
-
     if (freq == null) {
       // term not found
-      value = 0d;
-    } else {
-      value = freq.b;
+      return 0d;
     }
-
-    return value;
+    return freq.b;
   }
 
   @Override
@@ -843,31 +898,30 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
 
       // add term frequency values
       Iterator<BytesWrap> tfIt = Fun.
-              filter(this.docTermData.navigableKeySet(),
-                      INTERNAL_PREFIX, DataKeys._TF.name(), docId).iterator();
+              filter(this.docTermDataInternal.navigableKeySet(),
+                      docId, DataKeys.get(DataKeys._docTermFreq)).iterator();
 
       try {
         while (tfIt.hasNext()) {
           try {
             final BytesWrap term = tfIt.next();
-            final Tuple4 t4 = Fun.
-                    t4(INTERNAL_PREFIX, DataKeys._TF.name(), docId,
-                            term);
-            final Object data = this.docTermData.get(t4);
+            final Fun.Tuple3 dataTuple = Fun.t3(docId, DataKeys.get(
+                    DataKeys._docTermFreq), term);
+            final Object data = this.docTermDataInternal.get(dataTuple);
             if (data == null) {
               LOG.error("Encountered null while adding term frequency values "
-                      + "to document model. prefix={} key={} docId={} "
-                      + "term={} termStr={}", INTERNAL_PREFIX, DataKeys._TF.
-                      name(),
-                      docId, term, BytesWrapUtil.bytesWrapToString(term));
+                      + "to document model. key={} docId={} "
+                      + "term={} termStr={}", DataKeys.get(
+                              DataKeys._docTermFreq), docId, term,
+                      BytesWrapUtil.bytesWrapToString(term));
             } else {
               dmBuilder.setTermFrequency(term, ((Number) data).
                       longValue());
             }
           } catch (Exception ex) {
             LOG.error("Caught exception while setting term frequency value. "
-                    + "prefix={} key={} docId={}", INTERNAL_PREFIX,
-                    DataKeys._TF.name(), docId, ex);
+                    + "key={} docId={}", DataKeys.get(DataKeys._docTermFreq),
+                    docId, ex);
           }
         }
       } catch (Exception ex) {
@@ -910,8 +964,9 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
               + "' is not allowed as prefix, as it's reserved "
               + "for internal purpose.");
     }
-    return ConcurrentMapTools.ensurePut(this.docTermData, Fun.t4(prefix, key,
-            documentId, term), value);
+
+    return ConcurrentMapTools.ensurePut(getPrefixedMap(prefix), Fun.t3(
+            documentId, term, key), value);
   }
 
   /**
@@ -920,10 +975,21 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
    *
    * @return Internal term-data-map
    */
-  @SuppressWarnings("ReturnOfCollectionOrArrayField")
-  public BTreeMap<Fun.Tuple4<String, String, Integer, BytesWrap>, Object>
-          debugGetTermDataMap() {
-    return this.docTermData;
+  public Map<Fun.Tuple3<Integer, String, BytesWrap>, Object>
+          debugGetInternalTermDataMap() {
+    return Collections.unmodifiableMap(this.docTermDataInternal);
+  }
+
+  public Collection<String> debugGetKnownPrefixes() {
+    return Collections.unmodifiableCollection(this.knownPrefixes);
+  }
+
+  public Map<Fun.Tuple3<Integer, BytesWrap, String>, Object> debugGetPrefixMap(
+          final String prefix) {
+    if (debugGetKnownPrefixes().contains(prefix)) {
+      return getPrefixedMap(prefix);
+    }
+    return null;
   }
 
   @Override
@@ -932,16 +998,16 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
           final BytesWrap term,
           final String key
   ) {
-    if (prefix == null || prefix.isEmpty()) {
-      throw new IllegalArgumentException("No prefix specified.");
-    }
     if (term == null) {
       throw new IllegalArgumentException("Term was null.");
+    }
+    if (prefix == null || prefix.isEmpty()) {
+      throw new IllegalArgumentException("No prefix specified.");
     }
     if (key == null || key.isEmpty()) {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
-    return this.docTermData.get(Fun.t4(prefix, key, documentId, term));
+    return getPrefixedMap(prefix).get(Fun.t3(documentId, term, key));
   }
 
   @Override
@@ -981,8 +1047,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
 
   @Override
   public boolean documentContains(final int documentId, final BytesWrap term) {
-    return this.docTermData.get(Fun.t4(INTERNAL_PREFIX, DataKeys._TF.name(),
-            documentId, term)) != null;
+    return this.docTermDataInternal.get(Fun.t3(documentId,
+            DataKeys.get(DataKeys._docTermFreq), term)) != null;
   }
 
   @Override
