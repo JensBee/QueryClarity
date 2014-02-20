@@ -107,12 +107,11 @@ public final class Main {
               Scoring.ClarityScore.DEFAULT);
       csCalc.calculateClarity(query);
 
-      LOG.debug("Closing lucene index.");
+      LOG.trace("Closing lucene index.");
       dataProv.dispose();
     }
 
     Processing.shutDown();
-    LOG.debug("Finished");
   }
 
   /**

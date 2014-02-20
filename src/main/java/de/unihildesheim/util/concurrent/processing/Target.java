@@ -73,10 +73,10 @@ public abstract class Target<T> implements Runnable {
    */
   public final void terminate() {
     if (this.terminate) {
-      LOG.debug("({}) Received termination signal, but already terminating.",
+      LOG.trace("({}) Received termination signal, but already terminating.",
               getName());
     } else {
-      LOG.debug("({}) Received termination signal.", getName());
+      LOG.trace("({}) Received termination signal.", getName());
       this.terminate = true;
     }
   }
@@ -125,7 +125,7 @@ public abstract class Target<T> implements Runnable {
   @Override
   public final void run() {
     try {
-      LOG.error("({}) Starting.", getName());
+      LOG.trace("({}) Starting.", getName());
       getSource().awaitStart();
       runProcess();
     } catch (ProcessingException.SourceHasFinishedException ex) {
@@ -134,7 +134,7 @@ public abstract class Target<T> implements Runnable {
       LOG.error("({}) Caught exception.", getName(), ex);
     } finally {
       this.terminate = true;
-      LOG.error("({}) Terminating.", getName());
+      LOG.trace("({}) Terminating.", getName());
       this.latch.countDown();
     }
   }

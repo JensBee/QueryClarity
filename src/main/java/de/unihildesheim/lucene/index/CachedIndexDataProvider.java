@@ -341,7 +341,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
 
       hasProp = true;
     } catch (FileNotFoundException ex) {
-      LOG.debug("Cache meta file " + propFile + " not found.", ex);
+      LOG.trace("Cache meta file " + propFile + " not found.", ex);
       hasProp = false;
     }
     return hasProp;
@@ -471,7 +471,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     tfmMkr.keySerializer(new BytesWrap.Serializer());
 
     if (clear) {
-      LOG.debug("Clearing all stored data.");
+      LOG.trace("Clearing all stored data.");
       this.docModels = dmBase.make();
       this.docTermDataInternal = dmTD.make();
       this.termFreqMap = tfmMkr.make();
@@ -491,7 +491,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
                 size());
       }
     }
-    this.docTermDataPrefixed = new HashMap(PREFIX_MAP_SIZE);
+    this.docTermDataPrefixed = new HashMap<>(PREFIX_MAP_SIZE);
     this.knownPrefixes = this.db.getTreeSet(DataKeys.get(
             DataKeys.DataBase.prefixes));
   }
@@ -575,7 +575,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
 
     if (recalcAll) {
       // clear any possible existing data
-      LOG.debug("Recalculation of all cached data triggered.");
+      LOG.trace("Recalculation of all cached data triggered.");
       initStorage(true); // clear all data
       this.storageProp.setProperty(DataKeys.get(
               DataKeys.Properties.indexTermFreq), "false");
@@ -668,7 +668,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     if (map == null) {
       map = this.db.get(DataKeys.get(DataKeys._external) + "_" + prefix);
       if (map == null) {
-        LOG.debug("Creating a new docTermData map with prefix '{}'", prefix);
+        LOG.trace("Creating a new docTermData map with prefix '{}'", prefix);
         // create a new map
         BTreeMapMaker mapMkr = this.db.createTreeMap(DataKeys.get(
                 DataKeys._external) + "_" + prefix);
@@ -684,7 +684,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
         this.knownPrefixes.add(prefix);
       } else {
         this.docTermDataPrefixed.put(prefix, map);
-        LOG.debug("Loaded docTermData map with prefix '{}'", prefix);
+        LOG.trace("Loaded docTermData map with prefix '{}'", prefix);
       }
     }
     return map;
@@ -748,7 +748,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   @Override
   public void commitHook() {
     final TimeMeasure tm = new TimeMeasure().start();
-    LOG.info("Updating database..");
+    LOG.trace("Updating database..");
     this.db.commit();
     LOG.info("Database updated. (took {})", tm.getElapsedTimeString());
   }
@@ -1062,7 +1062,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
       return false;
     }
     this.rollback = true;
-    LOG.info("Transaction hook set.");
+    LOG.trace("Transaction hook set.");
     return true;
   }
 
@@ -1080,14 +1080,14 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     if (!this.rollback) {
       throw new IllegalStateException("No transaction hook set.");
     }
-    LOG.info("Transaction hook released.");
+    LOG.trace("Transaction hook released.");
     this.rollback = false;
   }
 
   @Override
   public void transactionHookRoolback() {
     transactionHookRelease();
-    LOG.info("Rolling back changes.");
+    LOG.warn("Rolling back changes.");
     this.db.rollback();
   }
 

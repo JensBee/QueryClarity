@@ -75,9 +75,6 @@ public abstract class Source<T> implements Runnable {
 
   /**
    * Signal the {@link Source}, that it should stop generating items.
-   *
-   * @throws ProcessingException Thrown, if source has not been started or
-   * already finished
    */
   protected final synchronized void stop() {
     this.isRunning = false;
@@ -173,12 +170,11 @@ public abstract class Source<T> implements Runnable {
    * @throws InterruptedException Thrown, if thread gets interrupted
    */
   public final void awaitStart() throws InterruptedException {
-    if (this.isFinished) {
-      throw new ProcessingException.SourceHasFinishedException();
-    }
-    synchronized (this) {
-      while (!this.isRunning) {
-        this.wait();
+    if (!this.isFinished) {
+      synchronized (this) {
+        while (!this.isRunning) {
+          this.wait();
+        }
       }
     }
   }

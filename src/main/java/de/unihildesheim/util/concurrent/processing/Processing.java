@@ -158,7 +158,7 @@ public final class Processing {
    */
   public static void shutDown() {
     if (executor != null) {
-      LOG.debug("Shutting down thread pool.");
+      LOG.trace("Shutting down thread pool.");
       executor.shutDown();
     }
   }
@@ -190,15 +190,14 @@ public final class Processing {
     executor.setTargetThreadsCount(threadCount);
     SourceObserver sourceObserver;
 
-    LOG.debug("Spawning {} Processing-Target threads.",
-            threadCount);
+    LOG.debug("Spawning {} Processing-Target threads.", threadCount);
     for (int i = 0; i < threadCount; i++) {
       final Target aTarget = this.target.newInstance();
       aTarget.setLatch(this.threadTrackingLatch);
       targets.add(aTarget);
     }
 
-    LOG.debug("Starting Processing-Source.");
+    LOG.trace("Starting Processing-Source.");
     final Future sourceThread = executor.runSource(this.source);
     // start observer, if applicable
     if (this.source instanceof ObservableSource) {
@@ -208,7 +207,7 @@ public final class Processing {
       sourceObserver = null;
     }
 
-    LOG.debug("Starting Processing-Target threads.");
+    LOG.trace("Starting Processing-Target threads.");
     for (Target aTarget : targets) {
       executor.runTask(aTarget);
     }
@@ -222,24 +221,24 @@ public final class Processing {
 
     // terminate observer, if any was used
     if (sourceObserver != null) {
-      LOG.debug("Processing-Source finished. Terminating observer.");
+      LOG.trace("Processing-Source finished. Terminating observer.");
       sourceObserver.terminate(((ObservableSource) this.source).
               getSourcedItemCount());
     }
 
-    LOG.debug("Processing-Source finished. Terminating Targets.");
+    LOG.trace("Processing-Source finished. Terminating Targets.");
     for (Target aTarget : targets) {
       aTarget.terminate();
     }
 
-    LOG.debug("Awaiting Processing-Targets termination.");
+    LOG.trace("Awaiting Processing-Targets termination.");
     try {
       this.threadTrackingLatch.await();
     } catch (InterruptedException ex) {
       LOG.error("Processing interrupted.", ex);
     }
 
-    LOG.debug("Processing finished.");
+    LOG.trace("Processing finished.");
   }
 
   /**
@@ -263,7 +262,7 @@ public final class Processing {
     /**
      * Working queue for runnable jobs.
      */
-    private ArrayBlockingQueue workQueue = new ArrayBlockingQueue(
+    private ArrayBlockingQueue<Runnable> workQueue = new ArrayBlockingQueue<>(
             workQueueSize);
 
     /**
@@ -299,9 +298,10 @@ public final class Processing {
       final int poolSize = numOfTargetThreads + 2;
       // resize queue, if needed
       if (poolSize > workQueueSize) {
-        final Object[] queueContent = this.workQueue.toArray();
+        final Runnable[] queueContent = this.workQueue.toArray(
+                new Runnable[this.workQueue.size()]);
         final int newQueueSize = (int) (poolSize * 1.5);
-        this.workQueue = new ArrayBlockingQueue(newQueueSize);
+        this.workQueue = new ArrayBlockingQueue<>(newQueueSize);
         this.workQueue.addAll(Arrays.asList(queueContent));
         this.workQueueSize = newQueueSize;
       }

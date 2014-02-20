@@ -178,7 +178,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     LOG.info("Calculating relative term frequencies for {} terms.", terms.
             size());
 
-    new Processing(new RelTermFreqCalculator(new CollectionSource(terms))
+    new Processing(new RelTermFreqCalculator(new CollectionSource<>(terms))
     ).process();
   }
 

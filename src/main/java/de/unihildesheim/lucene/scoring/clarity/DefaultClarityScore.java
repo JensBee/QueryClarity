@@ -33,7 +33,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
 import org.slf4j.LoggerFactory;
@@ -395,9 +394,6 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
           extends Target<Integer> {
 
     /**
-     * Base constructor without setting a {@link CountDownLatch}. This
-     * instance is not able to be run.
-     *
      * @param source {@link Source} for this {@link Target}
      */
     TargetQueryModelCalulator(final Source<Integer> source) {
