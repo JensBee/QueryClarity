@@ -23,6 +23,7 @@ import com.beust.jcommander.ParameterException;
 import de.unihildesheim.lucene.LuceneDefaults;
 import de.unihildesheim.lucene.document.DocumentModelException;
 import de.unihildesheim.lucene.index.CachedIndexDataProvider;
+import de.unihildesheim.util.concurrent.processing.Processing;
 import java.io.File;
 import java.io.IOException;
 import org.apache.lucene.analysis.Analyzer;
@@ -110,6 +111,7 @@ public final class Main {
       dataProv.dispose();
     }
 
+    Processing.shutDown();
     LOG.debug("Finished");
   }
 

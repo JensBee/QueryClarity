@@ -17,8 +17,8 @@
 package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.lucene.document.DocumentModel;
-import de.unihildesheim.util.Processing;
 import de.unihildesheim.lucene.util.BytesWrap;
+import de.unihildesheim.util.concurrent.processing.Source;
 import java.util.Iterator;
 
 /**
@@ -84,7 +84,7 @@ public interface IndexDataProvider {
    * Get a {@link ProcessPipe.Source} providing all known terms.
    * @return {@link ProcessPipe.Source} providing all known terms
    */
-  Processing.Source<BytesWrap> getTermsSource();
+  Source<BytesWrap> getTermsSource();
 
   /**
    * Get an iterator over all known document-ids.
@@ -97,7 +97,7 @@ public interface IndexDataProvider {
    * Get a {@link ProcessPipe.Source} providing all known document ids.
    * @return {@link ProcessPipe.Source} providing all known document ids
    */
-  Processing.Source<Integer> getDocumentIdSource();
+  Source<Integer> getDocumentIdSource();
 
   /**
    * Get the number of unique terms in the index.

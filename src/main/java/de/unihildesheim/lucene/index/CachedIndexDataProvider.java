@@ -19,13 +19,14 @@ package de.unihildesheim.lucene.index;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.DocumentModel.DocumentModelBuilder;
 import de.unihildesheim.lucene.document.DocumentModelException;
-import de.unihildesheim.util.Processing;
 import de.unihildesheim.util.StringUtils;
 import de.unihildesheim.lucene.scoring.clarity.ClarityScoreConfiguration;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.lucene.util.BytesWrapUtil;
-import de.unihildesheim.util.ConcurrentMapTools;
+import de.unihildesheim.util.concurrent.ConcurrentMapTools;
 import de.unihildesheim.util.TimeMeasure;
+import de.unihildesheim.util.concurrent.processing.CollectionSource;
+import de.unihildesheim.util.concurrent.processing.Source;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -665,20 +666,26 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     BTreeMap<Fun.Tuple3<Integer, BytesWrap, String>, Object> map
             = this.docTermDataPrefixed.get(prefix);
     if (map == null) {
-      LOG.debug("Creating a new docTermData map with prefix '{}'", prefix);
-      // create a new map
-      BTreeMapMaker mapMkr = this.db.createTreeMap(DataKeys.get(
-              DataKeys._external) + "_" + prefix);
-      final BTreeKeySerializer mapKeySerializer
-              = new BTreeKeySerializer.Tuple3KeySerializer(null, null,
-                      Serializer.INTEGER, new BytesWrap.Serializer(),
-                      Serializer.STRING_INTERN);
-      mapMkr.keySerializer(mapKeySerializer);
-      mapMkr.valueSerializer(Serializer.JAVA);
-      map = mapMkr.makeOrGet();
-      // store for reference
-      this.docTermDataPrefixed.put(prefix, map);
-      this.knownPrefixes.add(prefix);
+      map = this.db.get(DataKeys.get(DataKeys._external) + "_" + prefix);
+      if (map == null) {
+        LOG.debug("Creating a new docTermData map with prefix '{}'", prefix);
+        // create a new map
+        BTreeMapMaker mapMkr = this.db.createTreeMap(DataKeys.get(
+                DataKeys._external) + "_" + prefix);
+        final BTreeKeySerializer mapKeySerializer
+                = new BTreeKeySerializer.Tuple3KeySerializer(null, null,
+                        Serializer.INTEGER, new BytesWrap.Serializer(),
+                        Serializer.STRING_INTERN);
+        mapMkr.keySerializer(mapKeySerializer);
+        mapMkr.valueSerializer(Serializer.JAVA);
+        map = mapMkr.makeOrGet();
+        // store for reference
+        this.docTermDataPrefixed.put(prefix, map);
+        this.knownPrefixes.add(prefix);
+      } else {
+        this.docTermDataPrefixed.put(prefix, map);
+        LOG.debug("Loaded docTermData map with prefix '{}'", prefix);
+      }
     }
     return map;
   }
@@ -1091,12 +1098,12 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   }
 
   @Override
-  public Processing.Source<Integer> getDocumentIdSource() {
-    return new Processing.CollectionSource<>(this.docModels.keySet());
+  public Source<Integer> getDocumentIdSource() {
+    return new CollectionSource<>(this.docModels.keySet());
   }
 
   @Override
-  public Processing.Source<BytesWrap> getTermsSource() {
-    return new Processing.CollectionSource<>(this.termFreqMap.keySet());
+  public Source<BytesWrap> getTermsSource() {
+    return new CollectionSource<>(this.termFreqMap.keySet());
   }
 }

@@ -20,12 +20,15 @@ import de.unihildesheim.lucene.document.DocFieldsTermsEnum;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.DocumentModelException;
 import de.unihildesheim.lucene.util.BytesWrap;
-import de.unihildesheim.util.Processing;
-import de.unihildesheim.util.Processing.CollectionSource;
-import de.unihildesheim.util.Processing.Source;
-import de.unihildesheim.util.Processing.Target;
-import de.unihildesheim.util.ProcessingException;
+import de.unihildesheim.util.concurrent.processing.Processing;
+import de.unihildesheim.util.concurrent.processing.CollectionSource;
+import de.unihildesheim.util.concurrent.processing.Source;
+import de.unihildesheim.util.concurrent.processing.Target;
+import de.unihildesheim.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.util.TimeMeasure;
+import de.unihildesheim.util.concurrent.processing.ObservableSource;
+import de.unihildesheim.util.concurrent.processing.Source;
+import de.unihildesheim.util.concurrent.processing.Target;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
@@ -175,8 +178,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     LOG.info("Calculating relative term frequencies for {} terms.", terms.
             size());
 
-    new Processing(
-            new RelTermFreqCalculator(new CollectionSource(terms))
+    new Processing(new RelTermFreqCalculator(new CollectionSource(terms))
     ).process();
   }
 
@@ -215,17 +217,17 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * {@link Processing.Source} providing document-ids to create document
    * models.
    */
-  private final class DocModelCreatorSource extends Processing.Source<Integer>
-          implements Processing.ObservableSource {
+  private static final class DocModelCreatorSource extends Source<Integer>
+          implements ObservableSource {
 
     /**
      * Expected number of documents to retrieve from Lucene.
      */
-    private final int itemsCount;
+    final int itemsCount;
     /**
      * Current number of items provided.
      */
-    private int currentNum;
+    int currentNum;
 
     /**
      * Create a new {@link Processing.Source} providing document-ids. Used to
@@ -240,7 +242,8 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     }
 
     @Override
-    public synchronized Integer next() throws ProcessingException {
+    public synchronized Integer next() throws ProcessingException,
+            InterruptedException {
       Integer nextNum = null;
       if (++this.currentNum < itemsCount) {
         nextNum = this.currentNum;
@@ -265,157 +268,111 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * {@link Processing.Target} create document models from a document-id
    * {@link Processing.Source}.
    */
-  private final class DocModelCreator extends Processing.Target<Integer> {
+  private final class DocModelCreator extends Target<Integer> {
 
-    /**
-     * Name to identify this {@link Runnable}.
-     */
-    private final String rId = "(" + DocModelCreator.class + "-" + this.
-            hashCode() + ")";
-    /**
-     * Flag to indicate, if this {@link Runnable} should terminate.
-     */
-    private volatile boolean terminate;
-    /**
-     * Shared latch to track running threads.
-     */
-    private final CountDownLatch latch;
     /**
      * Reader to access Lucene index.
      */
     private final IndexReader reader;
 
     /**
-     * Base constructor without setting a {@link CountDownLatch}. This
-     * instance is not able to be run.
-     *
      * @param newSource {@link Source} for this {@link Target}
      * @param newReader Reader to access Lucene index
      */
-    public DocModelCreator(final Processing.Source<Integer> newSource,
+    public DocModelCreator(final Source<Integer> newSource,
             final IndexReader newReader) {
       super(newSource);
-      this.terminate = false;
       this.reader = newReader;
-      this.latch = null;
-    }
-
-    /**
-     * Creates a new instance able to run. Meant to be called from the factory
-     * method.
-     *
-     * @param source {@link Source} for this {@link Target}
-     * @param newLatch Shared latch to track running threads
-     * @param newReader Reader to access Lucene index
-     */
-    private DocModelCreator(final Processing.Source<Integer> source,
-            final CountDownLatch newLatch, final IndexReader newReader) {
-      super(source);
-      this.terminate = false;
-      this.reader = newReader;
-      this.latch = newLatch;
     }
 
     @Override
-    public void terminate() {
-      LOG.debug("{} Received termination signal.", this.rId);
-      this.terminate = true;
+    public Target<Integer> newInstance() {
+      return new DocModelCreator(getSource(), this.reader);
     }
 
     @Override
-    public Processing.Target<Integer> newInstance(
-            final CountDownLatch newLatch) {
-      return new DocModelCreator(getSource(), newLatch, this.reader);
-    }
+    public void runProcess() throws IOException, ProcessingException,
+            InterruptedException {
+      final long[] docTermEsitmate = new long[]{0L, 0L, 100L};
+      final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(this.reader,
+              getFields());
 
-    @Override
-    public void run() {
-      try {
-        LOG.debug("{} Starting.", this.rId);
-        final long[] docTermEsitmate = new long[]{0L, 0L, 100L};
+      BytesRef bytesRef;
+      Map<BytesWrap, Number> docTerms;
 
-        final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(this.reader,
-                getFields());
-
-        BytesRef bytesRef;
-        Map<BytesWrap, Number> docTerms;
-
-        while (!this.terminate && getSource().isRunning()) {
-          final Integer docId = getSource().next();
-          if (docId == null) {
-            continue;
-          }
-
-          try {
-            // go through all document fields..
-            dftEnum.setDocument(docId);
-          } catch (IOException ex) {
-            LOG.error("Error retrieving document id={}.", docId, ex);
-            continue;
-          }
-
-          try {
-            // iterate over all terms in all specified fields
-            bytesRef = dftEnum.next();
-            if (bytesRef == null) {
-              // nothing found
-              continue;
-            }
-            docTerms = new HashMap<>((int) docTermEsitmate[2]);
-            while (bytesRef != null) {
-              final BytesWrap term = new BytesWrap(bytesRef);
-
-              // update frequency counter for current term
-              if (!docTerms.containsKey(term)) {
-                docTerms.put(term.clone(), new AtomicLong(dftEnum.
-                        getTotalTermFreq()));
-              } else {
-                ((AtomicLong) docTerms.get(term)).getAndAdd(dftEnum.
-                        getTotalTermFreq());
-              }
-              LOG.trace("TermCount doc={} term={} count={}", docId, bytesRef.
-                      utf8ToString(), dftEnum.getTotalTermFreq());
-
-              bytesRef = dftEnum.next();
-            }
-          } catch (IOException ex) {
-            LOG.error("Error while getting terms for document id {}", docId,
-                    ex);
-            continue;
-          }
-
-          final DocumentModel.DocumentModelBuilder dmBuilder
-                  = new DocumentModel.DocumentModelBuilder(docId,
-                          docTerms.size());
-
-          // All terms from all document fields are gathered.
-          // Store the document frequency of each document term to the model
-          dmBuilder.setTermFrequency(docTerms);
-
-          try {
-            if (!AbstractIndexDataProvider.this.addDocumentModel(dmBuilder.
-                    getModel())) {
-              throw new IllegalArgumentException(
-                      "Document model already known at creation time.");
-            }
-          } catch (Exception ex) {
-            LOG.error("Caught exception while adding document model.", ex);
-            continue;
-          }
-
-          // estimate size for term buffer
-          docTermEsitmate[0] += docTerms.size();
-          docTermEsitmate[1]++;
-          docTermEsitmate[2] = docTermEsitmate[0] / docTermEsitmate[1];
-          // take the default load factor into account
-          docTermEsitmate[2] += docTermEsitmate[2] * 0.8;
+      while (!isTerminating()) {
+        Integer docId;
+        try {
+          docId = getSource().next();
+        } catch (ProcessingException.SourceHasFinishedException ex) {
+          break;
         }
-      } catch (ProcessingException.SourceHasFinishedException ex) {
-        LOG.debug("Source has finished unexpectedly.");
-      } catch (Exception ex) {
-        LOG.debug("{} Caught exception. Terminating.", this.rId, ex);
-      } finally {
-        this.latch.countDown();
+
+        if (docId == null) {
+          continue;
+        }
+
+        try {
+          // go through all document fields..
+          dftEnum.setDocument(docId);
+        } catch (IOException ex) {
+          LOG.error("({}) Error retrieving document id={}.", getName(),
+                  docId, ex);
+          continue;
+        }
+
+        try {
+          // iterate over all terms in all specified fields
+          bytesRef = dftEnum.next();
+          if (bytesRef == null) {
+            // nothing found
+            continue;
+          }
+          docTerms = new HashMap<>((int) docTermEsitmate[2]);
+          while (bytesRef != null) {
+            final BytesWrap term = new BytesWrap(bytesRef);
+
+            // update frequency counter for current term
+            if (!docTerms.containsKey(term)) {
+              docTerms.put(term.clone(), new AtomicLong(dftEnum.
+                      getTotalTermFreq()));
+            } else {
+              ((AtomicLong) docTerms.get(term)).getAndAdd(dftEnum.
+                      getTotalTermFreq());
+            }
+            bytesRef = dftEnum.next();
+          }
+        } catch (IOException ex) {
+          LOG.error("({}) Error while getting terms for document id {}",
+                  super.getName(), docId, ex);
+          continue;
+        }
+
+        final DocumentModel.DocumentModelBuilder dmBuilder
+                = new DocumentModel.DocumentModelBuilder(docId,
+                        docTerms.size());
+
+        // All terms from all document fields are gathered.
+        // Store the document frequency of each document term to the model
+        dmBuilder.setTermFrequency(docTerms);
+
+        try {
+          if (!addDocumentModel(dmBuilder.getModel())) {
+            throw new IllegalArgumentException("(" + getName()
+                    + ") Document model already known at creation time.");
+          }
+        } catch (Exception ex) {
+          LOG.error("(" + getName() + ") Caught exception "
+                  + "while adding document model.", ex);
+          continue;
+        }
+
+        // estimate size for term buffer
+        docTermEsitmate[0] += docTerms.size();
+        docTermEsitmate[1]++;
+        docTermEsitmate[2] = docTermEsitmate[0] / docTermEsitmate[1];
+        // take the default load factor into account
+        docTermEsitmate[2] += docTermEsitmate[2] * 0.8;
       }
     }
   }
@@ -424,85 +381,46 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * {@link Processing.Target} create document models from a document-id
    * {@link Processing.Source}.
    */
-  private final class RelTermFreqCalculator
-          extends Processing.Target<BytesWrap> {
+  private final class RelTermFreqCalculator extends Target<BytesWrap> {
 
     /**
-     * Name to identify this {@link Runnable}.
-     */
-    private final String rId = "(" + DocModelCreator.class + "-" + this.
-            hashCode() + ")";
-    /**
-     * Flag to indicate, if this {@link Runnable} should terminate.
-     */
-    private volatile boolean terminate;
-    /**
-     * Shared latch to track running threads.
-     */
-    private final CountDownLatch latch;
-
-    /**
-     * Base constructor without setting a {@link CountDownLatch}. This
-     * instance is not able to be run.
-     *
      * @param source {@link Source} for this {@link Target}
      */
-    public RelTermFreqCalculator(final Processing.Source<BytesWrap> source) {
+    public RelTermFreqCalculator(final Source<BytesWrap> source) {
       super(source);
-      this.terminate = false;
-      this.latch = null;
-    }
-
-    /**
-     * Creates a new instance able to run. Meant to be called from the factory
-     * method.
-     *
-     * @param source {@link Source} for this {@link Target}
-     * @param newLatch Shared latch to track running threads
-     */
-    private RelTermFreqCalculator(final Processing.Source<BytesWrap> source,
-            final CountDownLatch newLatch) {
-      super(source);
-      this.terminate = false;
-      this.latch = newLatch;
     }
 
     @Override
-    public void terminate() {
-      LOG.debug("{} Received termination signal.", this.rId);
-      this.terminate = true;
+    public Target<BytesWrap> newInstance() {
+      return new RelTermFreqCalculator(getSource());
     }
 
     @Override
-    public Target<BytesWrap> newInstance(final CountDownLatch newLatch) {
-      return new RelTermFreqCalculator(getSource(), newLatch);
-    }
-
-    @Override
-    public void run() {
+    @SuppressWarnings({"BroadCatchBlock", "TooBroadCatch"})
+    public void runProcess() {
       final long collFreq = getTermFrequency();
-      try {
-        while (!this.terminate && getSource().isRunning()) {
+      while (!isTerminating()) {
+        try {
+          BytesWrap term;
           try {
-            final BytesWrap term = getSource().next();
-            if (term == null) {
-              // nothing found
-              continue;
-            }
-            final Long termFreq = getTermFrequency(term);
-            if (termFreq != null) {
-              final double rTermFreq = (double) termFreq / collFreq;
-              setTermFreqValue(term, rTermFreq);
-            }
-          } catch (Exception ex) {
-            LOG.debug("{} Caught exception while processing term.", this.rId,
-                    ex);
+            term = getSource().next();
+          } catch (ProcessingException.SourceHasFinishedException ex) {
+            break;
           }
+
+          if (term == null) {
+            // nothing found
+            continue;
+          }
+          final Long termFreq = getTermFrequency(term);
+          if (termFreq != null) {
+            final double rTermFreq = (double) termFreq / collFreq;
+            setTermFreqValue(term, rTermFreq);
+          }
+        } catch (Exception ex) {
+          LOG.error("({}) Caught exception while processing term.",
+                  getName(), ex);
         }
-      } catch (ProcessingException.SourceHasFinishedException ex) {
-        LOG.debug("Source has finished unexpectedly.");
-      } finally {
-        this.latch.countDown();
       }
     }
   }

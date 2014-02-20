@@ -18,14 +18,14 @@ package de.unihildesheim.lucene.scoring.clarity;
 
 import de.unihildesheim.lucene.document.DocFieldsTermsEnum;
 import de.unihildesheim.lucene.document.DocumentModel;
-import de.unihildesheim.util.Processing;
-import de.unihildesheim.util.Processing.Source;
-import de.unihildesheim.util.Processing.Target;
+import de.unihildesheim.util.concurrent.processing.Processing;
 import de.unihildesheim.lucene.util.BytesWrap;
-import de.unihildesheim.util.ProcessingException;
+import de.unihildesheim.util.concurrent.processing.ProcessingException;
+import de.unihildesheim.util.concurrent.processing.Source;
+import de.unihildesheim.util.concurrent.processing.Target;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.concurrent.CountDownLatch;
 import org.apache.lucene.util.BytesRef;
 import org.slf4j.LoggerFactory;
 
@@ -81,112 +81,63 @@ public final class DefaultClarityScorePrecalculator {
    * {@link Processing.Target} creating document models.
    */
   private final class DocumentModelCalculator
-          extends Processing.Target<Integer> {
+          extends Target<Integer> {
 
     /**
-     * Name to identify this {@link Runnable}.
-     */
-    private final String rId = "(" + DocumentModelCalculator.class + "-"
-            + this.hashCode() + ")";
-    /**
-     * Flag to indicate, if this {@link Runnable} should terminate.
-     */
-    private volatile boolean terminate;
-    /**
-     * Shared latch to track running threads.
-     */
-    private final CountDownLatch latch;
-
-    /**
-     * Base constructor without setting a {@link CountDownLatch}. This
-     * instance is not able to be run.
-     *
      * @param source {@link Source} for this {@link Target}
      */
-    DocumentModelCalculator(final Processing.Source<Integer> source) {
+    DocumentModelCalculator(final Source<Integer> source) {
       super(source);
-      this.terminate = false;
-      this.latch = null;
-    }
-
-    /**
-     * Creates a new instance able to run. Meant to be called from the factory
-     * method.
-     *
-     * @param source @param source {@link Source} for this {@link Target}
-     * @param newLatch Shared latch to track running threads
-     */
-    private DocumentModelCalculator(final Processing.Source<Integer> source,
-            final CountDownLatch newLatch) {
-      super(source);
-      this.terminate = false;
-      this.latch = newLatch;
     }
 
     @Override
-    public void terminate() {
-      LOG.debug("{} Received termination signal.", this.rId);
-      this.terminate = true;
+    public Target<Integer> newInstance() {
+      return new DocumentModelCalculator(getSource());
     }
 
     @Override
-    public Processing.Target<Integer> newInstance(
-            final CountDownLatch newLatch) {
-      return new DocumentModelCalculator(getSource(), newLatch);
-    }
+    public void runProcess() throws IOException, ProcessingException,
+            InterruptedException {
+      final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(
+              getDcsInstance().getReader(), getDcsInstance().
+              getIndexDataProvider().getTargetFields());
 
-    @Override
-    @SuppressWarnings({"BroadCatchBlock", "TooBroadCatch"})
-    public void run() {
-      LOG.debug("{} Starting.", this.rId);
-      if (this.latch == null) {
-        throw new IllegalStateException(this.rId
-                + " Tracking latch not set.");
-      }
-      try {
-        final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(
-                getDcsInstance().getReader(), getDcsInstance().
-                getIndexDataProvider().getTargetFields());
-
-        while (!this.terminate && getSource().isRunning()) {
-          final Integer docId = getSource().next();
-          if (docId == null) {
-            continue;
-          }
-
-          dftEnum.setDocument(docId);
-          BytesRef bytesRef = dftEnum.next();
-          Collection<BytesWrap> termList = new ArrayList<>();
-          while (bytesRef != null) {
-            termList.add(new BytesWrap(bytesRef));
-            bytesRef = dftEnum.next();
-          }
-
-          if (termList.isEmpty()) {
-            LOG.warn("{} Empty term list for document-id {}", this.rId,
-                    docId);
-          } else {
-            DocumentModel docModel
-                    = getDcsInstance().getIndexDataProvider().
-                    getDocumentModel(docId);
-            if (docModel == null) {
-              LOG.warn("{} Model for document-id {} was null.", this.rId,
-                      docId);
-            } else {
-                // call the calculation method of the main class for each
-              // document and term that is available for processing
-              getDcsInstance().calcDocumentModel(docModel, termList);
-            }
-          }
+      while (!isTerminating()) {
+        Integer docId;
+        try {
+          docId = getSource().next();
+        } catch (ProcessingException.SourceHasFinishedException ex) {
+          break;
         }
 
-        LOG.debug("{} Terminating.", this.rId);
-      } catch (ProcessingException.SourceHasFinishedException ex) {
-        LOG.debug("Source has finished unexpectedly.");
-      } catch (Exception ex) {
-        LOG.debug("{} Caught exception. Terminating.", this.rId, ex);
-      } finally {
-        this.latch.countDown();
+        if (docId == null) {
+          continue;
+        }
+
+        dftEnum.setDocument(docId);
+        BytesRef bytesRef = dftEnum.next();
+        Collection<BytesWrap> termList = new ArrayList<>();
+        while (bytesRef != null) {
+          termList.add(new BytesWrap(bytesRef));
+          bytesRef = dftEnum.next();
+        }
+
+        if (termList.isEmpty()) {
+          LOG.warn("({}) Empty term list for document-id {}", this.
+                  getName(), docId);
+        } else {
+          DocumentModel docModel
+                  = getDcsInstance().getIndexDataProvider().
+                  getDocumentModel(docId);
+          if (docModel == null) {
+            LOG.warn("({}) Model for document-id {} was null.", this.
+                    getName(), docId);
+          } else {
+            // call the calculation method of the main class for each
+            // document and term that is available for processing
+            getDcsInstance().calcDocumentModel(docModel, termList);
+          }
+        }
       }
     }
   }

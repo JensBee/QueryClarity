@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.util;
+package de.unihildesheim.util.concurrent;
 
 import java.util.concurrent.ConcurrentMap;
 import org.slf4j.Logger;

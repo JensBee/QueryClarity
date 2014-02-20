@@ -18,20 +18,21 @@ package de.unihildesheim.lucene.scoring.clarity;
 
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.Feedback;
-import de.unihildesheim.util.Processing;
-import de.unihildesheim.util.Processing.Source;
-import de.unihildesheim.util.Processing.Target;
+import de.unihildesheim.util.concurrent.processing.Processing;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.query.QueryUtils;
 import de.unihildesheim.lucene.util.BytesWrap;
-import de.unihildesheim.util.ProcessingException;
+import de.unihildesheim.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.util.TimeMeasure;
+import de.unihildesheim.util.concurrent.AtomicDouble;
+import de.unihildesheim.util.concurrent.processing.CollectionSource;
+import de.unihildesheim.util.concurrent.processing.Source;
+import de.unihildesheim.util.concurrent.processing.Target;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CountDownLatch;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
@@ -241,7 +242,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
   }
 
   /**
-   * Calculate the document language model for a given term.
+   * Get the document language model for a given term.
    *
    * @param docId Document model to do the calculation for
    * @param term Term to do the calculation for
@@ -310,32 +311,34 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     this.queryTerms = newQueryTerms;
 
     final TimeMeasure timeMeasure = new TimeMeasure().start();
-    double score = 0d;
 
     LOG.info("Calculating clarity score. query={}", this.queryTerms);
 
+    Processing processing = new Processing();
+
     // calculate query models for feedback documents.
     LOG.info("Calculating query models.");
-    Processing qmPPipe = new Processing(new TargetQueryModelCalulator(
-            new Processing.CollectionSource<>(feedbackDocuments)));
-    qmPPipe.process();
+    processing.setSourceAndTarget(new TargetQueryModelCalulator(
+            new CollectionSource<>(feedbackDocuments)));
+    processing.process();
+//    Processing qmPPipe = new Processing(new TargetQueryModelCalulator(
+//            new CollectionSource<>(feedbackDocuments)));
+//    qmPPipe.process();
 
-    Collection<Double> qProbabilities = new ConcurrentSkipListSet();
+    final AtomicDouble score = new AtomicDouble(0);
     LOG.info("Calculating query probability values.");
-    Processing qpPPipe = new Processing(new TargetQueryProbabilityCalulator(
-            this.dataProv.getTermsSource(), feedbackDocuments,
-            qProbabilities));
-    qpPPipe.process(Processing.THREADS * 2);
-
-    for (Double result : qProbabilities) {
-      score += result;
-    }
+    processing.setSourceAndTarget(new TargetQueryProbabilityCalulator(
+            this.dataProv.getTermsSource(), feedbackDocuments, score));
+//    Processing qpPPipe = new Processing(new TargetQueryProbabilityCalulator(
+//            this.dataProv.getTermsSource(), feedbackDocuments, score));
+//    qpPPipe.process(Processing.THREADS * 2);
+    processing.process(Processing.THREADS * 2);
 
     LOG.debug("Calculation results: query={} docModels={} score={}.",
             this.queryTerms, feedbackDocuments.size(), score);
 
     final ClarityScoreResult result = new ClarityScoreResult(this.getClass(),
-            score);
+            score.doubleValue());
 
     timeMeasure.stop();
     LOG.debug("Calculating default clarity score for query {} "
@@ -389,21 +392,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * Runnable {@link ProcessPipe.Target} to calculate query models.
    */
   private class TargetQueryModelCalulator
-          extends Processing.Target<Integer> {
-
-    /**
-     * Flag to indicate, if this {@link Runnable} should terminate.
-     */
-    private volatile boolean terminate = false;
-    /**
-     * Name to identify this {@link Runnable}.
-     */
-    private final String rId = "(" + TargetQueryModelCalulator.class + "-"
-            + this.hashCode() + ")";
-    /**
-     * Shared latch to track running threads.
-     */
-    private final CountDownLatch latch;
+          extends Target<Integer> {
 
     /**
      * Base constructor without setting a {@link CountDownLatch}. This
@@ -411,67 +400,38 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
      *
      * @param source {@link Source} for this {@link Target}
      */
-    TargetQueryModelCalulator(final Processing.Source<Integer> source) {
+    TargetQueryModelCalulator(final Source<Integer> source) {
       super(source);
-      this.latch = null;
-    }
-
-    /**
-     * Creates a new instance able to run. Meant to be called from the factory
-     * method.
-     *
-     * @param source @param source {@link Source} for this {@link Target}
-     * @param newLatch Shared latch to track running threads
-     */
-    private TargetQueryModelCalulator(final Processing.Source<Integer> source,
-            final CountDownLatch newLatch) {
-      super(source);
-      this.latch = newLatch;
     }
 
     @Override
-    public void terminate() {
-      LOG.debug("{} Received termination signal.", this.rId);
-      this.terminate = true;
+    public Target<Integer> newInstance() {
+      return new TargetQueryModelCalulator(getSource());
     }
 
     @Override
-    public Processing.Target<Integer> newInstance(
-            final CountDownLatch newLatch) {
-      return new TargetQueryModelCalulator(getSource(), newLatch);
-    }
-
-    @Override
-    @SuppressWarnings({"BroadCatchBlock", "TooBroadCatch"})
-    public void run() {
-      LOG.debug("{} Starting.", this.rId);
-      try {
-        if (this.latch == null) {
-          throw new IllegalStateException(this.rId
-                  + " Tracking latch not set.");
+    public void runProcess() throws ProcessingException, InterruptedException {
+      while (!isTerminating()) {
+        Integer docId;
+        try {
+          docId = getSource().next();
+        } catch (ProcessingException.SourceHasFinishedException ex) {
+          break;
         }
 
-        while (!this.terminate && getSource().isRunning()) {
-          final Integer docId = getSource().next();
-          if (docId != null) {
-            double modelWeight = 1d;
+        if (docId != null) {
+          double modelWeight = 1d;
 
-            for (BytesWrap term : getQueryTerms()) {
-              if (getDataProv().documentContains(docId, term)) {
-                modelWeight *= getDocumentModel(docId, term);
-              } else {
-                modelWeight *= calcDefaultDocumentModel(term);
-              }
+          for (BytesWrap term : getQueryTerms()) {
+            // TODO: add short circuit, if term not in index
+            if (getDataProv().documentContains(docId, term)) {
+              modelWeight *= getDocumentModel(docId, term);
+            } else {
+              modelWeight *= calcDefaultDocumentModel(term);
             }
-            addQueryModel(docId, modelWeight);
           }
+          addQueryModel(docId, modelWeight);
         }
-
-        LOG.debug("{} Terminating.", this.rId);
-      } catch (Exception ex) {
-        LOG.debug("{} Caught exception. Terminating.", this.rId, ex);
-      } finally {
-        this.latch.countDown();
       }
     }
   }
@@ -480,123 +440,70 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * Runnable {@link ProcessPipe.Target} to calculate query models.
    */
   private class TargetQueryProbabilityCalulator
-          extends Processing.Target<BytesWrap> {
+          extends Target<BytesWrap> {
 
-    /**
-     * Flag to indicate, if this {@link Runnable} should terminate.
-     */
-    private volatile boolean terminate = false;
-    /**
-     * Name to identify this {@link Runnable}.
-     */
-    private final String rId = "(" + TargetQueryProbabilityCalulator.class
-            + "-" + this.hashCode() + ")";
-    /**
-     * Shared latch to track running threads.
-     */
-    private final CountDownLatch latch;
-    /**
-     * Shared {@link Collection} to gather results.
-     */
-    private final Collection<Double> results;
     /**
      * List of feedback document-ids.
      */
     private final Collection<Integer> fbDocIds;
+    /**
+     * Shared results of calculation.
+     */
+    private final AtomicDouble result;
 
     /**
-     * {@link Processing.Target} reading document-ids and calculate the
-     * corresponding query models. This constructor is used as initializer and
-     * is not able to run.
-     *
      * @param source {@link Processing.Source} providing document-ids
      * @param feedbackDocuments Feedback documents to use for calculation
-     * @param resultsCollection Collection to gather the calculation results
+     * @param newResult Shared value of calculation results
      */
     public TargetQueryProbabilityCalulator(
-            final Processing.Source<BytesWrap> source,
+            final Source<BytesWrap> source,
             final Collection<Integer> feedbackDocuments,
-            final Collection<Double> resultsCollection) {
+            final AtomicDouble newResult) {
       super(source);
-      this.latch = null;
-      this.results = resultsCollection;
       this.fbDocIds = feedbackDocuments;
-    }
-
-    /**
-     * {@link Processing.Target} reading document-ids and calculate the
-     * corresponding query models.
-     *
-     * @param source {@link Processing.Source} providing document-ids
-     * @param feedbackDocuments Feedback documents to use for calculation
-     * @param resultsCollection Collection to gather the calculation results
-     * @param newLatch Latch to track running threads
-     */
-    public TargetQueryProbabilityCalulator(
-            final Processing.Source<BytesWrap> source,
-            final Collection<Integer> feedbackDocuments,
-            final Collection<Double> resultsCollection,
-            final CountDownLatch newLatch) {
-      super(source);
-      this.latch = newLatch;
-      this.results = resultsCollection;
-      this.fbDocIds = feedbackDocuments;
+      this.result = newResult;
     }
 
     @Override
-    public void terminate() {
-      this.terminate = true;
+    public Target<BytesWrap> newInstance() {
+      return new TargetQueryProbabilityCalulator(getSource(), this.fbDocIds,
+              this.result);
     }
 
     @Override
-    public Target<BytesWrap> newInstance(final CountDownLatch newLatch) {
-      return new TargetQueryProbabilityCalulator(getSource(),
-              this.fbDocIds, this.results, newLatch);
-    }
+    public void runProcess() throws ProcessingException, InterruptedException {
+      final double weightFactor = 1 - getLangmodelWeight();
 
-    @Override
-    @SuppressWarnings({"BroadCatchBlock", "TooBroadCatch"})
-    public void run() {
-      try {
-        if (this.latch == null) {
-          throw new IllegalStateException(this.rId
-                  + " Tracking latch not set.");
+      while (!isTerminating()) {
+        BytesWrap term;
+        try {
+          term = getSource().next();
+        } catch (ProcessingException.SourceHasFinishedException ex) {
+          break;
         }
 
-        final double weightFactor = 1 - getLangmodelWeight();
+        if (term != null) {
+          // calculate the query probability of the current term
+          double qLangMod = 0d;
+          final double termRelFreq = getDataProv().getRelativeTermFrequency(
+                  term);
 
-        while (!this.terminate && getSource().isRunning()) {
-          final BytesWrap term = getSource().next();
-
-          if (term != null) {
-            // calculate the query probability of the current term
-            double qLangMod = 0d;
-            final double termRelFreq = getDataProv().getRelativeTermFrequency(
-                    term);
-
-            for (Integer docId : this.fbDocIds) {
-              final Double model = getDocumentModel(docId, term);
-              if (model == null) {
-                qLangMod += weightFactor * termRelFreq * getQueryModel(docId);
-              } else {
-                qLangMod += model * getQueryModel(docId);
-              }
+          for (Integer docId : this.fbDocIds) {
+            final Double model = getDocumentModel(docId, term);
+            if (model == null) {
+              qLangMod += weightFactor * termRelFreq * getQueryModel(docId);
+            } else {
+              qLangMod += model * getQueryModel(docId);
             }
-
-            // calculate logarithmic part of the formular
-            final double log = (Math.log(qLangMod) / Math.log(2))
-                    / (Math.log(termRelFreq) / Math.log(2));
-            // add up final score for each term
-            this.results.add(qLangMod * log);
           }
+
+          // calculate logarithmic part of the formular
+          final double log = (Math.log(qLangMod) / Math.log(2))
+                  / (Math.log(termRelFreq) / Math.log(2));
+          // add up final score for each term
+          this.result.addAndGet(qLangMod * log);
         }
-        LOG.debug("{} Terminating.", this.rId);
-      } catch (ProcessingException.SourceHasFinishedException ex) {
-        LOG.debug("Source has finished unexpectedly.");
-      } catch (Exception ex) {
-        LOG.debug("{} Caught exception. Terminating.", this.rId, ex);
-      } finally {
-        this.latch.countDown();
       }
     }
   }
