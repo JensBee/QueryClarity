@@ -17,34 +17,38 @@
 package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.lucene.LuceneDefaults;
-import de.unihildesheim.lucene.document.IDocumentModel;
+import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.util.BytesWrap;
+import de.unihildesheim.lucene.util.BytesWrapUtil;
+import de.unihildesheim.util.RandomValue;
+import de.unihildesheim.util.StringUtils;
+import de.unihildesheim.util.Tuple;
+import de.unihildesheim.util.concurrent.processing.CollectionSource;
+import de.unihildesheim.util.concurrent.processing.Source;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
+import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * BROKEN - only for reference!
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
@@ -53,642 +57,487 @@ public final class TestIndex implements IndexDataProvider {
   /**
    * Logger instance for this class.
    */
-  private static final Logger LOG = LoggerFactory.getLogger(TestIndex.class);
-  /**
-   * Lucene index.
-   */
-  private static final Directory INDEX = new RAMDirectory();
-  /**
-   * Multiplier for relative term frequency inside documents.
-   */
-  private static final double RTFM_DOCUMENT = 0.6d;
-  /**
-   * Prevent multiple index initializations.
-   */
-  private static boolean indexInitialized = false;
-  /**
-   * Store (field-name -> term -> term-frequency) values.
-   */
-  private static final Map<String, Map<String, Integer>> fieldTermFrequencies
-          = new HashMap();
-  /**
-   * Store (queryTerm -> (docId, document-probability)) values.
-   */
-  private static final Map<String, Map<Integer, Double>> docProbabilities
-          = new HashMap();
-  /**
-   * Store (queryTerm -> relative term frequency) values.
-   */
-  private static final Map<String, Double> relTermFreq = new HashMap();
+  private static final Logger LOG = LoggerFactory.getLogger(
+          TestIndex.class);
 
   /**
-   * Fields names of the test Lucene index.
+   * <tt>Document-id, [each fields content]</tt>.
    */
-  private static String[] indexFields;
+  private static List<String[]> documents = null;
 
   /**
-   * Fields to run queries on.
+   * Index field names.
    */
-  private static Set<String> queryFields;
-
-  private static HashMap<Integer, IDocumentModel> docModels;
+  private static List<String> fields;
 
   /**
-   * Storage meta data.
+   * Bit-mask storing active fields state. 0 means off 1 on. Index is related
+   * to {@link #fields}.
    */
-  private final Properties storageProp = new Properties();
+  private final int[] activeFieldState;
 
   /**
-   * Store (document-id -> field-name -> lower-cased term list)
+   * Flag indicating, if all static fields have been initialized.
    */
-  private static final Map<Integer, Map<String, List<String>>> DOCUMENT_INDEX
-          = new HashMap();
+  private static boolean initialized = false;
 
-  public TestIndex() throws IOException {
-    // index setup
-    final String[] fields = new String[]{"text"};
-    final ArrayList<String[]> documents = new ArrayList<String[]>(4);
+  private static MemoryIndex memIdx;
+
+  private static Query query;
+
+  private QueryParser qParser;
+
+  /**
+   * Map: <tt>(prefix -> ([document-id, term, key] -> value))</tt>.
+   */
+  private Map<String, Map<Tuple.Tuple3<
+          Integer, BytesWrap, String>, Object>> prefixMap;
+
+  public TestIndex() throws IOException, ParseException {
+    if (!initialized) {
+      createIndex();
+    }
+    this.activeFieldState = new int[fields.size()];
+    // set all fields active
+    Arrays.fill(this.activeFieldState, 1);
+
+    this.prefixMap = new ConcurrentHashMap<>();
+  }
+
+  /**
+   * Create a simple test index and initialize the {@link MemoryIndex}.
+   *
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  private void createIndex() throws IOException {
+    LOG.info("Creating index.");
+    documents = new ArrayList<>(4);
+
     documents.add(new String[]{"Lucene in Action"});
     documents.add(new String[]{"Lucene for Dummies"});
     documents.add(new String[]{"Managing Gigabytes"});
     documents.add(new String[]{"The Art of Computer Science"});
 
-    setFields(fields);
-    setQueryFields(new HashSet(Arrays.asList(queryFields)));
-    initDocModelStore(documents.size());
+    fields = new ArrayList<>(1);
+    fields.add("text");
 
-    LOG.debug("[index] Initializing..");
-    this.createIndex(documents);
-//    this.gatherTestData(documents);
-    this.calculateTestData();
-    LOG.debug("[index] Initialization finished");
-    TestIndex.indexInitialized = true;
+    memIdx = new MemoryIndex(fields.toArray(new String[fields.size()]),
+            documents);
+
+    // create a default query
+    final Analyzer analyzer = new StandardAnalyzer(LuceneDefaults.VERSION,
+            CharArraySet.EMPTY_SET);
+    qParser = new QueryParser(LuceneDefaults.VERSION, fields.get(0), analyzer);
+
+    initialized = true;
   }
 
-  private synchronized void initDocModelStore(int size) {
-    TestIndex.docModels = new HashMap(size);
-  }
-
-  private synchronized void setQueryFields(final Set<String> fields) {
-    TestIndex.queryFields = fields;
-  }
-
-  private synchronized void setFields(final String[] fields) {
-    TestIndex.indexFields = fields;
-  }
-
-//  /**
-//   * Get the probability value for a specific term related to the collection.
-//   *
-//   * @param term The term to lookup
-//   * @return Calculated pct for the given term
-//   */
-//  @Override
-//  public double getRelativeTermFrequency(final String term) {
-//    return TestIndex.relTermFreq.get(term);
-//  }
   /**
-   * Get probability value for a specific term and document.
-   *
-   * @param term The term to lookup
-   * @param docId The document id to lookup
-   * @return Calculated pdt for the given term and document
+   * Get a random query matching terms from the documents in index.
+   * @return Random query
+   * @throws ParseException Thrown on query parsing errors
    */
-  public static double getDocumentProbability(final String term,
-          final int docId) {
-    Map<Integer, Double> probMap = TestIndex.docProbabilities.get(term);
-    double probability;
+  public Query getQuery() throws ParseException {
+    final List<BytesWrap> idxTerms = new ArrayList(getTermSet());
+    final int queryLength = RandomValue.integer(1, idxTerms.size());
+    Collection<String> terms = new HashSet(queryLength);
 
-    // may be null, if term is invalid (e.g. not found in index)
-    if (probMap == null) {
-      probability = 0d;
-    } else {
-      probability = probMap.get(docId);
-    }
-    return probability;
-  }
-
-//  @Override
-//  public final long getTermFrequency() {
-//    return getTermFrequency(null);
-//  }
-//  @Override
-//  public long getTermFrequency(final String term) {
-//    long overallFreq = 0L;
-//
-//    // iterate over all stored frequency values by field-name
-//    for (String fieldName : fieldTermFrequencies.keySet()) {
-//      // check, if current field is included in query
-//      if (TestIndex.queryFields.contains(fieldName)) {
-//        // get stored term frequencies for this field
-//        final Map<String, Integer> termFreqMap = fieldTermFrequencies.get(
-//                fieldName);
-//
-//        if (term == null) {
-//          // no term is given: iterate over all terms
-//          // and collect the frequency values
-//          for (Integer termFreq : termFreqMap.values()) {
-//            overallFreq += termFreq;
-//          }
-//        } else {
-//          // a term is set, try to get only the value for this term
-//          final Integer termFreq = termFreqMap.get(term);
-//          if (termFreq != null) {
-//            overallFreq += termFreqMap.get(term);
-//          }
-//        }
-//      }
-//    }
-//
-//    return overallFreq;
-//  }
-  /**
-   * Get a unique set of all terms known to this index. This takes into account
-   * the currently set query fields.
-   *
-   * @return Set of all terms
-   */
-  public Set<String> getTermsSet() {
-    Set<String> uniqueTerms = new HashSet();
-
-    // iterate over all stored frequency values by field-name
-    for (String fieldName : fieldTermFrequencies.keySet()) {
-      // check, if current field is included in query
-      if (TestIndex.queryFields.contains(fieldName)) {
-        // get all terms from term frequency storage
-        uniqueTerms.addAll(fieldTermFrequencies.get(fieldName).keySet());
+    for (int i = 0; i < queryLength;) {
+      if (terms.add(BytesWrapUtil.bytesWrapToString(idxTerms.get(RandomValue.
+              integer(0, idxTerms.size() - 1))))) {
+        i++;
       }
     }
-
-    return uniqueTerms;
-  }
-
-//  @Override
-//  public Iterator<String> getTermsIterator() {
-//    return getTermsSet().iterator();
-//  }
-  /**
-   * Get the number of unique terms in the index. This takes into account the
-   * currently set query fields.
-   *
-   * @return The number of unique terms in the index
-   */
-  public int getTermCount() {
-    return getTermsSet().size();
+    final String queryStr = StringUtils.join(terms.toArray(new String[terms.
+            size()]), " ");
+    LOG.info("Test query: {}", queryStr);
+    return qParser.parse(queryStr);
   }
 
   /**
-   * Get all terms for a document by id. This takes into account the currently
-   * set query fields.
+   * Get the reader to the {@link MemoryIndex}.
    *
-   * @param docId
-   * @return
+   * @return Index reader
+   * @throws IOException Thrown on low-level I/O errors
    */
-  private static List<String> getDocumentTerms(final int docId) {
-    final List<String> docTerms = new ArrayList();
-
-    final Map<String, List<String>> docFields = DOCUMENT_INDEX.get(
-            docId);
-    for (String field : queryFields) {
-      docTerms.addAll(docFields.get(field));
-    }
-
-    return docTerms;
+  public IndexReader getReader() throws IOException {
+    return memIdx.getReader();
   }
 
   /**
-   * Get all document-ids for documents matching with one of the given terms.
-   * This takes into account the currently set query fields.
+   * Set the active state of a field.
    *
-   * @param terms Terms to match against
-   * @return List of document ids matching at least one of the given terms
+   * @param fieldName Name of the field
+   * @param state True, to use this field for calculation
+   * @return Old state value, or <tt>null</tt> if the field does not exist
    */
-  public static Collection<IDocumentModel> getDocumentModelsMatching(
-          final Collection<String> terms) {
-    Collection<IDocumentModel> docIds = new HashSet(DOCUMENT_INDEX.size());
-
-    // iterate over all documents
-    for (Integer docId : DOCUMENT_INDEX.keySet()) {
-
-      final List<String> docTerms = getDocumentTerms(docId);
-      for (String term : terms) {
-        if (docTerms.contains(term)) {
-          // match - add doc and proceed with next document
-          docIds.add(docModels.get(docId));
-          break;
+  public Boolean setFieldState(final String fieldName, final boolean state) {
+    Boolean oldState = null;
+    for (int i = 0; i < fields.size(); i++) {
+      if (fields.get(i).equals(fieldName)) {
+        oldState = activeFieldState[i] == 1;
+        if (state) {
+          activeFieldState[i] = 1;
+        } else {
+          activeFieldState[i] = 0;
         }
       }
     }
+    return oldState;
+  }
 
+  /**
+   * Get a collection of all known document-ids.
+   *
+   * @return All known document-ids
+   */
+  private Collection<Integer> getDocumentIds() {
+    // a documents-id is simply the index in the documents array
+    Collection<Integer> docIds = new ArrayList<>(documents.size());
+    for (int i = 0; i < documents.size(); i++) {
+      docIds.add(i);
+    }
     return docIds;
   }
 
   /**
-   * Get the models for all documents in the index.
+   * Get a map with <tt>term -> document-frequency</tt> values for a specific
+   * document.
    *
-   * @return Models of all documents in the index
+   * @param docId Document to lookup
+   * @return Map with <tt>term -> document-frequency</tt> values
    */
-  public static Collection<IDocumentModel> getDocumentModels() {
-    return docModels.values();
-  }
-
-  /**
-   * Create the simple in-memory test index.
-   *
-   * @param documents Documents to add to the index
-   * @throws IOException Thrown on low-level I/O errors
-   */
-  private void createIndex(final ArrayList<String[]> documents) throws
-          IOException {
-    final StandardAnalyzer analyzer = new StandardAnalyzer(
-            LuceneDefaults.VERSION, CharArraySet.EMPTY_SET);
-    final IndexWriterConfig config
-            = new IndexWriterConfig(LuceneDefaults.VERSION, analyzer);
-
-    // index documents
-    int newIdx = 0;
-    try (IndexWriter writer = new IndexWriter(INDEX, config)) {
-      for (String[] doc : documents) {
-        LOG.info("[index] Adding document"
-                + " docId={} content='{}'", newIdx++, doc);
-        addDoc(writer, doc);
-      }
-      writer.close();
-      LOG.info("[index] Added {} documents to index", documents.size());
+  private Map<BytesWrap, Number> getDocumentTermFrequencyMap(final int docId) {
+    if (docId < 0 || docId > documents.size()) {
+      throw new IllegalArgumentException("Illegal document id " + docId + ".");
     }
-  }
 
-//  /**
-//   * Gather index statistics needed for evaluating test results. Test data will
-//   * be calculated for all available fields regardless if they're queried. The
-//   * decision, which data to use is up to the higher level functions.
-//   *
-//   * @param documents Documents that were added to the index
-//   */
-//  private void gatherTestData(final ArrayList<String[]> documents) {
-//    String[] fieldTokens; // raw tokens of a field
-//    String fieldName; // name of the current field
-//    String[] doc; // fields of the current document
-//    // term character enumeration
-//    char[] docTermChars;
-//    // stores field->lowercased-terms for each individual document
-//    Map<String, List<String>> docFieldTermMap;
-//    // stores lowercased-terms for each individual document and field
-//    List<String> docFieldLcTermList;
-//    // stores fields term->termfrequency for all documents
-//    Map<String, Integer> idxFieldTermFreq;
-//
-//    // iterate over all documents in index
-//    for (int docId = 0; docId < documents.size(); docId++) {
-//      doc = documents.get(docId);
-//      docFieldTermMap = new HashMap(indexFields.length);
-//      DOCUMENT_INDEX.put(docId, docFieldTermMap);
-//      docModels.put(docId, new TestDocumentModel(docId));
-//
-//      // iterate over all fields in document
-//      for (int docFieldNum = 0; docFieldNum < doc.length; docFieldNum++) {
-//        fieldName = indexFields[docFieldNum];
-//        fieldTokens = StringUtils.lowerCase(doc[docFieldNum].trim()).split(
-//                "\\s+");
-//
-//        docFieldLcTermList = new ArrayList(fieldTokens.length);
-//
-//        // get/init term->frequency storage
-//        idxFieldTermFreq = fieldTermFrequencies.get(fieldName);
-//        if (idxFieldTermFreq == null) {
-//          // initial size is just a guess
-//          idxFieldTermFreq = new HashMap((int) (fieldTokens.length * 0.3));
-//          fieldTermFrequencies.put(fieldName, idxFieldTermFreq);
-//        }
-//
-//        // iterate over all tokens in field
-//        for (String token : fieldTokens) {
-//          // manual transform to lowercase to avoid locale problems
-//          docTermChars = token.toCharArray();
-//          for (int j = 0; j < docTermChars.length; j++) {
-//            docTermChars[j] = Character.toLowerCase(docTermChars[j]);
-//          }
-//          // string is now all lower case
-//          token = new String(docTermChars);
-//
-//          // store lower-cased token
-//          docFieldLcTermList.add(token);
-//
-//          // update count for current token
-//          if (idxFieldTermFreq.containsKey(token)) {
-//            final int tokenCount = idxFieldTermFreq.get(token) + 1;
-//            idxFieldTermFreq.put(token, tokenCount);
-//          } else {
-//            idxFieldTermFreq.put(token, 1);
-//          }
-//        }
-//
-//        // store lower-cases tokens for this document field
-//        docFieldTermMap.put(fieldName, docFieldLcTermList);
-//      }
-//    }
-//
-//    if (LOG.isTraceEnabled()) {
-//      for (String term : getTermsSet()) {
-//        LOG.trace("[index] Frequency term={} freq={}", term,
-//                getTermFrequency(term));
-//      }
-//      LOG.trace("[index] Frequency of all terms in index freq={}", this.
-//              getTermFrequency());
-//    }
-//  }
-//  /**
-//   * Calculate document probability for each term in the index. This takes into
-//   * account the currently set query fields.
-//   */
-//  private void calcPDT() {
-//    LOG.debug("Calculating test data (pdt)");
-//    List docTerms; // list of terms in document
-//    double pdt; // document probability for a term and document
-//    int ftd; // frequency of current term in document
-//    int fd; // number of terms in document
-//    long ft; // frequency of term in index
-//    final Long f = this.getTermFrequency(); // frequency of all terms in index
-//    double fc;
-//
-//    // store term-related probability values for each document
-//    HashMap<Integer, Double> probMap;
-//    // iterate over all terms in index
-//    for (String term : getTermsSet()) {
-//      ft = getTermFrequency(term);
-//      fc = ((double) ft / (double) f) * (1 - RTFM_DOCUMENT);
-//      probMap = new HashMap(DOCUMENT_INDEX.size()); // init storage
-//      // iterate over all documents in index
-//      // and calculate pdt for the current term and document
-//
-//      for (Integer docId : DOCUMENT_INDEX.keySet()) {
-//        docTerms = getDocumentTerms(docId);
-//        ftd = Collections.frequency(docTerms, term);
-//        fd = docTerms.size();
-//        pdt = ((double) ftd / (double) fd) * RTFM_DOCUMENT;
-//        pdt += fc;
-//        probMap.put(docId, pdt); // store value for current document
-//        LOG.info("[pdt] docId={} term={} ftd={} fd={} ft={} f={} pdt={}",
-//                docId, term, ftd, fd, ft, f, pdt);
-//      }
-//      // save calculated values with associated term
-//      docProbabilities.put(term, probMap);
-//    }
-//  }
-//  /**
-//   * Calculate collection probability for each term in the index. This takes
-//   * into account the currently set query fields.
-//   */
-//  private void calcPCT() {
-//    LOG.debug("Calculating test data (pct)");
-//    long ft; // frequency of term in index
-//    final Long f = getTermFrequency(); // frequency of all terms in index
-//    double pct; // collection probability for a term
-//
-//    for (String term : getTermsSet()) {
-//      ft = getTermFrequency(term);
-//      pct = (double) ft / (double) f;
-//      relTermFreq.put(term, pct);
-//      LOG.info("[pct] term={} ft={} f={} pct={}", term, ft, f, pct);
-//    }
-//  }
-  /**
-   * Calculate the query probability for the given query, the current term and
-   * the list of feedback document. This takes into account the currently set
-   * query fields.
-   *
-   * @param query The query that was run
-   * @param term The current term of the query to calculate for
-   * @param usedDocModels The feedback document models to use for calculation
-   * @return Calculated pqt value
-   */
-  public static double calcPQT(final Set<String> query, final String term,
-          final Collection<IDocumentModel> usedDocModels) {
-    int docId;
-    double pqt = 0d;
+    final String[] document = documents.get(docId);
+    final Map<BytesWrap, Number> termFreqMap = new HashMap<>();
 
-    // used for trace output
-    final StringBuilder sb = new StringBuilder(200);
-
-    for (IDocumentModel doc : usedDocModels) {
-      docId = doc.getDocId();
-      if (LOG.isTraceEnabled()) {
-        sb.append("[pqt] term=").append(term).append(" doc=").append(docId).
-                append(" calc=");
-      }
-
-      Double pdt = 0d;
-      // get pdt for current query term
-      try {
-        pdt = docProbabilities.get(term).get(docId);
-      } catch (NullPointerException e) {
-        // this should not happen, because we only should use terms
-        // from the collection
-        throw new IllegalArgumentException("[pdt] for term=" + term
-                + " was 0. This should only happen, if you passed in a term "
-                + "not found in the collection.");
-      }
-      if (LOG.isTraceEnabled()) {
-        sb.append("(").append(term).append(")").append(pdt);
-      }
-
-      // get pdt for all terms in the query
-      for (String qTerm : query) {
-        try {
-          pdt *= docProbabilities.get(qTerm).get(docId);
-          if (LOG.isTraceEnabled()) {
-            sb.append(" * (").append(qTerm).append(")").append(
-                    docProbabilities.get(qTerm).get(docId));
+    for (int i = 0; i < document.length; i++) {
+      if (activeFieldState[i] == 1) {
+        for (String term : document[i].split("\\s+")) {
+          final BytesWrap termBw = new BytesWrap(
+                  new BytesRef(StringUtils.lowerCase(term)));
+          if (termFreqMap.containsKey(termBw)) {
+            termFreqMap.put(termBw, termFreqMap.get(termBw).intValue() + 1);
+          } else {
+            termFreqMap.put(termBw, 1);
           }
-        } catch (NullPointerException e) {
-          // this should not happen, because we only should use terms
-          // from the collection
-          throw new IllegalArgumentException("[pdt] for term=" + qTerm
-                  + " was 0. This should only happen, if you passed in a term "
-                  + "not found in the collection.");
         }
       }
+    }
+    return termFreqMap;
+  }
 
-      if (LOG.isTraceEnabled()) {
-        LOG.debug(sb.toString());
-        sb.delete(0, sb.length()); // clear
+  public Collection<BytesWrap> getDocumentTermSet(final int docId) {
+    checkDocumentId(docId);
+    return getDocumentTermFrequencyMap(docId).keySet();
+  }
+
+  /**
+   * Checks, if a document-id is valid (in index).
+   *
+   * @param docId Document-id to check
+   */
+  private void checkDocumentId(final int docId) {
+    if (docId < 0 || docId > documents.size() - 1) {
+      throw new IllegalArgumentException("Illegal document id: " + docId);
+    }
+  }
+
+  /**
+   * Get the overall term-frequency for a specific document.
+   *
+   * @param docId Document to lookup
+   * @return overall term-frequency
+   */
+  private int getDocumentTermFrequency(final int docId) {
+    final Map<BytesWrap, Number> docTermMap = getDocumentTermFrequencyMap(
+            docId);
+    int docTermCount = 0;
+    for (Number count : docTermMap.values()) {
+      docTermCount += count.intValue();
+    }
+    return docTermCount;
+  }
+
+  /**
+   * Get a list of all index terms. The list is <u>not</u> unique.
+   *
+   * @return List of all terms in index
+   */
+  Collection<BytesWrap> getTermList() {
+    final Collection<BytesWrap> terms = new ArrayList<>();
+    for (String[] documentFields : documents) {
+      for (int i = 0; i < documentFields.length; i++) {
+        if (activeFieldState[i] == 1) {
+          for (String term : documentFields[i].split("\\s+")) {
+            terms.add(new BytesWrap(
+                    new BytesRef(StringUtils.lowerCase(term))));
+          }
+        }
       }
-      pqt += pdt;
     }
-    LOG.trace("[pqt] q={} t={} p={} (using {} feedback documents)", query, term,
-            pqt, usedDocModels.size());
-    return pqt;
+    return terms;
   }
 
   /**
-   * This takes into account the currently set query fields.
+   * Get a unique set of all index terms.
    *
-   * @param terms Terms to use for calculation. This may be either all terms in
-   * the collection or only the terms used in the (rewritten) query.
-   * @param query Terms used in the original/rewritten query
-   * @param usedDocModels Document models to use for calculation
-   * @return The query clarity score
+   * @return Set of all terms in index
    */
-  public double calcClarity(final Set<String> terms,
-          final Set<String> query,
-          final Collection<IDocumentModel> usedDocModels) {
-    double pqt;
-    double clarity = 0d;
-    double log; // result of the logarithmic part of the calculation formular
+  private Collection<BytesWrap> getTermSet() {
+    return new HashSet<>(getTermList());
+  }
 
-    Double colProb;
-    for (String term : terms) {
-      pqt = TestIndex.calcPQT(query, term, usedDocModels);
+  /**
+   * Remove any custom data stored while using the index.
+   */
+  public void reset() {
+    this.prefixMap = new ConcurrentHashMap<>();
+  }
 
-      // try get collection Stringprobability for a term
-      colProb = relTermFreq.get(term);
-      if (colProb == null) {
-        colProb = 0d;
+  @Override
+  public long getTermFrequency() {
+    return getTermList().size();
+  }
+
+  @Override
+  public Long getTermFrequency(final BytesWrap term) {
+    Long frequency = 0L;
+    for (BytesWrap idxTerm : getTermList()) {
+      if (idxTerm.equals(term)) {
+        frequency++;
       }
-
-      log = (Math.log(pqt) / Math.log(2)) / (Math.log(colProb) / Math.log(2));
-      clarity += (pqt * log);
     }
-    return clarity;
+    return frequency == 0 ? null : frequency;
   }
 
-  /**
-   * Calculate expected results. This takes into account the currently set query
-   * fields.
-   */
-  private void calculateTestData() {
-//    this.calcPDT();
-//    this.calcPCT();
-  }
-
-  /**
-   * Add a document to the index.
-   *
-   * @param writer Index writer instance
-   * @param content Content of the document
-   * @throws IOException Thrown on low-level I/O errors
-   */
-  private void addDoc(final IndexWriter writer, final String[] content)
-          throws IOException {
-    Document doc = new Document();
-    for (int i = 0; i < content.length; i++) {
-      doc.add(new VecTextField(TestIndex.indexFields[i], content[i],
-              Field.Store.YES));
+  @Override
+  public double getRelativeTermFrequency(final BytesWrap term) {
+    Long termFrequency = getTermFrequency(term);
+    if (termFrequency == null) {
+      return 0;
     }
-    writer.addDocument(doc);
-  }
-
-  /**
-   * Get the index reader used by this instance.
-   *
-   * @return Index reader used by this instance
-   * @throws java.io.IOException Thrown, if index could not be accessed
-   */
-  public IndexReader getReader() throws IOException {
-    return DirectoryReader.open(INDEX);
+    return (double) termFrequency / (double) getTermFrequency();
   }
 
   @Override
   public String[] getTargetFields() {
-    return TestIndex.queryFields.toArray(
-            new String[TestIndex.queryFields.size()]);
+    return fields.toArray(new String[fields.size()]);
   }
 
-  private long getTermFrequency(final int documentId) {
-    Map<String, List<String>> docFieldTerms = DOCUMENT_INDEX.get(documentId);
-    long freq = 0L;
-    for (String fieldName : getTargetFields()) {
-      freq += docFieldTerms.get(fieldName).size();
+  @Override
+  public Iterator<BytesWrap> getTermsIterator() {
+    return getTermSet().iterator();
+  }
+
+  @Override
+  public Source<BytesWrap> getTermsSource() {
+    return new CollectionSource<>(getTermSet());
+  }
+
+  @Override
+  public Iterator<Integer> getDocumentIdIterator() {
+    return getDocumentIds().iterator();
+  }
+
+  @Override
+  public Source<Integer> getDocumentIdSource() {
+    return new CollectionSource<>(getDocumentIds());
+  }
+
+  @Override
+  public long getUniqueTermsCount() {
+    return getTermSet().size();
+  }
+
+  @Override
+  public Object setTermData(final String prefix, final int documentId,
+          final BytesWrap term, final String key, final Object value) {
+    checkDocumentId(documentId);
+
+    if (term == null) {
+      throw new IllegalArgumentException("Term was null.");
     }
-    return freq;
+    if (key == null || key.isEmpty()) {
+      throw new IllegalArgumentException("Key was empty or null.");
+    }
+    if (value == null) {
+      throw new IllegalArgumentException("Value was null.");
+    }
+
+    synchronized (this.prefixMap) {
+      Map<Tuple.Tuple3<Integer, BytesWrap, String>, Object> dataMap;
+      if (this.prefixMap.containsKey(prefix)) {
+        dataMap = this.prefixMap.get(prefix);
+      } else {
+        dataMap = new ConcurrentHashMap<>();
+        this.prefixMap.put(prefix, dataMap);
+      }
+
+      return dataMap.put(Tuple.tuple3(documentId, term, key), value);
+    }
   }
 
-  private long getTermFrequency(final int documentId, final String term) {
-    Map<String, List<String>> docFieldTerms = DOCUMENT_INDEX.get(documentId);
-    long freq = 0L;
-    for (String fieldName : getTargetFields()) {
-      for (String currentTerm : docFieldTerms.get(fieldName)) {
-        if (term.equals(currentTerm)) {
-          freq++;
-        }
+  @Override
+  public Object getTermData(final String prefix, final int documentId,
+          final BytesWrap term, final String key) {
+    checkDocumentId(documentId);
+    Map<Tuple.Tuple3<Integer, BytesWrap, String>, Object> dataMap
+            = this.prefixMap.get(prefix);
+    if (dataMap == null) {
+      return null;
+    }
+    return dataMap.get(Tuple.tuple3(documentId, term, key));
+  }
+
+  @Override
+  public Map<BytesWrap, Object> getTermData(final String prefix,
+          final int documentId, final String key) {
+    checkDocumentId(documentId);
+    Map<Tuple.Tuple3<Integer, BytesWrap, String>, Object> dataMap
+            = this.prefixMap.get(prefix);
+    if (dataMap == null) {
+      return null;
+    }
+    final Map<BytesWrap, Object> returnMap = new HashMap<>();
+    for (Entry<Tuple.Tuple3<Integer, BytesWrap, String>, Object> dataEntry
+            : dataMap.entrySet()) {
+      if (dataEntry.getKey().a.equals(documentId) && dataEntry.getKey().c.
+              equals(key)) {
+        returnMap.put(dataEntry.getKey().b, dataEntry.getValue());
       }
     }
-    return freq;
+    return returnMap;
   }
 
   @Override
-  public IDocumentModel getDocumentModel(final int documentId) {
-    return docModels.get(documentId);
+  public DocumentModel getDocumentModel(int docId) {
+    checkDocumentId(docId);
+    final int docTermFreq = getDocumentTermFrequency(docId);
+    final DocumentModel.DocumentModelBuilder dmBuilder
+            = new DocumentModel.DocumentModelBuilder(docId, docTermFreq);
+    dmBuilder.setTermFrequency(docTermFreq);
+    dmBuilder.setTermFrequency(getDocumentTermFrequencyMap(docId));
+    return dmBuilder.getModel();
   }
 
   @Override
-  public void dispose() {
-    // empty
+  public boolean hasDocument(final Integer docId) {
+    return !(docId < 0 || docId > (documents.size() - 1));
   }
 
   @Override
-  public Iterator<IDocumentModel> getDocModelIterator() {
-    throw new UnsupportedOperationException("Not supported yet.");
+  public long getDocumentCount() {
+    return documents.size();
   }
 
   @Override
-  public IDocumentModel removeDocumentModel(final int docId) {
-    throw new UnsupportedOperationException("Not supported yet.");
+  public boolean documentContains(final int documentId, final BytesWrap term) {
+    checkDocumentId(documentId);
+    return getDocumentTermFrequencyMap(documentId).keySet().contains(term);
   }
 
   @Override
-  public void addDocumentModel(final IDocumentModel documentModel) {
-    throw new UnsupportedOperationException("Not supported yet.");
+  public void registerPrefix(String prefix) {
+    // nothing to do here
   }
 
   @Override
-  public int getDocModelCount() {
-    throw new UnsupportedOperationException("Not supported yet.");
+  public String getProperty(final String prefix, final String key,
+          final String defaultValue) {
+    return defaultValue;
   }
 
   @Override
   public void setProperty(final String prefix, final String key,
           final String value) {
-    storageProp.setProperty(prefix + "_" + key, value);
+    // nothing to do here
+  }
+
+  @Override
+  public void dispose() {
+    try {
+      getReader().close();
+      memIdx.close();
+    } catch (IOException ex) {
+      LOG.error("Error while closing memory index.", ex);
+    }
+  }
+
+  // ---------- TEST ACCESSORS ----------
+  /**
+   * Get the list of known documents.
+   *
+   * @return Documents list
+   */
+  protected static List<String[]> test_getDocuments() {
+    return Collections.unmodifiableList(documents);
+  }
+
+  /**
+   * Get the known fields list
+   *
+   * @return Fields list
+   */
+  protected static List<String> test_getFields() {
+    return Collections.unmodifiableList(fields);
+  }
+
+  /**
+   * Get the bit-flags for each field
+   *
+   * @return Field flags
+   */
+  protected int[] test_getActiveFieldState() {
+    return activeFieldState.clone();
+  }
+
+  /**
+   * Get the initialized state
+   *
+   * @return True, if initialized
+   */
+  public static boolean test_isInitialized() {
+    return initialized;
+  }
+
+  // ---------- UNSUPPORTED OPERATIONS ----------
+  @Override
+  public boolean addDocument(final DocumentModel docModel) {
+    throw new UnsupportedOperationException("Not supported yet.");
+  }
+
+  @Override
+  public void updateDocument(final DocumentModel docModel) {
+    throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
   public String getProperty(final String prefix, final String key) {
-    return storageProp.getProperty(prefix + "_" + key);
-  }
-
-  @Override
-  public String getProperty(String prefix, String key, String defaultValue) {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
-  public int getTermsCount() {
+  public void commitHook() {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
-  public long getTermFrequency(BytesWrap term) {
+  public boolean transactionHookRequest() {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
-  public double getRelativeTermFrequency(BytesWrap term) {
+  public void transactionHookRelease() {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
-  public Iterator<BytesWrap> getTermsIterator() {
-    throw new UnsupportedOperationException("Not supported yet.");
-  }
-
-  @Override
-  public long getTermFrequency() {
-    throw new UnsupportedOperationException("Not supported yet.");
-  }
-
-  @Override
-  public void updateDocumentModel(IDocumentModel docModel) {
+  public void transactionHookRoolback() {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 }

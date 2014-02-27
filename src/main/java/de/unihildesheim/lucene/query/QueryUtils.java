@@ -18,9 +18,9 @@ package de.unihildesheim.lucene.query;
 
 import de.unihildesheim.lucene.util.BytesWrap;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.List;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryTermExtractor;
@@ -41,7 +41,8 @@ public final class QueryUtils {
   }
 
   /**
-   * Extract all terms of the given {@link Query}.
+   * Extract all terms of the given {@link Query}. The returned list is not
+   * unique (a term may occur more than one time).
    *
    * @param reader Reader to use
    * @param query Query object to parse
@@ -57,7 +58,7 @@ public final class QueryUtils {
             rwQuery, true);
 
     // stores all plain terms from the weighted query terms
-    final Set<BytesWrap> queryTerms = new HashSet<>(wqTerms.length);
+    final List<BytesWrap> queryTerms = new ArrayList<>(wqTerms.length);
 
     // store all plain query terms
     for (WeightedTerm wTerm : wqTerms) {

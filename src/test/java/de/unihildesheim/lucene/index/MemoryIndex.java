@@ -57,10 +57,10 @@ public final class MemoryIndex {
    */
   private final Directory index = new RAMDirectory();
 
-  /**
-   * internally used reader for the index.
-   */
-  private final IndexReader reader;
+//  /**
+//   * internally used reader for the index.
+//   */
+//  private final IndexReader reader;
 
   /**
    * Fields available on this index.
@@ -70,7 +70,7 @@ public final class MemoryIndex {
   /**
    * Collection of all terms in index.
    */
-  private final Collection<String> idxTerms = new ArrayList(1000);
+  private final Collection<String> idxTerms = new ArrayList<>(1000);
 
   /**
    * Create a new in-memory index.
@@ -91,19 +91,25 @@ public final class MemoryIndex {
 
     this.idxFields = fields.clone();
     createIndex(documents);
-    this.reader = getReader();
+//    this.reader = getReader();
   }
 
   /**
-   * Get a set of all terms known to this index.
-   *
-   * @return Set of known terms
+   * Close the index.
+   * @throws IOException Thrown on low-level I/O errors
    */
-  public Set<String> getUniqueTerms() {
-    Set<String> uniqueTerms = new HashSet(this.idxTerms.size());
-    uniqueTerms.addAll(this.idxTerms);
-    return uniqueTerms;
+  public void close() throws IOException {
+    index.close();
   }
+
+//  /**
+//   * Get a set of all terms known to this index.
+//   *
+//   * @return Set of known terms
+//   */
+//  public Set<String> getUniqueTerms() {
+//    return new HashSet<>(this.idxTerms);
+//  }
 
   /**
    * Get field names available in this index.
@@ -124,25 +130,25 @@ public final class MemoryIndex {
     return DirectoryReader.open(index);
   }
 
-  /**
-   * Get the ids of all available documents.
-   *
-   * @return Ids of all available documents. Deleted documents are not included.
-   */
-  public Collection<Integer> getDocumentIds() {
-    final Bits liveDocs = MultiFields.getLiveDocs(this.reader);
-    final Collection<Integer> ids = new ArrayList(this.reader.maxDoc());
-
-    for (int docId = 0; docId < this.reader.maxDoc(); docId++) {
-      // check if document is deleted
-      if (liveDocs == null) {
-        ids.add(docId);
-      } else if (liveDocs.get(docId)) {
-        ids.add(docId);
-      }
-    }
-    return ids;
-  }
+//  /**
+//   * Get the ids of all available documents.
+//   *
+//   * @return Ids of all available documents. Deleted documents are not included.
+//   */
+//  public Collection<Integer> getDocumentIds() {
+//    final Bits liveDocs = MultiFields.getLiveDocs(this.reader);
+//    final Collection<Integer> ids = new ArrayList<>(this.reader.maxDoc());
+//
+//    for (int docId = 0; docId < this.reader.maxDoc(); docId++) {
+//      // check if document is deleted
+//      if (liveDocs == null) {
+//        ids.add(docId);
+//      } else if (liveDocs.get(docId)) {
+//        ids.add(docId);
+//      }
+//    }
+//    return ids;
+//  }
 
   /**
    * Create the simple in-memory test index.

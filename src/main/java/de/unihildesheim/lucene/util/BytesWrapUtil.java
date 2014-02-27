@@ -14,32 +14,42 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 package de.unihildesheim.lucene.util;
 
+import java.util.WeakHashMap;
 import org.apache.lucene.util.BytesRef;
 
 /**
  * Utility functions to work with {@link BytesWrap} instances.
+ *
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public final class BytesWrapUtil {
 
-  /**
-   * Private constructor for utility class.
-   */
-  private BytesWrapUtil() {
-    // empty prvate constructor
-  }
+    private static final WeakHashMap<byte[], String> intern = new WeakHashMap<>(
+            10000);
 
-  /**
-   * Interprets stored bytes as UTF8 bytes, returning the
-   * resulting string. Actually a copy of {@link BytesRef#utf8ToString()}.
-   * @param bw BytesWrap instance whose byte array should be converted
-   * @return String representation of the corresponding byte array
-   */
-  public static String bytesWrapToString(final BytesWrap bw) {
-    final BytesRef br = new BytesRef(bw.getBytes());
-    return br.utf8ToString();
-  }
+    /**
+     * Private constructor for utility class.
+     */
+    private BytesWrapUtil() {
+        // empty prvate constructor
+    }
+
+    /**
+     * Interprets stored bytes as UTF8 bytes, returning the resulting string.
+     * Actually a copy of {@link BytesRef#utf8ToString()}.
+     *
+     * @param bw BytesWrap instance whose byte array should be converted
+     * @return String representation of the corresponding byte array
+     */
+    public static String bytesWrapToString(final BytesWrap bw) {
+        String str = intern.get(bw.getBytes());
+        if (str == null) {
+            byte[] b = bw.getBytes();
+            str = new BytesRef(b).utf8ToString();
+            intern.put(b, str);
+        }
+        return str;
+    }
 }

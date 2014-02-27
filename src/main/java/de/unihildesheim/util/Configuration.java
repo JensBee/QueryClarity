@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.lucene.scoring.clarity;
+package de.unihildesheim.util;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -24,43 +24,73 @@ import java.util.Properties;
 import org.slf4j.LoggerFactory;
 
 /**
- * Configuration manager for clarity score calculation.
+ * Configuration manager.
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public final class ClarityScoreConfiguration {
+public final class Configuration {
 
   /**
    * Logger instance for this class.
    */
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
-          ClarityScoreConfiguration.class);
+          Configuration.class);
 
   /**
    * Singleton instance reference.
    */
-  public static final ClarityScoreConfiguration INSTANCE
-          = new ClarityScoreConfiguration();
+  private static Configuration instance;
 
   /**
    * Configuration properties.
    */
-  @SuppressWarnings("PublicField")
-  public static Properties conf;
+  private static Properties conf;
 
   /**
    * Name of the configuration file to load.
    */
-  private static final String CONF_FILE = "clarity.properties";
+  private static String confFile;
+
+  /**
+   * Flag indicating, if this instance is initialized.
+   */
+  private static boolean initialized = false;
+
+  /**
+   * Initialize this singleton with a specific configuration file name.
+   *
+   * @param fileName Configuration file name to use
+   */
+  public static void initInstance(final String fileName) {
+    if (initialized) {
+      throw new IllegalStateException("Instance already initialized.");
+    }
+    if (fileName.endsWith(".properties")) {
+      confFile = fileName;
+    } else {
+      confFile = fileName + ".properties";
+    }
+    instance = new Configuration();
+    initialized = true;
+  }
+
+  /**
+   * Check if an instance is initialized.
+   */
+  private static void checkInstance() {
+    if (!initialized) {
+      throw new IllegalStateException("Instance not initialized.");
+    }
+  }
 
   /**
    * Private singleton constructor.
    */
-  private ClarityScoreConfiguration() {
+  private Configuration() {
     conf = new Properties();
     try (final InputStream resIn = Thread.currentThread().
             getContextClassLoader().getResourceAsStream(
-                    CONF_FILE)) {
+                    confFile)) {
 
               if (resIn != null) {
                 //load a properties file from class path, inside static method
@@ -71,28 +101,21 @@ public final class ClarityScoreConfiguration {
                       + "Creating a new one upon exit.");
             }
             Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+              @Override
               public void run() {
                 saveConfig();
               }
-            }, "ClarityScoreConfiguration_shurdownHandler"));
+            }, "Configuration_shurdownHandler"));
   }
 
   /**
    * Save the current configuration back to disk.
    */
   private void saveConfig() {
-    OutputStream propFile = null;
-    try {
-      propFile = new FileOutputStream(CONF_FILE);
+    try (OutputStream propFile = new FileOutputStream(confFile)) {
       conf.store(propFile, null);
     } catch (IOException ex) {
       LOG.error("Error while storing configuration.", ex);
-    } finally {
-      try {
-        propFile.close();
-      } catch (IOException ex) {
-        LOG.error("Error while storing configuration.", ex);
-      }
     }
   }
 
@@ -103,6 +126,7 @@ public final class ClarityScoreConfiguration {
    * @return Value assigned to the key, or <tt>null</tt> if there was none
    */
   public static String get(final String key) {
+    checkInstance();
     return conf.getProperty(key);
   }
 
@@ -116,6 +140,9 @@ public final class ClarityScoreConfiguration {
    * none
    */
   public static String get(final String key, final String defaultValue) {
+    if (!initialized) {
+      return defaultValue;
+    }
     if (!conf.containsKey(key)) {
       // push missing value to store
       conf.setProperty(key, defaultValue);
@@ -133,6 +160,9 @@ public final class ClarityScoreConfiguration {
    * there was none
    */
   public static Integer getInt(final String key, final Integer defaultValue) {
+    if (!initialized) {
+      return defaultValue;
+    }
     String value = get(key);
     if (value == null) {
       // push missing value to store
@@ -153,6 +183,9 @@ public final class ClarityScoreConfiguration {
    * there was none
    */
   public static Double getDouble(final String key, final Double defaultValue) {
+    if (!initialized) {
+      return defaultValue;
+    }
     String value = get(key);
     if (value == null) {
       // push missing value to store

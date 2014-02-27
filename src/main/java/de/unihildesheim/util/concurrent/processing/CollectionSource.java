@@ -19,6 +19,7 @@ package de.unihildesheim.util.concurrent.processing;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Wraps the given {@link Collection} as {@link Source}. Thread safety is
@@ -27,8 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * @param <T> Type of the collections elements
  */
-public final class CollectionSource<T>
-        extends Source<T> implements ObservableSource {
+public final class CollectionSource<T> extends Source<T> {
 
   /**
    * Wrapped collection acting as source.
@@ -41,7 +41,7 @@ public final class CollectionSource<T>
   /**
    * Number of provided items.
    */
-  private final AtomicInteger sourcedItemCount;
+  private final AtomicLong sourcedItemCount;
 
   /**
    * Wrap the specified collection using it as source.
@@ -50,7 +50,7 @@ public final class CollectionSource<T>
    */
   public CollectionSource(final Collection<T> coll) {
     super();
-    this.sourcedItemCount = new AtomicInteger(0);
+    this.sourcedItemCount = new AtomicLong(0);
     this.collection = coll;
   }
 
@@ -66,22 +66,23 @@ public final class CollectionSource<T>
   }
 
   @Override
-  public Integer getItemCount() throws ProcessingException {
+  public Long getItemCount() throws ProcessingException {
     checkRunStatus();
-    return this.collection.size();
+    return (long) this.collection.size();
   }
 
   @Override
-  public synchronized void run() {
+  public synchronized Long call() {
     if (isRunning()) {
       throw new ProcessingException.SourceIsRunningException();
     }
     this.itemsIt = this.collection.iterator();
-    super.run();
+    super.call();
+    return this.sourcedItemCount.get();
   }
 
   @Override
-  public int getSourcedItemCount() {
+  public long getSourcedItemCount() {
     return this.sourcedItemCount.get();
   }
 

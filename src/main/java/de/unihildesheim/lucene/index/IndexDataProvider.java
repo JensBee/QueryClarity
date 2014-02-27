@@ -18,8 +18,11 @@ package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.util.BytesWrap;
+import de.unihildesheim.util.Tuple;
 import de.unihildesheim.util.concurrent.processing.Source;
+import java.util.Collection;
 import java.util.Iterator;
+import java.util.Map;
 
 /**
  * IndexDataProvider provides statistical data from the underlying Lucene
@@ -47,8 +50,8 @@ public interface IndexDataProvider {
    * Get the term frequency of a single term in the index.
    *
    * @param term Term to lookup
-   * @return The frequency of the term in the index, or null if none was
-   * stored
+   * @return The frequency of the term in the index, or <tt>null</tt> if none
+   * was stored
    */
   Long getTermFrequency(final BytesWrap term);
 
@@ -82,6 +85,7 @@ public interface IndexDataProvider {
 
   /**
    * Get a {@link ProcessPipe.Source} providing all known terms.
+   *
    * @return {@link ProcessPipe.Source} providing all known terms
    */
   Source<BytesWrap> getTermsSource();
@@ -91,10 +95,11 @@ public interface IndexDataProvider {
    *
    * @return Iterator over document-ids
    */
-  Iterator<Integer> getDocIdIterator();
+  Iterator<Integer> getDocumentIdIterator();
 
   /**
    * Get a {@link ProcessPipe.Source} providing all known document ids.
+   *
    * @return {@link ProcessPipe.Source} providing all known document ids
    */
   Source<Integer> getDocumentIdSource();
@@ -104,7 +109,7 @@ public interface IndexDataProvider {
    *
    * @return Number of unique terms in the index
    */
-  long getTermsCount();
+  long getUniqueTermsCount();
 
   /**
    * Store enhanced data for a document & term combination with a custom
@@ -136,6 +141,9 @@ public interface IndexDataProvider {
   Object getTermData(final String prefix, final int documentId,
           final BytesWrap term, final String key);
 
+  Map<BytesWrap, Object> getTermData(final String prefix,
+          final int documentId, final String key);
+
   /**
    * Get a {@link DocumentModel} instance for the document with the given id.
    *
@@ -145,37 +153,37 @@ public interface IndexDataProvider {
   DocumentModel getDocumentModel(final int docId);
 
   /**
-   * Add a new document model to the list if it is not already known.
+   * Add a new document (model) to the list if it is not already known.
    *
    * @param docModel DocumentModel to add
    * @return True, if the model was added, false if there's already a model
    * known by the model's id
    */
-  boolean addDocumentModel(final DocumentModel docModel);
+  boolean addDocument(final DocumentModel docModel);
 
   /**
-   * Test if a model for the specific document-id is known.
+   * Test if a document (model) for the specific document-id is known.
    *
    * @param docId Document-id to lookup
    * @return True if a model is known, false otherwise
    */
-  boolean hasDocumentModel(final Integer docId);
+  boolean hasDocument(final Integer docId);
 
   /**
-   * Updates an already stored {@link DocumentModel}. Use this to update any
-   * model, that have been changed externally.
+   * Updates an already stored Document (model). Use this to update any model,
+   * that have been changed externally.
    *
    * @param docModel Document model to update. It must already have been in
    * the collection of known models.
    */
-  void updateDocumentModel(final DocumentModel docModel);
+  void updateDocument(final DocumentModel docModel);
 
   /**
-   * Get the number of all {@link DocumentModel}s known to this instance.
+   * Get the number of all Documents (models) known to this instance.
    *
-   * @return Number of {@link DocumentModel}s known
+   * @return Number of Documents known
    */
-  long getDocModelCount();
+  long getDocumentCount();
 
   /**
    * Stores a property value to the {@link IndexDataProvider}. Depending on
@@ -244,4 +252,15 @@ public interface IndexDataProvider {
    * @return True, if it contains the term, false otherwise
    */
   boolean documentContains(final int documentId, final BytesWrap term);
+
+  /**
+   * Tell the data provider, we want to access custom data specified by the
+   * given prefix.
+   * <p>
+   * A prefix must be registered before any call to
+   * {@link #setTermData(String, int, BytesWrap, String, Object)} or    {@link #getTermData(String, int, BytesWrap, String) can be made.
+   *
+   * @param prefix Prefix name to register
+   */
+  void registerPrefix(final String prefix);
 }

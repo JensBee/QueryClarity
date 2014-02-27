@@ -16,7 +16,7 @@
  */
 package de.unihildesheim.lucene.document;
 
-import de.unihildesheim.lucene.scoring.clarity.ClarityScoreConfiguration;
+import de.unihildesheim.util.Configuration;
 import de.unihildesheim.lucene.util.BytesWrap;
 import java.util.Collections;
 import java.util.HashMap;
@@ -96,7 +96,7 @@ public final class DocumentModel {
      * Default number of terms to expect for a document. Used to initialize
      * data storage to a appropriate size.
      */
-    private static final int DEFAULT_TERMS_COUNT = ClarityScoreConfiguration.
+    private static final int DEFAULT_TERMS_COUNT = Configuration.
             getInt(CONF_PREFIX + "defaultTermsCount", 100);
     /**
      * Term -> frequency mapping for every known term in the document.

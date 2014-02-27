@@ -18,7 +18,8 @@ package de.unihildesheim.lucene.scoring;
 
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.scoring.clarity.ClarityScoreCalculation;
-import de.unihildesheim.lucene.scoring.clarity.DefaultClarityScore;
+import de.unihildesheim.lucene.scoring.clarity.impl.DefaultClarityScore;
+import de.unihildesheim.lucene.scoring.clarity.impl.SimplifiedClarityScore;
 import org.apache.lucene.index.IndexReader;
 
 /**
@@ -34,9 +35,13 @@ public final class Scoring {
   public enum ClarityScore {
 
     /**
-     * Default clarity score.
+     * Default Clarity Score.
      */
-    DEFAULT
+    DEFAULT,
+    /**
+     * Simplified Clarity Score.
+     */
+    SIMPLIFIED
   }
 
   /**
@@ -69,6 +74,8 @@ public final class Scoring {
     switch (csType) {
       case DEFAULT:
         return new DefaultClarityScore(this.indexReader, this.dataProv);
+      case SIMPLIFIED:
+        return new SimplifiedClarityScore(this.indexReader, this.dataProv);
     }
     throw new IllegalArgumentException(
             "Unknown or not supported type specified.");

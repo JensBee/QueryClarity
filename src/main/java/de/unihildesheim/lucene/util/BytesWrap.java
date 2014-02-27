@@ -22,13 +22,17 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.Arrays;
 import org.apache.lucene.util.BytesRef;
+import org.mapdb.DataInput2;
+import org.mapdb.DataOutput2;
 
 /**
- * Based on: https://stackoverflow.com/a/1058169.
+ * Based on ideas from: https://stackoverflow.com/a/1058169.
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
+
+    private static final int UNSIGNED_MASK = 0xFF;
 
   /**
    * Serialization class version id.
@@ -112,6 +116,8 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
    * @return Instance with an independent byte array cloned from the current
    * instance.
    */
+    @Override
+    @SuppressWarnings("CloneDoesntCallSuperClone")
   public BytesWrap clone() {
     return new BytesWrap(this.data);
   }
@@ -129,7 +135,10 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
 
   @Override
   public boolean equals(final Object o) {
-    if (!(o instanceof BytesWrap)) {
+      if (this == o) {
+          return true;
+      }
+    if (o == null || !(o instanceof BytesWrap)) {
       return false;
     }
     return Arrays.equals(this.data, ((BytesWrap) o).data);
@@ -144,17 +153,29 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
   @SuppressWarnings("AccessingNonPublicFieldOfAnotherObject")
   public int compareTo(final BytesWrap o) {
     // same object, same array values
-    if (this == o || this.data == o.data || equals(o)) {
+    if (this == o) {
       return 0;
     }
 
-    int minSameSize = Math.min(data.length, o.data.length);
+    // lexicographic version
+    final int minSameSize = Math.min(data.length, o.data.length);
+    int a, b;
     for (int i = 0; i < minSameSize; i++) {
-      final int cmp = this.data[i] - o.data[i];
-      if (cmp != 0) {
-        return cmp;
-      }
+        a = (this.data[i] & 0xff);
+        b = (o.data[i] & 0xff);
+            if (a != b) {
+                return a - b;
+            }
     }
+
+//    final int minSameSize = Math.min(data.length, o.data.length);
+//    for (int i = 0; i < minSameSize; i++) {
+//      final int cmp = this.data[i] - o.data[i];
+//      if (cmp != 0) {
+//        return cmp;
+//      }
+//    }
+
     return data.length - o.data.length;
   }
 
@@ -174,7 +195,7 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
     public void serialize(final DataOutput out, final BytesWrap value) throws
             IOException {
       final byte[] bytes = value.getBytes();
-      out.writeInt(bytes.length);
+      DataOutput2.packInt(out,bytes.length);
       out.write(bytes);
     }
 
@@ -185,7 +206,7 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
       if (available == 0) {
         return null;
       }
-      final byte[] bytes = new byte[in.readInt()];
+      final byte[] bytes = new byte[DataInput2.unpackInt(in)];
       in.readFully(bytes);
       return new BytesWrap(bytes);
     }

@@ -22,18 +22,14 @@ import de.unihildesheim.lucene.document.DocumentModelException;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.concurrent.processing.Processing;
 import de.unihildesheim.util.concurrent.processing.CollectionSource;
-import de.unihildesheim.util.concurrent.processing.Source;
-import de.unihildesheim.util.concurrent.processing.Target;
 import de.unihildesheim.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.util.TimeMeasure;
-import de.unihildesheim.util.concurrent.processing.ObservableSource;
 import de.unihildesheim.util.concurrent.processing.Source;
 import de.unihildesheim.util.concurrent.processing.Target;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
@@ -108,7 +104,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
 
     final TimeMeasure timeMeasure = new TimeMeasure().start();
     final Fields idxFields = MultiFields.getFields(reader);
-    LOG.info("Calculating term frequencies for all unique terms in index.");
+    LOG.info("Calculating term frequencies for all unique terms in index. " + "This may take some time.");
 
     Terms fieldTerms;
     TermsEnum fieldTermsEnum = null;
@@ -136,7 +132,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     }
     timeMeasure.stop();
     LOG.info("Calculation of term frequencies for {} unique terms in index "
-            + "took {}.", getTermsCount(), timeMeasure.getElapsedTimeString());
+            + "took {}.", getUniqueTermsCount(), timeMeasure.getTimeString());
   }
 
   /**
@@ -217,8 +213,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * {@link Processing.Source} providing document-ids to create document
    * models.
    */
-  private static final class DocModelCreatorSource extends Source<Integer>
-          implements ObservableSource {
+  private static final class DocModelCreatorSource extends Source<Integer> {
 
     /**
      * Expected number of documents to retrieve from Lucene.
@@ -254,12 +249,12 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     }
 
     @Override
-    public Integer getItemCount() {
-      return this.itemsCount;
+    public Long getItemCount() {
+      return (long) this.itemsCount;
     }
 
     @Override
-    public int getSourcedItemCount() {
+    public long getSourcedItemCount() {
       return this.currentNum < 0 ? 0 : this.currentNum;
     }
   }
@@ -357,7 +352,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
         dmBuilder.setTermFrequency(docTerms);
 
         try {
-          if (!addDocumentModel(dmBuilder.getModel())) {
+          if (!addDocument(dmBuilder.getModel())) {
             throw new IllegalArgumentException("(" + getName()
                     + ") Document model already known at creation time.");
           }

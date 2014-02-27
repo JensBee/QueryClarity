@@ -17,15 +17,14 @@
 package de.unihildesheim.util.concurrent.processing;
 
 import de.unihildesheim.util.TimeMeasure;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.concurrent.Callable;
 import org.slf4j.LoggerFactory;
 
 /**
  * Observer for {@link Processing.Source}es, printing status messages to the
  * system log.
  */
-public final class SourceObserver implements Runnable {
+public final class SourceObserver implements Callable<Double> {
 
   /**
    * Logger instance for this class.
@@ -35,7 +34,7 @@ public final class SourceObserver implements Runnable {
   /**
    * {@link Source} to observe.
    */
-  private final ObservableSource source;
+  private final Source source;
   /**
    * Overall time taken.
    */
@@ -76,7 +75,7 @@ public final class SourceObserver implements Runnable {
    *
    * @param newSource Source whose process to observe
    */
-  public SourceObserver(final ObservableSource newSource) {
+  public SourceObserver(final Source newSource) {
     this.terminate = false;
     this.source = newSource;
     this.overallTime = new TimeMeasure();
@@ -94,34 +93,22 @@ public final class SourceObserver implements Runnable {
   }
 
   /**
-   * Stop observing and terminate.
-   *
-   * @param sourcedCount Final number of items provided
-   */
-  public void terminate(final Integer sourcedCount) {
-    this.finalSourcedCount = sourcedCount;
-    synchronized (this) {
-      this.terminate = true;
-      this.notifyAll(); // awake from sleep, if neccessary
-    }
-  }
-
-  /**
    * Show a timed status message.
    */
   private void showStatus() {
     LOG.info("Processing {} of {} items after {}s, running for {}.",
             this.source.hashCode(), this.source.getSourcedItemCount(),
             this.runTime.getElapsedSeconds(),
-            this.overallTime.getElapsedTimeString());
+            this.overallTime.getTimeString());
   }
 
   /**
    * Show a progress status message.
+   *
    * @param itemCount Currently processed items
    * @param lastStatus Items processed on last status
    */
-  private void showStatus(final int itemCount, final int lastStatus) {
+  private void showStatus(final long itemCount, final long lastStatus) {
     final long estimate = (long) ((itemCount - lastStatus) / (lastStatus
             / overallTime.getElapsedSeconds()));
     LOG.info("Processing {} of {} items ({}%). "
@@ -129,19 +116,26 @@ public final class SourceObserver implements Runnable {
             + "Estimated time needed {}.", lastStatus, itemCount,
             (lastStatus * 100) / itemCount,
             runTime.stop().getElapsedSeconds(),
-            overallTime.getElapsedTimeString(),
+            overallTime.getTimeString(),
             TimeMeasure.getTimeString(estimate));
   }
 
   @Override
   @SuppressWarnings("SleepWhileInLoop")
-  public void run() {
+  public Double call() {
+    // short circuit if source has already finished
+    if (((Source) this.source).isFinished()) {
+      return 0d;
+    }
+    this.overallTime.start();
     try {
-      this.overallTime.start();
+      ((Source) this.source).awaitStart();
       this.runTime.start();
-      int lastStatus = 0;
-      int status = 0;
-      int step, itemCount;
+      long lastStatus = 0;
+      long status = 0;
+      int step;
+      Long itemCount;
+
       if (this.source.getItemCount() != null) {
         this.hasItemCount = true;
         itemCount = this.source.getItemCount();
@@ -149,8 +143,9 @@ public final class SourceObserver implements Runnable {
       } else {
         this.hasItemCount = false;
         step = 0;
-        itemCount = 0;
+        itemCount = 0L;
       }
+
       while (!this.terminate) {
         if (hasItemCount) {
           status = this.source.getSourcedItemCount();
@@ -165,7 +160,7 @@ public final class SourceObserver implements Runnable {
             showStatus();
           }
           this.runTime.start();
-        } else if (this.hasItemCount && lastStatus < status
+        } else if (this.hasItemCount && step > 0 && lastStatus < status
                 && status % step == 0) {
           // max wait time not elapsed, check if we should provide a status
           // based on progres
@@ -182,19 +177,11 @@ public final class SourceObserver implements Runnable {
           }
         }
       }
-      this.overallTime.stop();
-      if (this.finalSourcedCount == null) {
-        LOG.info("Source finished after {}.",
-                this.overallTime.getElapsedTimeString());
-      } else {
-        LOG.info("Source finished after {} with {} items.",
-                this.overallTime.getElapsedTimeString(),
-                this.finalSourcedCount);
-      }
     } catch (ProcessingException ex) {
       LOG.error("Caught exception while running observer.", ex);
     } catch (InterruptedException ex) {
       LOG.error("Interrupted.", ex);
     }
+    return this.overallTime.stop().getElapsedNanos();
   }
 }

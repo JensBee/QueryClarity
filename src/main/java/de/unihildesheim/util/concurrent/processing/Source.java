@@ -17,6 +17,7 @@
 package de.unihildesheim.util.concurrent.processing;
 
 import de.unihildesheim.util.concurrent.processing.ProcessingException.SourceNotReadyException;
+import java.util.concurrent.Callable;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -32,7 +33,7 @@ import org.slf4j.LoggerFactory;
  *
  * @param <T> Type this {@link Source} provides
  */
-public abstract class Source<T> implements Runnable {
+public abstract class Source<T> implements Callable<Long> {
 
   /**
    * Logger instance for this class.
@@ -58,7 +59,7 @@ public abstract class Source<T> implements Runnable {
   }
 
   @Override
-  public synchronized void run() {
+  public synchronized Long call() {
     if (isRunning()) {
       throw new ProcessingException.SourceIsRunningException();
     }
@@ -71,7 +72,16 @@ public abstract class Source<T> implements Runnable {
     } catch (InterruptedException ex) {
       LOG.error("Interrupted.", ex);
     }
+    stop();
+    return getSourcedItemCount();
   }
+
+  /**
+   * Get the number of items already served.
+   *
+   * @return Number of items served
+   */
+  public abstract long getSourcedItemCount();
 
   /**
    * Signal the {@link Source}, that it should stop generating items.
@@ -99,7 +109,7 @@ public abstract class Source<T> implements Runnable {
    * @throws ProcessingException Thrown, if source has not been started or
    * already finished
    */
-  public abstract Integer getItemCount() throws ProcessingException;
+  public abstract Long getItemCount() throws ProcessingException;
 
   /**
    * Status, if the source is running (providing data).
@@ -172,7 +182,7 @@ public abstract class Source<T> implements Runnable {
   public final void awaitStart() throws InterruptedException {
     if (!this.isFinished) {
       synchronized (this) {
-        while (!this.isRunning) {
+        while (!this.isRunning && !this.isFinished) {
           this.wait();
         }
       }

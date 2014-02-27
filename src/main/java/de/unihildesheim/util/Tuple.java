@@ -94,6 +94,24 @@ public final class Tuple {
   }
 
   /**
+   * Creates a new three-value tuple.
+   *
+   * @param <A> Type of <tt>Tuple.a</tt>
+   * @param <B> Type of <tt>Tuple.b</tt>
+   * @param <C> Type of <tt>Tuple.c</tt>
+   * @param <D> Type of <tt>Tuple.d</tt>
+   * @param a Value for <tt>Tuple.a</tt>
+   * @param b Value for <tt>Tuple.b</tt>
+   * @param c Value for <tt>Tuple.c</tt>
+   * @param d Value for <tt>Tuple.d</tt>
+   * @return New tuple
+   */
+  public static <A, B, C, D> Tuple4<A, B, C, D> tuple4(final A a, final B b,
+          final C c, final D d) {
+    return new Tuple4<>(a, b, c, d);
+  }
+
+  /**
    * Two-value tuple.
    *
    * @param <A> Type of <tt>Tuple.a</tt>
@@ -228,6 +246,92 @@ public final class Tuple {
       hash = 79 * hash + Objects.hashCode(this.a);
       hash = 79 * hash + Objects.hashCode(this.b);
       hash = 79 * hash + Objects.hashCode(this.c);
+      return hash;
+    }
+  }
+
+  /**
+   * Four-value tuple.
+   *
+   * @param <A> Type of <tt>Tuple.a</tt>
+   * @param <B> Type of <tt>Tuple.b</tt>
+   * @param <C> Type of <tt>Tuple.c</tt>
+   * @param <D> Type of <tt>Tuple.d</tt>
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public static final class Tuple4<A, B, C, D> implements Serializable {
+
+    /**
+     * Serialization class version id.
+     */
+    private static final long serialVersionUID = 0L;
+
+    /**
+     * First object.
+     */
+    public final A a;
+    /**
+     * Second object.
+     */
+    public final B b;
+    /**
+     * Third object.
+     */
+    public final C c;
+    /**
+     * Fourth object.
+     */
+    public final D d;
+
+    /**
+     * Three-value tuple.
+     *
+     * @param newA First object
+     * @param newB Second object
+     * @param newC Third object
+     * @param newD Third object
+     */
+    public Tuple4(final A newA, final B newB, final C newC, final D newD) {
+      this.a = newA;
+      this.b = newB;
+      this.c = newC;
+      this.d = newD;
+    }
+
+    @Override
+    public boolean equals(final Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+
+      final Tuple4 tuple4 = (Tuple4) o;
+
+      if (a == null ? tuple4.a != null : !a.equals(tuple4.a)) {
+        return false;
+      }
+      if (b == null ? tuple4.b != null : !b.equals(tuple4.b)) {
+        return false;
+      }
+      if (c == null ? tuple4.c != null : !c.equals(tuple4.c)) {
+        return false;
+      }
+      if (d == null ? tuple4.d != null : !d.equals(tuple4.d)) {
+        return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      int hash = 7;
+      hash = 79 * hash + Objects.hashCode(this.a);
+      hash = 79 * hash + Objects.hashCode(this.b);
+      hash = 79 * hash + Objects.hashCode(this.c);
+      hash = 79 * hash + Objects.hashCode(this.d);
       return hash;
     }
   }

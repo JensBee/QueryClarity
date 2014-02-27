@@ -16,16 +16,19 @@
  */
 package de.unihildesheim.util.concurrent.processing;
 
-import de.unihildesheim.lucene.scoring.clarity.ClarityScoreConfiguration;
+import de.unihildesheim.util.Configuration;
+import de.unihildesheim.util.TimeMeasure;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -58,7 +61,7 @@ public final class Processing {
   /**
    * Default number of target threads to run.
    */
-  public static final int THREADS = ClarityScoreConfiguration.getInt(
+  public static final int THREADS = Configuration.getInt(
           CONF_PREFIX + "targetThreadsCount", Runtime.getRuntime().
           availableProcessors());
   /**
@@ -164,6 +167,56 @@ public final class Processing {
   }
 
   /**
+   * Run a debug {@link Target} on the given {@link Source}.
+   *
+   * @return Items processed by the debug {@link Target}
+   */
+  public Long debugTestSource() {
+    if (this.source == null) {
+      throw new IllegalStateException("No source set.");
+    }
+    Long result = null;
+    int threadCount = 1;
+    this.threadTrackingLatch = new CountDownLatch(threadCount);
+    executor.setTargetThreadsCount(threadCount);
+
+    LOG.trace("Spawning {} Processing-Target thread.", threadCount);
+    final Target<Object> aTarget = new Target.TargetTest<>(source);
+    aTarget.setLatch(this.threadTrackingLatch);
+
+    LOG.trace("Starting Processing-Source.");
+    final Future sourceThread = executor.runSource(this.source);
+    LOG.trace("Starting Processing-Target thread.");
+    final Future targetThread = executor.runTask((Callable) aTarget);
+
+    // wait until source has finished
+    try {
+      sourceThread.get();
+    } catch (InterruptedException | ExecutionException ex) {
+      LOG.error("Caught exception while tracking source state.", ex);
+    }
+
+    LOG.trace("Processing-Source finished. Terminating Target.");
+    aTarget.terminate();
+
+    LOG.trace("Awaiting Processing-Target termination.");
+    try {
+      this.threadTrackingLatch.await();
+    } catch (InterruptedException ex) {
+      LOG.error("Processing interrupted.", ex);
+    }
+
+    try {
+      result = (Long) targetThread.get();
+    } catch (InterruptedException | ExecutionException ex) {
+      LOG.error("Caught exception while tracking source state.", ex);
+    }
+
+    LOG.trace("Processing finished.");
+    return result;
+  }
+
+  /**
    * Start processing with the defined {@link Source} and {@link Target} with
    * the default number of threads.
    */
@@ -188,9 +241,8 @@ public final class Processing {
     final Collection<Target> targets = new ArrayList<>(threadCount);
     this.threadTrackingLatch = new CountDownLatch(threadCount);
     executor.setTargetThreadsCount(threadCount);
-    SourceObserver sourceObserver;
 
-    LOG.debug("Spawning {} Processing-Target threads.", threadCount);
+    LOG.trace("Spawning {} Processing-Target threads.", threadCount);
     for (int i = 0; i < threadCount; i++) {
       final Target aTarget = this.target.newInstance();
       aTarget.setLatch(this.threadTrackingLatch);
@@ -199,13 +251,10 @@ public final class Processing {
 
     LOG.trace("Starting Processing-Source.");
     final Future sourceThread = executor.runSource(this.source);
-    // start observer, if applicable
-    if (this.source instanceof ObservableSource) {
-      sourceObserver = new SourceObserver((ObservableSource) this.source);
-      executor.runTask(sourceObserver);
-    } else {
-      sourceObserver = null;
-    }
+    Future sourceTime = null;
+    LOG.trace("Starting Processing-Observer.");
+    final SourceObserver sourceObserver = new SourceObserver(this.source);
+    sourceTime = executor.runTask(sourceObserver);
 
     LOG.trace("Starting Processing-Target threads.");
     for (Target aTarget : targets) {
@@ -213,8 +262,9 @@ public final class Processing {
     }
 
     // wait until source has finished
+    Long processedItems = null;
     try {
-      sourceThread.get();
+      processedItems = (Long) sourceThread.get();
     } catch (InterruptedException | ExecutionException ex) {
       LOG.error("Caught exception while tracking source state.", ex);
     }
@@ -222,8 +272,18 @@ public final class Processing {
     // terminate observer, if any was used
     if (sourceObserver != null) {
       LOG.trace("Processing-Source finished. Terminating observer.");
-      sourceObserver.terminate(((ObservableSource) this.source).
-              getSourcedItemCount());
+      sourceObserver.terminate();
+      if (sourceTime != null) {
+        try {
+          LOG.debug("Source finished with {} items after {}.", processedItems,
+                  TimeMeasure.getTimeString((Double) sourceTime.get(1,
+                                  TimeUnit.SECONDS)));
+        } catch (InterruptedException | ExecutionException | TimeoutException ex) {
+          LOG.debug("Source finished with {} items.", processedItems);
+        }
+      }
+    } else {
+      LOG.debug("Source finished with {} items.", processedItems);
     }
 
     LOG.trace("Processing-Source finished. Terminating Targets.");
@@ -337,7 +397,11 @@ public final class Processing {
      * @param task Source runnable
      * @return Future to track the state
      */
-    Future runSource(final Runnable task) {
+    Future runSource(final Callable task) {
+      return threadPool.submit(task);
+    }
+
+    Future runTask(final Callable task) {
       return threadPool.submit(task);
     }
 

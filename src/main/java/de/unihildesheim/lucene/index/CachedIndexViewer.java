@@ -119,35 +119,36 @@ public final class CachedIndexViewer {
     }
   }
 
-  /**
-   * Show externally stored document-term data by prefix.
-   * @param prefix Prefix to use
-   */
   @Command(description = "Show externally stored document-term data "
-          + "by prefix.")
-  public void showExternalTermData(
-          @Param(name = "prefix", description = "External prefix to use.")
-          final String prefix) {
-    showExternalTermData(prefix, 0, DEFAULT_AMOUNT);
-  }
-
-  /**
-   * Show externally stored document-term data by prefix.
-   * @param prefix Prefix to use
-   * @param start Offset to start at
-   */
-  @Command(description = "Show externally stored document-term data "
-          + "by prefix.")
+          + "by prefix and document-id.")
   public void showExternalTermData(
           @Param(name = "prefix", description = "External prefix to use.")
           final String prefix,
-          @Param(name = "start", description = "Index to start at.")
-          final long start) {
-    showExternalTermData(prefix, start, DEFAULT_AMOUNT);
+          @Param(name = "docId", description = "Document-id.")
+          final Integer docId) {
+    Map<Fun.Tuple2<String, String>, Object> map = this.dataProv.
+            debugGetPrefixMap(prefix);
+    if (map == null) {
+      System.out.println("No data with prefix '" + prefix + "' found.");
+      return;
+    }
+
+    Iterator<Entry<Fun.Tuple2<String, String>, Object>> entriesIt
+            = map.entrySet().iterator();
+    while (entriesIt.hasNext()) {
+      final Entry<Fun.Tuple2<String, String>, Object> entry
+              = entriesIt.next();
+      if (entry.getKey().a.startsWith(docId.toString())) {
+        System.out.printf("key={%s, %s} "
+                + "value={%s}\n", entry.getKey().a, entry.
+                getKey().b, entry.getValue());
+      }
+    }
   }
 
   /**
    * Show externally stored document-term data by prefix.
+   *
    * @param prefix Prefix to use
    * @param start Offset to start at
    * @param amount Number of items to show
@@ -161,14 +162,14 @@ public final class CachedIndexViewer {
           final long start,
           @Param(name = "amount", description = "Number of items to show.")
           final long amount) {
-    Map<Fun.Tuple3<Integer, BytesWrap, String>, Object> map = this.dataProv.
+    Map<Fun.Tuple2<String, String>, Object> map = this.dataProv.
             debugGetPrefixMap(prefix);
     if (map == null) {
       System.out.println("No data with prefix '" + prefix + "' found.");
       return;
     }
 
-    Iterator<Entry<Fun.Tuple3<Integer, BytesWrap, String>, Object>> entriesIt
+    Iterator<Entry<Fun.Tuple2<String, String>, Object>> entriesIt
             = map.entrySet().iterator();
 
     int digitLength = String.valueOf(Math.max(start, start + amount)).length();
@@ -176,37 +177,15 @@ public final class CachedIndexViewer {
     long showCounter = 1;
     while (entriesIt.hasNext() && showCounter <= amount) {
       if (itemCounter++ >= start && showCounter++ <= amount) {
-        final Entry<Fun.Tuple3<Integer, BytesWrap, String>, Object> entry
+        final Entry<Fun.Tuple2<String, String>, Object> entry
                 = entriesIt.next();
-        System.out.printf("[%" + digitLength + "d] key={%d, %s, %s} "
-                + "value={%s}\n", itemCounter, entry.getKey().a,
-                BytesWrapUtil.bytesWrapToString(entry.getKey().b), entry.
-                getKey().c, entry.getValue());
+        System.out.printf("[%" + digitLength + "d] key={%s, %s} "
+                + "value={%s}\n", itemCounter, entry.getKey().a, entry.
+                getKey().b, entry.getValue());
       } else {
         entriesIt.next();
       }
     }
-  }
-
-  /**
-   * List {@link #DEFAULT_AMOUNT} item from base document-term storage.
-   */
-  @Command(description = "Show base data stored for documents-terms.")
-  public void showTermDataValues() {
-    showTermDataValues(0, DEFAULT_AMOUNT);
-  }
-
-  /**
-   * List {@link #DEFAULT_AMOUNT} item from base document-term storage,
-   * starting at the given index.
-   *
-   * @param start Start index
-   */
-  @Command(description = "Show base data stored for documents-terms.")
-  public void showTermDataValues(
-          @Param(name = "start", description = "Index to start at.")
-          final long start) {
-    showTermDataValues(start, DEFAULT_AMOUNT);
   }
 
   /**
@@ -279,29 +258,6 @@ public final class CachedIndexViewer {
         BytesWrapUtil.bytesWrapToString(entry.getKey()), entry.getValue()});
     }
     this.txtTbl.hLine();
-  }
-
-  /**
-   * List {@link #DEFAULT_AMOUNT} terms from cache.
-   */
-  @Command(description = "List " + DEFAULT_AMOUNT
-          + " amount of terms from cache, "
-          + "starting at index 0.")
-  public void listTerms() {
-    listTerms(0, DEFAULT_AMOUNT);
-  }
-
-  /**
-   * List {@link #DEFAULT_AMOUNT} terms from cache, starting at the given
-   * index.
-   *
-   * @param start Start index
-   */
-  @Command(description = "List " + DEFAULT_AMOUNT + " terms from cache.")
-  public void listTerms(
-          @Param(name = "start", description = "Index to start at.")
-          final long start) {
-    listTerms(start, DEFAULT_AMOUNT);
   }
 
   /**
@@ -382,30 +338,6 @@ public final class CachedIndexViewer {
   }
 
   /**
-   * List {@link #DEFAULT_AMOUNT} document models from cache. Starting at 0.
-   */
-  @Command(description = "List " + DEFAULT_AMOUNT
-          + " document models from cache, "
-          + "starting at index 0.")
-  public void listModels() {
-    listModels(0, DEFAULT_AMOUNT);
-  }
-
-  /**
-   * List {@link #DEFAULT_AMOUNT} document models. Starting at the given
-   * index.
-   *
-   * @param start Start index
-   */
-  @Command(description = "List " + DEFAULT_AMOUNT
-          + " document models from cache.")
-  public void listModels(
-          @Param(name = "start", description = "Index to start at.")
-          final long start) {
-    listModels(start, DEFAULT_AMOUNT);
-  }
-
-  /**
    * List document models. Starting at the given index, listing the specified
    * number of entries.
    *
@@ -419,7 +351,7 @@ public final class CachedIndexViewer {
           @Param(name = "amount", description = "Number of items to show.")
           final long amount) {
     List<Integer> docIds = new ArrayList<>((int) (long) amount);
-    Iterator<Integer> docIdIt = this.dataProv.getDocIdIterator();
+    Iterator<Integer> docIdIt = this.dataProv.getDocumentIdIterator();
     int idDigitLength = 0;
     long itemCounter = 0;
     long showCounter = 1;
@@ -473,9 +405,9 @@ public final class CachedIndexViewer {
   public void status() {
     final Map<String, Object> data = new HashMap<>(3);
 
-    data.put("Document models", this.dataProv.getDocModelCount());
+    data.put("Document models", this.dataProv.getDocumentCount());
     data.put("Total term-frequency", this.dataProv.getTermFrequency());
-    data.put("Unique terms", this.dataProv.getTermsCount());
+    data.put("Unique terms", this.dataProv.getUniqueTermsCount());
 
     int titleLength = 0;
     int dataLength = 0;
@@ -527,7 +459,7 @@ public final class CachedIndexViewer {
     }
 
     Shell shell = ShellFactory.createConsoleShell("cmd", "CachedIndexViewer",
-              this);
+            this);
     if (!this.runCommand.isEmpty()) {
       final String[] command = this.runCommand.toArray(
               new String[this.runCommand.size()]);

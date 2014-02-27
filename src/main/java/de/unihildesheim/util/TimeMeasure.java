@@ -129,7 +129,7 @@ public final class TimeMeasure {
    *
    * @return Formatted elapsed time string
    */
-  public String getElapsedTimeString() {
+  public String getTimeString() {
     return getTimeString((long) getElapsedSeconds());
   }
 
@@ -140,7 +140,7 @@ public final class TimeMeasure {
    * @param nanos Nanoseconds to convert
    * @return Formatted elapsed time string
    */
-  public String getElapsedTimeString(final double nanos) {
+  public static String getTimeString(final double nanos) {
     return getTimeString((long) (nanos / 1000000000.0));
   }
 

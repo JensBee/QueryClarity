@@ -23,6 +23,7 @@ import com.beust.jcommander.ParameterException;
 import de.unihildesheim.lucene.LuceneDefaults;
 import de.unihildesheim.lucene.document.DocumentModelException;
 import de.unihildesheim.lucene.index.CachedIndexDataProvider;
+import de.unihildesheim.util.Configuration;
 import de.unihildesheim.util.concurrent.processing.Processing;
 import java.io.File;
 import java.io.IOException;
@@ -74,6 +75,7 @@ public final class Main {
   private void runMain() throws IOException, DocumentModelException,
           ParseException {
     LOG.debug("Starting");
+    Configuration.initInstance("config");
 
     if (this.indexDir.isEmpty() || this.queryString.isEmpty()) {
       LOG.error("No index or query specified.");
@@ -103,11 +105,15 @@ public final class Main {
               fields[0], analyzer);
       final Query query = parser.parse(queryString);
 
-      final ClarityScoreCalculation csCalc = calculation.newInstance(
-              Scoring.ClarityScore.DEFAULT);
-      csCalc.calculateClarity(query);
+      LOG.info("\n--- Default Clarity Score");
+      calculation.newInstance(Scoring.ClarityScore.DEFAULT).calculateClarity(
+              query);
+      LOG.info("\n--- Simplified Clarity Score");
+      calculation.newInstance(Scoring.ClarityScore.SIMPLIFIED).
+              calculateClarity(query);
 
-      LOG.trace("Closing lucene index.");
+      LOG.trace(
+              "Closing lucene index.");
       dataProv.dispose();
     }
 

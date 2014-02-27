@@ -93,8 +93,7 @@ public final class Feedback {
 
     timeMeasure.stop();
     LOG.debug("Getting {} feedback documents for query {} "
-            + "took {}.", fbDocCnt, query, timeMeasure.
-            getElapsedTimeString());
+            + "took {}.", fbDocCnt, query, timeMeasure.getTimeString());
     return results;
   }
 
@@ -184,8 +183,7 @@ public final class Feedback {
 
     timeMeasure.stop();
     LOG.debug("Getting {} feedback documents for query {} "
-            + "took {}.", maxRetDocs, query, timeMeasure.
-            getElapsedTimeString());
+            + "took {}.", maxRetDocs, query, timeMeasure.getTimeString());
     return docIds;
   }
 }

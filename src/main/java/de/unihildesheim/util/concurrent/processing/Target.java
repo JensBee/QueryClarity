@@ -16,7 +16,9 @@
  */
 package de.unihildesheim.util.concurrent.processing;
 
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -137,5 +139,73 @@ public abstract class Target<T> implements Runnable {
       LOG.trace("({}) Terminating.", getName());
       this.latch.countDown();
     }
+  }
+
+  /**
+   * Debug {@link Target} to test {@link Source}es.
+   *
+   * @param <T> Type of this target
+   */
+  @SuppressWarnings("ProtectedInnerClass")
+  protected final static class TargetTest<T> extends Target<T> implements
+          Callable<Long> {
+
+    /**
+     * Synchronization lock.
+     */
+    private final Object syncLock;
+    /**
+     * Flag to indicate, if processing is done.
+     */
+    private boolean done = false;
+    /**
+     * Counter of processed items.
+     */
+    private AtomicLong itemCount = new AtomicLong(0);
+
+    /**
+     * Creates a new debugging {@link Target}. Only one instance may be run.
+     *
+     * @param newSource Source to use
+     */
+    public TargetTest(Source<T> newSource) {
+      super(newSource);
+      this.syncLock = new Object();
+    }
+
+    @Override
+    public Target<T> newInstance() {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void runProcess() throws Exception {
+      while (!isTerminating()) {
+        try {
+          final T o = getSource().next();
+          if (o != null) {
+            itemCount.incrementAndGet();
+          }
+        } catch (ProcessingException.SourceHasFinishedException ex) {
+          break;
+        }
+      }
+      synchronized (this.syncLock) {
+        this.done = true;
+        this.syncLock.notifyAll();
+      }
+    }
+
+    @Override
+    public Long call() throws Exception {
+      super.run();
+      synchronized (this.syncLock) {
+        while (!this.done) {
+          this.syncLock.wait();
+        }
+      }
+      return itemCount.get();
+    }
+
   }
 }

@@ -17,6 +17,7 @@
 package de.unihildesheim.lucene.scoring.clarity;
 
 import de.unihildesheim.lucene.index.IndexDataProvider;
+import de.unihildesheim.lucene.scoring.clarity.impl.ClarityScoreResult;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
 
@@ -35,18 +36,18 @@ public interface ClarityScoreCalculation {
    */
   ClarityScoreResult calculateClarity(final Query query);
 
-  /**
-   * Get the {@link IndexDataProvider} for statistical index related
-   * informations used by this instance.
-   *
-   * @return Data provider used by this instance
-   */
-  IndexDataProvider getIndexDataProvider();
-
-  /**
-   * Get the {@link IndexReader} used by this instance.
-   *
-   * @return IndexReader used by this instance
-   */
-  IndexReader getReader();
+//  /**
+//   * Get the {@link IndexDataProvider} for statistical index related
+//   * informations used by this instance.
+//   *
+//   * @return Data provider used by this instance
+//   */
+//  IndexDataProvider getIndexDataProvider();
+//
+//  /**
+//   * Get the {@link IndexReader} used by this instance.
+//   *
+//   * @return IndexReader used by this instance
+//   */
+//  IndexReader getReader();
 }
