@@ -29,6 +29,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -117,6 +118,9 @@ public final class Processing {
    * @param newSource New source to use
    */
   public void setSource(final Source newSource) {
+    if (newSource == null) {
+      throw new IllegalArgumentException("Source was null.");
+    }
     this.source = newSource;
   }
 
@@ -127,6 +131,12 @@ public final class Processing {
    * @param newTarget Processing target
    */
   public void setSourceAndTarget(final Target newTarget) {
+    if (newTarget == null) {
+      throw new IllegalArgumentException("Target was null.");
+    }
+    if (newTarget.getSource() == null) {
+      throw new IllegalArgumentException("Source was null.");
+    }
     this.source = newTarget.getSource();
     this.target = newTarget;
   }
@@ -137,6 +147,9 @@ public final class Processing {
    * @param newTarget New target to use
    */
   public void setTarget(final Target newTarget) {
+    if (newTarget == null) {
+      throw new IllegalArgumentException("Target was null.");
+    }
     this.target = newTarget;
   }
 
@@ -163,6 +176,7 @@ public final class Processing {
     if (executor != null) {
       LOG.trace("Shutting down thread pool.");
       executor.shutDown();
+      executor = null;
     }
   }
 
@@ -175,6 +189,7 @@ public final class Processing {
     if (this.source == null) {
       throw new IllegalStateException("No source set.");
     }
+    initPool();
     Long result = null;
     int threadCount = 1;
     this.threadTrackingLatch = new CountDownLatch(threadCount);
@@ -238,6 +253,8 @@ public final class Processing {
       throw new IllegalStateException("No target set.");
     }
 
+    initPool();
+
     final Collection<Target> targets = new ArrayList<>(threadCount);
     this.threadTrackingLatch = new CountDownLatch(threadCount);
     executor.setTargetThreadsCount(threadCount);
@@ -266,7 +283,10 @@ public final class Processing {
     try {
       processedItems = (Long) sourceThread.get();
     } catch (InterruptedException | ExecutionException ex) {
-      LOG.error("Caught exception while tracking source state.", ex);
+      if (!(ex.getCause() instanceof
+              ProcessingException.SourceHasFinishedException)) {
+        LOG.error("Caught exception while tracking source state.", ex);
+      }
     }
 
     // terminate observer, if any was used

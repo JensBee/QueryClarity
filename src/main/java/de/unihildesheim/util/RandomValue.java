@@ -54,9 +54,8 @@ public final class RandomValue {
    * @param min Minimum value
    * @param max Maximum value. Must be greater than min.
    * @return Integer between min and max, inclusive.
-   * @see java.util.Random#nextInt(int)
    */
-  public static int integer(final int min, final int max) {
+  public static int getInteger(final int min, final int max) {
     // nextInt is normally exclusive of the top value,
     // so add 1 to make it inclusive
     int randomNum = rand.nextInt((max - min) + 1) + min;
@@ -66,10 +65,30 @@ public final class RandomValue {
 
   /**
    * Get a random int value.
+   *
    * @return Random int
    */
-  public static int integer() {
+  public static int getInteger() {
     return rand.nextInt();
+  }
+
+  /**
+   * Returns a pseudo-random number between min and max, inclusive. The
+   * difference between min and max can be at most
+   * <code>Double.MAX_VALUE - 1</code>.
+   * <p>
+   * https://stackoverflow.com/a/363692
+   *
+   * @param min Minimum value
+   * @param max Maximum value. Must be greater than min.
+   * @return Double between min and max, inclusive.
+   */
+  public static double getDouble(final double min, final double max) {
+    return min + 1 + (max - min) * rand.nextDouble();
+  }
+
+  public static double getDouble() {
+    return rand.nextDouble();
   }
 
   /**
@@ -78,7 +97,7 @@ public final class RandomValue {
    *
    * @return a random chosen char
    */
-  public static char character() {
+  public static char getCharacter() {
     final int idx = (int) (rand.nextDouble() * RAND_TERM_LETTERS.length);
     return RAND_TERM_LETTERS[idx];
   }
@@ -92,9 +111,9 @@ public final class RandomValue {
    * @return A random generated string
    *
    */
-  public static String string(final int minLength,
+  public static String getString(final int minLength,
           final int maxLength) {
-    return string(integer(minLength, maxLength));
+    return getString(getInteger(minLength, maxLength));
   }
 
   /**
@@ -105,11 +124,19 @@ public final class RandomValue {
    * @return A random generated string
    *
    */
-  public static String string(final int length) {
+  public static String getString(final int length) {
     final StringBuilder termSb = new StringBuilder(length);
     for (int i = 0; i < length; i++) {
-      termSb.append(character());
+      termSb.append(getCharacter());
     }
     return termSb.toString();
+  }
+
+  /**
+   * Get a random boolean value.
+   * @return Random boolean value
+   */
+  public static boolean getBoolean() {
+    return rand.nextBoolean();
   }
 }

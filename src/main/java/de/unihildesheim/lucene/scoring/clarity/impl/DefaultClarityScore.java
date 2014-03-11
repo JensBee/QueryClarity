@@ -18,13 +18,13 @@ package de.unihildesheim.lucene.scoring.clarity.impl;
 
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.Feedback;
+import de.unihildesheim.lucene.index.CachedIndexDataProvider;
 import de.unihildesheim.util.concurrent.processing.Processing;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.query.QueryUtils;
 import de.unihildesheim.lucene.scoring.clarity.ClarityScoreCalculation;
 import de.unihildesheim.util.Configuration;
 import de.unihildesheim.lucene.util.BytesWrap;
-import de.unihildesheim.lucene.util.BytesWrapUtil;
 import de.unihildesheim.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.util.TimeMeasure;
 import de.unihildesheim.util.concurrent.AtomicDouble;
@@ -34,11 +34,11 @@ import de.unihildesheim.util.concurrent.processing.Target;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.Query;
 import org.slf4j.LoggerFactory;
 
@@ -169,7 +169,9 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     this.dataProv = dataProvider;
     this.docModelDataKey = DataKeys.docModel.name() + "_"
             + this.langmodelWeight;
-    this.dataProv.registerPrefix(PREFIX);
+    if (this.dataProv instanceof CachedIndexDataProvider) {
+      ((CachedIndexDataProvider)this.dataProv).registerPrefix(PREFIX);
+    }
   }
 
   /**
@@ -180,8 +182,8 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * @return The calculated default model value
    */
   private double calcDefaultDocumentModel(final BytesWrap term) {
-    return (double) ((1 - langmodelWeight) * this.dataProv.
-            getRelativeTermFrequency(term));
+    return ((1 - langmodelWeight) * this.dataProv.getRelativeTermFrequency(
+            term));
   }
 
   /**
@@ -243,18 +245,18 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
   }
 
   /**
-   * Calculate the document model for the given document.
+   * Calculate the document distribution of a term, document model (pD).
    *
    * @param docModel Document model to do the calculation for
    * @param terms List of terms to calculate
    */
   void calcDocumentModel(final DocumentModel docModel) {
-    final double termFreq = docModel.termFrequency;
-
     for (BytesWrap term : docModel.termFreqMap.keySet()) {
-      final double model = langmodelWeight * ((double) docModel.
-              termFrequency(term) / termFreq) + calcDefaultDocumentModel(
-                      term);
+      final double model = langmodelWeight * docModel.
+              getRelativeTermFrequency(term) + calcDefaultDocumentModel(term);
+//      final double model = langmodelWeight * docModel.
+//              getSmoothedRelativeTermFrequency(this.dataProv, term, 100)
+//              + calcDefaultDocumentModel(term);
       this.dataProv.setTermData(PREFIX, docModel.id, term,
               this.docModelDataKey, model);
     }
@@ -358,7 +360,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     // convert query to readable string for logging output
     StringBuilder queryStr = new StringBuilder(100);
     for (BytesWrap bw : this.queryTerms) {
-      queryStr.append(BytesWrapUtil.bytesWrapToString(bw)).append(' ');
+      queryStr.append(bw.toString()).append(' ');
     }
     LOG.info("Calculating clarity score. query={}", queryStr);
 
@@ -381,16 +383,32 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     Processing processing = new Processing();
 
     // calculate query models for feedback documents.
-    LOG.info("Calculating query models.");
+    LOG.info("Calculating query models for {} feedback documents.",
+            feedbackDocuments.size());
     processing.setSourceAndTarget(new TargetQueryModelCalulator(
             new CollectionSource<>(feedbackDocuments)));
     processing.process();
 
     final AtomicDouble score = new AtomicDouble(0);
-    LOG.info("Calculating query probability values.");
+    final Source<BytesWrap> sourceCollection;
+
+    // calculation with all terms from collection
+//    LOG.info("Calculating query probability values "
+//            + "for {} unique terms in collection.", this.dataProv.
+//            getUniqueTermsCount());
+//    sourceCollection = this.dataProv.getTermsSource();
+    // collection with query terms only
+//    LOG.info("Calculating query probability values for {} query terms.",
+//            this.queryTerms.size());
+//    sourceCollection = new CollectionSource<>(this.queryTerms);
+    // terms from feedback documents only
+    sourceCollection = new CollectionSource<>(this.dataProv.
+            getDocumentsTermSet(feedbackDocuments));
+
     processing.setSourceAndTarget(new TargetQueryProbabilityCalulator(
-            this.dataProv.getTermsSource(), feedbackDocuments, score));
-    processing.process(Processing.THREADS * 2);
+            sourceCollection, feedbackDocuments, score));
+
+    processing.process();
 
     LOG.debug("Calculation results: query={} docModels={} score={}.",
             queryStr, feedbackDocuments.size(), score);
@@ -406,22 +424,19 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     return result;
   }
 
-  @Override
-  public ClarityScoreResult calculateClarity(final Query query) {
-    if (query == null) {
-      throw new IllegalArgumentException("Query was null.");
-    }
-
-    final Collection<Integer> feedbackDocuments;
-
-    // pre-check query terms & get feedback documents
+  /**
+   * Proxy method to add feedback documents and prepare the query. Also allows
+   * testing of the calculation.
+   *
+   * @param query Original query
+   * @param feedbackDocuments Documents to use for feedback calculations
+   * @return Calculated clarity score
+   */
+  protected ClarityScoreResult calculateClarity(final Query query,
+          final Collection<Integer> feedbackDocuments) {
     try {
-      Collection<BytesWrap> qTerms = QueryUtils.getQueryTerms(this.reader,
-              query);
-      // HashSet ensures unique entries
-      this.queryTerms = new HashSet<>(qTerms);
-      feedbackDocuments = Feedback.getFixed(this.reader, query,
-              this.fbDocCount);
+      // Get unique query terms
+      this.queryTerms = QueryUtils.getUniqueQueryTerms(this.reader, query);
     } catch (IOException ex) {
       LOG.error("Caught exception while preparing calculation.", ex);
       return null;
@@ -429,13 +444,37 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     if (this.queryTerms == null || this.queryTerms.isEmpty()) {
       throw new IllegalStateException("No query terms.");
     }
+
+    return calculateClarity(feedbackDocuments);
+  }
+
+  @Override
+  public ClarityScoreResult calculateClarity(final String query) throws
+          ParseException {
+    if (query == null || query.isEmpty()) {
+      throw new IllegalArgumentException("Query was empty.");
+    }
+
+    final Query queryObj = QueryUtils.buildQuery(this.dataProv.getFields(),
+            query);
+
+    // get feedback documents
+    final Collection<Integer> feedbackDocuments;
+    try {
+//      feedbackDocuments = Feedback.getFixed(this.reader, query,
+//              this.fbDocCount);
+      feedbackDocuments = Feedback.getFixed(this.reader, queryObj,
+              this.fbDocCount);
+
+    } catch (IOException ex) {
+      LOG.error("Caught exception while preparing calculation.", ex);
+      return null;
+    }
     if (feedbackDocuments == null || feedbackDocuments.isEmpty()) {
       throw new IllegalStateException("No feedback documents.");
     }
 
-    ClarityScoreResult result = calculateClarity(feedbackDocuments);
-
-    return result;
+    return calculateClarity(queryObj, feedbackDocuments);
   }
 
   /**
@@ -538,8 +577,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
                   getRelativeTermFrequency(term);
           Double model;
 
-          StringBuilder sb = new StringBuilder(BytesWrapUtil.
-                  bytesWrapToString(term)).append(' ');
+          StringBuilder sb = new StringBuilder(term.toString()).append(' ');
 
           for (Integer docId : this.fbDocIds) {
             model = getDocumentModel(docId, term);
@@ -553,17 +591,11 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
               qLangMod += model * getQueryModel(docId);
             }
           }
-          LOG.debug("ADD {}", sb.toString());
-//          LOG.debug("ADD [{}] qLangMod={} tRelF={}", BytesWrapUtil.bytesWrapToString(
-//                  term), qLangMod, termRelFreq);
 
           // calculate logarithmic part of the formulary
           final double log = (Math.log(qLangMod) / Math.log(2)) - (Math.log(
                   termRelFreq) / Math.log(2));
           // add up final score for each term
-          LOG.debug("ADD[{}] {} * {} = {} ({})", BytesWrapUtil.
-                  bytesWrapToString(term), qLangMod, log, qLangMod * log,
-                  this.result.get());
           this.result.addAndGet(qLangMod * log);
         }
       }

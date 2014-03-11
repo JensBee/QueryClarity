@@ -26,7 +26,6 @@ import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.util.BytesWrap;
-import de.unihildesheim.lucene.util.BytesWrapUtil;
 import de.unihildesheim.util.StringUtils;
 import de.unihildesheim.util.TextTable;
 import java.io.IOException;
@@ -214,8 +213,7 @@ public final class CachedIndexViewer {
                 = entriesIt.next();
         System.out.printf("[%" + digitLength + "d] key={%d, %s, %s} "
                 + "value={%s}\n", itemCounter, entry.getKey().a, entry.
-                getKey().b, BytesWrapUtil.bytesWrapToString(entry.getKey().c),
-                entry.getValue());
+                getKey().b, entry.getKey().c, entry.getValue());
       } else {
         entriesIt.next();
       }
@@ -236,7 +234,7 @@ public final class CachedIndexViewer {
     int maxTermLen = 0;
     int maxValLen = 0;
     for (Entry<BytesWrap, Long> entry : docModel.termFreqMap.entrySet()) {
-      final String bwString = BytesWrapUtil.bytesWrapToString(entry.getKey());
+      final String bwString = entry.getKey().toString();
       if (bwString.length() > maxTermLen) {
         maxTermLen = bwString.length();
       }
@@ -254,8 +252,7 @@ public final class CachedIndexViewer {
     this.txtTbl.header("DocId: " + docId, tblColumns);
 
     for (Entry<BytesWrap, Long> entry : docModel.termFreqMap.entrySet()) {
-      this.txtTbl.row(new Object[]{
-        BytesWrapUtil.bytesWrapToString(entry.getKey()), entry.getValue()});
+      this.txtTbl.row(new Object[]{entry.getKey(), entry.getValue()});
     }
     this.txtTbl.hLine();
   }
@@ -281,7 +278,7 @@ public final class CachedIndexViewer {
     while (termsIt.hasNext() && showCounter <= amount) {
       if (itemCounter++ >= start && showCounter++ <= amount) {
         final BytesWrap term = termsIt.next();
-        final String termString = BytesWrapUtil.bytesWrapToString(term);
+        final String termString = term.toString();
         // nice print
         if (termString.length() > termCharLength) {
           termCharLength = termString.length();
@@ -330,8 +327,7 @@ public final class CachedIndexViewer {
             tblColumns);
 
     for (int i = 0; i < terms.size(); i++) {
-      this.txtTbl.row(new Object[]{start + i,
-        BytesWrapUtil.bytesWrapToString(terms.get(i)), termFreq.get(i),
+      this.txtTbl.row(new Object[]{start + i, terms.get(i), termFreq.get(i),
         rTermFreq.get(i)});
     }
     this.txtTbl.hLine();

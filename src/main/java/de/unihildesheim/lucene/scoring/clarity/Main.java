@@ -97,20 +97,12 @@ public final class Main {
       }
 
       final Scoring calculation = new Scoring(dataProv, reader);
-
-      final Analyzer analyzer = new StandardAnalyzer(LuceneDefaults.VERSION);
-
-      LOG.debug("Building query ({}).", queryString);
-      final QueryParser parser = new QueryParser(LuceneDefaults.VERSION,
-              fields[0], analyzer);
-      final Query query = parser.parse(queryString);
-
       LOG.info("\n--- Default Clarity Score");
       calculation.newInstance(Scoring.ClarityScore.DEFAULT).calculateClarity(
-              query);
+              queryString);
       LOG.info("\n--- Simplified Clarity Score");
       calculation.newInstance(Scoring.ClarityScore.SIMPLIFIED).
-              calculateClarity(query);
+              calculateClarity(queryString);
 
       LOG.trace(
               "Closing lucene index.");

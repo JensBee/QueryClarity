@@ -18,7 +18,6 @@ package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.util.BytesWrap;
-import de.unihildesheim.util.Tuple;
 import de.unihildesheim.util.concurrent.processing.Source;
 import java.util.Collection;
 import java.util.Iterator;
@@ -74,7 +73,7 @@ public interface IndexDataProvider {
    *
    * @return Index field names
    */
-  String[] getTargetFields();
+  String[] getFields();
 
   /**
    * Get an {@link Iterator} over a unique set of all terms from the index.
@@ -141,8 +140,21 @@ public interface IndexDataProvider {
   Object getTermData(final String prefix, final int documentId,
           final BytesWrap term, final String key);
 
+  /**
+   * Get all term-data stored under a given prefix, document-id and key.
+   *
+   * @param prefix Prefix to stored data
+   * @param documentId Document-id the data is attached to
+   * @param key Key to identify the data
+   * @return Mapping of all stored data
+   */
   Map<BytesWrap, Object> getTermData(final String prefix,
           final int documentId, final String key);
+
+  /**
+   * Removes all stored term-data.
+   */
+  void clearTermData();
 
   /**
    * Get a {@link DocumentModel} instance for the document with the given id.
@@ -170,13 +182,11 @@ public interface IndexDataProvider {
   boolean hasDocument(final Integer docId);
 
   /**
-   * Updates an already stored Document (model). Use this to update any model,
-   * that have been changed externally.
-   *
-   * @param docModel Document model to update. It must already have been in
-   * the collection of known models.
+   * Get a unique set of terms for all documents identified by their id.
+   * @param docIds List of document ids to extract terms from
+   * @return List of terms from all documents
    */
-  void updateDocument(final DocumentModel docModel);
+  Collection<BytesWrap> getDocumentsTermSet(final Collection<Integer> docIds);
 
   /**
    * Get the number of all Documents (models) known to this instance.
@@ -207,6 +217,11 @@ public interface IndexDataProvider {
   String getProperty(final String prefix, final String key);
 
   /**
+   * Remove all externally stored properties.
+   */
+  void clearProperties();
+
+  /**
    * Same as {@link IndexDataProvider#getProperty(String, String)}, but allows
    * to specify a default value.
    *
@@ -221,30 +236,6 @@ public interface IndexDataProvider {
           final String defaultValue);
 
   /**
-   * Hook for any external data-changing function to signal that now is a good
-   * moment to commit any pending data (if necessary).
-   */
-  void commitHook();
-
-  /**
-   * Set a transaction hook indicating that the following data commits should
-   * be atomic. There can only be one transaction hook set at a time.
-   *
-   * @return True, if the hook was set. False, if a hook is already set.
-   */
-  boolean transactionHookRequest();
-
-  /**
-   * Release the currently set transaction hook.
-   */
-  void transactionHookRelease();
-
-  /**
-   * Rollback any changes made since setting a transaction hook.
-   */
-  void transactionHookRoolback();
-
-  /**
    * Check if a document contains the given term.
    *
    * @param documentId Id of the document to check
@@ -252,15 +243,4 @@ public interface IndexDataProvider {
    * @return True, if it contains the term, false otherwise
    */
   boolean documentContains(final int documentId, final BytesWrap term);
-
-  /**
-   * Tell the data provider, we want to access custom data specified by the
-   * given prefix.
-   * <p>
-   * A prefix must be registered before any call to
-   * {@link #setTermData(String, int, BytesWrap, String, Object)} or    {@link #getTermData(String, int, BytesWrap, String) can be made.
-   *
-   * @param prefix Prefix name to register
-   */
-  void registerPrefix(final String prefix);
 }

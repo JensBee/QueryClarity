@@ -88,7 +88,7 @@ public final class Configuration {
    */
   private Configuration() {
     conf = new Properties();
-    try (final InputStream resIn = Thread.currentThread().
+    try (InputStream resIn = Thread.currentThread().
             getContextClassLoader().getResourceAsStream(
                     confFile)) {
 

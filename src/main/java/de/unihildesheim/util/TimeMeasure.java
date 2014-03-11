@@ -52,11 +52,11 @@ public final class TimeMeasure {
    * @return Self reference
    */
   public TimeMeasure start() {
-    if (this.paused) {
-      this.paused = false;
-    } else {
+    if (!this.paused) {
       this.elapsed = 0L;
     }
+    this.paused = false;
+    this.stopped = false;
     this.startTime = System.nanoTime();
     return this;
   }

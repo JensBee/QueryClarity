@@ -16,10 +16,8 @@
  */
 package de.unihildesheim.lucene.index;
 
-import de.unihildesheim.lucene.LuceneDefaults;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.util.BytesWrap;
-import de.unihildesheim.lucene.util.BytesWrapUtil;
 import de.unihildesheim.util.RandomValue;
 import de.unihildesheim.util.StringUtils;
 import de.unihildesheim.util.Tuple;
@@ -36,19 +34,22 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.queryparser.classic.QueryParser;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
+import org.mapdb.BTreeKeySerializer;
+import org.mapdb.BTreeMap;
+import org.mapdb.DB;
+import org.mapdb.DBMaker;
+import org.mapdb.Fun;
+import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * Temporary index of random generated documents for testing purposes.
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
@@ -59,11 +60,6 @@ public final class TestIndex implements IndexDataProvider {
    */
   private static final Logger LOG = LoggerFactory.getLogger(
           TestIndex.class);
-
-  /**
-   * <tt>Document-id, [each fields content]</tt>.
-   */
-  private static List<String[]> documents = null;
 
   /**
    * Index field names.
@@ -81,11 +77,36 @@ public final class TestIndex implements IndexDataProvider {
    */
   private static boolean initialized = false;
 
-  private static MemoryIndex memIdx;
+  /**
+   * Temporary Lucene index held in memory.
+   */
+  private static TempDiskIndex tmpIdx;
 
-  private static Query query;
+  /**
+   * Minimum and maximum amount of fields to create.
+   */
+  private static final int[] MIN_MAX_FIELDS = new int[]{1, 10};
 
-  private QueryParser qParser;
+  /**
+   * Minimum and maximum number of documents to create.
+   */
+  private static final int[] MIN_MAX_DOCS = new int[]{10, 100};
+
+  /**
+   * Minimum and maximum length of a random generated document (in terms per
+   * field).
+   */
+  private static final int[] MIN_MAX_DOC_LENGTH = new int[]{10, 150};
+
+  /**
+   * Minimum and maximum length of a random term in a document.
+   */
+  private static final int[] MIN_MAX_TERM_LENGTH = new int[]{1, 10};
+
+  /**
+   * Minimum and maximum length of a random generated query.
+   */
+  private static final int[] MIN_MAX_QUERY_LENGTH = new int[]{1, 10};
 
   /**
    * Map: <tt>(prefix -> ([document-id, term, key] -> value))</tt>.
@@ -93,7 +114,22 @@ public final class TestIndex implements IndexDataProvider {
   private Map<String, Map<Tuple.Tuple3<
           Integer, BytesWrap, String>, Object>> prefixMap;
 
-  public TestIndex() throws IOException, ParseException {
+//  private static DB db;
+
+  private int documentsCount;
+
+  /**
+   * Field, Document-id, Term -> Frequency
+   */
+  private static BTreeMap<Fun.Tuple3<Integer, Integer, BytesWrap>, Long> idx;
+
+  /**
+   * Initialize the testing index.
+   *
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  @SuppressWarnings("CollectionWithoutInitialCapacity")
+  public TestIndex() throws IOException {
     if (!initialized) {
       createIndex();
     }
@@ -105,63 +141,188 @@ public final class TestIndex implements IndexDataProvider {
   }
 
   /**
-   * Create a simple test index and initialize the {@link MemoryIndex}.
+   * Create a simple test index and initialize the {@link TempDiskIndex}.
    *
    * @throws IOException Thrown on low-level I/O errors
    */
   private void createIndex() throws IOException {
-    LOG.info("Creating index.");
-    documents = new ArrayList<>(4);
+    idx = DBMaker.newTempTreeMap();
 
-    documents.add(new String[]{"Lucene in Action"});
-    documents.add(new String[]{"Lucene for Dummies"});
-    documents.add(new String[]{"Managing Gigabytes"});
-    documents.add(new String[]{"The Art of Computer Science"});
+    // generate random document fields
+    final int fieldsCount = RandomValue.getInteger(MIN_MAX_FIELDS[0],
+            MIN_MAX_FIELDS[1]);
+    fields = new ArrayList<>(fieldsCount);
+    for (int i = 0; i < fieldsCount; i++) {
+      fields.add(i + "_" + RandomValue.getString(3, 10));
+    }
 
-    fields = new ArrayList<>(1);
-    fields.add("text");
+    // create the lucene index
+    tmpIdx = new TempDiskIndex(fields.toArray(new String[fields.size()]));
 
-    memIdx = new MemoryIndex(fields.toArray(new String[fields.size()]),
-            documents);
+    // set the number of random documents to create
+    documentsCount = RandomValue.getInteger(MIN_MAX_DOCS[0],
+            MIN_MAX_DOCS[1]);
 
-    // create a default query
-    final Analyzer analyzer = new StandardAnalyzer(LuceneDefaults.VERSION,
-            CharArraySet.EMPTY_SET);
-    qParser = new QueryParser(LuceneDefaults.VERSION, fields.get(0), analyzer);
+    LOG.info("Creating index with {} documents, {} fields each "
+            + "and a maximum of {} terms per field. This may take some time.",
+            documentsCount, fieldsCount, MIN_MAX_DOC_LENGTH[1]);
+
+    final int termSeedSize = (int) ((fieldsCount * documentsCount
+            * MIN_MAX_DOC_LENGTH[1]) * 0.0005);
+
+    // generate a seed of random terms
+    LOG.info("Creating term seed with {} terms.", termSeedSize);
+    final List<String> seedTermList = new ArrayList<>(termSeedSize);
+    while (seedTermList.size() < termSeedSize) {
+      seedTermList.add(RandomValue.getString(MIN_MAX_TERM_LENGTH[0],
+              MIN_MAX_TERM_LENGTH[1]));
+    }
+
+    // gather some documents for bulk commits
+    final double bulkSize = documentsCount * 0.1;
+    List<String[]> documentList = new ArrayList<>((int) bulkSize);
+
+    LOG.info("Creating {} documents.", documentsCount);
+    // create documents
+    for (int doc = 0; doc < documentsCount; doc++) {
+      final String[] docContent = new String[fieldsCount];
+
+      // create document fields
+      for (int field = 0; field < fieldsCount; field++) {
+        int fieldTerms = RandomValue.getInteger(MIN_MAX_DOC_LENGTH[0],
+                MIN_MAX_DOC_LENGTH[1]);
+        StringBuilder content = new StringBuilder(fieldTerms
+                * MIN_MAX_TERM_LENGTH[1]);
+        Map<BytesWrap, AtomicInteger> fieldTermFreq = new HashMap(fieldTerms);
+
+        // create terms for each field
+        for (int term = 0; term < fieldTerms; term++) {
+          // pick a document term from the seed
+          final String docTerm = seedTermList.get(RandomValue.getInteger(0,
+                  seedTermList.size() - 1));
+          // add it to the list of known terms
+          final BytesWrap docTermBw = new BytesWrap(docTerm.getBytes("UTF-8"));
+
+          // count term frequencies
+          if (fieldTermFreq.containsKey(docTermBw)) {
+            fieldTermFreq.get(docTermBw).incrementAndGet();
+          } else {
+            fieldTermFreq.put(docTermBw.clone(), new AtomicInteger(1));
+          }
+
+          // append term to content
+          content.append(docTerm);
+          if (term + 1 < fieldTerms) {
+            content.append(' ');
+          }
+        }
+        // store document field
+        docContent[field] = content.toString();
+
+        // store document field term frequency value
+        for (Entry<BytesWrap, AtomicInteger> ftfEntry : fieldTermFreq.
+                entrySet()) {
+          idx.put(Fun.t3(field, doc, ftfEntry.getKey().clone()), ftfEntry.
+                  getValue().longValue());
+        }
+      }
+
+      // commit documents in bulk to index
+      if (documentList.size() > bulkSize) {
+        tmpIdx.addDocs(documentList);
+        documentList = new ArrayList<>((int) bulkSize);
+      }
+
+      // store document content to bulk commit cache
+      documentList.add(docContent.clone());
+    }
+    // comit any leftover documents
+    if (!documentList.isEmpty()) {
+      tmpIdx.addDocs(documentList);
+    }
+    tmpIdx.flush();
 
     initialized = true;
   }
 
   /**
    * Get a random query matching terms from the documents in index.
+   *
    * @return Random query
    * @throws ParseException Thrown on query parsing errors
    */
-  public Query getQuery() throws ParseException {
-    final List<BytesWrap> idxTerms = new ArrayList(getTermSet());
-    final int queryLength = RandomValue.integer(1, idxTerms.size());
-    Collection<String> terms = new HashSet(queryLength);
-
-    for (int i = 0; i < queryLength;) {
-      if (terms.add(BytesWrapUtil.bytesWrapToString(idxTerms.get(RandomValue.
-              integer(0, idxTerms.size() - 1))))) {
-        i++;
-      }
-    }
-    final String queryStr = StringUtils.join(terms.toArray(new String[terms.
-            size()]), " ");
-    LOG.info("Test query: {}", queryStr);
-    return qParser.parse(queryStr);
+  public String getQueryString() throws ParseException {
+    return getQueryString(null);
   }
 
   /**
-   * Get the reader to the {@link MemoryIndex}.
+   * Create a query object from the given terms.
+   *
+   * @param queryTerms Terms to use in query
+   * @return A query object consisting of the given terms
+   * @throws ParseException Thrown on query parsing errors
+   */
+  public String getQueryString(final String[] queryTerms) throws
+          ParseException {
+    final String queryStr;
+
+    if (queryTerms != null) {
+      // create query string from passed-in terms
+      queryStr = StringUtils.join(queryTerms, " ");
+    } else {
+      // create a random query string
+      if (getTermSet().isEmpty()) {
+        throw new IllegalStateException("No terms in index.");
+      }
+
+      final List<BytesWrap> idxTerms = new ArrayList<>(getTermSet());
+      final int queryLength = RandomValue.getInteger(MIN_MAX_QUERY_LENGTH[0],
+              MIN_MAX_QUERY_LENGTH[1]);
+      final Collection<String> terms = new HashSet<>(queryLength);
+
+      for (int i = 0; i < queryLength;) {
+        if (terms.add(idxTerms.get(RandomValue.
+                getInteger(0, idxTerms.size() - 1)).toString())) {
+          i++;
+        }
+      }
+
+      queryStr = StringUtils.join(terms.toArray(new String[terms.
+              size()]), " ");
+    }
+
+    LOG.debug("Test query: {}", queryStr);
+    return queryStr;
+  }
+
+  /**
+   * Get the reader to the {@link TempDiskIndex}.
    *
    * @return Index reader
    * @throws IOException Thrown on low-level I/O errors
    */
   public IndexReader getReader() throws IOException {
-    return memIdx.getReader();
+    return tmpIdx.getReader();
+  }
+
+  /**
+   * Get the bit-mask of active index fields.
+   *
+   * @return bit-mask of active index fields. 0 means off, 1 means on
+   */
+  public int[] getFieldState() {
+    return activeFieldState.clone();
+  }
+
+  /**
+   * Set index field bit-mask.
+   *
+   * @param state bit-mask of active index fields. 0 means off, 1 means on
+   */
+  public void setFieldState(final int[] state) {
+    for (int i = 0; i < state.length && i < activeFieldState.length; i++) {
+      activeFieldState[i] = state[i];
+    }
   }
 
   /**
@@ -192,9 +353,8 @@ public final class TestIndex implements IndexDataProvider {
    * @return All known document-ids
    */
   private Collection<Integer> getDocumentIds() {
-    // a documents-id is simply the index in the documents array
-    Collection<Integer> docIds = new ArrayList<>(documents.size());
-    for (int i = 0; i < documents.size(); i++) {
+    final Collection<Integer> docIds = new ArrayList(documentsCount);
+    for (int i = 0; i < documentsCount; i++) {
       docIds.add(i);
     }
     return docIds;
@@ -207,23 +367,26 @@ public final class TestIndex implements IndexDataProvider {
    * @param docId Document to lookup
    * @return Map with <tt>term -> document-frequency</tt> values
    */
-  private Map<BytesWrap, Number> getDocumentTermFrequencyMap(final int docId) {
-    if (docId < 0 || docId > documents.size()) {
+  public Map<BytesWrap, Number> getDocumentTermFrequencyMap(final int docId) {
+    if (docId < 0 || docId > documentsCount) {
       throw new IllegalArgumentException("Illegal document id " + docId + ".");
     }
 
-    final String[] document = documents.get(docId);
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
     final Map<BytesWrap, Number> termFreqMap = new HashMap<>();
 
-    for (int i = 0; i < document.length; i++) {
-      if (activeFieldState[i] == 1) {
-        for (String term : document[i].split("\\s+")) {
-          final BytesWrap termBw = new BytesWrap(
-                  new BytesRef(StringUtils.lowerCase(term)));
-          if (termFreqMap.containsKey(termBw)) {
-            termFreqMap.put(termBw, termFreqMap.get(termBw).intValue() + 1);
+    for (int fieldNum = 0; fieldNum < fields.size(); fieldNum++) {
+      if (activeFieldState[fieldNum] == 1) {
+        Iterable<BytesWrap> docTerms = Fun.filter(idx.keySet(), Integer.
+                valueOf(fieldNum), docId);
+        for (BytesWrap term : docTerms) {
+          final Long docTermFreq = idx.get(Fun.t3(
+                  fieldNum, docId, term));
+          if (termFreqMap.containsKey(term)) {
+            termFreqMap.put(term, termFreqMap.get(term).
+                    longValue() + docTermFreq);
           } else {
-            termFreqMap.put(termBw, 1);
+            termFreqMap.put(term, docTermFreq);
           }
         }
       }
@@ -231,6 +394,12 @@ public final class TestIndex implements IndexDataProvider {
     return termFreqMap;
   }
 
+  /**
+   * Get a set of unique terms for a document.
+   *
+   * @param docId Document to lookup
+   * @return List of unique terms in document
+   */
   public Collection<BytesWrap> getDocumentTermSet(final int docId) {
     checkDocumentId(docId);
     return getDocumentTermFrequencyMap(docId).keySet();
@@ -242,7 +411,7 @@ public final class TestIndex implements IndexDataProvider {
    * @param docId Document-id to check
    */
   private void checkDocumentId(final int docId) {
-    if (docId < 0 || docId > documents.size() - 1) {
+    if (docId < 0 || docId > documentsCount - 1) {
       throw new IllegalArgumentException("Illegal document id: " + docId);
     }
   }
@@ -268,14 +437,21 @@ public final class TestIndex implements IndexDataProvider {
    *
    * @return List of all terms in index
    */
-  Collection<BytesWrap> getTermList() {
+  public Collection<BytesWrap> getTermList() {
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
     final Collection<BytesWrap> terms = new ArrayList<>();
-    for (String[] documentFields : documents) {
-      for (int i = 0; i < documentFields.length; i++) {
-        if (activeFieldState[i] == 1) {
-          for (String term : documentFields[i].split("\\s+")) {
-            terms.add(new BytesWrap(
-                    new BytesRef(StringUtils.lowerCase(term))));
+    for (int fieldNum = 0; fieldNum < fields.size(); fieldNum++) {
+      if (activeFieldState[fieldNum] == 1) {
+        for (int docId = 0; docId < documentsCount; docId++) {
+          Iterable<BytesWrap> docTerms = Fun.filter(idx.keySet(), Integer.
+                  valueOf(fieldNum), docId);
+          for (BytesWrap docTerm : docTerms) {
+            final long docTermFreqCount = idx.get(Fun.t3(fieldNum,
+                    docId, docTerm));
+            for (int docTermFreq = 0; docTermFreq < docTermFreqCount;
+                    docTermFreq++) {
+              terms.add(docTerm);
+            }
           }
         }
       }
@@ -288,28 +464,67 @@ public final class TestIndex implements IndexDataProvider {
    *
    * @return Set of all terms in index
    */
-  private Collection<BytesWrap> getTermSet() {
-    return new HashSet<>(getTermList());
+  public Collection<BytesWrap> getTermSet() {
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
+    final Collection<BytesWrap> terms = new HashSet<>();
+
+    for (int fieldNum = 0; fieldNum < fields.size(); fieldNum++) {
+      if (activeFieldState[fieldNum] == 1) {
+        for (int docId = 0; docId < documentsCount; docId++) {
+          Iterable<BytesWrap> docTerms = Fun.filter(idx.keySet(), fieldNum,
+                  docId);
+          for (BytesWrap docTerm : docTerms) {
+            if (docTerm == null) {
+              throw new IllegalStateException("Terms was null. doc=" + docId
+                      + " field=" + fields.get(fieldNum));
+            }
+            terms.add(docTerm);
+          }
+        }
+      }
+    }
+    return terms;
   }
 
-  /**
-   * Remove any custom data stored while using the index.
-   */
-  public void reset() {
+  @Override
+  @SuppressWarnings("CollectionWithoutInitialCapacity")
+  public void clearTermData() {
     this.prefixMap = new ConcurrentHashMap<>();
   }
 
   @Override
   public long getTermFrequency() {
-    return getTermList().size();
+    Long frequency = 0L;
+
+    for (int fieldNum = 0; fieldNum < fields.size(); fieldNum++) {
+      int tf = 0;
+      if (activeFieldState[fieldNum] == 1) {
+        for (int docId = 0; docId < documentsCount; docId++) {
+          Iterable<BytesWrap> docTerms = Fun.filter(idx.keySet(), Integer.
+                  valueOf(fieldNum), docId);
+          for (BytesWrap docTerm : docTerms) {
+            frequency += idx.get(Fun.t3(fieldNum, docId, docTerm));
+            tf += idx.get(Fun.t3(fieldNum, docId, docTerm));
+          }
+        }
+      }
+    }
+    return frequency;
   }
 
   @Override
   public Long getTermFrequency(final BytesWrap term) {
     Long frequency = 0L;
-    for (BytesWrap idxTerm : getTermList()) {
-      if (idxTerm.equals(term)) {
-        frequency++;
+
+    for (int fieldNum = 0; fieldNum < fields.size(); fieldNum++) {
+      if (activeFieldState[fieldNum] == 1) {
+        for (int docId = 0; docId < documentsCount; docId++) {
+          final Long docTermFreq = idx.get(Fun.t3(fieldNum,
+                  docId, term));
+          if (docTermFreq != null) {
+            frequency += docTermFreq;
+          }
+        }
       }
     }
     return frequency == 0 ? null : frequency;
@@ -321,12 +536,20 @@ public final class TestIndex implements IndexDataProvider {
     if (termFrequency == null) {
       return 0;
     }
-    return (double) termFrequency / (double) getTermFrequency();
+    return termFrequency.doubleValue() / Long.valueOf(getTermFrequency()).
+            doubleValue();
   }
 
   @Override
-  public String[] getTargetFields() {
-    return fields.toArray(new String[fields.size()]);
+  public String[] getFields() {
+    List<String> fieldNames = new ArrayList<>(fields.size());
+    for (int i = 0; i < fields.size(); i++) {
+      if (activeFieldState[i] == 1) {
+        fieldNames.add(fields.get(i));
+      }
+    }
+
+    return fieldNames.toArray(new String[fieldNames.size()]);
   }
 
   @Override
@@ -355,6 +578,8 @@ public final class TestIndex implements IndexDataProvider {
   }
 
   @Override
+  @SuppressWarnings({"SynchronizeOnNonFinalField",
+    "CollectionWithoutInitialCapacity"})
   public Object setTermData(final String prefix, final int documentId,
           final BytesWrap term, final String key, final Object value) {
     checkDocumentId(documentId);
@@ -403,6 +628,7 @@ public final class TestIndex implements IndexDataProvider {
     if (dataMap == null) {
       return null;
     }
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
     final Map<BytesWrap, Object> returnMap = new HashMap<>();
     for (Entry<Tuple.Tuple3<Integer, BytesWrap, String>, Object> dataEntry
             : dataMap.entrySet()) {
@@ -415,35 +641,29 @@ public final class TestIndex implements IndexDataProvider {
   }
 
   @Override
-  public DocumentModel getDocumentModel(int docId) {
+  public DocumentModel getDocumentModel(final int docId) {
     checkDocumentId(docId);
     final int docTermFreq = getDocumentTermFrequency(docId);
     final DocumentModel.DocumentModelBuilder dmBuilder
             = new DocumentModel.DocumentModelBuilder(docId, docTermFreq);
-    dmBuilder.setTermFrequency(docTermFreq);
     dmBuilder.setTermFrequency(getDocumentTermFrequencyMap(docId));
     return dmBuilder.getModel();
   }
 
   @Override
   public boolean hasDocument(final Integer docId) {
-    return !(docId < 0 || docId > (documents.size() - 1));
+    return !(docId < 0 || docId > (documentsCount - 1));
   }
 
   @Override
   public long getDocumentCount() {
-    return documents.size();
+    return documentsCount;
   }
 
   @Override
   public boolean documentContains(final int documentId, final BytesWrap term) {
     checkDocumentId(documentId);
     return getDocumentTermFrequencyMap(documentId).keySet().contains(term);
-  }
-
-  @Override
-  public void registerPrefix(String prefix) {
-    // nothing to do here
   }
 
   @Override
@@ -460,26 +680,24 @@ public final class TestIndex implements IndexDataProvider {
 
   @Override
   public void dispose() {
-    try {
-      getReader().close();
-      memIdx.close();
-    } catch (IOException ex) {
-      LOG.error("Error while closing memory index.", ex);
+    // NOP
+  }
+
+  @Override
+  public Collection<BytesWrap> getDocumentsTermSet(final Collection<Integer> docIds) {
+    final Set<Integer> uniqueDocIds = new HashSet<>(docIds);
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
+    final Collection<BytesWrap> terms = new HashSet<>();
+
+    for (Integer docId : uniqueDocIds) {
+      terms.addAll(getDocumentTermSet(docId));
     }
+    return terms;
   }
 
   // ---------- TEST ACCESSORS ----------
   /**
-   * Get the list of known documents.
-   *
-   * @return Documents list
-   */
-  protected static List<String[]> test_getDocuments() {
-    return Collections.unmodifiableList(documents);
-  }
-
-  /**
-   * Get the known fields list
+   * Get the known fields list.
    *
    * @return Fields list
    */
@@ -488,7 +706,7 @@ public final class TestIndex implements IndexDataProvider {
   }
 
   /**
-   * Get the bit-flags for each field
+   * Get the bit-flags for each field.
    *
    * @return Field flags
    */
@@ -497,7 +715,7 @@ public final class TestIndex implements IndexDataProvider {
   }
 
   /**
-   * Get the initialized state
+   * Get the initialized state.
    *
    * @return True, if initialized
    */
@@ -507,37 +725,17 @@ public final class TestIndex implements IndexDataProvider {
 
   // ---------- UNSUPPORTED OPERATIONS ----------
   @Override
+  public void clearProperties() {
+    // nothing here
+  }
+
+  @Override
   public boolean addDocument(final DocumentModel docModel) {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
-  public void updateDocument(final DocumentModel docModel) {
-    throw new UnsupportedOperationException("Not supported yet.");
-  }
-
-  @Override
   public String getProperty(final String prefix, final String key) {
-    throw new UnsupportedOperationException("Not supported yet.");
-  }
-
-  @Override
-  public void commitHook() {
-    throw new UnsupportedOperationException("Not supported yet.");
-  }
-
-  @Override
-  public boolean transactionHookRequest() {
-    throw new UnsupportedOperationException("Not supported yet.");
-  }
-
-  @Override
-  public void transactionHookRelease() {
-    throw new UnsupportedOperationException("Not supported yet.");
-  }
-
-  @Override
-  public void transactionHookRoolback() {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 }

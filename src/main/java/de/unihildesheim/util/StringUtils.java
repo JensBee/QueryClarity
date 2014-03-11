@@ -16,8 +16,12 @@
  */
 package de.unihildesheim.util;
 
+import java.util.Arrays;
+import java.util.Collection;
+
 /**
  * Utility class for string operations.
+ *
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public final class StringUtils {
@@ -48,6 +52,11 @@ public final class StringUtils {
     return joinedStr.toString();
   }
 
+  public static Collection<String> split(final String str,
+          final String seperator) {
+    return Arrays.asList(str.split(seperator));
+  }
+
   /**
    * Manual lower-case function that works on character level to avoid locale
    * problems.
@@ -58,8 +67,8 @@ public final class StringUtils {
   public static String lowerCase(final String input) {
     // manual transform to lowercase to avoid locale problems
     char[] inputChars = input.toCharArray();
-    for (int j = 0; j < inputChars.length; j++) {
-      inputChars[j] = Character.toLowerCase(inputChars[j]);
+    for (int i = 0; i < inputChars.length; i++) {
+      inputChars[i] = Character.toLowerCase(inputChars[i]);
     }
     // string is now all lower case
     return new String(inputChars);

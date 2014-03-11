@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.lucene.document;
 
+import de.unihildesheim.util.RandomValue;
 import de.unihildesheim.util.TimeMeasure;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,7 +65,7 @@ public final class Feedback {
    * @return Documents matching the query
    * @throws IOException Thrown on low-level I/O errors
    */
-  public static TopDocs get(final IndexReader reader, final Query query,
+  private static TopDocs getDocs(final IndexReader reader, final Query query,
           final int maxDocCount) throws IOException {
     final TimeMeasure timeMeasure = new TimeMeasure().start();
     LOG.debug("Getting feedback documents...");
@@ -92,49 +93,59 @@ public final class Feedback {
     }
 
     timeMeasure.stop();
-    LOG.debug("Getting {} feedback documents for query {} "
-            + "took {}.", fbDocCnt, query, timeMeasure.getTimeString());
+    LOG.debug("Getting {} feedback documents "
+            + "took {}.", fbDocCnt, timeMeasure.getTimeString());
     return results;
   }
 
   /**
-   * Same as null   {@link Feedback#get(org.apache.lucene.index.IndexReader,
-   * org.apache.lucene.search.Query, int)}, except that, if the maximum number
-   * of feedback documents matching the query is not reached, then random
-   * documents will be picked from the index to reach this value.
+   * Get the maximum number of documents that can be retrieved,
    *
-   * @param reader Reader to access Lucene's index
-   * @param query Query to get matching documents
-   * @param docCount Number of documents to return.
-   * @return List of Lucene document ids
-   * @throws java.io.IOException Thrown on low-level I/O errors
+   * @param reader Reader to access the index
+   * @param docCount Number of documents that should be retrieved
+   * @return Actual number of documents possible to retrieve
    */
-  public static Collection<Integer> getFixed(final IndexReader reader,
-          final Query query,
-          final int docCount) throws IOException {
-    final TimeMeasure timeMeasure = new TimeMeasure().start();
-    LOG.debug("Getting {} feedback documents...", docCount);
-    // number of documents in index
-    final int maxIdxDocs = reader.maxDoc();
+  private static int getMaxDocs(final IndexReader reader, final int docCount) {
     int maxRetDocs; // maximum number of documents that can be returned
-    boolean allDocs = false; // true, if all documents should be retirieved
-
+    final int maxIdxDocs = reader.maxDoc();
     if (docCount > maxIdxDocs) {
       maxRetDocs = Math.min(maxIdxDocs, docCount);
       LOG.warn("Requested number of feedback documents ({}) "
               + "is larger than the amount of documents in the index ({}). "
               + "Returning only {} feedback documents.",
               docCount, maxIdxDocs, maxRetDocs);
-      allDocs = true;
     } else {
       maxRetDocs = docCount;
+    }
+    return maxRetDocs;
+  }
+
+  public static Collection<Integer> get(final IndexReader reader,
+          final Query query, final int docCount) throws IOException {
+    final TimeMeasure timeMeasure = new TimeMeasure().start();
+    if (LOG.isDebugEnabled()) {
+      if (docCount == -1) {
+        LOG.debug("Try getting all feedback documents...");
+      } else {
+        LOG.debug("Try getting {} feedback documents...", docCount);
+      }
+    }
+    int maxRetDocs; // maximum number of documents that can be returned
+    boolean allDocs; // true, if all documents should be retirieved
+
+    if (docCount == -1) {
+      maxRetDocs = reader.maxDoc();
+      allDocs = true;
+    } else {
+      maxRetDocs = getMaxDocs(reader, docCount);
+      allDocs = maxRetDocs < docCount;
     }
 
     Collection<Integer> docIds;
     if (allDocs) {
       // get all documents from collection
       docIds = new ArrayList<>(maxRetDocs);
-      final Bits liveDocs = MultiFields.getLiveDocs(reader); // NOPMD
+      final Bits liveDocs = MultiFields.getLiveDocs(reader);
 
       for (int i = 0; i < reader.maxDoc(); i++) {
         // check if document is deleted
@@ -146,44 +157,68 @@ public final class Feedback {
       }
     } else {
       // get a set of random documents
-      final TopDocs initialDocs = get(reader, query, maxRetDocs);
+      final TopDocs initialDocs = getDocs(reader, query, maxRetDocs);
 
       docIds = new HashSet<>(initialDocs.scoreDocs.length);
       // add the matching documents to the list
       for (ScoreDoc scoreDoc : initialDocs.scoreDocs) {
         docIds.add(scoreDoc.doc);
       }
+    }
+    LOG.debug("Getting {} feedback documents took {}.", docIds.size(),
+            timeMeasure.getTimeString());
+    return docIds;
+  }
 
-      // get the amount of random docs to get
-      int randDocs = maxRetDocs - initialDocs.scoreDocs.length;
+  /**
+   * Same as null null null null null null   {@link Feedback#getDocs(org.apache.lucene.index.IndexReader,
+   * org.apache.lucene.search.Query, int)}, except that, if the maximum number
+   * of feedback documents matching the query is not reached, then random
+   * documents will be picked from the index to reach this value.
+   *
+   * @param reader Reader to access Lucene's index
+   * @param query Query to get matching documents
+   * @param docCount Number of documents to return.
+   * @return List of Lucene document ids
+   * @throws java.io.IOException Thrown on low-level I/O errors
+   */
+  public static Collection<Integer> getFixed(final IndexReader reader,
+          final Query query, final int docCount) throws IOException {
+    final TimeMeasure timeMeasure = new TimeMeasure().start();
+    LOG.debug("Getting {} feedback documents...", docCount);
 
-      if (randDocs > 0) {
-        LOG.debug("Got {} matching feedback documents. "
-                + "Getting additional {} random feedback documents...",
-                initialDocs.scoreDocs.length, randDocs);
-        final Bits liveDocs = MultiFields.getLiveDocs(reader); // NOPMD
+    final int maxRetDocs = getMaxDocs(reader, docCount);
+    final Collection<Integer> docIds = get(reader, query, docCount);
 
-        while (randDocs > 0) {
-          final int docId = (int) (Math.random() * maxIdxDocs);
+    // get the amount of random docs to get
+    int randDocs = maxRetDocs - docIds.size();
 
-          // check if document is not already collected..
-          if (!docIds.contains(docId)) {
-            // ..and not deleted
-            if (liveDocs == null) {
-              docIds.add(docId);
-              randDocs--;
-            } else if (liveDocs.get(docId)) {
-              docIds.add(docId);
-              randDocs--;
-            }
+    if (randDocs > 0) {
+      LOG.debug("Got {} matching feedback documents. "
+              + "Getting additional {} random feedback documents...",
+              docIds.size(), randDocs);
+      final Bits liveDocs = MultiFields.getLiveDocs(reader);
+
+      while (randDocs > 0) {
+        final int docId = RandomValue.getInteger(0, maxRetDocs);
+
+        // check if document is not already collected..
+        if (!docIds.contains(docId)) {
+          // ..and not deleted
+          if (liveDocs == null) {
+            docIds.add(docId);
+            randDocs--;
+          } else if (liveDocs.get(docId)) {
+            docIds.add(docId);
+            randDocs--;
           }
         }
       }
     }
 
     timeMeasure.stop();
-    LOG.debug("Getting {} feedback documents for query {} "
-            + "took {}.", maxRetDocs, query, timeMeasure.getTimeString());
+    LOG.debug("Getting {} feedback documents took {}.", maxRetDocs,
+            timeMeasure.getTimeString());
     return docIds;
   }
 }

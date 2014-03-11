@@ -20,16 +20,28 @@ import de.unihildesheim.lucene.document.DocFieldsTermsEnum;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.DocumentModelException;
 import de.unihildesheim.lucene.util.BytesWrap;
+import de.unihildesheim.util.StringUtils;
 import de.unihildesheim.util.concurrent.processing.Processing;
 import de.unihildesheim.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.util.TimeMeasure;
 import de.unihildesheim.util.concurrent.processing.Source;
 import de.unihildesheim.util.concurrent.processing.Target;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.text.MessageFormat;
+import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
@@ -64,132 +76,67 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
           AbstractIndexDataProvider.class);
 
   /**
-   * Index fields to operate on.
+   * External property prefix.
    */
-  private transient String[] fields = new String[0];
+  protected static final String EXT_PROP_PREFIX = "ext";
+  /**
+   * Properties timestamp entry name.
+   */
+  protected static final String PROP_TIMESTAMP = "LM_TIMESTAMP";
 
   /**
-   * Updates the relative term frequency value for the given term. Thread
-   * safe.
-   *
-   * @param term Term to update
-   * @param value Value to overwrite any previously stored value. If there's
-   * no value stored, then it will be set to the specified value.
+   * Properties persistent stored.
    */
-  protected abstract void setTermFreqValue(final BytesWrap term,
-          final double value);
+  private Properties storageProp;
+  /**
+   * Properties file storage path.
+   */
+  private String propPath;
+  /**
+   * Properties id prefix.
+   */
+  private String propId;
 
   /**
-   * Updates the term frequency value for the given term. Thread safe.
-   *
-   * @param term Term to update
-   * @param value Value to add to the currently stored value. If there's no
+   * Document fields to operate on.
    */
-  protected abstract void addToTermFreqValue(final BytesWrap term,
-          final long value);
+  private String[] fields = new String[0];
 
   /**
-   * Calculate term frequencies for all terms in the index in the initial
-   * given fields. This will collect all terms from all specified fields and
-   * record their frequency in the whole index.
+   * Check if all requested fields are available in the current index.
    *
-   * @param reader Reader to access the index
-   * @throws IOException Thrown, if the index could not be opened
+   * @param indexReader Reader to access the index
    */
-  protected final void calculateTermFrequencies(final IndexReader reader)
-          throws IOException {
-    if (reader == null) {
-      throw new IllegalArgumentException("Reader was null.");
-    }
-
-    final TimeMeasure timeMeasure = new TimeMeasure().start();
-    final Fields idxFields = MultiFields.getFields(reader);
-    LOG.info("Calculating term frequencies for all unique terms in index. " + "This may take some time.");
-
-    Terms fieldTerms;
-    TermsEnum fieldTermsEnum = null;
-
-    // go through all fields..
-    for (String field : this.fields) {
-      fieldTerms = idxFields.terms(field);
-
-      // ..check if we have terms..
-      if (fieldTerms != null) {
-        fieldTermsEnum = fieldTerms.iterator(fieldTermsEnum);
-
-        // ..iterate over them..
-        BytesRef bytesRef = fieldTermsEnum.next();
-        while (bytesRef != null) {
-          // fast forward seek to term..
-          if (fieldTermsEnum.seekExact(bytesRef)) {
-            // ..and update the frequency value for term
-            addToTermFreqValue(new BytesWrap(bytesRef), fieldTermsEnum.
-                    totalTermFreq());
-          }
-          bytesRef = fieldTermsEnum.next();
-        }
-      }
-    }
-    timeMeasure.stop();
-    LOG.info("Calculation of term frequencies for {} unique terms in index "
-            + "took {}.", getUniqueTermsCount(), timeMeasure.getTimeString());
+  protected final void checkFields(final IndexReader indexReader) {
+    checkFields(indexReader, this.getFields());
   }
 
   /**
-   * Create the document models used by this instance.
+   * Check if all given fields are available in the current index.
    *
-   * Since the used {@link Map} implementation is unknown here, a map with
-   * immutable objects is assumed and a modification of already stored entries
-   * is prohibited. So an entry has to be removed to be updated.
-   *
-   * @param reader Reader to access the index
-   * @throws DocumentModelException Thrown, if the {@link DocumentModel} of
-   * the requested type could not be instantiated
-   * @throws java.io.IOException Thrown on low-level I7O errors
+   * @param indexReader Reader to access the index
+   * @param fields Fields to check
    */
-  protected final void createDocumentModels(final IndexReader reader) throws
-          DocumentModelException, IOException {
-    if (reader == null) {
-      throw new IllegalArgumentException("Reader was null.");
+  protected final void checkFields(final IndexReader indexReader,
+          final String[] fields) {
+    // get all indexed fields from index - other fields are not of interes here
+    final Collection<String> indexedFields = MultiFields.getIndexedFields(
+            indexReader);
+
+    // check if all requested fields are available
+    if (!indexedFields.containsAll(Arrays.asList(fields))) {
+      throw new IllegalStateException(MessageFormat.format(
+              "Not all requested fields ({0}) "
+              + "are available in the current index ({1}) or are not indexed.",
+              StringUtils.join(this.getFields(), ","), Arrays.toString(
+                      indexedFields.toArray(
+                              new String[indexedFields.size()]))));
     }
-
-    new Processing(
-            new DocModelCreator(new DocModelCreatorSource(reader), reader)
-    ).process();
-  }
-
-  /**
-   * Calculates the relative term frequency for each term in the index.
-   * Overall term frequency values must be calculated beforehand by calling
-   * {@link AbstractIndexDataProvider#calculateTermFrequencies(IndexReader)}.
-   *
-   * @param terms List of terms to do the calculation for. Usually this is a
-   * list of all terms known from the index.
-   */
-  protected final void calculateRelativeTermFrequencies(
-          final Collection<BytesWrap> terms) {
-    if (terms == null) {
-      throw new IllegalArgumentException("Term set was null.");
-    }
-    LOG.info("Calculating relative term frequencies for {} terms.", terms.
-            size());
-
-    new Processing(new RelTermFreqCalculator(new CollectionSource<>(terms))
-    ).process();
   }
 
   @Override
-  public final String[] getTargetFields() {
-    return this.fields.clone();
-  }
-
-  /**
-   * Get the document fields this {link IndexDataProvider} accesses.
-   *
-   * @return Array of document field names
-   */
   public final String[] getFields() {
-    return fields.clone();
+    return this.fields.clone();
   }
 
   /**
@@ -210,213 +157,115 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   }
 
   /**
-   * {@link Processing.Source} providing document-ids to create document
-   * models.
+   * Try to read the properties file.
+   *
+   * @return True, if the file is there, false otherwise
+   * @throws IOException Thrown on low-level I/O errors
    */
-  private static final class DocModelCreatorSource extends Source<Integer> {
+  protected final boolean loadProperties(final String path, final String id)
+          throws
+          IOException {
+    this.propPath = path;
+    this.propId = id;
+    this.storageProp = new Properties();
+    boolean hasProp;
 
-    /**
-     * Expected number of documents to retrieve from Lucene.
-     */
-    final int itemsCount;
-    /**
-     * Current number of items provided.
-     */
-    int currentNum;
-
-    /**
-     * Create a new {@link Processing.Source} providing document-ids. Used to
-     * generate document models.
-     *
-     * @param newReader Reader to access Lucene index
-     */
-    DocModelCreatorSource(final IndexReader newReader) {
-      super();
-      this.itemsCount = newReader.maxDoc();
-      this.currentNum = -1;
-    }
-
-    @Override
-    public synchronized Integer next() throws ProcessingException,
-            InterruptedException {
-      Integer nextNum = null;
-      if (++this.currentNum < itemsCount) {
-        nextNum = this.currentNum;
-      } else {
-        stop();
+    final File propFile = new File(this.propPath, this.propId + ".properties");
+    try {
+      try (FileInputStream propStream = new FileInputStream(propFile)) {
+        this.storageProp.load(propStream);
       }
-      return nextNum;
-    }
 
-    @Override
-    public Long getItemCount() {
-      return (long) this.itemsCount;
+      hasProp = true;
+    } catch (FileNotFoundException ex) {
+      LOG.trace("Cache meta file " + propFile + " not found.", ex);
+      hasProp = false;
     }
-
-    @Override
-    public long getSourcedItemCount() {
-      return this.currentNum < 0 ? 0 : this.currentNum;
-    }
+    return hasProp;
   }
 
   /**
-   * {@link Processing.Target} create document models from a document-id
-   * {@link Processing.Source}.
+   * Save meta information for stored data.
+   *
+   * @throws IOException If there where any low-level I/O errors
    */
-  private final class DocModelCreator extends Target<Integer> {
-
-    /**
-     * Reader to access Lucene index.
-     */
-    private final IndexReader reader;
-
-    /**
-     * @param newSource {@link Source} for this {@link Target}
-     * @param newReader Reader to access Lucene index
-     */
-    public DocModelCreator(final Source<Integer> newSource,
-            final IndexReader newReader) {
-      super(newSource);
-      this.reader = newReader;
+  protected final void saveProperties() throws IOException {
+    this.storageProp.
+            setProperty(PROP_TIMESTAMP, new SimpleDateFormat(
+                            "MM/dd/yyyy h:mm:ss a").format(new Date()));
+    final File propFile = new File(this.propPath, this.propId
+            + ".properties");
+    try (FileOutputStream propFileOut = new FileOutputStream(propFile)) {
+      this.storageProp.store(propFileOut, "");
     }
+  }
 
-    @Override
-    public Target<Integer> newInstance() {
-      return new DocModelCreator(getSource(), this.reader);
+  protected final void setProperty(final String key, final String value) {
+    if (key == null || key.isEmpty()) {
+      throw new IllegalArgumentException("Key may not be null or empty.");
     }
+    if (value == null) {
+      throw new IllegalArgumentException("Null is not allowed as value.");
+    }
+    this.storageProp.setProperty(key, value);
+  }
 
-    @Override
-    public void runProcess() throws IOException, ProcessingException,
-            InterruptedException {
-      final long[] docTermEsitmate = new long[]{0L, 0L, 100L};
-      final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(this.reader,
-              getFields());
+  @Override
+  public final void setProperty(final String prefix, final String key,
+          final String value) {
+    if (prefix == null || prefix.isEmpty()) {
+      throw new IllegalArgumentException("No prefix specified.");
+    }
+    if (key == null || key.isEmpty()) {
+      throw new IllegalArgumentException("Key may not be null or empty.");
+    }
+    if (value == null) {
+      throw new IllegalArgumentException("Null is not allowed as value.");
+    }
+    this.storageProp.setProperty(EXT_PROP_PREFIX + "_" + prefix + '_' + key,
+            value);
+  }
 
-      BytesRef bytesRef;
-      Map<BytesWrap, Number> docTerms;
+  protected final String getProperty(final String key) {
+    if (key == null || key.isEmpty()) {
+      throw new IllegalArgumentException("Key may not be null or empty.");
+    }
+    return this.storageProp.getProperty(key);
+  }
 
-      while (!isTerminating()) {
-        Integer docId;
-        try {
-          docId = getSource().next();
-        } catch (ProcessingException.SourceHasFinishedException ex) {
-          break;
-        }
+  @Override
+  public final String getProperty(final String prefix, final String key) {
+    if (prefix == null || prefix.isEmpty()) {
+      throw new IllegalArgumentException("No prefix specified.");
+    }
+    if (key == null || key.isEmpty()) {
+      throw new IllegalArgumentException("Key may not be null or empty.");
+    }
+    return this.storageProp.getProperty(EXT_PROP_PREFIX + "_" + prefix + "_"
+            + key);
+  }
 
-        if (docId == null) {
-          continue;
-        }
-
-        try {
-          // go through all document fields..
-          dftEnum.setDocument(docId);
-        } catch (IOException ex) {
-          LOG.error("({}) Error retrieving document id={}.", getName(),
-                  docId, ex);
-          continue;
-        }
-
-        try {
-          // iterate over all terms in all specified fields
-          bytesRef = dftEnum.next();
-          if (bytesRef == null) {
-            // nothing found
-            continue;
-          }
-          docTerms = new HashMap<>((int) docTermEsitmate[2]);
-          while (bytesRef != null) {
-            final BytesWrap term = new BytesWrap(bytesRef);
-
-            // update frequency counter for current term
-            if (!docTerms.containsKey(term)) {
-              docTerms.put(term.clone(), new AtomicLong(dftEnum.
-                      getTotalTermFreq()));
-            } else {
-              ((AtomicLong) docTerms.get(term)).getAndAdd(dftEnum.
-                      getTotalTermFreq());
-            }
-            bytesRef = dftEnum.next();
-          }
-        } catch (IOException ex) {
-          LOG.error("({}) Error while getting terms for document id {}",
-                  super.getName(), docId, ex);
-          continue;
-        }
-
-        final DocumentModel.DocumentModelBuilder dmBuilder
-                = new DocumentModel.DocumentModelBuilder(docId,
-                        docTerms.size());
-
-        // All terms from all document fields are gathered.
-        // Store the document frequency of each document term to the model
-        dmBuilder.setTermFrequency(docTerms);
-
-        try {
-          if (!addDocument(dmBuilder.getModel())) {
-            throw new IllegalArgumentException("(" + getName()
-                    + ") Document model already known at creation time.");
-          }
-        } catch (Exception ex) {
-          LOG.error("(" + getName() + ") Caught exception "
-                  + "while adding document model.", ex);
-          continue;
-        }
-
-        // estimate size for term buffer
-        docTermEsitmate[0] += docTerms.size();
-        docTermEsitmate[1]++;
-        docTermEsitmate[2] = docTermEsitmate[0] / docTermEsitmate[1];
-        // take the default load factor into account
-        docTermEsitmate[2] += docTermEsitmate[2] * 0.8;
+  @Override
+  public final void clearProperties() {
+    final String extPropPrefix = EXT_PROP_PREFIX
+            + "_";
+    Iterator<Object> propKeys = this.storageProp.keySet().iterator();
+    while (propKeys.hasNext()) {
+      if (((String) propKeys.next()).startsWith(extPropPrefix)) {
+        propKeys.remove();
       }
     }
   }
 
-  /**
-   * {@link Processing.Target} create document models from a document-id
-   * {@link Processing.Source}.
-   */
-  private final class RelTermFreqCalculator extends Target<BytesWrap> {
-
-    /**
-     * @param source {@link Source} for this {@link Target}
-     */
-    public RelTermFreqCalculator(final Source<BytesWrap> source) {
-      super(source);
+  @Override
+  public final String getProperty(final String prefix, final String key,
+          final String defaultValue) {
+    if (prefix == null || prefix.isEmpty()) {
+      throw new IllegalArgumentException("No prefix specified.");
     }
-
-    @Override
-    public Target<BytesWrap> newInstance() {
-      return new RelTermFreqCalculator(getSource());
+    if (key == null || key.isEmpty()) {
+      throw new IllegalArgumentException("Key may not be null or empty.");
     }
-
-    @Override
-    @SuppressWarnings({"BroadCatchBlock", "TooBroadCatch"})
-    public void runProcess() {
-      final long collFreq = getTermFrequency();
-      while (!isTerminating()) {
-        try {
-          BytesWrap term;
-          try {
-            term = getSource().next();
-          } catch (ProcessingException.SourceHasFinishedException ex) {
-            break;
-          }
-
-          if (term == null) {
-            // nothing found
-            continue;
-          }
-          final Long termFreq = getTermFrequency(term);
-          if (termFreq != null) {
-            final double rTermFreq = (double) termFreq / collFreq;
-            setTermFreqValue(term, rTermFreq);
-          }
-        } catch (Exception ex) {
-          LOG.error("({}) Caught exception while processing term.",
-                  getName(), ex);
-        }
-      }
-    }
+    return this.storageProp.getProperty(prefix + "_" + key, defaultValue);
   }
 }

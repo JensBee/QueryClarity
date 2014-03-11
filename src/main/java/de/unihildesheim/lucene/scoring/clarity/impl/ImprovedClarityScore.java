@@ -14,27 +14,22 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.lucene.scoring.clarity;
 
-import de.unihildesheim.lucene.scoring.clarity.impl.ClarityScoreResult;
+package de.unihildesheim.lucene.scoring.clarity.impl;
+
+import de.unihildesheim.lucene.scoring.clarity.ClarityScoreCalculation;
 import org.apache.lucene.queryparser.classic.ParseException;
 
 /**
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public interface ClarityScoreCalculation {
+public class ImprovedClarityScore implements ClarityScoreCalculation {
 
-  /**
-   * Calculate the clarity score based on the given query terms.
-   *
-   * @param fields Document fields to query
-   * @param query Query used for term extraction
-   * @return Calculated clarity score for the given terms, or <tt>null</tt>
-   * on errors.
-   * @throws org.apache.lucene.queryparser.classic.ParseException Thrown, if
-   * the query could not be parsed
-   */
-  ClarityScoreResult calculateClarity(final String query) throws
-          ParseException;
+  @Override
+  public ClarityScoreResult calculateClarity(String query) throws
+          ParseException {
+    throw new UnsupportedOperationException("Not supported yet.");
+  }
+
 }

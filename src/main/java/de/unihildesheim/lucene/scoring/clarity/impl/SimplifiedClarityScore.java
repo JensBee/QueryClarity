@@ -20,12 +20,12 @@ import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.query.QueryUtils;
 import de.unihildesheim.lucene.scoring.clarity.ClarityScoreCalculation;
 import de.unihildesheim.lucene.util.BytesWrap;
-import de.unihildesheim.lucene.util.BytesWrapUtil;
 import de.unihildesheim.util.TimeMeasure;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.Query;
 import org.slf4j.LoggerFactory;
 
@@ -83,26 +83,29 @@ public final class SimplifiedClarityScore implements ClarityScoreCalculation {
    * @return The calculated score
    */
   private double calculateScore(final Collection<BytesWrap> queryTerms) {
-    // create a unique set of query terms
-    final Collection<BytesWrap> uniqueQueryTerms = new HashSet<>(queryTerms);
     // length of the (rewritten) query
     final int queryLength = queryTerms.size();
     // number of unique terms in collection
-    final long collTermCount = this.dataProv.getUniqueTermsCount();
+    final double collTermCount = Long.valueOf(this.dataProv.
+            getUniqueTermsCount()).doubleValue();
 
     double result = 0d;
 
     // calculate max likelyhood of the query model for each term in the query
-    for (BytesWrap queryTerm : uniqueQueryTerms) {
+    // iterate over all query terms
+    for (BytesWrap queryTerm : queryTerms) {
+      // number of times a query term appears in the query
       int termCount = 0;
+      // count the number of occurences
       for (BytesWrap aTerm : queryTerms) {
         if (aTerm.equals(queryTerm)) {
           termCount++;
         }
       }
-      double pMl = (double) termCount / (double) queryLength;
-      double pColl = (double) dataProv.getTermFrequency(queryTerm)
-              / (double) collTermCount;
+      double pMl = Integer.valueOf(termCount).doubleValue() / Integer.valueOf(
+              queryLength).doubleValue();
+      double pColl = dataProv.getTermFrequency(queryTerm).doubleValue()
+              / collTermCount;
       double log = (Math.log(pMl) / Math.log(2)) - (Math.log(pColl) / Math.
               log(2));
       result += pMl * log;
@@ -112,15 +115,20 @@ public final class SimplifiedClarityScore implements ClarityScoreCalculation {
   }
 
   @Override
-  public ClarityScoreResult calculateClarity(final Query query) {
-    if (query == null) {
-      throw new IllegalArgumentException("Query was null.");
+  public ClarityScoreResult calculateClarity(final String query) throws
+          ParseException {
+    if (query == null || query.isEmpty()) {
+      throw new IllegalArgumentException("Query was empty.");
     }
+
+    final Query queryObj = QueryUtils.buildQuery(this.dataProv.getFields(), query);
 
     // pre-check query terms
     final Collection<BytesWrap> queryTerms;
     try {
-      queryTerms = QueryUtils.getQueryTerms(this.reader, query);
+      // get all query terms - list must NOT be unique!
+      queryTerms = QueryUtils.getAllQueryTerms(this.reader, queryObj,
+              this.dataProv.getFields());
     } catch (IOException ex) {
       LOG.error("Caught exception while preparing calculation.", ex);
       return null;
@@ -132,7 +140,7 @@ public final class SimplifiedClarityScore implements ClarityScoreCalculation {
     // convert query to readable string for logging output
     StringBuilder queryStr = new StringBuilder(100);
     for (BytesWrap bw : queryTerms) {
-      queryStr.append(BytesWrapUtil.bytesWrapToString(bw)).append(' ');
+      queryStr.append(bw.toString()).append(' ');
     }
     LOG.info("Calculating clarity score. query={}", queryStr);
     final TimeMeasure timeMeasure = new TimeMeasure().start();

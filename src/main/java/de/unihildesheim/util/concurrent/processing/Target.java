@@ -132,8 +132,8 @@ public abstract class Target<T> implements Runnable {
       runProcess();
     } catch (ProcessingException.SourceHasFinishedException ex) {
       LOG.error("({}) Source has finished unexpectedly.", getName(), ex);
-    } catch (Exception ex) {
-      LOG.error("({}) Caught exception.", getName(), ex);
+    } catch (Throwable t) { // make sure we catch everything
+      LOG.error("({}) Caught exception.", getName(), t.getStackTrace());
     } finally {
       this.terminate = true;
       LOG.trace("({}) Terminating.", getName());
@@ -175,7 +175,7 @@ public abstract class Target<T> implements Runnable {
 
     @Override
     public Target<T> newInstance() {
-      throw new UnsupportedOperationException();
+      return new TargetTest<>(getSource());
     }
 
     @Override

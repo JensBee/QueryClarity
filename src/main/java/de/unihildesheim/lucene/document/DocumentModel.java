@@ -16,12 +16,14 @@
  */
 package de.unihildesheim.lucene.document;
 
+import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.util.Configuration;
 import de.unihildesheim.lucene.util.BytesWrap;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -29,6 +31,11 @@ import java.util.Map.Entry;
  */
 public final class DocumentModel {
 
+  /**
+   * Logger instance for this class.
+   */
+  private static final Logger LOG = LoggerFactory.getLogger(
+          DocumentModel.class);
   /**
    * Referenced Lucene document id.
    */
@@ -54,7 +61,8 @@ public final class DocumentModel {
     }
     this.id = builder.docId;
     this.termFrequency = builder.termFreq;
-    this.termFreqMap = Collections.unmodifiableMap(builder.termFreqMap);
+    this.termFreqMap = new HashMap(builder.termFreqMap.size());
+    this.termFreqMap.putAll(builder.termFreqMap);
   }
 
   /**
@@ -81,6 +89,66 @@ public final class DocumentModel {
       return null;
     }
     return this.termFreqMap.get(term);
+  }
+
+  public double getRelativeTermFrequency(final BytesWrap term) {
+    Long tf = termFrequency(term);
+    if (tf == null) {
+      return 0d;
+    }
+    return tf.doubleValue() / Long.valueOf(termFrequency).doubleValue();
+  }
+
+  public double getSmoothedRelativeTermFrequency(
+          final IndexDataProvider dataProv,
+          final BytesWrap term, final int smoothing) {
+    final double termFreq = termFrequency(term).doubleValue();
+    final double relCollFreq = dataProv.getRelativeTermFrequency(term);
+    return ((termFreq + smoothing) * relCollFreq) / (termFreq
+            + (this.termFreqMap.size() * smoothing));
+  }
+
+  @Override
+  public boolean equals(final Object o) {
+    if (o == this) {
+      return true;
+    }
+    if (!(o instanceof DocumentModel)) {
+      LOG.debug("FAIL 0");
+      return false;
+    }
+
+    DocumentModel other = (DocumentModel) o;
+
+    if (this.id != other.id || this.termFrequency != other.termFrequency
+            || this.termFreqMap.size() != other.termFreqMap.size()) {
+      return false;
+    }
+
+    if (!other.termFreqMap.keySet().containsAll(this.termFreqMap.keySet())) {
+      LOG.debug("FAIL 2");
+      return false;
+    }
+
+    for (Entry<BytesWrap, Long> entry : this.termFreqMap.entrySet()) {
+      if (entry.getValue().compareTo(other.termFreqMap.get(entry.getKey()))
+              != 0) {
+        LOG.debug("FAIL 3 t={} tf={} otf={}", entry.getKey(), entry.
+                getValue(), other.termFreqMap.get(entry.getKey()));
+        return false;
+      }
+    }
+    return true;
+  }
+
+  @Override
+  public int hashCode() {
+    int hash = 7;
+    hash = 19 * hash + this.id;
+    hash = 19 * hash + (int) (this.termFrequency ^ (this.termFrequency
+            >>> 32));
+    hash = 19 * this.termFreqMap.size();
+    return hash;
   }
 
   /**
@@ -149,17 +217,6 @@ public final class DocumentModel {
     }
 
     /**
-     * Set the overall term frequency.
-     *
-     * @param tFreq Overall term frequency
-     * @return Self reference
-     */
-    public DocumentModelBuilder setTermFrequency(final long tFreq) {
-      this.termFreq = tFreq;
-      return this;
-    }
-
-    /**
      * Set the document frequency for a specific term.
      *
      * @param term Term
@@ -171,7 +228,6 @@ public final class DocumentModel {
       if (term == null) {
         throw new IllegalArgumentException("Term was null.");
       }
-      this.termFreq += freq; // add current value to overall value
       this.termFreqMap.put(term.clone(), freq);
       return this;
     }
@@ -201,6 +257,9 @@ public final class DocumentModel {
      * @return New document model with the data of this builder set
      */
     public DocumentModel getModel() {
+      for (Long tf : this.termFreqMap.values()) {
+        this.termFreq += tf;
+      }
       return new DocumentModel(this);
     }
   }

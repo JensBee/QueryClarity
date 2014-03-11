@@ -16,17 +16,12 @@
  */
 package de.unihildesheim.lucene.scoring.clarity.impl;
 
-import de.unihildesheim.lucene.document.DocFieldsTermsEnum;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.util.concurrent.processing.Processing;
-import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.util.concurrent.processing.Source;
 import de.unihildesheim.util.concurrent.processing.Target;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import org.apache.lucene.util.BytesRef;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -72,6 +67,8 @@ public final class DefaultClarityScorePrecalculator {
    * Pre-calculate all document models for all terms known from the index.
    */
   public void preCalculate() {
+    LOG.info("Pre-calculating {} models.", this.dcsInstance.
+            getIndexDataProvider().getDocumentCount());
     final Processing pPipe = new Processing(new DocumentModelCalculator(
             this.dcsInstance.getIndexDataProvider().getDocumentIdSource()));
     pPipe.process();
@@ -98,9 +95,6 @@ public final class DefaultClarityScorePrecalculator {
     @Override
     public void runProcess() throws IOException, ProcessingException,
             InterruptedException {
-//      final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(
-//              getDcsInstance().getReader(), getDcsInstance().
-//              getIndexDataProvider().getTargetFields());
 
       while (!isTerminating()) {
         Integer docId;
@@ -114,29 +108,16 @@ public final class DefaultClarityScorePrecalculator {
           continue;
         }
 
-//        dftEnum.setDocument(docId);
-//        BytesRef bytesRef = dftEnum.next();
-//        final Collection<BytesWrap> termList = new ArrayList<>();
-//        while (bytesRef != null) {
-//          termList.add(new BytesWrap(bytesRef));
-//          bytesRef = dftEnum.next();
-//        }
-
-//        if (termList.isEmpty()) {
-//          LOG.warn("({}) Empty term list for document-id {}", this.
-//                  getName(), docId);
-//        } else {
-          DocumentModel docModel = getDcsInstance().getIndexDataProvider()
-                  .getDocumentModel(docId);
-          if (docModel == null) {
-            LOG.warn("({}) Model for document-id {} was null.", this.
-                    getName(), docId);
-          } else {
-            // call the calculation method of the main class for each
-            // document and term that is available for processing
-            getDcsInstance().calcDocumentModel(docModel);//, termList);
-          }
-//        }
+        DocumentModel docModel = getDcsInstance().getIndexDataProvider()
+                .getDocumentModel(docId);
+        if (docModel == null) {
+          LOG.warn("({}) Model for document-id {} was null.", this.
+                  getName(), docId);
+        } else {
+          // call the calculation method of the main class for each
+          // document and term that is available for processing
+          getDcsInstance().calcDocumentModel(docModel);//, termList);
+        }
       }
     }
   }

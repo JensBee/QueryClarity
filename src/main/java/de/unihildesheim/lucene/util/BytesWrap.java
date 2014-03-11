@@ -21,18 +21,36 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.mapdb.DataInput2;
 import org.mapdb.DataOutput2;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Based on ideas from: https://stackoverflow.com/a/1058169.
+ * Static wrapper for Lucenes {@link BytesRef}. Based on ideas from:
+ * https://stackoverflow.com/a/1058169.
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
+public final class BytesWrap implements Serializable, Comparable<BytesWrap>,
+        Cloneable {
 
-    private static final int UNSIGNED_MASK = 0xFF;
+  /**
+   * Logger instance for this class.
+   */
+  private static final Logger LOG = LoggerFactory.getLogger(
+          BytesWrap.class);
+
+//  private static final int UNSIGNED_MASK = 0xFF;
+
+  private static transient final Map<byte[], String> intern
+          = Collections.synchronizedMap(new InternMap<byte[], String>(100000));
 
   /**
    * Serialization class version id.
@@ -49,7 +67,7 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
    * the bytes of this instance are referenced and a hash code must be
    * calculated ad-hoc.
    */
-  private final transient Integer hash;
+  private transient Integer hash;
 
   /**
    * Creates a new wrapper around the given bytes array, making a local copy
@@ -63,6 +81,9 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
     }
 
     this.data = snapshot(existingBytes);
+    if (this.data == null || this.data.length == 0) {
+      throw new IllegalArgumentException("Got zero bytes.");
+    }
     this.hash = Arrays.hashCode(this.data);
   }
 
@@ -82,6 +103,9 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
 
     this.data = snapshot(bytesRef.bytes, bytesRef.offset, bytesRef.length
             - bytesRef.offset);
+    if (this.data == null || this.data.length == 0) {
+      throw new IllegalArgumentException("Got zero bytes.");
+    }
     this.hash = Arrays.hashCode(this.data);
   }
 
@@ -116,10 +140,32 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
    * @return Instance with an independent byte array cloned from the current
    * instance.
    */
-    @Override
-    @SuppressWarnings("CloneDoesntCallSuperClone")
+  @Override
+  @SuppressWarnings("CloneDoesntCallSuperClone")
   public BytesWrap clone() {
     return new BytesWrap(this.data);
+  }
+
+  /**
+   * Copy of {@link BytesRef#utf8ToString()}.
+   *
+   * @return String representation of the UTF8 bytes
+   */
+  @Override
+  public String toString() {
+    String str = intern.get(this.data);
+    if (str == null) {
+      final CharsRef ref = new CharsRef(this.data.length);
+      UnicodeUtil.UTF8toUTF16(this.data, 0, this.data.length, ref);
+      intern.put(this.data, ref.toString());
+    }
+    str = intern.get(this.data);
+    if (str == null) {
+      LOG.error("String was null. bytes={} bytes_size={}", this.data,
+              this.data.length);
+      throw new IllegalStateException("String was null.");
+    }
+    return str;
   }
 
   /**
@@ -135,9 +181,9 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
 
   @Override
   public boolean equals(final Object o) {
-      if (this == o) {
-          return true;
-      }
+    if (this == o) {
+      return true;
+    }
     if (o == null || !(o instanceof BytesWrap)) {
       return false;
     }
@@ -146,6 +192,16 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
 
   @Override
   public int hashCode() {
+    if (this.data == null) {
+      throw new IllegalStateException("Data was null!");
+    }
+    if (this.hash == null) {
+      LOG.warn("Recalc hash..");
+      this.hash = Arrays.hashCode(this.data);
+      if (this.hash == null) {
+        throw new IllegalStateException("Hash was null!");
+      }
+    }
     return this.hash;
   }
 
@@ -161,11 +217,11 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
     final int minSameSize = Math.min(data.length, o.data.length);
     int a, b;
     for (int i = 0; i < minSameSize; i++) {
-        a = (this.data[i] & 0xff);
-        b = (o.data[i] & 0xff);
-            if (a != b) {
-                return a - b;
-            }
+      a = (this.data[i] & 0xff);
+      b = (o.data[i] & 0xff);
+      if (a != b) {
+        return a - b;
+      }
     }
 
 //    final int minSameSize = Math.min(data.length, o.data.length);
@@ -175,7 +231,6 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
 //        return cmp;
 //      }
 //    }
-
     return data.length - o.data.length;
   }
 
@@ -195,7 +250,7 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
     public void serialize(final DataOutput out, final BytesWrap value) throws
             IOException {
       final byte[] bytes = value.getBytes();
-      DataOutput2.packInt(out,bytes.length);
+      DataOutput2.packInt(out, bytes.length);
       out.write(bytes);
     }
 
@@ -214,6 +269,20 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap> {
     @Override
     public int fixedSize() {
       return -1;
+    }
+  }
+
+  private static class InternMap<K, V> extends LinkedHashMap<K, V> {
+
+    private final int maxSize;
+
+    public InternMap(int maxSize) {
+      this.maxSize = maxSize;
+    }
+
+    @Override
+    protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
+      return size() > maxSize;
     }
   }
 }

@@ -18,8 +18,9 @@ package de.unihildesheim.util.concurrent.processing;
 
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Wraps the given {@link Collection} as {@link Source}. Thread safety is
@@ -29,6 +30,12 @@ import java.util.concurrent.atomic.AtomicLong;
  * @param <T> Type of the collections elements
  */
 public final class CollectionSource<T> extends Source<T> {
+
+  /**
+   * Logger instance for this class.
+   */
+  private static final Logger LOG = LoggerFactory.getLogger(
+          CollectionSource.class);
 
   /**
    * Wrapped collection acting as source.

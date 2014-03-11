@@ -58,7 +58,23 @@ public final class IndexTestUtils {
   public static Collection<Tuple.Tuple4<
         Integer, BytesWrap, String, Integer>> generateTermData(
           final IndexDataProvider index, final int amount) {
-    return generateTermData(index, null, amount);
+    return generateTermData(index, null, null, amount);
+  }
+
+  /**
+   * Generate a collection of termData for testing. A Tuple4 consists of
+   * <tt>(DocumentId, term, key, value)</tt>. All fields of this tuple are
+   * random generated.
+   *
+   * @param index DataProvider to generate valid document ids
+   * @param key Key to identify the data
+   * @param amount Number of test items to create
+   * @return Collection of test data items
+   */
+  public static Collection<Tuple.Tuple4<
+        Integer, BytesWrap, String, Integer>> generateTermData(
+          final IndexDataProvider index, final String key, final int amount) {
+    return generateTermData(index, null, key, amount);
   }
 
   /**
@@ -67,15 +83,16 @@ public final class IndexTestUtils {
    * random generated, excluding the given key.
    *
    * @param index DataProvider to generate valid document ids
-   * @param key Number of test items to create
-   * @param amount
+   * @param key Number of test items to create. Generated randomly, if null.
+   * @param documentId Document-id to use. Generated randomly, if null.
+   * @param amount Amount of entries to generate
    * @return Collection of test data items
    */
   public static Collection<Tuple.Tuple4<Integer, BytesWrap, String, Integer>>
-          generateTermData(final IndexDataProvider index, String key,
-                  final int amount) {
+          generateTermData(final IndexDataProvider index,
+                  final Integer documentId, String key, final int amount) {
     if (key == null) {
-      key = RandomValue.string(1, 5);
+      key = RandomValue.getString(1, 5);
     }
     final Collection<Tuple.Tuple3<Integer, BytesWrap, String>> unique
             = new HashSet<>(amount); // ensure unique triples
@@ -86,10 +103,15 @@ public final class IndexTestUtils {
     final int maxDocId = (int) index.getDocumentCount() - 1;
 
     for (int i = 0; i < amount;) {
-      final int docId = RandomValue.integer(minDocId, maxDocId);
-      final BytesWrap term = new BytesWrap(RandomValue.string(1, 20).
+      int docId;
+      if (documentId == null) {
+        docId = RandomValue.getInteger(minDocId, maxDocId);
+      } else {
+        docId = documentId;
+      }
+      final BytesWrap term = new BytesWrap(RandomValue.getString(1, 20).
               getBytes());
-      final int val = RandomValue.integer();
+      final int val = RandomValue.getInteger();
       if (unique.add(Tuple.tuple3(docId, term, key)) && termData.add(Tuple.
               tuple4(docId, term, key, val))) {
         i++; // ensure only unique items are added

@@ -16,18 +16,19 @@
  */
 package de.unihildesheim.lucene.scoring.clarity.impl;
 
+import de.unihildesheim.TestConfig;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.Feedback;
 import de.unihildesheim.lucene.index.TestIndex;
 import de.unihildesheim.lucene.query.QueryUtils;
 import de.unihildesheim.lucene.util.BytesWrap;
-import de.unihildesheim.lucene.util.BytesWrapUtil;
+import de.unihildesheim.util.MathUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.Query;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -38,6 +39,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * Test for {@link DefaultClarityScore}.
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
@@ -57,11 +59,10 @@ public final class DefaultClarityScoreTest {
   /**
    * Static initializer run before all tests.
    *
-   * @throws IOException Thrown on low-level I/O errors
-   * @throws ParseException
+   * @throws Exception Any exception thrown indicates an error
    */
   @BeforeClass
-  public static void setUpClass() throws IOException, ParseException {
+  public static void setUpClass() throws Exception {
     index = new TestIndex();
     assertTrue("TestIndex is not initialized.", TestIndex.test_isInitialized());
   }
@@ -81,7 +82,7 @@ public final class DefaultClarityScoreTest {
   @Before
   public void setUp() {
     // clear any external data stored to index
-    index.reset();
+    index.clearTermData();
   }
 
   /**
@@ -108,8 +109,8 @@ public final class DefaultClarityScoreTest {
    */
   private static double calcDefaultDocumentModel(final double langmodelWeight,
           final BytesWrap term) {
-    final double ft = index.getTermFrequency(term);
-    final double f = index.getTermFrequency();
+    final double ft = index.getTermFrequency(term).doubleValue();
+    final double f = Long.valueOf(index.getTermFrequency()).doubleValue();
     return (1 - langmodelWeight) * (ft / f);
   }
 
@@ -126,8 +127,8 @@ public final class DefaultClarityScoreTest {
     Double model = null;
 
     if (docModel.contains(term)) {
-      final double ftD = docModel.termFrequency(term);
-      final double fd = docModel.termFrequency;
+      final double ftD = docModel.termFrequency(term).doubleValue();
+      final double fd = Long.valueOf(docModel.termFrequency).doubleValue();
       model = (langmodelWeight * (ftD / fd)) + calcDefaultDocumentModel(
               langmodelWeight, term);
     }
@@ -141,10 +142,8 @@ public final class DefaultClarityScoreTest {
    * @return collection distribution for the given term
    */
   private double calc_pc(final BytesWrap term) {
-    final double result = (double) index.getTermFrequency(term)
-            / (double) index.
-            getTermFrequency();
-//    LOG.debug("pc({}) = {}", BytesWrapUtil.bytesWrapToString(term), result);
+    final double result = index.getTermFrequency(term).doubleValue()
+            / Long.valueOf(index.getTermFrequency()).doubleValue();
     return result;
   }
 
@@ -162,17 +161,15 @@ public final class DefaultClarityScoreTest {
     double ftd;
     if (tf == null) {
       // term is not in document
-      ftd = 0;
+      ftd = 0d;
     } else {
-      ftd = (double) (long) tf;
+      ftd = tf.doubleValue();
     }
     // number of terms in docment
-    final double fd = docModel.termFreqMap.size();
+    final double fd = Long.valueOf(docModel.termFrequency).doubleValue();
 
     final double result = (langModelWeight * (ftd / fd)) + ((1
             - langModelWeight) * calc_pc(term));
-//    LOG.debug("pd({}, {}) = {}", docModel.id, BytesWrapUtil.bytesWrapToString(
-//            term), result);
     return result;
   }
 
@@ -189,6 +186,7 @@ public final class DefaultClarityScoreTest {
           final Collection<DocumentModel> feedbackDocs,
           final Collection<BytesWrap> query) {
     double pq = 0;
+    // go through all feedback documents
     for (DocumentModel docModel : feedbackDocs) {
       double docValue = 0;
       docValue = calc_pd(langModelWeight, docModel, term);
@@ -197,7 +195,6 @@ public final class DefaultClarityScoreTest {
       }
       pq += docValue;
     }
-    LOG.debug("pq({}) = {}", BytesWrapUtil.bytesWrapToString(term), pq);
     return pq;
   }
 
@@ -212,47 +209,46 @@ public final class DefaultClarityScoreTest {
   private double calc_score(final double langModelWeight,
           final Collection<DocumentModel> feedbackDocs,
           final Collection<BytesWrap> query) {
-    final Iterator<BytesWrap> idxTermsIt = index.getTermsIterator();
+    final Iterator<BytesWrap> termsIt;
     double score = 0;
-    while (idxTermsIt.hasNext()) {
-      final BytesWrap idxTerm = idxTermsIt.next();
-      double termScore = 0;
+
+    // calculation with all collection terms
+//    final Iterator<BytesWrap> termsIt = index.getTermsIterator();
+    // calculation only with terms from the query
+//    termsIt = query.iterator();
+    // calculation with terms from feedback documents
+    final Collection<Integer> fbDocIds = new HashSet<>(feedbackDocs.size());
+    for (DocumentModel docModel : feedbackDocs) {
+      fbDocIds.add(docModel.id);
+    }
+    termsIt = index.getDocumentsTermSet(fbDocIds).iterator();
+
+
+    // go through all terms in query
+    while (termsIt.hasNext()) {
+      final BytesWrap idxTerm = termsIt.next();
       final double pq = calc_pq(langModelWeight, idxTerm, feedbackDocs, query);
-      termScore = pq * (log2(pq) - log2(calc_pc(idxTerm)));
-      LOG.
-              debug("TermScore pq={} pc={} term={} score={}", pq, calc_pc(
-                              idxTerm), BytesWrapUtil.bytesWrapToString(
-                              idxTerm), termScore);
-      score += termScore;
+      score += pq * MathUtils.log2(pq / calc_pc(idxTerm));
     }
     return score;
   }
 
   /**
-   * Calculate log2 for a given value.
-   *
-   * @param value Value to do the calculation for
-   * @return Log2 of the given value
-   */
-  private static double log2(final double value) {
-    return Math.log(value) / Math.log(2);
-  }
-
-  /**
    * Test of getQueryTerms method, of class DefaultClarityScore.
    *
-   * @throws java.io.IOException Thrown on low-level I/O errors
-   * @throws org.apache.lucene.queryparser.classic.ParseException Thrown on
-   * query parsing errors
+   * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  public void testGetQueryTerms() throws IOException, ParseException {
+  public void testGetQueryTerms() throws Exception {
     LOG.info("Test getQueryTerms");
     final DefaultClarityScore instance = getInstance();
-    final Query query = index.getQuery();
+    final String query = index.getQueryString();
     instance.calculateClarity(query);
-    final Collection<BytesWrap> expResult = QueryUtils.getQueryTerms(index.
-            getReader(), query);
+
+    final Collection<BytesWrap> expResult = new ArrayList(15);
+    for (String qTerm : query.split("\\s+")) {
+      expResult.add(new BytesWrap(qTerm.getBytes("UTF-8")));
+    }
     final Collection<BytesWrap> result = instance.getQueryTerms();
 
     assertEquals("Query term count mismatch.", expResult.size(), result.size());
@@ -274,10 +270,10 @@ public final class DefaultClarityScoreTest {
   /**
    * Test of getReader method, of class DefaultClarityScore.
    *
-   * @throws java.io.IOException Thrown on low-level I/O errors
+   * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  public void testGetReader() throws IOException {
+  public void testGetReader() throws Exception {
     LOG.info("Test getReader");
     final DefaultClarityScore instance = getInstance();
     assertNotNull("IndexReader was null.", instance.getReader());
@@ -330,6 +326,7 @@ public final class DefaultClarityScoreTest {
     final DefaultClarityScore instance = getInstance();
     instance.preCalcDocumentModels();
 
+    LOG.info("Calculation done, testing results.");
     for (int i = 0; i < index.getDocumentCount(); i++) {
       final DocumentModel docModel = index.getDocumentModel(i);
       final Collection<BytesWrap> docTerms = index.getDocumentTermSet(i);
@@ -340,8 +337,7 @@ public final class DefaultClarityScoreTest {
         final Double expResult = calcDocumentModel(instance.
                 getLangmodelWeight(), docModel, term);
         assertEquals("Calculated document model value differs. docId=" + i
-                + " term=" + BytesWrapUtil.bytesWrapToString(term)
-                + "", expResult, valueMap.get(term));
+                + " term=" + term + "", expResult, valueMap.get(term));
       }
     }
   }
@@ -349,33 +345,34 @@ public final class DefaultClarityScoreTest {
   /**
    * Test of calculateClarity method, of class DefaultClarityScore.
    *
-   * @throws IOException Thrown on low-level I/O errors
-   * @throws org.apache.lucene.queryparser.classic.ParseException Thrown on
-   * query parsing errors
+   * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  public void testCalculateClarity() throws IOException, ParseException {
-    LOG.info("ADD Test calculateClarity");
-    final Query query = index.getQuery();
+  public void testCalculateClarity() throws Exception {
+    LOG.info("Test calculateClarity");
+    final Query query = QueryUtils.buildQuery(index.getFields(),
+            index.getQueryString());
     final DefaultClarityScore instance = getInstance();
 
     final Collection<Integer> feedbackDocs = Feedback.getFixed(index.
             getReader(), query, instance.getFeedbackDocumentCount());
     final Collection<DocumentModel> fbDocModels = new ArrayList<>(
-            feedbackDocs.
-            size());
+            feedbackDocs.size());
     for (Integer docId : feedbackDocs) {
       fbDocModels.add(index.getDocumentModel(docId));
     }
 
-    final ClarityScoreResult result = instance.calculateClarity(query);
+    final ClarityScoreResult result = instance.calculateClarity(query,
+            feedbackDocs);
 
     final double score = calc_score(instance.getLangmodelWeight(),
-            fbDocModels, QueryUtils.getQueryTerms(index.getReader(), query));
+            fbDocModels, QueryUtils.getUniqueQueryTerms(index.getReader(),
+                    query));
 
-    LOG.debug("Scores {} {}", score, result.getScore());
+    LOG.debug("Scores test={} dcs={}", score, result.getScore());
 
-    assertEquals("Clarity score mismatch.", score, result.getScore(), 0.001);
+    assertEquals("Clarity score mismatch.", score, result.getScore(),
+            TestConfig.DOUBLE_ALLOWED_DELTA);
   }
 
   /**

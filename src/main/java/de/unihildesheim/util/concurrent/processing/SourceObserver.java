@@ -58,17 +58,13 @@ public final class SourceObserver implements Callable<Double> {
    */
   private volatile boolean terminate;
   /**
-   * Final number of items provided (optional).
-   */
-  private Integer finalSourcedCount = null;
-  /**
    * Percentage steps to show item based progress.
    */
   private static final double STEP_SIZE = 0.10;
   /**
    * Wait time in milliseconds between updates.
    */
-  private final int UPDATE_INTERVAL = 100;
+  private static final int UPDATE_INTERVAL = 100;
 
   /**
    * Attach a status observer to a specified {@link Source}.
@@ -113,7 +109,7 @@ public final class SourceObserver implements Callable<Double> {
             / overallTime.getElapsedSeconds()));
     LOG.info("Processing {} of {} items ({}%). "
             + "{}s since last status. Running for {}. "
-            + "Estimated time needed {}.", lastStatus, itemCount,
+            + "Time left {}.", lastStatus, itemCount,
             (lastStatus * 100) / itemCount,
             runTime.stop().getElapsedSeconds(),
             overallTime.getTimeString(),
@@ -155,6 +151,7 @@ public final class SourceObserver implements Callable<Double> {
         if (this.runTime.getElapsedSeconds() > INTERVAL) {
           this.runTime.stop();
           if (this.hasItemCount) {
+            lastStatus = status;
             showStatus(itemCount, lastStatus);
           } else {
             showStatus();
