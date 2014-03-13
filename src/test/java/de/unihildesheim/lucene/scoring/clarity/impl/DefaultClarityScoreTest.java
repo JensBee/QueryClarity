@@ -37,6 +37,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.*;
+import org.junit.Before;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -56,11 +57,14 @@ public final class DefaultClarityScoreTest {
    */
   private static final Logger LOG = LoggerFactory.getLogger(
           DefaultClarityScoreTest.class);
-
   /**
    * Test documents index.
    */
   private static TestIndex index;
+  /**
+   * DataProvider instance currently in use.
+   */
+  private final Class<? extends IndexDataProvider> dataProvType;
 
   /**
    * Static initializer run before all tests.
@@ -82,16 +86,6 @@ public final class DefaultClarityScoreTest {
     index.dispose();
   }
 
-  /**
-   * Run after each test.
-   */
-  @After
-  public void tearDown() {
-    // clear any external data stored to index
-    index.clearTermData();
-    Environment.clearAllProperties();
-  }
-
   @Parameters
   public static Collection<Object[]> data() {
     Collection<Object[]> params = TestConfig.getDataProviderParameter();
@@ -100,13 +94,25 @@ public final class DefaultClarityScoreTest {
   }
 
   public DefaultClarityScoreTest(
-          final Class<? extends IndexDataProvider> dataProv)
-          throws IOException, InstantiationException, IllegalAccessException {
-    if (dataProv == null) {
+          final Class<? extends IndexDataProvider> dataProv) {
+    this.dataProvType = dataProv;
+  }
+
+  /**
+   * Run before each test starts.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Before
+  public void setUp() throws Exception {
+    Environment.clear();
+    if (this.dataProvType == null) {
       index.setupEnvironment();
     } else {
-      index.setupEnvironment(dataProv);
+      index.setupEnvironment(this.dataProvType);
     }
+    index.clearTermData();
+    Environment.clearAllProperties();
   }
 
   /**

@@ -18,12 +18,10 @@ package de.unihildesheim.lucene.document;
 
 import de.unihildesheim.TestConfig;
 import de.unihildesheim.lucene.Environment;
-import de.unihildesheim.lucene.index.DirectIndexDataProvider;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.index.TestIndex;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.RandomValue;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;

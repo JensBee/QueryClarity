@@ -18,6 +18,7 @@ package de.unihildesheim.lucene.scoring.clarity.impl;
 
 import de.unihildesheim.TestConfig;
 import de.unihildesheim.lucene.Environment;
+import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.index.TestIndex;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.MathUtils;
@@ -28,13 +29,19 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.*;
+import org.junit.Before;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * Test for {@link SimplifiedClarityScore}.
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
+@RunWith(Parameterized.class)
 public class SimplifiedClarityScoreTest {
 
   /**
@@ -42,6 +49,10 @@ public class SimplifiedClarityScoreTest {
    */
   private static final Logger LOG = LoggerFactory.getLogger(
           SimplifiedClarityScoreTest.class);
+  /**
+   * DataProvider instance currently in use.
+   */
+  private final Class<? extends IndexDataProvider> dataProvType;
 
   /**
    * Test documents index.
@@ -55,7 +66,7 @@ public class SimplifiedClarityScoreTest {
    */
   @BeforeClass
   public static void setUpClass() throws Exception {
-    index = new TestIndex();
+    index = new TestIndex(TestIndex.IndexSize.SMALL);
     assertTrue("TestIndex is not initialized.", TestIndex.test_isInitialized());
   }
 
@@ -68,9 +79,33 @@ public class SimplifiedClarityScoreTest {
     index.dispose();
   }
 
-  @After
-  public void tearDown() throws Exception {
+  /**
+   * Run before each test starts.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Before
+  public void setUp() throws Exception {
     Environment.clear();
+    if (this.dataProvType == null) {
+      index.setupEnvironment();
+    } else {
+      index.setupEnvironment(this.dataProvType);
+    }
+    index.clearTermData();
+    Environment.clearAllProperties();
+  }
+
+  @Parameters
+  public static Collection<Object[]> data() {
+    Collection<Object[]> params = TestConfig.getDataProviderParameter();
+    params.add(new Object[]{null});
+    return params;
+  }
+
+  public SimplifiedClarityScoreTest(
+          final Class<? extends IndexDataProvider> dataProv) {
+    this.dataProvType = dataProv;
   }
 
   /**
