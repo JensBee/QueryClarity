@@ -16,17 +16,16 @@
  */
 package de.unihildesheim.lucene.index;
 
-import de.unihildesheim.lucene.document.DocumentModel;
-import de.unihildesheim.lucene.util.BytesWrap;
-import de.unihildesheim.util.concurrent.processing.Source;
+import de.unihildesheim.lucene.Environment;
+import de.unihildesheim.util.RandomValue;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Iterator;
-import java.util.Map;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.*;
+import org.junit.Before;
 import org.junit.Ignore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,7 +35,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class DirectIndexDataProviderTest {
+public final class DirectIndexDataProviderTest {
 
   /**
    * Logger instance for this class.
@@ -47,7 +46,7 @@ public class DirectIndexDataProviderTest {
   /**
    * DataProvider instance used during the test.
    */
-  private static DirectIndexDataProvider instance = null;
+  private DirectIndexDataProvider instance;
 
   /**
    * Temporary Lucene memory index.
@@ -62,25 +61,39 @@ public class DirectIndexDataProviderTest {
   @BeforeClass
   public static void setUpClass() throws Exception {
     // create the test index
-    index = new TestIndex();
+    index = new TestIndex(TestIndex.IndexSize.SMALL);
     assertTrue("TestIndex is not initialized.", TestIndex.test_isInitialized());
-    instance = new DirectIndexDataProvider("test", index.getReader(), index.getFields(), true);
   }
 
   /**
-   * Run after all tests have finished.
+   * Run after each test has finished.
    */
-  @AfterClass
-  public static void tearDownClass() {
-    instance.dispose();
+  @After
+  public void tearDown() {
+    this.instance.dispose();
+  }
+
+  /**
+   * Run before each test starts.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Before
+  public void setUp() throws Exception {
+    Environment.clear();
+    index.setupEnvironment(DirectIndexDataProvider.class);
+    this.instance = (DirectIndexDataProvider) Environment.getDataProvider();
   }
 
   /**
    * Test of getTermFrequency method, of class DirectIndexDataProvider.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
   public void testGetTermFrequency_0args() throws Exception {
-    IndexDataProviderTest.testGetTermFrequency_0args(index, instance);
+    IndexDataProviderTestMethods.testGetTermFrequency_0args(index,
+            this.instance);
   }
 
   /**
@@ -88,7 +101,8 @@ public class DirectIndexDataProviderTest {
    */
   @Test
   public void testGetTermFrequency_BytesWrap() {
-    IndexDataProviderTest.testGetTermFrequency_BytesWrap(index, instance);
+    IndexDataProviderTestMethods.testGetTermFrequency_BytesWrap(index,
+            this.instance);
   }
 
   /**
@@ -97,34 +111,22 @@ public class DirectIndexDataProviderTest {
    */
   @Test
   public void testGetRelativeTermFrequency() {
-    IndexDataProviderTest.testGetRelativeTermFrequency(index, instance);
+    IndexDataProviderTestMethods.testGetRelativeTermFrequency(index,
+            this.instance);
   }
 
   /**
    * Test of dispose method, of class DirectIndexDataProvider.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
-  @Ignore
-  public void testDispose() {
-    System.out.println("dispose");
-    DirectIndexDataProvider instance = null;
-    instance.dispose();
-    // TODO review the generated test code and remove the default call to fail.
-    fail("The test case is a prototype.");
-  }
+  public void testDispose() throws Exception {
+    LOG.info("Test dispose");
+    this.instance.dispose();
 
-  /**
-   * Test of getTargetFields method, of class DirectIndexDataProvider.
-   */
-  @Test
-  public void testGetTargetFields() {
-    LOG.info("Test getTargetFields");
-    Collection<String> expResult = Arrays.asList(index.getFields());
-    Collection<String> result = Arrays.asList(instance.getFields());
-
-    assertEquals("Different number of fields reported.", expResult.size(),
-            result.size());
-    assertTrue("Reported fields differ.", result.containsAll(expResult));
+    assertFalse("FieldsChangedListener should already be removed.",
+            Environment.removeFieldsChangedListener(this.instance));
   }
 
   /**
@@ -132,7 +134,7 @@ public class DirectIndexDataProviderTest {
    */
   @Test
   public void testGetTermsIterator() {
-    IndexDataProviderTest.testGetTermsIterator(index, instance);
+    IndexDataProviderTestMethods.testGetTermsIterator(index, this.instance);
   }
 
   /**
@@ -140,7 +142,7 @@ public class DirectIndexDataProviderTest {
    */
   @Test
   public void testGetTermsSource() {
-    IndexDataProviderTest.testGetTermsSource(index, instance);
+    IndexDataProviderTestMethods.testGetTermsSource(index, this.instance);
   }
 
   /**
@@ -148,7 +150,8 @@ public class DirectIndexDataProviderTest {
    */
   @Test
   public void testGetDocumentIdIterator() {
-    IndexDataProviderTest.testGetDocumentIdIterator(index, instance);
+    IndexDataProviderTestMethods.testGetDocumentIdIterator(index,
+            this.instance);
   }
 
   /**
@@ -156,7 +159,7 @@ public class DirectIndexDataProviderTest {
    */
   @Test
   public void testGetDocumentIdSource() {
-    IndexDataProviderTest.testGetDocumentIdSource(index, instance);
+    IndexDataProviderTestMethods.testGetDocumentIdSource(index, this.instance);
   }
 
   /**
@@ -164,7 +167,7 @@ public class DirectIndexDataProviderTest {
    */
   @Test
   public void testGetUniqueTermsCount() {
-    IndexDataProviderTest.testGetUniqueTermsCount(index, instance);
+    IndexDataProviderTestMethods.testGetUniqueTermsCount(index, this.instance);
   }
 
   /**
@@ -172,7 +175,7 @@ public class DirectIndexDataProviderTest {
    */
   @Test
   public void testSetTermData() {
-    IndexDataProviderTest.testSetTermData(index, instance);
+    IndexDataProviderTestMethods.testSetTermData(index, this.instance);
   }
 
   /**
@@ -180,7 +183,7 @@ public class DirectIndexDataProviderTest {
    */
   @Test
   public void testGetTermData_4args() {
-    IndexDataProviderTest.testGetTermData_4args(index, instance);
+    IndexDataProviderTestMethods.testGetTermData_4args(index, this.instance);
   }
 
   /**
@@ -188,20 +191,15 @@ public class DirectIndexDataProviderTest {
    */
   @Test
   public void testGetTermData_3args() {
-    IndexDataProviderTest.testGetTermData_3args(index, instance);
+    IndexDataProviderTestMethods.testGetTermData_3args(index, this.instance);
   }
 
   /**
    * Test of clearTermData method, of class DirectIndexDataProvider.
    */
   @Test
-  @Ignore
   public void testClearTermData() {
-    System.out.println("clearTermData");
-    DirectIndexDataProvider instance = null;
-    instance.clearTermData();
-    // TODO review the generated test code and remove the default call to fail.
-    fail("The test case is a prototype.");
+    IndexDataProviderTestMethods.testClearTermData(index, this.instance);
   }
 
   /**
@@ -209,23 +207,7 @@ public class DirectIndexDataProviderTest {
    */
   @Test
   public void testGetDocumentModel() {
-    IndexDataProviderTest.testGetDocumentModel(index, instance);
-  }
-
-  /**
-   * Test of addDocument method, of class DirectIndexDataProvider.
-   */
-  @Test
-  @Ignore
-  public void testAddDocument() {
-    System.out.println("addDocument");
-    DocumentModel docModel = null;
-    DirectIndexDataProvider instance = null;
-    boolean expResult = false;
-    boolean result = instance.addDocument(docModel);
-    assertEquals(expResult, result);
-    // TODO review the generated test code and remove the default call to fail.
-    fail("The test case is a prototype.");
+    IndexDataProviderTestMethods.testGetDocumentModel(index, this.instance);
   }
 
   /**
@@ -233,23 +215,15 @@ public class DirectIndexDataProviderTest {
    */
   @Test
   public void testHasDocument() {
-    IndexDataProviderTest.testHasDocument(index, instance);
+    IndexDataProviderTestMethods.testHasDocument(index, this.instance);
   }
 
   /**
    * Test of getDocumentsTermSet method, of class DirectIndexDataProvider.
    */
   @Test
-  @Ignore
   public void testGetDocumentsTermSet() {
-    System.out.println("getDocumentsTermSet");
-    Collection<Integer> docIds = null;
-    DirectIndexDataProvider instance = null;
-    Collection<BytesWrap> expResult = null;
-    Collection<BytesWrap> result = instance.getDocumentsTermSet(docIds);
-    assertEquals(expResult, result);
-    // TODO review the generated test code and remove the default call to fail.
-    fail("The test case is a prototype.");
+    IndexDataProviderTestMethods.testGetDocumentsTermSet(index, this.instance);
   }
 
   /**
@@ -257,70 +231,67 @@ public class DirectIndexDataProviderTest {
    */
   @Test
   public void testGetDocumentCount() {
-    IndexDataProviderTest.testGetDocumentCount(index, instance);
-  }
-
-  /**
-   * Test of setProperty method, of class DirectIndexDataProvider.
-   */
-  @Test
-  @Ignore
-  public void testSetProperty() {
-    System.out.println("setProperty");
-    String prefix = "";
-    String key = "";
-    String value = "";
-    DirectIndexDataProvider instance = null;
-    instance.setProperty(prefix, key, value);
-    // TODO review the generated test code and remove the default call to fail.
-    fail("The test case is a prototype.");
-  }
-
-  /**
-   * Test of getProperty method, of class DirectIndexDataProvider.
-   */
-  @Test
-  @Ignore
-  public void testGetProperty_String_String() {
-    System.out.println("getProperty");
-    String prefix = "";
-    String key = "";
-    DirectIndexDataProvider instance = null;
-    String expResult = "";
-    String result = instance.getProperty(prefix, key);
-    assertEquals(expResult, result);
-    // TODO review the generated test code and remove the default call to fail.
-    fail("The test case is a prototype.");
-  }
-
-  /**
-   * Test of clearProperties method, of class DirectIndexDataProvider.
-   */
-  @Test
-  @Ignore
-  public void testClearProperties() {
-    System.out.println("clearProperties");
-    DirectIndexDataProvider instance = null;
-    instance.clearProperties();
-    // TODO review the generated test code and remove the default call to fail.
-    fail("The test case is a prototype.");
-  }
-
-  /**
-   * Test of getProperty method, of class DirectIndexDataProvider.
-   */
-  @Test
-  public void testGetProperty_3args() {
-    IndexDataProviderTest.testGetProperty_3args(index, instance);
+    IndexDataProviderTestMethods.testGetDocumentCount(index, this.instance);
   }
 
   /**
    * Test of documentContains method, of class DirectIndexDataProvider.
    */
   @Test
-  @Ignore
   public void testDocumentContains() {
-    IndexDataProviderTest.testDocumentContains(index, instance);
+    IndexDataProviderTestMethods.testDocumentContains(index, this.instance);
   }
 
+  /**
+   * Test of registerPrefix method, of class DirectIndexDataProvider.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public void testRegisterPrefix() throws Exception {
+    IndexDataProviderTestMethods.testRegisterPrefix(index, instance);
+  }
+
+  /**
+   * Test of fieldsChanged method, of class DirectIndexDataProvider.
+   */
+  @Test
+  public void testFieldsChanged() {
+    LOG.info("Test fieldsChanged");
+
+    // test with some fields enabled
+    final int[] fieldState = index.getFieldState();
+    int[] newFieldState = new int[fieldState.length];
+    final Collection<String> oldFields = index.test_getActiveFields();
+
+    if (fieldState.length > 1) {
+      // toggle some fields
+      newFieldState = fieldState.clone();
+      // ensure both states are not the same
+      while (Arrays.equals(newFieldState, fieldState)) {
+        for (int i = 0; i < fieldState.length; i++) {
+          newFieldState[i] = RandomValue.getInteger(0, 1);
+        }
+      }
+
+      // pre-check equality
+      assertEquals(index.getTermFrequency(), instance.getTermFrequency());
+      final long oldTf = index.getTermFrequency();
+
+      index.setFieldState(newFieldState);
+      final Collection<String> newFields = index.test_getActiveFields();
+      instance.fieldsChanged(oldFields.toArray(new String[oldFields.size()]),
+              newFields.toArray(new String[newFields.size()]));
+
+      Environment.setFields(newFields.toArray(new String[newFields.size()]));
+
+      assertEquals("Wron overall term frequency count, after field change.",
+              index.getTermFrequency(), instance.getTermFrequency());
+      assertNotEquals(
+              "Term frequency value not changed after changing fields.", oldTf,
+              instance.getTermFrequency());
+    } else {
+      LOG.warn("Skip test section. Field count == 1.");
+    }
+  }
 }

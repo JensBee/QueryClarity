@@ -16,11 +16,16 @@
  */
 package de.unihildesheim.lucene.document;
 
+import de.unihildesheim.TestConfig;
+import de.unihildesheim.lucene.Environment;
+import de.unihildesheim.lucene.index.DirectIndexDataProvider;
+import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.index.TestIndex;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.RandomValue;
-import de.unihildesheim.util.StringUtils;
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -29,7 +34,9 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.*;
-import org.junit.Ignore;
+import org.junit.Before;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,6 +45,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
+@RunWith(Parameterized.class)
 public class DocFieldsTermsEnumTest {
 
   /**
@@ -52,13 +60,18 @@ public class DocFieldsTermsEnumTest {
   private static TestIndex index;
 
   /**
+   * DataProvider instance currently in use.
+   */
+  private final Class<? extends IndexDataProvider> dataProvType;
+
+  /**
    * Static initializer run before all tests.
    *
    * @throws Exception Any exception thrown indicates an error
    */
   @BeforeClass
   public static void setUpClass() throws Exception {
-    index = new TestIndex();
+    index = new TestIndex(TestIndex.IndexSize.SMALL);
     assertTrue("TestIndex is not initialized.", TestIndex.test_isInitialized());
   }
 
@@ -72,6 +85,33 @@ public class DocFieldsTermsEnumTest {
   }
 
   /**
+   * Run before each test starts.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Before
+  public void setUp() throws Exception {
+    Environment.clear();
+    if (this.dataProvType == null) {
+      index.setupEnvironment();
+    } else {
+      index.setupEnvironment(this.dataProvType);
+    }
+  }
+
+  @Parameterized.Parameters
+  public static Collection<Object[]> data() {
+    Collection<Object[]> params = TestConfig.getDataProviderParameter();
+    params.add(new Object[]{null});
+    return params;
+  }
+
+  public DocFieldsTermsEnumTest(
+          final Class<? extends IndexDataProvider> dataProv) {
+    this.dataProvType = dataProv;
+  }
+
+  /**
    * Test of setDocument method, of class DocFieldsTermsEnum.
    *
    * @throws Exception Any exception thrown indicates an error
@@ -80,9 +120,8 @@ public class DocFieldsTermsEnumTest {
   public void testSetDocument() throws Exception {
     LOG.info("Test setDocument");
 
-    DocFieldsTermsEnum instance = new DocFieldsTermsEnum(index.getReader(),
-            index.getFields());
-    for (int i = 0; i < index.getDocumentCount(); i++) {
+    DocFieldsTermsEnum instance = new DocFieldsTermsEnum();
+    for (int i = 0; i < Environment.getDataProvider().getDocumentCount(); i++) {
       instance.setDocument(i);
     }
   }
@@ -95,9 +134,8 @@ public class DocFieldsTermsEnumTest {
   @Test
   public void testReset() throws Exception {
     LOG.info("Test reset");
-    DocFieldsTermsEnum instance = new DocFieldsTermsEnum(index.getReader(),
-            index.getFields());
-    for (int i = 0; i < index.getDocumentCount(); i++) {
+    DocFieldsTermsEnum instance = new DocFieldsTermsEnum();
+    for (int i = 0; i < Environment.getDataProvider().getDocumentCount(); i++) {
       instance.setDocument(i);
       int count = 0;
       int oldCount = 0;
@@ -119,6 +157,7 @@ public class DocFieldsTermsEnumTest {
 
   /**
    * Test of next method, of class DocFieldsTermsEnum.
+   *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
@@ -127,12 +166,12 @@ public class DocFieldsTermsEnumTest {
     DocFieldsTermsEnum instance;
 
     Map<BytesWrap, Long> dftMap;
-    Map<BytesWrap, Number> tfMap;
+    Map<BytesWrap, Long> tfMap;
 
     // test with all fields enabled
-    instance = new DocFieldsTermsEnum(index.getReader(), index.getFields());
-    for (int i = 0; i < index.getDocumentCount(); i++) {
-      tfMap = index.getDocumentTermFrequencyMap(i);
+    instance = new DocFieldsTermsEnum();
+    for (int i = 0; i < Environment.getDataProvider().getDocumentCount(); i++) {
+      tfMap = Environment.getDataProvider().getDocumentModel(i).termFreqMap; //index.getDocumentTermFrequencyMap(i);
       dftMap = new HashMap<>(tfMap.size());
 
       instance.setDocument(i);
@@ -140,9 +179,9 @@ public class DocFieldsTermsEnumTest {
       while (br != null) {
         final BytesWrap bw = new BytesWrap(br);
         if (dftMap.containsKey(bw)) {
-          dftMap.put(bw, dftMap.get(bw) + instance.getTotalTermFreq());
+          dftMap.put(bw.clone(), dftMap.get(bw) + instance.getTotalTermFreq());
         } else {
-          dftMap.put(bw, instance.getTotalTermFreq());
+          dftMap.put(bw.clone(), instance.getTotalTermFreq());
         }
         br = instance.next();
       }
@@ -151,10 +190,10 @@ public class DocFieldsTermsEnumTest {
       assertTrue("Not all terms are present.", dftMap.keySet().containsAll(
               tfMap.keySet()));
 
-      for (Entry<BytesWrap, Number> tfEntry : tfMap.entrySet()) {
+      for (Entry<BytesWrap, Long> tfEntry : tfMap.entrySet()) {
         assertEquals("Term frequency values differ. docId=" + i + " term="
-                + tfEntry.toString(), (Long) tfEntry.
-                getValue().longValue(), (Long) dftMap.get(tfEntry.getKey()));
+                + tfEntry.toString(), tfEntry.getValue(), dftMap.get(tfEntry.
+                        getKey()));
       }
     }
 
@@ -173,8 +212,9 @@ public class DocFieldsTermsEnumTest {
       }
 
       index.setFieldState(newFieldState);
-      instance = new DocFieldsTermsEnum(index.getReader(),
-              index.getFields());
+      final Collection<String> fields = index.test_getActiveFields();
+      instance = new DocFieldsTermsEnum(Environment.getIndexReader(), fields.
+              toArray(new String[fields.size()]));
 
       for (int i = 0; i < index.getDocumentCount(); i++) {
         tfMap = index.getDocumentTermFrequencyMap(i);
@@ -185,9 +225,10 @@ public class DocFieldsTermsEnumTest {
         while (br != null) {
           final BytesWrap bw = new BytesWrap(br);
           if (dftMap.containsKey(bw)) {
-            dftMap.put(bw, dftMap.get(bw) + instance.getTotalTermFreq());
+            dftMap.put(bw.clone(), dftMap.get(bw) + instance.
+                    getTotalTermFreq());
           } else {
-            dftMap.put(bw, instance.getTotalTermFreq());
+            dftMap.put(bw.clone(), instance.getTotalTermFreq());
           }
           br = instance.next();
         }
@@ -196,10 +237,10 @@ public class DocFieldsTermsEnumTest {
         assertTrue("Not all terms are present.", dftMap.keySet().containsAll(
                 tfMap.keySet()));
 
-        for (Entry<BytesWrap, Number> tfEntry : tfMap.entrySet()) {
+        for (Entry<BytesWrap, Long> tfEntry : tfMap.entrySet()) {
           assertEquals("Term frequency values differ. docId=" + i + " term="
-                  + tfEntry.toString(), (Long) tfEntry.
-                  getValue().longValue(), (Long) dftMap.get(tfEntry.getKey()));
+                  + tfEntry.toString(), tfEntry.getValue(),
+                  (Long) dftMap.get(tfEntry.getKey()));
         }
       }
       index.setFieldState(fieldState);
@@ -210,6 +251,7 @@ public class DocFieldsTermsEnumTest {
 
   /**
    * Test of getTotalTermFreq method, of class DocFieldsTermsEnum.
+   *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
@@ -217,10 +259,9 @@ public class DocFieldsTermsEnumTest {
     LOG.info("Test getTotalTermFreq");
 
     Map<BytesWrap, Long> dftMap;
-    Map<BytesWrap, Number> tfMap;
+    Map<BytesWrap, Long> tfMap;
 
-    final DocFieldsTermsEnum instance = new DocFieldsTermsEnum(index.
-            getReader(), index.getFields());
+    final DocFieldsTermsEnum instance = new DocFieldsTermsEnum();
     for (int i = 0; i < index.getDocumentCount(); i++) {
       tfMap = index.getDocumentTermFrequencyMap(i);
       dftMap = new HashMap<>(tfMap.size());
@@ -230,9 +271,9 @@ public class DocFieldsTermsEnumTest {
       while (br != null) {
         final BytesWrap bw = new BytesWrap(br);
         if (dftMap.containsKey(bw)) {
-          dftMap.put(bw, dftMap.get(bw) + instance.getTotalTermFreq());
+          dftMap.put(bw.clone(), dftMap.get(bw) + instance.getTotalTermFreq());
         } else {
-          dftMap.put(bw, instance.getTotalTermFreq());
+          dftMap.put(bw.clone(), instance.getTotalTermFreq());
         }
         br = instance.next();
       }
@@ -241,10 +282,10 @@ public class DocFieldsTermsEnumTest {
       assertTrue("Not all terms are present.", dftMap.keySet().containsAll(
               tfMap.keySet()));
 
-      for (Entry<BytesWrap, Number> tfEntry : tfMap.entrySet()) {
+      for (Entry<BytesWrap, Long> tfEntry : tfMap.entrySet()) {
         assertEquals("Term frequency values differ. docId=" + i + " term="
-                + tfEntry.toString(), (Long) tfEntry.
-                getValue().longValue(), (Long) dftMap.get(tfEntry.getKey()));
+                + tfEntry.toString(), tfEntry.getValue(), (Long) dftMap.get(
+                        tfEntry.getKey()));
       }
     }
   }

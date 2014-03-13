@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.lucene.document;
 
+import de.unihildesheim.lucene.Environment;
 import java.io.IOException;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
@@ -82,9 +83,33 @@ public final class DocFieldsTermsEnum {
    * @param targetFields Lucene index fields to operate on
    * @throws java.io.IOException Thrown on low-level I/O errors
    */
-  public DocFieldsTermsEnum(final IndexReader indexReader,
+  protected DocFieldsTermsEnum(final IndexReader indexReader,
           final String[] targetFields) throws IOException {
     this(indexReader, targetFields, null);
+  }
+
+  /**
+   * Generic reusable {@link DocFieldsTermsEnum} instance. To actually reuse
+   * this instance the {@link #setDocument(int)} function must be called
+   * before {@link #next()} can be used, to set the document to operate on.
+   *
+   * @throws java.io.IOException Thrown on low-level I/O errors
+   */
+  public DocFieldsTermsEnum() throws IOException {
+    this(Environment.getIndexReader(), Environment.getFields(), null);
+  }
+
+  /**
+   * Generic reusable {@link DocFieldsTermsEnum} instance. To actually reuse
+   * this instance the {@link #setDocument(int)} function must be called
+   * before {@link #next()} can be used, to set the document to operate on.
+   *
+   * @param documentId Lucene document-id for which the enumeration should be
+   * done
+   * @throws java.io.IOException Thrown on low-level I/O errors
+   */
+  public DocFieldsTermsEnum(final int documentId) throws IOException {
+    this(Environment.getIndexReader(), Environment.getFields(), documentId);
   }
 
   /**
@@ -97,7 +122,7 @@ public final class DocFieldsTermsEnum {
    * unique) and not modified any more, since passed in.
    * @throws java.io.IOException Thrown on low-level I/O errors
    */
-  public DocFieldsTermsEnum(final IndexReader indexReader,
+  private DocFieldsTermsEnum(final IndexReader indexReader,
           final String[] targetFields, final Integer documentId) throws
           IOException {
     if (indexReader == null || targetFields == null) {

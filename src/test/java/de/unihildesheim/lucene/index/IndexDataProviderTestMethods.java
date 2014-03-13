@@ -30,7 +30,7 @@ import java.util.Map;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import org.junit.Test;
+import static org.junit.Assert.fail;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,13 +39,13 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-final class IndexDataProviderTest {
+final class IndexDataProviderTestMethods {
 
   /**
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(
-          IndexDataProviderTest.class);
+          IndexDataProviderTestMethods.class);
 
   /**
    * Amount of test term-data to generate.
@@ -334,8 +334,7 @@ final class IndexDataProviderTest {
     // retrieve test data
     retrievalCount = 0;
     for (Map.Entry<BytesWrap, Object> dataEntry : index.getTermData(prefix,
-            docId,
-            key).entrySet()) {
+            docId, key).entrySet()) {
       final Integer expValue = expResult.get(dataEntry.getKey());
       final Integer value = (Integer) dataEntry.getValue();
       assertEquals(expValue, value);
@@ -347,13 +346,60 @@ final class IndexDataProviderTest {
   }
 
   /**
-   * Test of getProperty method.
+   * Test of clearTermData method.
    */
-  protected static void testGetProperty_3args(final TestIndex index,
+  protected static void testClearTermData(final TestIndex index,
           final IndexDataProvider instance) {
-    LOG.info("Test getProperty 3arg");
-    final String value = "testDefaultValue";
-    assertEquals("Default property value not returned.", value, instance.
-            getProperty("foo", "bar", value));
+    LOG.info("Test clearTermData");
+    final String prefix = "testClear";
+    instance.registerPrefix(prefix);
+    Processing p;
+    Collection<Tuple.Tuple4<Integer, BytesWrap, String, Integer>> testData;
+    testData = IndexTestUtils.generateTermData(index, TEST_TERMDATA_AMOUNT);
+    p = new Processing(new IndexTestUtils.IndexTermDataTarget(
+            new CollectionSource<>(testData), instance, prefix));
+    p.process();
+
+    instance.clearTermData();
+
+    try {
+      for (Tuple.Tuple4<Integer, BytesWrap, String, Integer> t4 : testData) {
+        instance.getTermData(prefix, t4.a, t4.b, t4.c);
+      }
+      fail("Expected an exception to be thrown.");
+    } catch (IllegalArgumentException ex) {
+    }
+  }
+
+  /**
+   * Test of getDocumentsTermSet method.
+   */
+  protected static void testGetDocumentsTermSet(final TestIndex index,
+          final IndexDataProvider instance) {
+    LOG.info("Test getDocumentsTermSet");
+    final int docAmount = RandomValue.getInteger(2, (int) index.
+            getDocumentCount() - 1);
+    Collection<Integer> docIds = new HashSet(docAmount);
+    for (int i = 0; i < docAmount;) {
+      if (docIds.add(RandomValue.getInteger(0, RandomValue.getInteger(2,
+              (int) index.getDocumentCount() - 1)))) {
+        i++;
+      }
+    }
+    Collection<BytesWrap> expResult = index.getDocumentsTermSet(docIds);
+    Collection<BytesWrap> result = instance.getDocumentsTermSet(docIds);
+
+    assertEquals("Not the same amount of terms retrieved.", expResult.size(),
+            result.size());
+    assertTrue("Not all terms retrieved.", expResult.containsAll(result));
+  }
+
+  /**
+   * Test of registerPrefix method.
+   */
+  protected static void testRegisterPrefix(final TestIndex index,
+          final IndexDataProvider instance) {
+    LOG.info("Test registerPrefix");
+    instance.registerPrefix("foo");
   }
 }

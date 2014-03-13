@@ -49,6 +49,8 @@ public final class DocumentModel {
    */
   public final Map<BytesWrap, Long> termFreqMap;
 
+  private int hashCode;
+
   /**
    * Create a new model with data from the given builder.
    *
@@ -63,6 +65,7 @@ public final class DocumentModel {
     this.termFrequency = builder.termFreq;
     this.termFreqMap = new HashMap(builder.termFreqMap.size());
     this.termFreqMap.putAll(builder.termFreqMap);
+    calcHash();
   }
 
   /**
@@ -141,14 +144,17 @@ public final class DocumentModel {
     return true;
   }
 
+  private void calcHash() {
+    this.hashCode = 7;
+    this.hashCode = 19 * this.hashCode + this.id;
+    this.hashCode = 19 * this.hashCode + (int) (this.termFrequency ^ (this.termFrequency
+            >>> 32));
+    this.hashCode = 19 * this.hashCode * this.termFreqMap.size();
+  }
+
   @Override
   public int hashCode() {
-    int hash = 7;
-    hash = 19 * hash + this.id;
-    hash = 19 * hash + (int) (this.termFrequency ^ (this.termFrequency
-            >>> 32));
-    hash = 19 * this.termFreqMap.size();
-    return hash;
+    return this.hashCode;
   }
 
   /**
@@ -239,14 +245,13 @@ public final class DocumentModel {
      * @return Self reference
      */
     public DocumentModelBuilder setTermFrequency(
-            final Map<BytesWrap, Number> map) {
-      for (Entry<BytesWrap, Number> entry : map.entrySet()) {
+            final Map<BytesWrap, Long> map) {
+      for (Entry<BytesWrap, Long> entry : map.entrySet()) {
         if (entry.getKey() == null || entry.getValue() == null) {
           throw new NullPointerException("Encountered null value in "
                   + "termFreqMap.");
         }
-        this.termFreqMap.put(entry.getKey().clone(), entry.getValue().
-                longValue());
+        this.termFreqMap.put(entry.getKey().clone(), entry.getValue());
       }
       return this;
     }

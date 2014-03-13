@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.lucene.scoring.clarity.impl;
 
+import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.util.concurrent.processing.Processing;
 import de.unihildesheim.util.concurrent.processing.ProcessingException;
@@ -67,10 +68,10 @@ public final class DefaultClarityScorePrecalculator {
    * Pre-calculate all document models for all terms known from the index.
    */
   public void preCalculate() {
-    LOG.info("Pre-calculating {} models.", this.dcsInstance.
-            getIndexDataProvider().getDocumentCount());
+    LOG.info("Pre-calculating {} models.", Environment.getDataProvider().
+            getDocumentCount());
     final Processing pPipe = new Processing(new DocumentModelCalculator(
-            this.dcsInstance.getIndexDataProvider().getDocumentIdSource()));
+            Environment.getDataProvider().getDocumentIdSource()));
     pPipe.process();
   }
 
@@ -108,7 +109,7 @@ public final class DefaultClarityScorePrecalculator {
           continue;
         }
 
-        DocumentModel docModel = getDcsInstance().getIndexDataProvider()
+        DocumentModel docModel = Environment.getDataProvider()
                 .getDocumentModel(docId);
         if (docModel == null) {
           LOG.warn("({}) Model for document-id {} was null.", this.

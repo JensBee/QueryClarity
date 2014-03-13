@@ -16,11 +16,9 @@
  */
 package de.unihildesheim.lucene.scoring;
 
-import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.scoring.clarity.ClarityScoreCalculation;
 import de.unihildesheim.lucene.scoring.clarity.impl.DefaultClarityScore;
 import de.unihildesheim.lucene.scoring.clarity.impl.SimplifiedClarityScore;
-import org.apache.lucene.index.IndexReader;
 
 /**
  *
@@ -44,38 +42,29 @@ public final class Scoring {
     SIMPLIFIED
   }
 
-  /**
-   * Shared index reader instance.
-   */
-  private final IndexReader indexReader;
+  private Scoring() {
 
-  /**
-   * Data provider for cacheable index statistics.
-   */
-  private final IndexDataProvider dataProv;
-
-  /**
-   * New factory instance to create scoring calculators.
-   * @param dataProvider Provider for index data
-   * @param reader Reader to access Lucene index, if needed
-   */
-  public Scoring(final IndexDataProvider dataProvider,
-          final IndexReader reader) {
-    this.dataProv = dataProvider;
-    this.indexReader = reader;
   }
+
+//  /**
+//   * New factory instance to create scoring calculators.
+//   * @param dataProvider Provider for index data
+//   * @param reader Reader to access Lucene index, if needed
+//   */
+//  public Scoring() {
+//  }
 
   /**
    * Create a new Clarity Score calculation instance of a specific type.
    * @param csType Type of clarity score
    * @return New instance usable for calculating the specified score type
    */
-  public ClarityScoreCalculation newInstance(final ClarityScore csType) {
+  public static ClarityScoreCalculation newInstance(final ClarityScore csType) {
     switch (csType) {
       case DEFAULT:
-        return new DefaultClarityScore(this.indexReader, this.dataProv);
+        return new DefaultClarityScore();
       case SIMPLIFIED:
-        return new SimplifiedClarityScore(this.indexReader, this.dataProv);
+        return new SimplifiedClarityScore();
     }
     throw new IllegalArgumentException(
             "Unknown or not supported type specified.");

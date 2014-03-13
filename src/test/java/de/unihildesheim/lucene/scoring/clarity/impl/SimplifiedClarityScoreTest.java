@@ -17,11 +17,13 @@
 package de.unihildesheim.lucene.scoring.clarity.impl;
 
 import de.unihildesheim.TestConfig;
+import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.index.TestIndex;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.MathUtils;
 import java.util.ArrayList;
 import java.util.Collection;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -66,6 +68,11 @@ public class SimplifiedClarityScoreTest {
     index.dispose();
   }
 
+  @After
+  public void tearDown() throws Exception {
+    Environment.clear();
+  }
+
   /**
    * Test of calculateClarity method, of class SimplifiedClarityScore.
    *
@@ -75,14 +82,13 @@ public class SimplifiedClarityScoreTest {
   public void testCalculateClarity() throws Exception {
     LOG.info("Test calculateClarity");
     final String query = index.getQueryString();
-    final SimplifiedClarityScore instance = new SimplifiedClarityScore(index.
-            getReader(), index);
+    final SimplifiedClarityScore instance = new SimplifiedClarityScore();
 
     final Collection<BytesWrap> queryTerms = new ArrayList(15);
     for (String qTerm : query.split("\\s+")) {
       queryTerms.add(new BytesWrap(qTerm.getBytes("UTF-8")));
     }
-    
+
     final double ql = Integer.valueOf(queryTerms.size()).doubleValue();
     final double tokenColl = Long.valueOf(index.getUniqueTermsCount()).
             doubleValue();

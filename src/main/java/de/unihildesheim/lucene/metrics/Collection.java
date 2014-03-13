@@ -17,8 +17,6 @@
 
 package de.unihildesheim.lucene.metrics;
 
-import de.unihildesheim.lucene.Environment;
-
 /**
  * Collection based metrics.
  * @author Jens Bertram <code@jens-bertram.net>

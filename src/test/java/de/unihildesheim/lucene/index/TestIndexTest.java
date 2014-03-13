@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -68,7 +67,7 @@ public final class TestIndexTest {
    */
   @BeforeClass
   public static void setUpClass() throws Exception {
-    index = new TestIndex();
+    index = new TestIndex(TestIndex.IndexSize.SMALL);
     assertTrue("TestIndex is not initialized.", TestIndex.test_isInitialized());
   }
 
@@ -137,7 +136,8 @@ public final class TestIndexTest {
     final int[] fieldState = index.getFieldState();
     int[] newFieldState = new int[fieldState.length];
 
-    assertNotEquals("Expected fields >0.", index.getFields().length, 0);
+    assertNotEquals("Expected fields >0.", index.test_getActiveFields().size(),
+            0);
 
     if (fieldState.length > 1) {
       // toggle some fields
@@ -151,7 +151,7 @@ public final class TestIndexTest {
 
       index.setFieldState(newFieldState);
       assertNotEquals("Expected count lower than all fields.", index.
-              getFields().length, fieldState.length);
+              test_getActiveFields().size(), fieldState.length);
     } else {
       LOG.warn("Skip test section. Field count == 1.");
     }
@@ -199,7 +199,7 @@ public final class TestIndexTest {
   }
 
   @Test
-  public void testSetTermData() {
+  public void testSetTermData() throws Exception {
     LOG.info("Test setTermData");
     final String prefix = "test";
     final String key = "testKey";
@@ -223,7 +223,7 @@ public final class TestIndexTest {
   }
 
   @Test
-  public void testGetTermData_4args() {
+  public void testGetTermData_4args() throws Exception {
     LOG.info("Test getTermData_4args");
     final String prefix = "test4a";
     final String key = "testKey4a";
@@ -273,7 +273,7 @@ public final class TestIndexTest {
   }
 
   @Test
-  public void testGetTermData_3args() {
+  public void testGetTermData_3args() throws Exception {
     LOG.info("Test getTermData_3args");
 
     final String prefix = "test3a";
@@ -362,7 +362,7 @@ public final class TestIndexTest {
   @Test
   public void testGetFieldState() {
     LOG.info("Test getFieldState");
-    final int fieldCount = index.getFields().length;
+    final int fieldCount = index.test_getActiveFields().size();
     assertEquals("Not all fields found in field state array.", fieldCount,
             index.getFieldState().length);
   }
@@ -375,6 +375,12 @@ public final class TestIndexTest {
 
     final TestIndex otherIndex = new TestIndex();
     assertTrue("TestIndex is not initialized.", TestIndex.test_isInitialized());
+
+    assertFalse("There should be terms.", index.getTermList().isEmpty());
+    assertFalse("There should be terms.", index.getTermSet().isEmpty());
+
+    assertFalse("There should be terms.", otherIndex.getTermList().isEmpty());
+    assertFalse("There should be terms.", otherIndex.getTermSet().isEmpty());
 
     // turn off all fields
     Arrays.fill(newFieldState, 0);

@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.lucene.index;
 
+import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocFieldsTermsEnum;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.DocumentModel.DocumentModelBuilder;
@@ -30,22 +31,16 @@ import de.unihildesheim.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.util.concurrent.processing.Source;
 import de.unihildesheim.util.concurrent.processing.Target;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -63,7 +58,6 @@ import org.mapdb.BTreeMap;
 import org.mapdb.Bind;
 import org.mapdb.Bind.MapListener;
 import org.mapdb.DB;
-import org.mapdb.DB.BTreeMapMaker;
 import org.mapdb.DB.BTreeSetMaker;
 import org.mapdb.DBMaker;
 import org.mapdb.Fun;
@@ -77,9 +71,11 @@ import org.slf4j.LoggerFactory;
  * values. This allows to store a huge amount of data exceeding memory limits,
  * with a bit of speed tradeoff to load cached values from disk.
  *
+ * TODO: should implement Environment.FieldsChangedListener
+ *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
+public final class CachedIndexDataProvider implements IndexDataProvider {
 
   /**
    * Logger instance for this class.
@@ -90,28 +86,19 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   /**
    * Prefix used to store configuration.
    */
-  private static final String CONF_PREFIX = "CachedIDP_";
+  private static final String PREFIX = "CachedIDP";
 
   /**
    * Separator to store field names.
    */
   private static final String FIELD_NAME_SEP
-          = Configuration.get(CONF_PREFIX + "fieldNameSep", "\\|");
-
-  /**
-   * Directory where cached data should be stored.
-   */
-  private final String storagePath;
+          = Configuration.get(PREFIX + "fieldNameSep", "\\|");
 
   /**
    * Unique identifier for this cache.
    */
   private final String storageId;
 
-//  /**
-//   * Storage meta data.
-//   */
-//  private transient Properties storageProp = null;
   /**
    * Disk storage backend.
    */
@@ -322,10 +309,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
       throw new IllegalArgumentException("Missing storage information.");
     }
 
-    this.storagePath = Configuration.get(CONF_PREFIX + "storagePath",
-            "data/cache/");
     LOG.info("Created IndexDataProvider::{} instance storage={}.", this.
-            getClass().getCanonicalName(), this.storagePath);
+            getClass().getCanonicalName(), Environment.getDataPath());
     this.storageId = newStorageId;
 
     // create the manager for disk storage
@@ -347,27 +332,6 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
         }
       }
     }, "CachedIndexDataProvider_shutdownHandler");
-
-    getStorageInfo();
-  }
-
-  private boolean getStorageInfo() throws IOException {
-    if (this.isTemporary) {
-      return false;
-    }
-    if (loadProperties(this.storagePath, this.storageId)) {
-      final String targetFields = getProperty(
-              CachedIndexDataProvider.DataKeys.get(
-                      CachedIndexDataProvider.DataKeys.Properties.fields));
-      if (targetFields == null) {
-        // no fields specified
-//        this.setFields(new String[0]);
-      } else {
-        this.setFields(targetFields.split(FIELD_NAME_SEP));
-      }
-      return true;
-    }
-    return false;
   }
 
   private void createDb() {
@@ -377,7 +341,8 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
       if (this.isTemporary) {
         dbMkr = DBMaker.newTempFileDB();
       } else {
-        dbMkr = DBMaker.newFileDB(new File(this.storagePath, this.storageId));
+        dbMkr = DBMaker.newFileDB(new File(Environment.getDataPath(),
+                this.storageId));
       }
       dbMkr.cacheLRUEnable(); // enable last-recent-used cache
       dbMkr.cacheSoftRefEnable();
@@ -403,8 +368,9 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
    * @return True, if data is available
    */
   private boolean hasDocModels() {
-    final boolean state = Boolean.parseBoolean(getProperty(
-            DataKeys.get(DataKeys.Properties.documentModel), "false"));
+    final boolean state = Boolean.parseBoolean(Environment.getProperty(
+            PREFIX, DataKeys.get(DataKeys.Properties.documentModel),
+            "false"));
     return state && !this.docModels.isEmpty();
   }
 
@@ -414,8 +380,9 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
    * @return True, if data is available
    */
   private boolean hasDocTermData() {
-    final boolean state = Boolean.parseBoolean(getProperty(
-            DataKeys.get(DataKeys.Properties.documentModelTermData), "false"));
+    final boolean state = Boolean.parseBoolean(Environment.getProperty(
+            PREFIX, DataKeys.get(
+                    DataKeys.Properties.documentModelTermData), "false"));
     // the data store may be empty, so no check here
     return state;
   }
@@ -426,8 +393,9 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
    * @return True, if data is available
    */
   private boolean hasTermFreqMap() {
-    final boolean state = Boolean.parseBoolean(getProperty(
-            DataKeys.get(DataKeys.Properties.indexTermFreq), "false"));
+    final boolean state = Boolean.parseBoolean(Environment.getProperty(
+            PREFIX, DataKeys.get(DataKeys.Properties.indexTermFreq),
+            "false"));
     return state && !this.termFreqMap.isEmpty();
   }
 
@@ -440,7 +408,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
    * cached data
    */
   public boolean tryGetStoredData() throws IOException {
-    LOG.info("Trying to get disk storage ({})", this.storagePath);
+    LOG.info("Trying to get disk storage ({})", Environment.getDataPath());
 
     boolean needsRecalc;
 
@@ -450,34 +418,31 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     timeMeasure.stop();
 
     // check if storage meta information is there and fields are defined
-    if (getStorageInfo()) {
-      if (this.getFields().length == 0) {
-        LOG.info(
-                "No chached field information specified in meta information. "
-                + "Need to recalculate values.");
-        needsRecalc = true;
-      } else {
-        // check if data was loaded
-        needsRecalc = !hasDocModels() || !hasDocTermData()
-                || !hasTermFreqMap();
-        if (!needsRecalc) {
-          LOG.info("Loading cache (docModels={} termFreq={}) "
-                  + "took {}.", this.docModels.size(),
-                  this.termFreqMap.size(), timeMeasure.getTimeString());
-        } else if (LOG.isDebugEnabled()) {
-          LOG.debug(
-                  "Recalc needed: hasDocModels({}) hasDocTermData({}) "
-                  + "hasTermFreqMap({})",
-                  hasDocModels(), hasDocTermData(),
-                  hasTermFreqMap());
-        }
-      }
-    } else {
-      LOG.info("No or not all cache meta information found. "
-              + "Need to recalculate some or all values.");
-      needsRecalc = true;
-    }
+    final String targetFields = Environment.getProperty(PREFIX,
+            CachedIndexDataProvider.DataKeys.get(
+                    CachedIndexDataProvider.DataKeys.Properties.fields));
 
+    if (targetFields == null) {
+      LOG.info(
+              "No chached field information specified in meta information. "
+              + "Need to recalculate values.");
+      needsRecalc = true;
+    } else {
+      // check if data was loaded
+      needsRecalc = !hasDocModels() || !hasDocTermData()
+              || !hasTermFreqMap();
+      if (!needsRecalc) {
+        LOG.info("Loading cache (docModels={} termFreq={}) "
+                + "took {}.", this.docModels.size(),
+                this.termFreqMap.size(), timeMeasure.getTimeString());
+      } else if (LOG.isDebugEnabled()) {
+        LOG.debug(
+                "Recalc needed: hasDocModels({}) hasDocTermData({}) "
+                + "hasTermFreqMap({})",
+                hasDocModels(), hasDocTermData(),
+                hasTermFreqMap());
+      }
+    }
     return !needsRecalc;
   }
 
@@ -561,7 +526,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     this.storageInitialized = true;
     // load after knownPrefixes are available
     this.externalTermData = new ExternalDocTermDataManager(this.db,
-            CONF_PREFIX);
+            PREFIX);
     try {
       Runtime.getRuntime().addShutdownHook(this.shutdowHandler);
     } catch (IllegalArgumentException ex) {
@@ -572,24 +537,14 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   /**
    * Force recalculation of cached index informations.
    *
-   * @param indexReader Reader to use to access the index
-   * @param targetFields Index fields to gather data from
    * @param all If true, all data will be recalculated. If false, only missing
    * data will be recalculated.
    * @throws java.io.IOException IOException Thrown, on low-level errors
    * @throws DocumentModelException Thrown, if the {@link DocumentModel} of
    * the requested type could not be instantiated
    */
-  public void recalculateData(final IndexReader indexReader,
-          final String[] targetFields, final boolean all) throws IOException,
+  public void recalculateData(final boolean all) throws IOException,
           DocumentModelException {
-    if (indexReader == null) {
-      throw new IllegalArgumentException("No index reader specified.");
-    }
-    if (targetFields == null || targetFields.length == 0) {
-      throw new IllegalArgumentException("No target fields specified.");
-    }
-
     boolean recalcAll = all;
 
     if (!this.storageInitialized) {
@@ -602,34 +557,24 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
       LOG.info("Recalculating cached data.");
     }
 
-    // check parameter sanity
-    if (targetFields.length == 0) {
-      throw new IllegalArgumentException(
-              "Empty list of target fields given.");
-    }
-
     // check if fields have changed
-    if (this.getFields().length == 0 || !Arrays.equals(this.getFields(),
-            targetFields)) {
-      LOG.debug("Fields fields={} targetFields={}", this.getFields(),
-              targetFields);
-      checkFields(indexReader, targetFields);
-      this.setFields(targetFields.clone());
+    final String currentFields = Environment.getProperty(PREFIX,
+            CachedIndexDataProvider.DataKeys.get(
+                    CachedIndexDataProvider.DataKeys.Properties.fields));
+    if (currentFields == null || !Arrays.equals(currentFields.split(
+            FIELD_NAME_SEP), Environment.getFields())) {
+      LOG.debug("Fields fields={} targetFields={}", currentFields,
+              Environment.getFields());
       LOG.info("Indexed fields changed. "
               + "Recalculation of all cached data forced.");
       recalcAll = true;
-    } else {
-      // check currently set fields
-      checkFields(indexReader);
     }
 
     clearTermData();
     // update field data
-    setProperty(DataKeys.get(DataKeys.Properties.fields),
-            StringUtils.join(targetFields, FIELD_NAME_SEP));
-    if (!this.isTemporary) {
-      saveProperties();
-    }
+    Environment.setProperty(PREFIX, DataKeys.get(
+            DataKeys.Properties.fields),
+            StringUtils.join(Environment.getFields(), FIELD_NAME_SEP));
 
     // if we don't have term frequency values, we need to recalculate all data
     // to ensure consistency
@@ -643,22 +588,21 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
       // clear any possible existing data
       LOG.trace("Recalculation of all cached data triggered.");
       initStorage(true); // clear all data
-      setProperty(DataKeys.get(DataKeys.Properties.indexTermFreq), "false");
-      setProperty(DataKeys.get(DataKeys.Properties.documentModel), "false");
-      setProperty(DataKeys.get(DataKeys.Properties.documentModelTermData),
-              "false");
-      setProperty(DataKeys.get(DataKeys.Properties.documentModelTermFreq),
-              "false");
-      if (!this.isTemporary) {
-        saveProperties();
-      }
+      Environment.setProperty(PREFIX, DataKeys.get(
+              DataKeys.Properties.indexTermFreq), "false");
+      Environment.setProperty(PREFIX, DataKeys.get(
+              DataKeys.Properties.documentModel), "false");
+      Environment.setProperty(PREFIX, DataKeys.get(
+              DataKeys.Properties.documentModelTermData), "false");
+      Environment.setProperty(PREFIX, DataKeys.get(
+              DataKeys.Properties.documentModelTermFreq), "false");
     }
 
     // NOTE: Order of calculation steps matters!
     // 1. Term-Frequencies: this fills the term-frequency map
     if (recalcAll || !hasTermFreqMap()) {
       strictTransactionHookRequest();
-      calculateTermFrequencies(indexReader);
+      calculateTermFrequencies(Environment.getIndexReader());
 
       // 2. Relative Term-Frequency: Calculate the relative frequency
       // of each term found in step 1.
@@ -668,34 +612,25 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
       commitHook();
 
       // save state
-      setProperty(DataKeys.get(DataKeys.Properties.indexTermFreq), "true");
-      if (!this.isTemporary) {
-        saveProperties();
-      }
+      Environment.setProperty(PREFIX, DataKeys.get(
+              DataKeys.Properties.indexTermFreq), "true");
     }
 
     // 3. Create document models
     if (recalcAll || !hasDocModels() || !hasDocTermData()) {
       // calculate
       strictTransactionHookRequest();
-      createDocumentModels(indexReader);
+      createDocumentModels(Environment.getIndexReader());
       transactionHookRelease();
       // save results
       commitHook();
       // save state
-      setProperty(DataKeys.get(DataKeys.Properties.documentModel), "true");
-      setProperty(DataKeys.get(DataKeys.Properties.documentModelTermData),
-              "true");
-      setProperty(DataKeys.get(DataKeys.Properties.documentModelTermFreq),
-              "true");
-      if (!this.isTemporary) {
-        saveProperties();
-      }
-    }
-
-    // update meta data
-    if (!this.isTemporary) {
-      saveProperties();
+      Environment.setProperty(PREFIX, DataKeys.get(
+              DataKeys.Properties.documentModel), "true");
+      Environment.setProperty(PREFIX, DataKeys.get(
+              DataKeys.Properties.documentModelTermData), "true");
+      Environment.setProperty(PREFIX, DataKeys.get(
+              DataKeys.Properties.documentModelTermFreq), "true");
     }
   }
 
@@ -744,7 +679,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     TermsEnum fieldTermsEnum = null;
 
     // go through all fields..
-    for (String field : getFields()) {
+    for (String field : Environment.getFields()) {
       fieldTerms = idxFields.terms(field);
 
       // ..check if we have terms..
@@ -860,14 +795,6 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   @Override
   public void dispose() {
     LOG.info("Closing cache.");
-    try {
-      // update meta-data
-      if (!this.isTemporary) {
-        saveProperties();
-      }
-    } catch (IOException ex) {
-      LOG.error("Error while storing meta informations.", ex);
-    }
 
     // commit changes & close storage
     if (!this.db.isClosed()) {
@@ -892,8 +819,14 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     return this.termFreqMap.size();
   }
 
-  @Override
-  public boolean addDocument(final DocumentModel docModel) {
+  /**
+   * Add a new document (model) to the list if it is not already known.
+   *
+   * @param docModel DocumentModel to add
+   * @return True, if the model was added, false if there's already a model
+   * known by the model's id
+   */
+  protected boolean addDocument(final DocumentModel docModel) {
     checkStorage();
     if (docModel == null) {
       throw new IllegalArgumentException("Model was null.");
@@ -1072,7 +1005,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
                       + "term={} termStr={}", DataKeys.get(
                               DataKeys._docTermFreq), docId, term, term);
             } else {
-              dmBuilder.setTermFrequency(term, ((Number) data).longValue());
+              dmBuilder.setTermFrequency(term, (Long) data);
             }
           } catch (Exception ex) {
             LOG.error(
@@ -1109,15 +1042,6 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     checkStorage();
     if (prefix == null || prefix.isEmpty()) {
       throw new IllegalArgumentException("No prefix specified.");
-    }
-    if (term == null) {
-      throw new IllegalArgumentException("Term was null.");
-    }
-    if (key == null || key.isEmpty()) {
-      throw new IllegalArgumentException("Key may not be null or empty.");
-    }
-    if (value == null) {
-      throw new IllegalArgumentException("Null is not allowed as value.");
     }
 
     if (INTERNAL_PREFIX.equals(prefix)
@@ -1274,11 +1198,12 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
    * given prefix.
    * <p>
    * A prefix must be registered before any call to
-   * {@link #setTermData(String, int, BytesWrap, String, Object)} or
-   * {@link #getTermData(String, int, BytesWrap, String) can be made.
+   * {@link #setTermData(String, int, BytesWrap, String, Object)} or null null
+   * null null null null null null null null null null   {@link #getTermData(String, int, BytesWrap, String) can be made.
    *
    * @param prefix Prefix name to register
    */
+  @Override
   public void registerPrefix(final String prefix) {
     checkStorage();
     this.externalTermData.loadPrefix(prefix);
@@ -1387,7 +1312,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
             InterruptedException {
       // current count must be smaller, because last item will be returned,
       // before stopping
-      if (this.currentNum.incrementAndGet() == (itemsCount - 1)) {
+      if (this.currentNum.incrementAndGet() == itemsCount - 1) {
         stop();
       }
       if (this.currentNum.get() > (itemsCount - 1)) {
@@ -1438,8 +1363,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     public void runProcess() throws IOException, ProcessingException,
             InterruptedException {
       final long[] docTermEsitmate = new long[]{0L, 0L, 100L};
-      final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(this.reader,
-              getFields());
+      final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum();
 
       BytesRef bytesRef;
 
@@ -1471,15 +1395,14 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
             // nothing found
             continue;
           }
-          final Map<BytesWrap, Number> docTerms = new HashMap<>(
+          final Map<BytesWrap, AtomicLong> docTerms = new HashMap<>(
                   (int) docTermEsitmate[2]);
           while (bytesRef != null) {
             final BytesWrap term = new BytesWrap(bytesRef);
 
             // update frequency counter for current term
             if (docTerms.containsKey(term)) {
-              ((AtomicLong) docTerms.get(term)).getAndAdd(dftEnum.
-                      getTotalTermFreq());
+              docTerms.get(term).getAndAdd(dftEnum.getTotalTermFreq());
             } else {
               docTerms.put(term.clone(), new AtomicLong(dftEnum.
                       getTotalTermFreq()));
@@ -1493,7 +1416,10 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
 
           // All terms from all document fields are gathered.
           // Store the document frequency of each document term to the model
-          dmBuilder.setTermFrequency(docTerms);
+          for (Entry<BytesWrap, AtomicLong> entry : docTerms.entrySet()) {
+            dmBuilder.setTermFrequency(entry.getKey(), entry.getValue().
+                    longValue());
+          }
 
           try {
             if (!addDocument(dmBuilder.getModel())) {

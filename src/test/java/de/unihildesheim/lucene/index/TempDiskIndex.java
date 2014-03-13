@@ -56,14 +56,23 @@ public final class TempDiskIndex {
   private final Directory index;
 
   /**
+   * File directory of the index.
+   */
+  private final String indexDir;
+
+  /**
    * Fields available on this index.
    */
   private final String[] idxFields;
 
-//  private final StandardAnalyzer analyzer;
-//  private final IndexWriterConfig config;
+  /**
+   * Writer for the temporary index.
+   */
   private final IndexWriter writer;
 
+  /**
+   * Shutdown handler closing the index.
+   */
   private Thread shutdowHandler = new Thread(new Runnable() {
     @Override
     public void run() {
@@ -107,10 +116,9 @@ public final class TempDiskIndex {
 
     final Path tmpPath = Files.createTempDirectory("idx" + Long.toString(
             System.nanoTime()));
+    this.indexDir = tmpPath.toString();
     this.index = FSDirectory.open(tmpPath.toFile());
-
     this.writer = new IndexWriter(this.index, config);
-
     this.idxFields = fields.clone();
 
     try {
@@ -118,6 +126,14 @@ public final class TempDiskIndex {
     } catch (IllegalArgumentException ex) {
       // already registered, or shutdown is currently happening
     }
+  }
+
+  /**
+   * Get the file directory where the temporary index resides in.
+   * @return Index directory path as string
+   */
+  public String getIndexDir() {
+    return this.indexDir;
   }
 
   /**

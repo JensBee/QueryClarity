@@ -217,8 +217,8 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap>,
     final int minSameSize = Math.min(data.length, o.data.length);
     int a, b;
     for (int i = 0; i < minSameSize; i++) {
-      a = (this.data[i] & 0xff);
-      b = (o.data[i] & 0xff);
+      a = this.data[i] & 0xff;
+      b = o.data[i] & 0xff;
       if (a != b) {
         return a - b;
       }

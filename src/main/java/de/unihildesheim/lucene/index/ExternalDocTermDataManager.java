@@ -16,7 +16,6 @@
  */
 package de.unihildesheim.lucene.index;
 
-import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.util.BytesWrap;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -33,7 +32,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Manages the externally stored document term-data.
  */
-class ExternalDocTermDataManager {
+public final class ExternalDocTermDataManager {
 
   /**
    * Logger instance for this class.
@@ -79,7 +78,7 @@ class ExternalDocTermDataManager {
   /**
    * Remove any custom data stored while using the index.
    */
-  void clear() {
+  protected void clear() {
     this.prefixMapLock.writeLock().lock();
     try {
       Iterator<String> prefixIt = this.prefixMap.keySet().iterator();
@@ -111,7 +110,10 @@ class ExternalDocTermDataManager {
    *
    * @param prefix Prefix to load
    */
-  void loadPrefix(final String prefix) {
+  protected void loadPrefix(final String prefix) {
+    if (prefix == null || prefix.length() == 0) {
+      throw new IllegalArgumentException("No prefix specified.");
+    }
     final String mapName = this.prefix + prefix;
     // stored data
     BTreeMap<Fun.Tuple3<Integer, String, BytesWrap>, Object> map;
@@ -130,8 +132,6 @@ class ExternalDocTermDataManager {
         mapMkr.keySerializer(mapKeySerializer);
         mapMkr.valueSerializer(Serializer.JAVA);
         map = mapMkr.makeOrGet();
-        // store for reference
-        //          getKnownPrefixes().add(prefix);
       }
       this.prefixMap.put(prefix, map);
     } finally {
@@ -149,8 +149,17 @@ class ExternalDocTermDataManager {
    * @param value Value to store
    * @return Any previous assigned data, or null, if there was none
    */
-  Object setData(final String prefix, final int documentId,
+  protected Object setData(final String prefix, final int documentId,
           final BytesWrap term, final String key, final Object value) {
+    if (term == null) {
+      throw new IllegalArgumentException("Term was null.");
+    }
+    if (key == null || key.isEmpty()) {
+      throw new IllegalArgumentException("Key may not be null or empty.");
+    }
+    if (value == null) {
+      throw new IllegalArgumentException("Null is not allowed as value.");
+    }
     checkPrefix(prefix);
     Object returnObj = null;
     this.prefixMapLock.writeLock().lock();
@@ -171,10 +180,11 @@ class ExternalDocTermDataManager {
    * @param prefix Prefix to lookup
    * @param documentId Document-id whose data to get
    * @param key Key to identify the data to get
-   * @return Map with stored data for the given combination
+   * @return Map with stored data for the given combination or null if there
+   * is no data
    */
-  Map<BytesWrap, Object> getData(final String prefix, final int documentId,
-          final String key) {
+  protected Map<BytesWrap, Object> getData(final String prefix,
+          final int documentId, final String key) {
     if (prefix == null || prefix.isEmpty()) {
       throw new IllegalArgumentException("No prefix specified.");
     }
@@ -186,6 +196,9 @@ class ExternalDocTermDataManager {
     try {
       BTreeMap<Fun.Tuple3<Integer, String, BytesWrap>, Object> dataMap
               = getDataMap(prefix);
+      if (dataMap == null) {
+        return null;
+      }
       // use the documents term frequency as initial size for the map
       //        map = new HashMap<>((int) (long) getTermFrequency(documentId));
       map = new HashMap<>();
@@ -209,7 +222,7 @@ class ExternalDocTermDataManager {
    * @return Value stored for the given combination, or null if there was no
    * data stored
    */
-  Object getData(final String prefix, final int documentId,
+  protected Object getData(final String prefix, final int documentId,
           final BytesWrap term, final String key) {
     if (term == null) {
       throw new IllegalArgumentException("Term was null.");

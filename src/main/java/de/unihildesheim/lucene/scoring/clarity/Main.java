@@ -20,22 +20,13 @@ import de.unihildesheim.lucene.scoring.Scoring;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
-import de.unihildesheim.lucene.LuceneDefaults;
+import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModelException;
 import de.unihildesheim.lucene.index.CachedIndexDataProvider;
 import de.unihildesheim.util.Configuration;
-import de.unihildesheim.util.concurrent.processing.Processing;
-import java.io.File;
 import java.io.IOException;
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -84,32 +75,25 @@ public final class Main {
 
     // index field to operate on
     final String[] fields = new String[]{"text"};
+    final String storageId = "clef";
 
-    // open index
-    final Directory directory = FSDirectory.open(new File(this.indexDir));
-
-    try (IndexReader reader = DirectoryReader.open(directory)) {
-      final String storageId = "clef";
-      final CachedIndexDataProvider dataProv = new CachedIndexDataProvider(
-              storageId);
-      if (!dataProv.tryGetStoredData()) {
-        dataProv.recalculateData(reader, fields, false);
-      }
-
-      final Scoring calculation = new Scoring(dataProv, reader);
-      LOG.info("\n--- Default Clarity Score");
-      calculation.newInstance(Scoring.ClarityScore.DEFAULT).calculateClarity(
-              queryString);
-      LOG.info("\n--- Simplified Clarity Score");
-      calculation.newInstance(Scoring.ClarityScore.SIMPLIFIED).
-              calculateClarity(queryString);
-
-      LOG.trace(
-              "Closing lucene index.");
-      dataProv.dispose();
+    Environment env = new Environment(indexDir, storageId, fields);
+    final CachedIndexDataProvider dataProv = new CachedIndexDataProvider(
+            storageId);
+    env.create(dataProv);
+    if (!dataProv.tryGetStoredData()) {
+      dataProv.recalculateData(false);
     }
 
-    Processing.shutDown();
+    LOG.info("\n--- Default Clarity Score");
+    Scoring.newInstance(Scoring.ClarityScore.DEFAULT).calculateClarity(
+            queryString);
+    LOG.info("\n--- Simplified Clarity Score");
+    Scoring.newInstance(Scoring.ClarityScore.SIMPLIFIED).
+            calculateClarity(queryString);
+
+    LOG.trace("Closing lucene index.");
+    dataProv.dispose();
   }
 
   /**

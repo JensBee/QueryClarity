@@ -20,10 +20,6 @@ package de.unihildesheim.util.concurrent.processing;
 import de.unihildesheim.util.RandomValue;
 import java.util.ArrayList;
 import java.util.Collection;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.*;
 import org.junit.Ignore;
@@ -160,26 +156,41 @@ public class ProcessingTest {
   /**
    * Test of process method, of class Processing.
    */
-  @Test @Ignore
+  @Test
   public void testProcess_0args() {
-    System.out.println("process");
-    Processing instance = new Processing();
+    LOG.info("Test process 0args");
+    Collection<String> coll = new ArrayList(1);
+    Source newSource = new CollectionSource(coll);
+    Target newTarget = new Target.TargetTest(newSource);
+    final Processing instance = new Processing();
+    instance.setSourceAndTarget(newTarget);
+
+    final int collSize = RandomValue.getInteger(100, 10000);
+    coll = new ArrayList(collSize);
+    for (int i=0; i<collSize; i++) {
+      coll.add(RandomValue.getString(1, 10));
+    }
     instance.process();
-    // TODO review the generated test code and remove the default call to fail.
-    fail("The test case is a prototype.");
   }
 
   /**
    * Test of process method, of class Processing.
    */
-  @Test @Ignore
+  @Test
   public void testProcess_int() {
-    System.out.println("process");
-    int threadCount = 0;
-    Processing instance = new Processing();
-    instance.process(threadCount);
-    // TODO review the generated test code and remove the default call to fail.
-    fail("The test case is a prototype.");
+    LOG.info("Test process 1args");
+    Collection<String> coll = new ArrayList(1);
+    Source newSource = new CollectionSource(coll);
+    Target newTarget = new Target.TargetTest(newSource);
+    final Processing instance = new Processing();
+    instance.setSourceAndTarget(newTarget);
+
+    final int collSize = RandomValue.getInteger(100, 10000);
+    coll = new ArrayList(collSize);
+    for (int i=0; i<collSize; i++) {
+      coll.add(RandomValue.getString(1, 10));
+    }
+    instance.process(4);
   }
 
 }

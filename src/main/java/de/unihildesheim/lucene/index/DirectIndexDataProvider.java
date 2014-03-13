@@ -16,25 +16,24 @@
  */
 package de.unihildesheim.lucene.index;
 
+import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocFieldsTermsEnum;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.util.BytesWrap;
-import de.unihildesheim.util.Configuration;
 import de.unihildesheim.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.util.concurrent.processing.Source;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Properties;
+import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -51,7 +50,8 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public final class DirectIndexDataProvider extends AbstractIndexDataProvider {
+public final class DirectIndexDataProvider
+        implements IndexDataProvider, Environment.FieldsChangedListener {
 
   /**
    * Logger instance for this class.
@@ -59,70 +59,86 @@ public final class DirectIndexDataProvider extends AbstractIndexDataProvider {
   private static final Logger LOG = LoggerFactory.getLogger(
           DirectIndexDataProvider.class);
 
-  private final String[] fields;
-  private final IndexReader reader;
+  /**
+   * Cached collection of all index terms.
+   */
   private Collection<BytesWrap> idxTerms = null;
+  /**
+   * Cached collection of all (non deleted) document-ids.
+   */
   private Collection<Integer> idxDocumentIds = null;
+  /**
+   * Cached term-frequency map for all terms in index.
+   */
   private Map<BytesWrap, Long> idxTfMap = null;
+  /**
+   * Cached overall term frequency of the index.
+   */
   private Long idxTf = null;
+  /**
+   * Persistent disk backed storage backend.
+   */
   private DB db;
-
+  /**
+   * Flag indicating, if this instance is temporary (no data is hold
+   * persistent).
+   */
   private boolean isTemporary = false;
-
-  /**
-   * Directory where cached data should be stored.
-   */
-  private final String storagePath;
-  /**
-   * Unique identifier for this cache.
-   */
-  private final String storageId;
-  /**
-   * Storage meta data.
-   */
-  private transient Properties storageProp = null;
 
   /**
    * Prefix used to store configuration.
    */
-  private static final String CONF_PREFIX = "DirectIDP_";
+  private static final String IDENTIFIER = "DirectIDP";
   /**
    * Manager for external added document term-data values.
    */
   private ExternalDocTermDataManager externalTermData;
 
-  public DirectIndexDataProvider(final String newStorageId,
-          final IndexReader indexReader, final String[] newFields,
-          final boolean temporaray) throws IOException {
-    this.fields = newFields.clone();
-    this.reader = indexReader;
+  /**
+   * Default constructor using the parameters set by {@link Environment}.
+   *
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  public DirectIndexDataProvider() throws IOException {
+    this(false);
+  }
+
+  /**
+   * Custom constructor allowing to set the parameters manually and optionally
+   * creating a temporary instance.
+   *
+   * @param temporaray If true, all persistent data will be temporary
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  protected DirectIndexDataProvider(final boolean temporaray) throws
+          IOException {
     this.isTemporary = temporaray;
 
     DBMaker dbMkr;
-    this.storageId = newStorageId;
-    this.storagePath = Configuration.get(CONF_PREFIX + "storagePath",
-            "data/cache/");
     if (this.isTemporary) {
       dbMkr = DBMaker.newTempFileDB();
     } else {
-      dbMkr = DBMaker.newFileDB(new File(this.storagePath, this.storageId));
+      dbMkr = DBMaker.newFileDB(
+              new File(Environment.getDataPath(), IDENTIFIER));
     }
     dbMkr.cacheLRUEnable(); // enable last-recent-used cache
     dbMkr.cacheSoftRefEnable();
     this.db = dbMkr.make();
     this.externalTermData = new ExternalDocTermDataManager(this.db,
-            CONF_PREFIX);
+            IDENTIFIER);
 
-    if (!this.isTemporary) {
-      final File propFile = new File(this.storagePath, this.storageId
-              + ".properties");
-      try {
-        try (FileInputStream propStream = new FileInputStream(propFile)) {
-          this.storageProp.load(propStream);
-        }
-      } catch (FileNotFoundException ex) {
-        LOG.trace("Cache meta file " + propFile + " not found.", ex);
-      }
+    Environment.addFieldsChangedListener(this);
+  }
+
+  /**
+   * Checks, if a document with the given id is known (in index).
+   *
+   * @param docId Document-id to check.
+   */
+  private void checkDocId(final int docId) {
+    if (!hasDocument(docId)) {
+      throw new IllegalArgumentException("No document with id '" + docId
+              + "' found.");
     }
   }
 
@@ -130,10 +146,11 @@ public final class DirectIndexDataProvider extends AbstractIndexDataProvider {
   public long getTermFrequency() {
     if (this.idxTf == null) {
       this.idxTf = 0L;
-      for (String field : this.fields) {
+      for (String field : Environment.getFields()) {
         final long fieldTotalTf;
         try {
-          fieldTotalTf = this.reader.getSumTotalTermFreq(field);
+          fieldTotalTf = Environment.getIndexReader().getSumTotalTermFreq(
+                  field);
           if (fieldTotalTf == -1) {
             throw new IllegalStateException("Error retrieving term frequency "
                     + "information for field '" + field + "'. Got "
@@ -158,10 +175,12 @@ public final class DirectIndexDataProvider extends AbstractIndexDataProvider {
     }
 
     long freq = 0;
-    for (String field : this.fields) {
+    for (String field : Environment.getFields()) {
       try {
-        DocsEnum de = MultiFields.getTermDocsEnum(this.reader, MultiFields.
-                getLiveDocs(reader), field, new BytesRef(term.getBytes()));
+        DocsEnum de = MultiFields.
+                getTermDocsEnum(Environment.getIndexReader(), MultiFields.
+                        getLiveDocs(Environment.getIndexReader()), field,
+                        new BytesRef(term.getBytes()));
         int docId = de.nextDoc();
         while (docId != DocsEnum.NO_MORE_DOCS) {
           freq += de.freq();
@@ -189,23 +208,27 @@ public final class DirectIndexDataProvider extends AbstractIndexDataProvider {
 
   @Override
   public void dispose() {
-    try {
-      this.reader.close();
-    } catch (IOException ex) {
-      LOG.error("Caught exception while closing reader.", ex);
+    if (Environment.isInitialized()) {
+      Environment.removeFieldsChangedListener(this);
     }
   }
 
+  /**
+   * Collect and cache all index terms.
+   *
+   * @return Unique collection of all terms in index
+   */
   private Collection<BytesWrap> getTerms() {
     if (this.idxTerms == null) {
       this.idxTerms = DBMaker.newTempTreeSet();
       try {
-        final Fields idxFields = MultiFields.getFields(reader);
+        final Fields idxFields = MultiFields.getFields(Environment.
+                getIndexReader());
         if (idxFields == null) {
           throw new IllegalStateException("No fields retrieved.");
         } else {
           TermsEnum termsEnum = TermsEnum.EMPTY;
-          for (String field : this.fields) {
+          for (String field : Environment.getFields()) {
             final Terms terms = idxFields.terms(field);
             if (terms == null) {
               LOG.warn("No terms in field '{}'.", field);
@@ -223,7 +246,7 @@ public final class DirectIndexDataProvider extends AbstractIndexDataProvider {
         LOG.error("Error retrieving field information.", ex);
       }
     }
-    return idxTerms;
+    return Collections.unmodifiableCollection(idxTerms);
   }
 
   @Override
@@ -236,20 +259,26 @@ public final class DirectIndexDataProvider extends AbstractIndexDataProvider {
     return new CollectionSource<>(getTerms());
   }
 
+  /**
+   * Collect and cache all document-ids from the index.
+   *
+   * @return Unique collection of all (non-deleted) document ids
+   */
   private Collection<Integer> getDocumentIds() {
     if (this.idxDocumentIds == null) {
       this.idxDocumentIds = DBMaker.newTempTreeSet();
-      final int maxDoc = this.reader.maxDoc();
+      final int maxDoc = Environment.getIndexReader().maxDoc();
 
-      final Bits liveDocs = MultiFields.getLiveDocs(reader);
-      for (int i = 0; i < reader.maxDoc(); i++) {
+      final Bits liveDocs = MultiFields.getLiveDocs(Environment.
+              getIndexReader());
+      for (int i = 0; i < maxDoc; i++) {
         if (liveDocs != null && !liveDocs.get(i)) {
           continue;
         }
         this.idxDocumentIds.add(i);
       }
     }
-    return this.idxDocumentIds;
+    return Collections.unmodifiableCollection(this.idxDocumentIds);
   }
 
   @Override
@@ -271,71 +300,69 @@ public final class DirectIndexDataProvider extends AbstractIndexDataProvider {
   public Object setTermData(final String prefix, final int documentId,
           final BytesWrap term,
           final String key, final Object value) {
-    throw new UnsupportedOperationException("Not supported yet.");
+    return this.externalTermData.setData(prefix, documentId, term, key,
+            value);
   }
 
   @Override
   public Object getTermData(final String prefix, final int documentId,
           final BytesWrap term,
           final String key) {
-    throw new UnsupportedOperationException("Not supported yet.");
+    return this.externalTermData.getData(prefix, documentId, term, key);
   }
 
   @Override
   public Map<BytesWrap, Object> getTermData(final String prefix,
           final int documentId,
           final String key) {
-    throw new UnsupportedOperationException("Not supported yet.");
+    return this.externalTermData.getData(prefix, documentId, key);
   }
 
   @Override
   public void clearTermData() {
-    throw new UnsupportedOperationException("Not supported yet.");
+    this.externalTermData.clear();
   }
 
   @Override
   public DocumentModel getDocumentModel(final int docId) {
-    if (this.hasDocument(docId)) {
-      final DocumentModel.DocumentModelBuilder dmBuilder
-              = new DocumentModel.DocumentModelBuilder(docId);
+    checkDocId(docId);
+    final DocumentModel.DocumentModelBuilder dmBuilder
+            = new DocumentModel.DocumentModelBuilder(docId);
 
-      try {
-        final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(this.reader,
-                this.fields, docId);
-        BytesRef br = dftEnum.next();
-        @SuppressWarnings("CollectionWithoutInitialCapacity")
-        final Map<BytesWrap, Number> tfMap = new HashMap<>();
-        while (br != null) {
-          final BytesWrap bw = new BytesWrap(br);
-          if (tfMap.containsKey(bw)) {
-            ((AtomicLong) tfMap.get(bw)).getAndAdd(dftEnum.getTotalTermFreq());
-          } else {
-            tfMap.put(bw.clone(), new AtomicLong(dftEnum.
-                    getTotalTermFreq()));
-          }
-          br = dftEnum.next();
+    try {
+      final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(docId);
+      BytesRef br = dftEnum.next();
+      @SuppressWarnings("CollectionWithoutInitialCapacity")
+      final Map<BytesWrap, AtomicLong> tfMap = new HashMap<>();
+      while (br != null) {
+        final BytesWrap bw = new BytesWrap(br);
+        if (tfMap.containsKey(bw)) {
+          tfMap.get(bw).getAndAdd(dftEnum.getTotalTermFreq());
+        } else {
+          tfMap.put(bw.clone(), new AtomicLong(dftEnum.
+                  getTotalTermFreq()));
         }
-        dmBuilder.setTermFrequency(tfMap);
-        return dmBuilder.getModel();
-      } catch (IOException ex) {
-        LOG.error("Caught exception while iterating document terms. "
-                + "docId=" + docId + ".", ex);
+        br = dftEnum.next();
       }
+      for (Entry<BytesWrap, AtomicLong> tfEntry : tfMap.entrySet()) {
+        dmBuilder.setTermFrequency(tfEntry.getKey(), tfEntry.getValue().
+                longValue());
+      }
+      return dmBuilder.getModel();
+    } catch (IOException ex) {
+      LOG.error("Caught exception while iterating document terms. "
+              + "docId=" + docId + ".", ex);
     }
     return null;
   }
 
   @Override
-  public boolean addDocument(final DocumentModel docModel) {
-    throw new UnsupportedOperationException("Not supported yet.");
-  }
-
-  @Override
   public boolean hasDocument(final Integer docId) {
-    final int maxDoc = this.reader.maxDoc();
+    final int maxDoc = Environment.getIndexReader().maxDoc();
 
     if (docId <= (maxDoc - 1) && docId >= 0) {
-      final Bits liveDocs = MultiFields.getLiveDocs(this.reader);
+      final Bits liveDocs = MultiFields.getLiveDocs(Environment.
+              getIndexReader());
       return liveDocs == null || liveDocs.get(docId);
     }
     return false;
@@ -344,7 +371,23 @@ public final class DirectIndexDataProvider extends AbstractIndexDataProvider {
   @Override
   public Collection<BytesWrap> getDocumentsTermSet(
           final Collection<Integer> docIds) {
-    throw new UnsupportedOperationException("Not supported yet.");
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
+    final Collection<BytesWrap> terms = new HashSet<>();
+    for (Integer docId : docIds) {
+      checkDocId(docId);
+      try {
+        final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(docId);
+        BytesRef br = dftEnum.next();
+        while (br != null) {
+          terms.add(new BytesWrap(br));
+          br = dftEnum.next();
+        }
+      } catch (IOException ex) {
+        LOG.error("Caught exception while iterating document terms. "
+                + "docId=" + docId + ".", ex);
+      }
+    }
+    return terms;
   }
 
   @Override
@@ -354,6 +397,33 @@ public final class DirectIndexDataProvider extends AbstractIndexDataProvider {
 
   @Override
   public boolean documentContains(final int documentId, final BytesWrap term) {
-    throw new UnsupportedOperationException("Not supported yet.");
+    checkDocId(documentId);
+    try {
+      final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(documentId);
+      BytesRef br = dftEnum.next();
+      while (br != null) {
+        if (new BytesWrap(br).equals(term)) {
+          return true;
+        }
+        br = dftEnum.next();
+      }
+    } catch (IOException ex) {
+      LOG.error("Caught exception while iterating document terms. "
+              + "docId=" + documentId + ".", ex);
+    }
+    return false;
+  }
+
+  @Override
+  public void registerPrefix(final String prefix) {
+    this.externalTermData.loadPrefix(prefix);
+  }
+
+  @Override
+  public void fieldsChanged(final String[] oldFields, final String[] newFields) {
+    LOG.debug("Fields changed, clearing cached data.");
+    this.idxTerms = null;
+    this.idxTfMap = null;
+    this.idxTf = null;
   }
 }

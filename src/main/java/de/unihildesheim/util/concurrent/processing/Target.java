@@ -132,8 +132,8 @@ public abstract class Target<T> implements Runnable {
       runProcess();
     } catch (ProcessingException.SourceHasFinishedException ex) {
       LOG.error("({}) Source has finished unexpectedly.", getName(), ex);
-    } catch (Throwable t) { // make sure we catch everything
-      LOG.error("({}) Caught exception.", getName(), t.getStackTrace());
+    } catch (Exception ex) { // make sure we catch everything
+      LOG.error("({}) Caught exception. {}", getName(), ex);
     } finally {
       this.terminate = true;
       LOG.trace("({}) Terminating.", getName());

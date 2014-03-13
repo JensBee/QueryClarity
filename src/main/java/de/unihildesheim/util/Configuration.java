@@ -36,9 +36,6 @@ public final class Configuration {
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
           Configuration.class);
 
-  /**
-   * Singleton instance reference.
-   */
   private static Configuration instance;
 
   /**

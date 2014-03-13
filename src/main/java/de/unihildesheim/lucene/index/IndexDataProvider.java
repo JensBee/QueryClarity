@@ -69,13 +69,6 @@ public interface IndexDataProvider {
   void dispose();
 
   /**
-   * Get the index-fields this DataProvider operates on.
-   *
-   * @return Index field names
-   */
-  String[] getFields();
-
-  /**
    * Get an {@link Iterator} over a unique set of all terms from the index.
    *
    * @return Unique terms iterator
@@ -109,6 +102,18 @@ public interface IndexDataProvider {
    * @return Number of unique terms in the index
    */
   long getUniqueTermsCount();
+
+  /**
+   * Tell the data provider, we want to access custom data specified by the
+   * given prefix.
+   * <p>
+   * A prefix must be registered before any call to
+   * {@link #setTermData(String, int, BytesWrap, String, Object)} or null null
+   * null null null null null null null null   {@link #getTermData(String, int, BytesWrap, String) can be made.
+   *
+   * @param prefix Prefix name to register
+   */
+  void registerPrefix(final String prefix);
 
   /**
    * Store enhanced data for a document & term combination with a custom
@@ -165,15 +170,6 @@ public interface IndexDataProvider {
   DocumentModel getDocumentModel(final int docId);
 
   /**
-   * Add a new document (model) to the list if it is not already known.
-   *
-   * @param docModel DocumentModel to add
-   * @return True, if the model was added, false if there's already a model
-   * known by the model's id
-   */
-  boolean addDocument(final DocumentModel docModel);
-
-  /**
    * Test if a document (model) for the specific document-id is known.
    *
    * @param docId Document-id to lookup
@@ -194,46 +190,6 @@ public interface IndexDataProvider {
    * @return Number of Documents known
    */
   long getDocumentCount();
-
-  /**
-   * Stores a property value to the {@link IndexDataProvider}. Depending on
-   * the implementation this property may be persistent.
-   *
-   * @param prefix Prefix to identify the property store
-   * @param key Key to assign a property to
-   * @param value Property value
-   */
-  void setProperty(final String prefix, final String key, final String value);
-
-  /**
-   * Retrieve a previously stored property from the {@link IndexDataProvider}.
-   * Depending on the implementation stored property values may be persistent
-   * between instantiations.
-   *
-   * @param prefix Prefix to identify the property store
-   * @param key Key under which the property was stored
-   * @return The stored property vale or null, if none was found
-   */
-  String getProperty(final String prefix, final String key);
-
-  /**
-   * Remove all externally stored properties.
-   */
-  void clearProperties();
-
-  /**
-   * Same as {@link IndexDataProvider#getProperty(String, String)}, but allows
-   * to specify a default value.
-   *
-   * @param prefix Prefix to identify the property store
-   * @param key Key under which the property was stored
-   * @param defaultValue Default value to return, if the specified key was not
-   * found
-   * @return The stored property vale or <tt>defaultValue</tt>, if none was
-   * found
-   */
-  String getProperty(final String prefix, final String key,
-          final String defaultValue);
 
   /**
    * Check if a document contains the given term.

@@ -32,22 +32,12 @@ import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryTermExtractor;
 import org.apache.lucene.search.highlight.WeightedTerm;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public final class QueryUtils {
-
-  /**
-   * Logger instance for this class.
-   */
-  private static final Logger LOG = LoggerFactory.getLogger(
-          QueryUtils.class);
-
-  private static final int MAX_EXPECTED_QUERY_LENGTH = 15;
 
   /**
    * Private constructor for utility class.

@@ -16,22 +16,17 @@
  */
 package de.unihildesheim.lucene.index;
 
+import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.DocumentModelException;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.RandomValue;
-import de.unihildesheim.util.Tuple;
-import de.unihildesheim.util.concurrent.processing.CollectionSource;
-import de.unihildesheim.util.concurrent.processing.Processing;
 import edu.umd.cs.findbugs.annotations.SuppressWarnings;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import org.apache.lucene.queryparser.classic.ParseException;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -126,7 +121,7 @@ public final class CachedIndexDataProviderTest {
     if (instance.isStorageInitialized()) {
       instance.clearTermData();
     }
-    instance.clearProperties();
+    Environment.clear();
   }
 
   /**
@@ -164,8 +159,7 @@ public final class CachedIndexDataProviderTest {
       LOG.info("Re-creating instance index (initialized={} changed={})",
               instance.isStorageInitialized(), indexChanged);
       try {
-        instance.recalculateData(index.getReader(), index.getFields(),
-                true);
+        instance.recalculateData(true);
         indexChanged = false;
       } catch (IOException | DocumentModelException ex) {
         fail("Failed to re-create instance index.");
@@ -259,48 +253,7 @@ public final class CachedIndexDataProviderTest {
   public void testRecalculateData() throws Exception {
     LOG.info("Test recalculateData");
 
-    instance.recalculateData(index.getReader(), index.getFields(),
-            true);
-
-    // should throw an exception, because those fields do not exist
-    exception.expect(IllegalStateException.class);
-    instance.recalculateData(index.getReader(), new String[]{"foo", "bar"},
-            true);
-  }
-
-  /**
-   * Test of setProperty method, of class CachedIndexDataProvider.
-   */
-  @Test
-  public void testSetProperty() {
-    LOG.info("Test setProperty");
-    String prefix = "test";
-    String key = "testKey";
-    String value = "testValue";
-    instance.setProperty(prefix, key, value);
-  }
-
-  /**
-   * Test of getProperty method, of class CachedIndexDataProvider.
-   */
-  @Test
-  public void testGetProperty_String_String() {
-    LOG.info("Test getProperty 2arg");
-    String prefix = "test";
-    String key = "testKey";
-    String value = "testValue";
-    instance.setProperty(prefix, key, value);
-
-    assertEquals("Property not restored.", value, instance.getProperty(prefix,
-            key));
-  }
-
-  /**
-   * Test of getProperty method, of class CachedIndexDataProvider.
-   */
-  @Test
-  public void testGetProperty_3args() {
-    IndexDataProviderTest.testGetProperty_3args(index, instance);
+    instance.recalculateData(true);
   }
 
   /**
@@ -317,7 +270,7 @@ public final class CachedIndexDataProviderTest {
    */
   @Test
   public void testGetUniqueTermsCount() {
-    IndexDataProviderTest.testGetUniqueTermsCount(index, instance);
+    IndexDataProviderTestMethods.testGetUniqueTermsCount(index, instance);
   }
 
   /**
@@ -347,7 +300,7 @@ public final class CachedIndexDataProviderTest {
    */
   @Test
   public void testHasDocument() {
-    IndexDataProviderTest.testHasDocument(index, instance);
+    IndexDataProviderTestMethods.testHasDocument(index, instance);
   }
 
   /**
@@ -355,7 +308,7 @@ public final class CachedIndexDataProviderTest {
    */
   @Test
   public void testGetTermFrequency_0args() {
-    IndexDataProviderTest.testGetTermFrequency_0args(index, instance);
+    IndexDataProviderTestMethods.testGetTermFrequency_0args(index, instance);
   }
 
   /**
@@ -363,7 +316,8 @@ public final class CachedIndexDataProviderTest {
    */
   @Test
   public void testGetTermFrequency_BytesWrap() {
-    IndexDataProviderTest.testGetTermFrequency_BytesWrap(index, instance);
+    IndexDataProviderTestMethods.testGetTermFrequency_BytesWrap(index,
+            instance);
   }
 
   /**
@@ -372,7 +326,7 @@ public final class CachedIndexDataProviderTest {
    */
   @Test
   public void testGetRelativeTermFrequency() {
-    IndexDataProviderTest.testGetRelativeTermFrequency(index, instance);
+    IndexDataProviderTestMethods.testGetRelativeTermFrequency(index, instance);
   }
 
   /**
@@ -381,7 +335,7 @@ public final class CachedIndexDataProviderTest {
   @Test
   @SuppressWarnings("DM_DEFAULT_ENCODING")
   public void testGetTermsIterator() {
-    IndexDataProviderTest.testGetTermsIterator(index, instance);
+    IndexDataProviderTestMethods.testGetTermsIterator(index, instance);
   }
 
   /**
@@ -389,7 +343,7 @@ public final class CachedIndexDataProviderTest {
    */
   @Test
   public void testGetDocumentCount() {
-    IndexDataProviderTest.testGetDocumentCount(index, instance);
+    IndexDataProviderTestMethods.testGetDocumentCount(index, instance);
   }
 
   /**
@@ -445,7 +399,7 @@ public final class CachedIndexDataProviderTest {
    */
   @Test
   public void testGetDocumentModel() {
-    IndexDataProviderTest.testGetDocumentModel(index, instance);
+    IndexDataProviderTestMethods.testGetDocumentModel(index, instance);
   }
 
   /**
@@ -453,7 +407,7 @@ public final class CachedIndexDataProviderTest {
    */
   @Test
   public void testGetDocumentIdIterator() {
-    IndexDataProviderTest.testGetDocumentIdIterator(index, instance);
+    IndexDataProviderTestMethods.testGetDocumentIdIterator(index, instance);
   }
 
   /**
@@ -461,7 +415,7 @@ public final class CachedIndexDataProviderTest {
    */
   @Test
   public void testSetTermData() {
-    IndexDataProviderTest.testSetTermData(index, instance);
+    IndexDataProviderTestMethods.testSetTermData(index, instance);
   }
 
   /**
@@ -533,7 +487,7 @@ public final class CachedIndexDataProviderTest {
    */
   @Test
   public void testGetTermData_4args() {
-    IndexDataProviderTest.testGetTermData_4args(index, instance);
+    IndexDataProviderTestMethods.testGetTermData_4args(index, instance);
   }
 
   /**
@@ -541,7 +495,7 @@ public final class CachedIndexDataProviderTest {
    */
   @Test
   public void testGetTermData_3args() {
-    IndexDataProviderTest.testGetTermData_3args(index, instance);
+    IndexDataProviderTestMethods.testGetTermData_3args(index, instance);
   }
 
   /**
@@ -606,7 +560,7 @@ public final class CachedIndexDataProviderTest {
    */
   @Test
   public void testDocumentContains() {
-    IndexDataProviderTest.testDocumentContains(index, instance);
+    IndexDataProviderTestMethods.testDocumentContains(index, instance);
   }
 
   /**
@@ -614,7 +568,7 @@ public final class CachedIndexDataProviderTest {
    */
   @Test
   public void testGetDocumentIdSource() {
-    IndexDataProviderTest.testGetDocumentIdSource(index, instance);
+    IndexDataProviderTestMethods.testGetDocumentIdSource(index, instance);
   }
 
   /**
@@ -622,7 +576,7 @@ public final class CachedIndexDataProviderTest {
    */
   @Test
   public void testGetTermsSource() {
-    IndexDataProviderTest.testGetTermsSource(index, instance);
+    IndexDataProviderTestMethods.testGetTermsSource(index, instance);
   }
 
   /**
@@ -630,8 +584,94 @@ public final class CachedIndexDataProviderTest {
    */
   @Test
   public void testRegisterPrefix() {
-    LOG.info("Test registerPrefix");
-    instance.registerPrefix("foo");
+    IndexDataProviderTestMethods.testRegisterPrefix(index, instance);
+  }
+
+  /**
+   * Test of isStorageInitialized method, of class CachedIndexDataProvider.
+   */
+  @Test
+  @Ignore
+  public void testIsStorageInitialized() {
+    System.out.println("isStorageInitialized");
+    CachedIndexDataProvider instance = null;
+    boolean expResult = false;
+    boolean result = instance.isStorageInitialized();
+    assertEquals(expResult, result);
+    // TODO review the generated test code and remove the default call to fail.
+    fail("The test case is a prototype.");
+  }
+
+  /**
+   * Test of addToTermFrequency method, of class CachedIndexDataProvider.
+   */
+  @Test
+  @Ignore
+  public void testAddToTermFrequency() {
+    System.out.println("addToTermFrequency");
+    long mod = 0L;
+    CachedIndexDataProvider instance = null;
+    instance.addToTermFrequency(mod);
+    // TODO review the generated test code and remove the default call to fail.
+    fail("The test case is a prototype.");
+  }
+
+  /**
+   * Test of getDocumentsTermSet method, of class CachedIndexDataProvider.
+   */
+  @Test
+  public void testGetDocumentsTermSet() {
+    IndexDataProviderTestMethods.testGetDocumentsTermSet(index, instance);
+  }
+
+  /**
+   * Test of checkStorage method, of class CachedIndexDataProvider.
+   */
+  @Test
+  @Ignore
+  public void testCheckStorage() {
+    System.out.println("checkStorage");
+    CachedIndexDataProvider instance = null;
+    instance.checkStorage();
+    // TODO review the generated test code and remove the default call to fail.
+    fail("The test case is a prototype.");
+  }
+
+  /**
+   * Test of dispose method, of class CachedIndexDataProvider.
+   */
+  @Test
+  @Ignore
+  public void testDispose() {
+    System.out.println("dispose");
+    CachedIndexDataProvider instance = null;
+    instance.dispose();
+    // TODO review the generated test code and remove the default call to fail.
+    fail("The test case is a prototype.");
+  }
+
+  /**
+   * Test of clearTermData method, of class CachedIndexDataProvider.
+   */
+  @Test
+  public void testClearTermData() {
+    IndexDataProviderTestMethods.testClearTermData(index, this.instance);
+  }
+
+  /**
+   * Test of documentsContaining method, of class CachedIndexDataProvider.
+   */
+  @Test
+  @Ignore
+  public void testDocumentsContaining() {
+    System.out.println("documentsContaining");
+    BytesWrap term = null;
+    CachedIndexDataProvider instance = null;
+    Collection<Integer> expResult = null;
+    Collection<Integer> result = instance.documentsContaining(term);
+    assertEquals(expResult, result);
+    // TODO review the generated test code and remove the default call to fail.
+    fail("The test case is a prototype.");
   }
 
 }

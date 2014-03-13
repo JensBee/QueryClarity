@@ -22,6 +22,7 @@ import de.unihildesheim.util.Tuple;
 import de.unihildesheim.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.util.concurrent.processing.Source;
 import de.unihildesheim.util.concurrent.processing.Target;
+import java.io.UnsupportedEncodingException;
 import java.util.Collection;
 import java.util.HashSet;
 import org.slf4j.Logger;
@@ -51,13 +52,15 @@ public final class IndexTestUtils {
    * <tt>(DocumentId, term, key, value)</tt>. All fields of this tuple are
    * random generated.
    *
-   * @param index DataProvider to generate valid document ids
+   * @param index DataProvider to generate valid document ids, null to
+   * generate random ones
    * @param amount Number of test items to create
    * @return Collection of test data items
    */
   public static Collection<Tuple.Tuple4<
         Integer, BytesWrap, String, Integer>> generateTermData(
-          final IndexDataProvider index, final int amount) {
+          final IndexDataProvider index, final int amount) throws
+          UnsupportedEncodingException {
     return generateTermData(index, null, null, amount);
   }
 
@@ -66,14 +69,16 @@ public final class IndexTestUtils {
    * <tt>(DocumentId, term, key, value)</tt>. All fields of this tuple are
    * random generated.
    *
-   * @param index DataProvider to generate valid document ids
+   * @param index DataProvider to generate valid document ids, null to
+   * generate random ones
    * @param key Key to identify the data
    * @param amount Number of test items to create
    * @return Collection of test data items
    */
   public static Collection<Tuple.Tuple4<
         Integer, BytesWrap, String, Integer>> generateTermData(
-          final IndexDataProvider index, final String key, final int amount) {
+          final IndexDataProvider index, final String key, final int amount)
+          throws UnsupportedEncodingException {
     return generateTermData(index, null, key, amount);
   }
 
@@ -82,7 +87,8 @@ public final class IndexTestUtils {
    * <tt>(DocumentId, term, key, value)</tt>. All fields of this tuple are
    * random generated, excluding the given key.
    *
-   * @param index DataProvider to generate valid document ids
+   * @param index DataProvider to generate valid document ids, null to
+   * generate random ones
    * @param key Number of test items to create. Generated randomly, if null.
    * @param documentId Document-id to use. Generated randomly, if null.
    * @param amount Amount of entries to generate
@@ -90,7 +96,8 @@ public final class IndexTestUtils {
    */
   public static Collection<Tuple.Tuple4<Integer, BytesWrap, String, Integer>>
           generateTermData(final IndexDataProvider index,
-                  final Integer documentId, String key, final int amount) {
+                  final Integer documentId, String key, final int amount)
+          throws UnsupportedEncodingException {
     if (key == null) {
       key = RandomValue.getString(1, 5);
     }
@@ -100,7 +107,13 @@ public final class IndexTestUtils {
         Integer, BytesWrap, String, Integer>> termData
             = new HashSet<>(amount);
     final int minDocId = 0;
-    final int maxDocId = (int) index.getDocumentCount() - 1;
+    final int maxDocId;
+
+    if (index == null) {
+      maxDocId = RandomValue.getInteger(amount, 1000 + amount);
+    } else {
+      maxDocId = (int) index.getDocumentCount() - 1;
+    }
 
     for (int i = 0; i < amount;) {
       int docId;
@@ -110,7 +123,7 @@ public final class IndexTestUtils {
         docId = documentId;
       }
       final BytesWrap term = new BytesWrap(RandomValue.getString(1, 20).
-              getBytes());
+              getBytes("UTF-8"));
       final int val = RandomValue.getInteger();
       if (unique.add(Tuple.tuple3(docId, term, key)) && termData.add(Tuple.
               tuple4(docId, term, key, val))) {

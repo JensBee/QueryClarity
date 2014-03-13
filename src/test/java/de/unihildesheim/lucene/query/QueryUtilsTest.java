@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.lucene.query;
 
+import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.index.TestIndex;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.RandomValue;
@@ -24,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
+import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -48,9 +50,6 @@ public class QueryUtilsTest {
    */
   private static TestIndex index;
 
-  public QueryUtilsTest() {
-  }
-
   /**
    * Static initializer run before all tests.
    *
@@ -59,8 +58,9 @@ public class QueryUtilsTest {
   @BeforeClass
   public static void setUpClass() throws Exception {
     // create the test index
-    index = new TestIndex();
+    index = new TestIndex(TestIndex.IndexSize.SMALL);
     assertTrue("TestIndex is not initialized.", TestIndex.test_isInitialized());
+    index.setupEnvironment();
   }
 
   /**
@@ -72,7 +72,7 @@ public class QueryUtilsTest {
   @SuppressWarnings("DM_DEFAULT_ENCODING")
   public void testGetQueryTerms() throws Exception {
     LOG.info("Test getQueryTerms");
-    IndexReader reader = index.getReader();
+    IndexReader reader = Environment.getIndexReader();
 
     final int termsCount = RandomValue.getInteger(3, 100);
     final Collection<BytesWrap> termsBw = new ArrayList(termsCount);
@@ -84,7 +84,7 @@ public class QueryUtilsTest {
       terms.add(term);
     }
 
-    final Query query = QueryUtils.buildQuery(index.getFields(), index.
+    final Query query = QueryUtils.buildQuery(Environment.getFields(), index.
             getQueryString(terms.toArray(new String[termsCount])));
 
     final Collection<BytesWrap> result = QueryUtils.

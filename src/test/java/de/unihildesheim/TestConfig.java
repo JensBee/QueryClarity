@@ -14,8 +14,14 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 package de.unihildesheim;
+
+import de.unihildesheim.lucene.index.CachedIndexDataProvider;
+import de.unihildesheim.lucene.index.DirectIndexDataProvider;
+import de.unihildesheim.lucene.index.IndexDataProvider;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 /**
  *
@@ -30,5 +36,24 @@ public class TestConfig {
    */
   private TestConfig() {
     // empty
+  }
+
+  public static Collection<Class<? extends IndexDataProvider>> getDataProvider() {
+    final Collection<Class<? extends IndexDataProvider>> providers
+            = new ArrayList<>(2);
+    providers.add(DirectIndexDataProvider.class);
+//    providers.add(CachedIndexDataProvider.class);
+    return providers;
+  }
+
+  public static Collection<Object[]> getDataProviderParameter() {
+    final Collection<Class<? extends IndexDataProvider>> providers
+            = getDataProvider();
+    final Collection<Object[]> params = new ArrayList(providers.size());
+
+    for (Class<? extends IndexDataProvider>  prov : getDataProvider()) {
+      params.add(new Object[]{prov});
+    }
+    return params;
   }
 }

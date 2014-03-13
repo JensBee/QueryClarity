@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.lucene.index;
 
+import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.RandomValue;
@@ -23,11 +24,11 @@ import de.unihildesheim.util.StringUtils;
 import de.unihildesheim.util.Tuple;
 import de.unihildesheim.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.util.concurrent.processing.Source;
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -37,14 +38,10 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
-import org.mapdb.BTreeKeySerializer;
 import org.mapdb.BTreeMap;
-import org.mapdb.DB;
 import org.mapdb.DBMaker;
 import org.mapdb.Fun;
-import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,7 +50,8 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public final class TestIndex implements IndexDataProvider {
+public final class TestIndex implements IndexDataProvider,
+        Environment.FieldsChangedListener {
 
   /**
    * Logger instance for this class.
@@ -83,30 +81,92 @@ public final class TestIndex implements IndexDataProvider {
   private static TempDiskIndex tmpIdx;
 
   /**
-   * Minimum and maximum amount of fields to create.
+   * Configuration to create different sizes of test indexes.
    */
-  private static final int[] MIN_MAX_FIELDS = new int[]{1, 10};
+  @SuppressWarnings("PublicInnerClass")
+  public enum IndexSize {
+
+    /**
+     * Configuration for a small sized test index.
+     */
+    SMALL(new int[]{
+      // min/max documents
+      10, 100,
+      // min/max fields
+      1, 5,
+      // min/max document length (terms)
+      10, 150,
+      // min/max term length
+      1, 10,
+      // min/max query length (terms)
+      1, 5
+    }),
+    /**
+     * Configuration for a medium sized test index.
+     */
+    MEDIUM(new int[]{
+      // min/max documents
+      500, 2500,
+      // min/max fields
+      1, 10,
+      // min/max document length (terms)
+      250, 1500,
+      // min/max term length
+      1, 20,
+      // min/max query length (terms)
+      1, 10
+    }),
+    /**
+     * Configuration for a large sized test index.
+     */
+    LARGE(new int[]{
+      // min/max documents
+      100, 10000,
+      // min/max fields
+      1, 15,
+      // min/max document length (terms)
+      250, 5000,
+      // min/max term length
+      1, 20,
+      // min/max query length (terms)
+      1, 15
+    });
+
+    /**
+     * Minimum and maximum amount of fields to create.
+     */
+    private final int[] FIELDS;
+    /**
+     * Minimum and maximum number of documents to create.
+     */
+    private final int[] DOCS;
+    /**
+     * Minimum and maximum length of a random generated document (in terms per
+     * field).
+     */
+    private final int[] DOC_LENGTH;
+    /**
+     * Minimum and maximum length of a random term in a document.
+     */
+    private final int[] TERM_LENGTH;
+    /**
+     * Minimum and maximum length of a random generated query.
+     */
+    private final int[] QUERY_LENGTH;
+
+    IndexSize(final int[] sizes) {
+      DOCS = new int[]{sizes[0], sizes[1]};
+      FIELDS = new int[]{sizes[2], sizes[3]};
+      DOC_LENGTH = new int[]{sizes[4], sizes[5]};
+      TERM_LENGTH = new int[]{sizes[6], sizes[7]};
+      QUERY_LENGTH = new int[]{sizes[8], sizes[9]};
+    }
+  }
 
   /**
-   * Minimum and maximum number of documents to create.
+   * Size of the index actually used.
    */
-  private static final int[] MIN_MAX_DOCS = new int[]{10, 100};
-
-  /**
-   * Minimum and maximum length of a random generated document (in terms per
-   * field).
-   */
-  private static final int[] MIN_MAX_DOC_LENGTH = new int[]{10, 150};
-
-  /**
-   * Minimum and maximum length of a random term in a document.
-   */
-  private static final int[] MIN_MAX_TERM_LENGTH = new int[]{1, 10};
-
-  /**
-   * Minimum and maximum length of a random generated query.
-   */
-  private static final int[] MIN_MAX_QUERY_LENGTH = new int[]{1, 10};
+  private IndexSize idxConf;
 
   /**
    * Map: <tt>(prefix -> ([document-id, term, key] -> value))</tt>.
@@ -114,30 +174,39 @@ public final class TestIndex implements IndexDataProvider {
   private Map<String, Map<Tuple.Tuple3<
           Integer, BytesWrap, String>, Object>> prefixMap;
 
-//  private static DB db;
-
-  private int documentsCount;
+  /**
+   * Number of documents in index.
+   */
+  private static int documentsCount;
 
   /**
    * Field, Document-id, Term -> Frequency
    */
   private static BTreeMap<Fun.Tuple3<Integer, Integer, BytesWrap>, Long> idx;
 
-  /**
-   * Initialize the testing index.
-   *
-   * @throws IOException Thrown on low-level I/O errors
-   */
-  @SuppressWarnings("CollectionWithoutInitialCapacity")
-  public TestIndex() throws IOException {
+  public TestIndex(final IndexSize indexSize) throws IOException {
     if (!initialized) {
+      idxConf = indexSize;
       createIndex();
+      if (Environment.isInitialized()) {
+        Environment.addFieldsChangedListener(this);
+      }
     }
     this.activeFieldState = new int[fields.size()];
     // set all fields active
     Arrays.fill(this.activeFieldState, 1);
 
     this.prefixMap = new ConcurrentHashMap<>();
+  }
+
+  /**
+   * Initialize the testing index with default values.
+   *
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  @SuppressWarnings("CollectionWithoutInitialCapacity")
+  public TestIndex() throws IOException {
+    this(IndexSize.MEDIUM);
   }
 
   /**
@@ -149,8 +218,8 @@ public final class TestIndex implements IndexDataProvider {
     idx = DBMaker.newTempTreeMap();
 
     // generate random document fields
-    final int fieldsCount = RandomValue.getInteger(MIN_MAX_FIELDS[0],
-            MIN_MAX_FIELDS[1]);
+    final int fieldsCount = RandomValue.getInteger(idxConf.FIELDS[0],
+            idxConf.FIELDS[1]);
     fields = new ArrayList<>(fieldsCount);
     for (int i = 0; i < fieldsCount; i++) {
       fields.add(i + "_" + RandomValue.getString(3, 10));
@@ -160,22 +229,23 @@ public final class TestIndex implements IndexDataProvider {
     tmpIdx = new TempDiskIndex(fields.toArray(new String[fields.size()]));
 
     // set the number of random documents to create
-    documentsCount = RandomValue.getInteger(MIN_MAX_DOCS[0],
-            MIN_MAX_DOCS[1]);
+    documentsCount = RandomValue.getInteger(idxConf.DOCS[0],
+            idxConf.DOCS[1]);
 
-    LOG.info("Creating index with {} documents, {} fields each "
+    LOG.info("Creating a {} sized index with {} documents, {} fields each "
             + "and a maximum of {} terms per field. This may take some time.",
-            documentsCount, fieldsCount, MIN_MAX_DOC_LENGTH[1]);
+            idxConf.toString(), documentsCount, fieldsCount,
+            idxConf.DOC_LENGTH[1]);
 
     final int termSeedSize = (int) ((fieldsCount * documentsCount
-            * MIN_MAX_DOC_LENGTH[1]) * 0.0005);
+            * idxConf.DOC_LENGTH[1]) * 0.0005);
 
     // generate a seed of random terms
     LOG.info("Creating term seed with {} terms.", termSeedSize);
     final List<String> seedTermList = new ArrayList<>(termSeedSize);
     while (seedTermList.size() < termSeedSize) {
-      seedTermList.add(RandomValue.getString(MIN_MAX_TERM_LENGTH[0],
-              MIN_MAX_TERM_LENGTH[1]));
+      seedTermList.add(RandomValue.getString(idxConf.TERM_LENGTH[0],
+              idxConf.TERM_LENGTH[1]));
     }
 
     // gather some documents for bulk commits
@@ -189,10 +259,10 @@ public final class TestIndex implements IndexDataProvider {
 
       // create document fields
       for (int field = 0; field < fieldsCount; field++) {
-        int fieldTerms = RandomValue.getInteger(MIN_MAX_DOC_LENGTH[0],
-                MIN_MAX_DOC_LENGTH[1]);
+        int fieldTerms = RandomValue.getInteger(idxConf.DOC_LENGTH[0],
+                idxConf.DOC_LENGTH[1]);
         StringBuilder content = new StringBuilder(fieldTerms
-                * MIN_MAX_TERM_LENGTH[1]);
+                * idxConf.TERM_LENGTH[1]);
         Map<BytesWrap, AtomicInteger> fieldTermFreq = new HashMap(fieldTerms);
 
         // create terms for each field
@@ -219,6 +289,7 @@ public final class TestIndex implements IndexDataProvider {
         // store document field
         docContent[field] = content.toString();
 
+//        LOG.debug("DOC[{}][{}] {}", doc, field, content.toString());
         // store document field term frequency value
         for (Entry<BytesWrap, AtomicInteger> ftfEntry : fieldTermFreq.
                 entrySet()) {
@@ -243,6 +314,15 @@ public final class TestIndex implements IndexDataProvider {
     tmpIdx.flush();
 
     initialized = true;
+  }
+
+  /**
+   * Get the file directory where the temporary index resides in.
+   *
+   * @return Index directory path as string
+   */
+  public String getIndexDir() {
+    return tmpIdx.getIndexDir();
   }
 
   /**
@@ -276,8 +356,8 @@ public final class TestIndex implements IndexDataProvider {
       }
 
       final List<BytesWrap> idxTerms = new ArrayList<>(getTermSet());
-      final int queryLength = RandomValue.getInteger(MIN_MAX_QUERY_LENGTH[0],
-              MIN_MAX_QUERY_LENGTH[1]);
+      final int queryLength = RandomValue.getInteger(idxConf.QUERY_LENGTH[0],
+              idxConf.QUERY_LENGTH[1]);
       final Collection<String> terms = new HashSet<>(queryLength);
 
       for (int i = 0; i < queryLength;) {
@@ -293,16 +373,6 @@ public final class TestIndex implements IndexDataProvider {
 
     LOG.debug("Test query: {}", queryStr);
     return queryStr;
-  }
-
-  /**
-   * Get the reader to the {@link TempDiskIndex}.
-   *
-   * @return Index reader
-   * @throws IOException Thrown on low-level I/O errors
-   */
-  public IndexReader getReader() throws IOException {
-    return tmpIdx.getReader();
   }
 
   /**
@@ -323,6 +393,56 @@ public final class TestIndex implements IndexDataProvider {
     for (int i = 0; i < state.length && i < activeFieldState.length; i++) {
       activeFieldState[i] = state[i];
     }
+  }
+
+  private Environment prepareEnvironment() throws IOException {
+    final File dataDir = new File(getIndexDir() + File.separatorChar + "data");
+    dataDir.mkdirs();
+    final Collection<String> activeFields = getActiveFields();
+    return new Environment(getIndexDir(), dataDir.getPath(),
+            activeFields.toArray(new String[activeFields.size()]));
+  }
+
+  /**
+   * Setup the {@link Environment} based around the test index.
+   *
+   * @param dataProv DataProvider to use. May be null, to get a default one.
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  @edu.umd.cs.findbugs.annotations.SuppressWarnings(
+          "RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
+  public void setupEnvironment(
+          final Class<? extends IndexDataProvider> dataProv) throws
+          IOException, InstantiationException, IllegalAccessException {
+    prepareEnvironment().create(dataProv);
+  }
+
+  public void setupEnvironment(final IndexDataProvider dataProv) throws
+          IOException {
+    prepareEnvironment().create(dataProv);
+  }
+
+  /**
+   * Setup the {@link Environment} based around the test index using a default
+   * {@link IndexDataProvider} implementation.
+   *
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  public void setupEnvironment() throws IOException {
+    prepareEnvironment().create(this);
+    if (Environment.isInitialized()) {
+      Environment.addFieldsChangedListener(this);
+    }
+  }
+
+  private Collection<String> getActiveFields() {
+    Collection<String> fieldNames = new ArrayList<>(fields.size());
+    for (int i = 0; i < fields.size(); i++) {
+      if (activeFieldState[i] == 1) {
+        fieldNames.add(fields.get(i));
+      }
+    }
+    return fieldNames;
   }
 
   /**
@@ -367,24 +487,23 @@ public final class TestIndex implements IndexDataProvider {
    * @param docId Document to lookup
    * @return Map with <tt>term -> document-frequency</tt> values
    */
-  public Map<BytesWrap, Number> getDocumentTermFrequencyMap(final int docId) {
+  public Map<BytesWrap, Long> getDocumentTermFrequencyMap(final int docId) {
     if (docId < 0 || docId > documentsCount) {
       throw new IllegalArgumentException("Illegal document id " + docId + ".");
     }
 
     @SuppressWarnings("CollectionWithoutInitialCapacity")
-    final Map<BytesWrap, Number> termFreqMap = new HashMap<>();
+    final Map<BytesWrap, Long> termFreqMap = new HashMap<>();
 
     for (int fieldNum = 0; fieldNum < fields.size(); fieldNum++) {
       if (activeFieldState[fieldNum] == 1) {
-        Iterable<BytesWrap> docTerms = Fun.filter(idx.keySet(), Integer.
-                valueOf(fieldNum), docId);
+        Iterable<BytesWrap> docTerms = Fun.filter(idx.keySet(), fieldNum,
+                docId);
         for (BytesWrap term : docTerms) {
-          final Long docTermFreq = idx.get(Fun.t3(
-                  fieldNum, docId, term));
+          final Long docTermFreq = idx.get(Fun.t3(fieldNum, docId, term));
           if (termFreqMap.containsKey(term)) {
-            termFreqMap.put(term, termFreqMap.get(term).
-                    longValue() + docTermFreq);
+            termFreqMap.put(term, termFreqMap.get(term)
+                    + docTermFreq);
           } else {
             termFreqMap.put(term, docTermFreq);
           }
@@ -423,7 +542,7 @@ public final class TestIndex implements IndexDataProvider {
    * @return overall term-frequency
    */
   private int getDocumentTermFrequency(final int docId) {
-    final Map<BytesWrap, Number> docTermMap = getDocumentTermFrequencyMap(
+    final Map<BytesWrap, Long> docTermMap = getDocumentTermFrequencyMap(
             docId);
     int docTermCount = 0;
     for (Number count : docTermMap.values()) {
@@ -443,8 +562,8 @@ public final class TestIndex implements IndexDataProvider {
     for (int fieldNum = 0; fieldNum < fields.size(); fieldNum++) {
       if (activeFieldState[fieldNum] == 1) {
         for (int docId = 0; docId < documentsCount; docId++) {
-          Iterable<BytesWrap> docTerms = Fun.filter(idx.keySet(), Integer.
-                  valueOf(fieldNum), docId);
+          Iterable<BytesWrap> docTerms = Fun.filter(idx.keySet(), fieldNum,
+                  docId);
           for (BytesWrap docTerm : docTerms) {
             final long docTermFreqCount = idx.get(Fun.t3(fieldNum,
                     docId, docTerm));
@@ -500,8 +619,8 @@ public final class TestIndex implements IndexDataProvider {
       int tf = 0;
       if (activeFieldState[fieldNum] == 1) {
         for (int docId = 0; docId < documentsCount; docId++) {
-          Iterable<BytesWrap> docTerms = Fun.filter(idx.keySet(), Integer.
-                  valueOf(fieldNum), docId);
+          Iterable<BytesWrap> docTerms = Fun.filter(idx.keySet(), fieldNum,
+                  docId);
           for (BytesWrap docTerm : docTerms) {
             frequency += idx.get(Fun.t3(fieldNum, docId, docTerm));
             tf += idx.get(Fun.t3(fieldNum, docId, docTerm));
@@ -538,18 +657,6 @@ public final class TestIndex implements IndexDataProvider {
     }
     return termFrequency.doubleValue() / Long.valueOf(getTermFrequency()).
             doubleValue();
-  }
-
-  @Override
-  public String[] getFields() {
-    List<String> fieldNames = new ArrayList<>(fields.size());
-    for (int i = 0; i < fields.size(); i++) {
-      if (activeFieldState[i] == 1) {
-        fieldNames.add(fields.get(i));
-      }
-    }
-
-    return fieldNames.toArray(new String[fieldNames.size()]);
   }
 
   @Override
@@ -667,24 +774,15 @@ public final class TestIndex implements IndexDataProvider {
   }
 
   @Override
-  public String getProperty(final String prefix, final String key,
-          final String defaultValue) {
-    return defaultValue;
-  }
-
-  @Override
-  public void setProperty(final String prefix, final String key,
-          final String value) {
-    // nothing to do here
-  }
-
-  @Override
   public void dispose() {
-    // NOP
+    if (Environment.isInitialized()) {
+      Environment.removeFieldsChangedListener(this);
+    }
   }
 
   @Override
-  public Collection<BytesWrap> getDocumentsTermSet(final Collection<Integer> docIds) {
+  public Collection<BytesWrap> getDocumentsTermSet(
+          final Collection<Integer> docIds) {
     final Set<Integer> uniqueDocIds = new HashSet<>(docIds);
     @SuppressWarnings("CollectionWithoutInitialCapacity")
     final Collection<BytesWrap> terms = new HashSet<>();
@@ -695,14 +793,25 @@ public final class TestIndex implements IndexDataProvider {
     return terms;
   }
 
+  @Override
+  public void fieldsChanged(final String[] oldFields, final String[] newFields) {
+    LOG.debug("Fields changed updating states.");
+    // set all fields inactive
+    Arrays.fill(this.activeFieldState, 0);
+    // activate single fields
+    for (String field : newFields) {
+      setFieldState(field, true);
+    }
+  }
+
   // ---------- TEST ACCESSORS ----------
   /**
-   * Get the known fields list.
+   * Get the currently active field names.
    *
-   * @return Fields list
+   * @return Active field names.
    */
-  protected static List<String> test_getFields() {
-    return Collections.unmodifiableList(fields);
+  public Collection<String> test_getActiveFields() {
+    return getActiveFields();
   }
 
   /**
@@ -723,19 +832,8 @@ public final class TestIndex implements IndexDataProvider {
     return initialized;
   }
 
-  // ---------- UNSUPPORTED OPERATIONS ----------
   @Override
-  public void clearProperties() {
-    // nothing here
-  }
-
-  @Override
-  public boolean addDocument(final DocumentModel docModel) {
-    throw new UnsupportedOperationException("Not supported yet.");
-  }
-
-  @Override
-  public String getProperty(final String prefix, final String key) {
-    throw new UnsupportedOperationException("Not supported yet.");
+  public void registerPrefix(final String prefix) {
+    // NOP
   }
 }

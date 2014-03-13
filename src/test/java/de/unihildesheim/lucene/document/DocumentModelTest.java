@@ -16,19 +16,25 @@
  */
 package de.unihildesheim.lucene.document;
 
+import de.unihildesheim.TestConfig;
+import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.index.TestIndex;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.RandomValue;
 import edu.umd.cs.findbugs.annotations.SuppressWarnings;
+import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
-import org.junit.After;
+import java.util.Map.Entry;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.*;
 import org.junit.Before;
 import org.junit.Ignore;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,6 +43,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
+@RunWith(Parameterized.class)
 public final class DocumentModelTest {
 
   /**
@@ -44,11 +51,14 @@ public final class DocumentModelTest {
    */
   private static final Logger LOG = LoggerFactory.getLogger(
           DocumentModelTest.class);
-
   /**
    * Test documents index.
    */
   private static TestIndex index;
+  /**
+   * DataProvider instance currently in use.
+   */
+  private final Class<? extends IndexDataProvider> dataProvType;
 
   /**
    * Static initializer run before all tests.
@@ -57,7 +67,7 @@ public final class DocumentModelTest {
    */
   @BeforeClass
   public static void setUpClass() throws Exception {
-    index = new TestIndex();
+    index = new TestIndex(TestIndex.IndexSize.SMALL);
     assertTrue("TestIndex is not initialized.", TestIndex.test_isInitialized());
   }
 
@@ -70,12 +80,30 @@ public final class DocumentModelTest {
     index.dispose();
   }
 
-  @Before
-  public void setUp() throws Exception {
+  @Parameterized.Parameters
+  public static Collection<Object[]> data() {
+    Collection<Object[]> params = TestConfig.getDataProviderParameter();
+    params.add(new Object[]{null});
+    return params;
   }
 
-  @After
-  public void tearDown() throws Exception {
+  public DocumentModelTest(final Class<? extends IndexDataProvider> dataProv) {
+    this.dataProvType = dataProv;
+  }
+
+  /**
+   * Run before each test starts.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Before
+  public void setUp() throws Exception {
+    Environment.clear();
+    if (this.dataProvType == null) {
+      index.setupEnvironment();
+    } else {
+      index.setupEnvironment(this.dataProvType);
+    }
   }
 
   /**
@@ -85,11 +113,13 @@ public final class DocumentModelTest {
   public void testContains() {
     LOG.info("Test contains");
 
-    for (int i = 0; i < index.getDocumentCount(); i++) {
-      final DocumentModel docModel = index.getDocumentModel(i);
+    for (int i = 0; i < Environment.getDataProvider().getDocumentCount(); i++) {
+      final DocumentModel docModel = Environment.getDataProvider().
+              getDocumentModel(i);
+      final DocumentModel docModelExp = index.getDocumentModel(i);
       for (BytesWrap bw : docModel.termFreqMap.keySet()) {
-        assertEquals("Document contains term mismatch.", index.
-                documentContains(i, bw), docModel.contains(bw));
+        assertEquals("Document contains term mismatch.", docModelExp.contains(
+                bw), docModel.contains(bw));
       }
     }
   }
@@ -102,20 +132,21 @@ public final class DocumentModelTest {
   public void testTermFrequency() {
     LOG.info("Test termFrequency");
 
-    for (int i = 0; i < index.getDocumentCount(); i++) {
-      final DocumentModel docModel = index.getDocumentModel(i);
-      final Map<BytesWrap, Number> docTfMap = index.
-              getDocumentTermFrequencyMap(i);
+    for (int i = 0; i < Environment.getDataProvider().getDocumentCount(); i++) {
+      final Map<BytesWrap, Long> tfMap = Environment.getDataProvider().
+              getDocumentModel(i).termFreqMap;
+      final Map<BytesWrap, Long> tfMapExp = index.getDocumentTermFrequencyMap(
+              i);
 
-      assertEquals("Term count mismatch between index and model.", docTfMap.
-              size(), docModel.termFreqMap.size());
-      assertTrue("Term mismatch between index and model.", docTfMap.keySet().
-              containsAll(docModel.termFreqMap.keySet()));
+      assertEquals("Term count mismatch between index and model.", tfMapExp.
+              size(), tfMap.size());
+      assertTrue("Term mismatch between index and model.", tfMapExp.keySet().
+              containsAll(tfMap.keySet()));
 
-      for (BytesWrap bw : docModel.termFreqMap.keySet()) {
+      for (Entry<BytesWrap, Long> tfEntry : tfMap.entrySet()) {
         assertEquals("Document term frequency mismatch "
-                + "between index and model.", (Long) docTfMap.get(bw).
-                longValue(), docModel.termFreqMap.get(bw));
+                + "between index and model.", tfMapExp.get(tfEntry.getKey()),
+                tfEntry.getValue());
       }
     }
   }
@@ -124,20 +155,22 @@ public final class DocumentModelTest {
    * Test of equals method, of class DocumentModel.
    */
   @Test
-  @Ignore
   public void testEquals() {
     LOG.info("Test equals");
 
-    final int firstDocId = RandomValue.getInteger(0, (int) index.
-            getDocumentCount());
-    int secondDocId = RandomValue.getInteger(0, (int) index.
-            getDocumentCount());
+    final int firstDocId = RandomValue.getInteger(0, (int) Environment.
+            getDataProvider().getDocumentCount());
+    int secondDocId = RandomValue.getInteger(0, (int) Environment.
+            getDataProvider().getDocumentCount());
     while (secondDocId == firstDocId) {
-      secondDocId = RandomValue.getInteger(0, (int) index.getDocumentCount());
+      secondDocId = RandomValue.getInteger(0, (int) Environment.
+              getDataProvider().getDocumentCount());
     }
 
-    final DocumentModel firstDocModel = index.getDocumentModel(firstDocId);
-    final DocumentModel secondDocModel = index.getDocumentModel(secondDocId);
+    final DocumentModel firstDocModel = Environment.getDataProvider().
+            getDocumentModel(firstDocId);
+    final DocumentModel secondDocModel = Environment.getDataProvider().
+            getDocumentModel(secondDocId);
 
     assertFalse("DocModels should not be the same.", firstDocModel.equals(
             secondDocModel));
@@ -158,25 +191,32 @@ public final class DocumentModelTest {
   @Test
   public void testHashCode() {
     LOG.info("Test hashCode");
-    final int firstDocId = RandomValue.getInteger(0, (int) index.
+    final int firstDocId = RandomValue.getInteger(0, (int) Environment.
+            getDataProvider().
             getDocumentCount());
-    int secondDocId = RandomValue.getInteger(0, (int) index.
+    int secondDocId = RandomValue.getInteger(0, (int) Environment.
+            getDataProvider().
             getDocumentCount());
     while (secondDocId == firstDocId) {
-      secondDocId = RandomValue.getInteger(0, (int) index.getDocumentCount());
+      secondDocId = RandomValue.getInteger(0, (int) Environment.
+              getDataProvider().getDocumentCount());
     }
 
-    final DocumentModel firstDocModel = index.getDocumentModel(firstDocId);
-    final DocumentModel secondDocModel = index.getDocumentModel(secondDocId);
+    final DocumentModel firstDocModel = Environment.getDataProvider().
+            getDocumentModel(firstDocId);
+    final DocumentModel secondDocModel = Environment.getDataProvider().
+            getDocumentModel(secondDocId);
 
     // test two different models
-    assertNotEquals("DocModels hashCode should not be the same.",
+    assertNotEquals("DocModels hashCode should not be the same. ("
+            + firstDocModel.id + ", " + secondDocModel.id + ")",
             firstDocModel.hashCode(), secondDocModel.hashCode());
 
     // get the same model again an test
     assertEquals("DocModels hashCode should be the same "
             + "for the same document.", firstDocModel.hashCode(),
-            index.getDocumentModel(firstDocId).hashCode());
+            Environment.getDataProvider().getDocumentModel(firstDocId).
+            hashCode());
 
     // change a model
     final DocumentModel.DocumentModelBuilder derivedDocModel
@@ -197,12 +237,16 @@ public final class DocumentModelTest {
   @Test
   public void testGetSmoothedRelativeTermFrequency() {
     LOG.info("Test getSmoothedRelativeTermFrequency");
-    for (int i = 0; i < index.getDocumentCount(); i++) {
-      final DocumentModel docModel = index.getDocumentModel(i);
+    final int smoothingAmount = 100;
+    for (int i = 0; i < Environment.getDataProvider().getDocumentCount(); i++) {
+      final DocumentModel docModel = Environment.getDataProvider().
+              getDocumentModel(i);
       for (BytesWrap bw : docModel.termFreqMap.keySet()) {
-        LOG.debug("docId={} tf={} rtf={} stf={}", docModel.id, docModel.
-                termFrequency(bw), docModel.getRelativeTermFrequency(bw),
-                docModel.getSmoothedRelativeTermFrequency(index, bw, 100));
+        assertNotEquals("Smoothed and absolute relative term frequency "
+                + "should not be the same.", docModel.
+                getRelativeTermFrequency(bw), docModel.
+                getSmoothedRelativeTermFrequency(Environment.getDataProvider(),
+                        bw, smoothingAmount));
       }
     }
   }

@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.lucene.scoring.clarity.impl;
 
+import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.query.QueryUtils;
 import de.unihildesheim.lucene.scoring.clarity.ClarityScoreCalculation;
@@ -23,7 +24,6 @@ import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.TimeMeasure;
 import java.io.IOException;
 import java.util.Collection;
-import java.util.HashSet;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.Query;
@@ -52,28 +52,14 @@ public final class SimplifiedClarityScore implements ClarityScoreCalculation {
           SimplifiedClarityScore.class);
 
   /**
-   * Provider for statistical index related informations. Accessed from nested
-   * thread class.
-   */
-  private final IndexDataProvider dataProv;
-
-  /**
-   * Index reader used by this instance. Accessed from nested thread class.
-   */
-  private final IndexReader reader;
-
-  /**
    * Default constructor using the {@link IndexDataProvider} for statistical
    * index data.
    *
    * @param indexReader {@link IndexReader} to use by this instance
    * @param dataProvider Provider for statistical index data
    */
-  public SimplifiedClarityScore(final IndexReader indexReader,
-          final IndexDataProvider dataProvider) {
+  public SimplifiedClarityScore() {
     super();
-    this.reader = indexReader;
-    this.dataProv = dataProvider;
   }
 
   /**
@@ -86,7 +72,7 @@ public final class SimplifiedClarityScore implements ClarityScoreCalculation {
     // length of the (rewritten) query
     final int queryLength = queryTerms.size();
     // number of unique terms in collection
-    final double collTermCount = Long.valueOf(this.dataProv.
+    final double collTermCount = Long.valueOf(Environment.getDataProvider().
             getUniqueTermsCount()).doubleValue();
 
     double result = 0d;
@@ -104,7 +90,9 @@ public final class SimplifiedClarityScore implements ClarityScoreCalculation {
       }
       double pMl = Integer.valueOf(termCount).doubleValue() / Integer.valueOf(
               queryLength).doubleValue();
-      double pColl = dataProv.getTermFrequency(queryTerm).doubleValue()
+      double pColl
+              = Environment.getDataProvider().getTermFrequency(queryTerm).
+              doubleValue()
               / collTermCount;
       double log = (Math.log(pMl) / Math.log(2)) - (Math.log(pColl) / Math.
               log(2));
@@ -121,14 +109,15 @@ public final class SimplifiedClarityScore implements ClarityScoreCalculation {
       throw new IllegalArgumentException("Query was empty.");
     }
 
-    final Query queryObj = QueryUtils.buildQuery(this.dataProv.getFields(), query);
+    final Query queryObj = QueryUtils.buildQuery(
+            Environment.getFields(), query);
 
     // pre-check query terms
     final Collection<BytesWrap> queryTerms;
     try {
       // get all query terms - list must NOT be unique!
-      queryTerms = QueryUtils.getAllQueryTerms(this.reader, queryObj,
-              this.dataProv.getFields());
+      queryTerms = QueryUtils.getAllQueryTerms(Environment.getIndexReader(),
+              queryObj, Environment.getFields());
     } catch (IOException ex) {
       LOG.error("Caught exception while preparing calculation.", ex);
       return null;

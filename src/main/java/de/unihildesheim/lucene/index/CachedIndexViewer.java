@@ -54,11 +54,6 @@ public final class CachedIndexViewer {
   private String storageId;
 
   /**
-   * Default number of items to show, if no amount was given.
-   */
-  private static final int DEFAULT_AMOUNT = 100;
-
-  /**
    * CLI-parameter specifying the storage id to load.
    */
   @Parameter(names = "-command", description
