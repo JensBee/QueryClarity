@@ -16,8 +16,9 @@
  */
 package de.unihildesheim.lucene.document;
 
+import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.index.IndexDataProvider;
-import de.unihildesheim.util.Configuration;
+import de.unihildesheim.util.ConfigurationOLD;
 import de.unihildesheim.lucene.util.BytesWrap;
 import java.util.HashMap;
 import java.util.Map;
@@ -63,7 +64,7 @@ public final class DocumentModel {
     }
     this.id = builder.docId;
     this.termFrequency = builder.termFreq;
-    this.termFreqMap = new HashMap(builder.termFreqMap.size());
+    this.termFreqMap = new HashMap<>(builder.termFreqMap.size());
     this.termFreqMap.putAll(builder.termFreqMap);
     calcHash();
   }
@@ -102,13 +103,20 @@ public final class DocumentModel {
     return tf.doubleValue() / Long.valueOf(termFrequency).doubleValue();
   }
 
+  public double getSmoothedRelativeTermFrequency(final BytesWrap term,
+          final double smoothing) {
+    return getSmoothedRelativeTermFrequency(Environment.getDataProvider(),
+            term, smoothing);
+  }
+
   public double getSmoothedRelativeTermFrequency(
           final IndexDataProvider dataProv,
-          final BytesWrap term, final int smoothing) {
+          final BytesWrap term, final double smoothing) {
     final double termFreq = termFrequency(term).doubleValue();
     final double relCollFreq = dataProv.getRelativeTermFrequency(term);
     return ((termFreq + smoothing) * relCollFreq) / (termFreq
-            + (this.termFreqMap.size() * smoothing));
+            + (Integer.valueOf(this.termFreqMap.size()).doubleValue()
+            * smoothing));
   }
 
   @Override
@@ -147,7 +155,8 @@ public final class DocumentModel {
   private void calcHash() {
     this.hashCode = 7;
     this.hashCode = 19 * this.hashCode + this.id;
-    this.hashCode = 19 * this.hashCode + (int) (this.termFrequency ^ (this.termFrequency
+    this.hashCode = 19 * this.hashCode + (int) (this.termFrequency
+            ^ (this.termFrequency
             >>> 32));
     this.hashCode = 19 * this.hashCode * this.termFreqMap.size();
   }
@@ -170,7 +179,7 @@ public final class DocumentModel {
      * Default number of terms to expect for a document. Used to initialize
      * data storage to a appropriate size.
      */
-    private static final int DEFAULT_TERMS_COUNT = Configuration.
+    private static final int DEFAULT_TERMS_COUNT = ConfigurationOLD.
             getInt(CONF_PREFIX + "defaultTermsCount", 100);
     /**
      * Term -> frequency mapping for every known term in the document.

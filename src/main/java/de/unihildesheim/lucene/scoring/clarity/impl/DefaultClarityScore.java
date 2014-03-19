@@ -21,9 +21,11 @@ import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.Feedback;
 import de.unihildesheim.util.concurrent.processing.Processing;
 import de.unihildesheim.lucene.index.IndexDataProvider;
+import de.unihildesheim.lucene.metrics.CollectionMetrics;
 import de.unihildesheim.lucene.query.QueryUtils;
+import de.unihildesheim.lucene.query.TermsQueryBuilder;
 import de.unihildesheim.lucene.scoring.clarity.ClarityScoreCalculation;
-import de.unihildesheim.util.Configuration;
+import de.unihildesheim.util.ConfigurationOLD;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.util.TimeMeasure;
@@ -32,6 +34,7 @@ import de.unihildesheim.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.util.concurrent.processing.Source;
 import de.unihildesheim.util.concurrent.processing.Target;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
@@ -39,6 +42,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.QueryBuilder;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -106,7 +110,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * Default multiplier value for relative term frequency inside documents.
    */
   private static final double DEFAULT_LANGMODEL_WEIGHT
-          = Configuration.getDouble(CONF_PREFIX
+          = ConfigurationOLD.getDouble(CONF_PREFIX
                   + "defaultLangModelWeight", 0.6d);
 
   /**
@@ -119,7 +123,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * recommend 500 documents.
    */
   private static final int DEFAULT_FEEDBACK_DOCS_COUNT
-          = Configuration.getInt(CONF_PREFIX
+          = ConfigurationOLD.getInt(CONF_PREFIX
                   + "defaultFeedbackDocCount", 500);
 
   /**
@@ -331,7 +335,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     BytesWrap queryTerm;
     while (queryTermsIt.hasNext()) {
       queryTerm = queryTermsIt.next();
-      if (Environment.getDataProvider().getTermFrequency(queryTerm) == null) {
+      if (CollectionMetrics.tf(queryTerm) == null) {
         queryTermsIt.remove();
       }
     }
@@ -394,16 +398,16 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * @param feedbackDocuments Documents to use for feedback calculations
    * @return Calculated clarity score
    */
-  protected ClarityScoreResult calculateClarity(final Query query,
+  protected ClarityScoreResult calculateClarity(final String query,
           final Collection<Integer> feedbackDocuments) {
     try {
       // Get unique query terms
-      this.queryTerms = QueryUtils.getUniqueQueryTerms(Environment.
-              getIndexReader(), query);
-    } catch (IOException ex) {
-      LOG.error("Caught exception while preparing calculation.", ex);
+      this.queryTerms = QueryUtils.getUniqueQueryTerms(query);
+    } catch (UnsupportedEncodingException | ParseException ex) {
+      LOG.error("Caught exception parsing query.", ex);
       return null;
     }
+
     if (this.queryTerms == null || this.queryTerms.isEmpty()) {
       throw new IllegalStateException("No query terms.");
     }
@@ -418,16 +422,12 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
       throw new IllegalArgumentException("Query was empty.");
     }
 
-    final Query queryObj = QueryUtils.buildQuery(Environment.getFields(),
-            query);
+    final Query queryObj = TermsQueryBuilder.buildFromEnvironment(query);
 
     // get feedback documents
     final Collection<Integer> feedbackDocuments;
     try {
-//      feedbackDocuments = Feedback.getFixed(this.reader, query,
-//              this.fbDocCount);
-      feedbackDocuments = Feedback.getFixed(Environment.getIndexReader(),
-              queryObj, this.fbDocCount);
+      feedbackDocuments = Feedback.getFixed(queryObj, this.fbDocCount);
 
     } catch (IOException ex) {
       LOG.error("Caught exception while preparing calculation.", ex);
@@ -437,7 +437,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
       throw new IllegalStateException("No feedback documents.");
     }
 
-    return calculateClarity(queryObj, feedbackDocuments);
+    return calculateClarity(query, feedbackDocuments);
   }
 
   /**

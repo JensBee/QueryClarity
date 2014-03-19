@@ -18,15 +18,15 @@ package de.unihildesheim.lucene.scoring.clarity.impl;
 
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.index.IndexDataProvider;
+import de.unihildesheim.lucene.metrics.CollectionMetrics;
 import de.unihildesheim.lucene.query.QueryUtils;
 import de.unihildesheim.lucene.scoring.clarity.ClarityScoreCalculation;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.TimeMeasure;
-import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.Collection;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.search.Query;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -91,7 +91,7 @@ public final class SimplifiedClarityScore implements ClarityScoreCalculation {
       double pMl = Integer.valueOf(termCount).doubleValue() / Integer.valueOf(
               queryLength).doubleValue();
       double pColl
-              = Environment.getDataProvider().getTermFrequency(queryTerm).
+              = CollectionMetrics.tf(queryTerm).
               doubleValue()
               / collTermCount;
       double log = (Math.log(pMl) / Math.log(2)) - (Math.log(pColl) / Math.
@@ -109,16 +109,12 @@ public final class SimplifiedClarityScore implements ClarityScoreCalculation {
       throw new IllegalArgumentException("Query was empty.");
     }
 
-    final Query queryObj = QueryUtils.buildQuery(
-            Environment.getFields(), query);
-
     // pre-check query terms
     final Collection<BytesWrap> queryTerms;
     try {
       // get all query terms - list must NOT be unique!
-      queryTerms = QueryUtils.getAllQueryTerms(Environment.getIndexReader(),
-              queryObj, Environment.getFields());
-    } catch (IOException ex) {
+      queryTerms = QueryUtils.getAllQueryTerms(query);
+    } catch (UnsupportedEncodingException ex) {
       LOG.error("Caught exception while preparing calculation.", ex);
       return null;
     }
@@ -126,21 +122,15 @@ public final class SimplifiedClarityScore implements ClarityScoreCalculation {
       throw new IllegalStateException("No query terms.");
     }
 
-    // convert query to readable string for logging output
-    StringBuilder queryStr = new StringBuilder(100);
-    for (BytesWrap bw : queryTerms) {
-      queryStr.append(bw.toString()).append(' ');
-    }
-    LOG.info("Calculating clarity score. query={}", queryStr);
+    LOG.info("Calculating clarity score. query={}", query);
     final TimeMeasure timeMeasure = new TimeMeasure().start();
 
     final double score = calculateScore(queryTerms);
 
-    LOG.debug("Calculation results: query={} score={}.",
-            queryStr, score);
+    LOG.debug("Calculation results: query={} score={}.", query, score);
 
     LOG.debug("Calculating simplified clarity score for query {} "
-            + "took {}.", queryStr, timeMeasure.getTimeString());
+            + "took {}.", query, timeMeasure.getTimeString());
 
     return new ClarityScoreResult(this.getClass(), score);
   }

@@ -18,8 +18,10 @@ package de.unihildesheim.lucene.document;
 
 import de.unihildesheim.TestConfig;
 import de.unihildesheim.lucene.Environment;
+import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.index.TestIndex;
+import de.unihildesheim.lucene.metrics.CollectionMetrics;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.RandomValue;
 import java.util.Arrays;
@@ -44,23 +46,13 @@ import org.slf4j.LoggerFactory;
  * @author Jens Bertram <code@jens-bertram.net>
  */
 @RunWith(Parameterized.class)
-public class DocFieldsTermsEnumTest {
+public class DocFieldsTermsEnumTest extends MultiIndexDataProviderTestCase {
 
   /**
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(
           DocFieldsTermsEnumTest.class);
-
-  /**
-   * Test documents index.
-   */
-  private static TestIndex index;
-
-  /**
-   * DataProvider instance currently in use.
-   */
-  private final Class<? extends IndexDataProvider> dataProvType;
 
   /**
    * Static initializer run before all tests.
@@ -89,24 +81,17 @@ public class DocFieldsTermsEnumTest {
    */
   @Before
   public void setUp() throws Exception {
-    Environment.clear();
-    if (this.dataProvType == null) {
-      index.setupEnvironment();
-    } else {
-      index.setupEnvironment(this.dataProvType);
-    }
+    caseSetUp();
   }
 
   @Parameterized.Parameters
   public static Collection<Object[]> data() {
-    Collection<Object[]> params = TestConfig.getDataProviderParameter();
-    params.add(new Object[]{null});
-    return params;
+    return getCaseParameters();
   }
 
   public DocFieldsTermsEnumTest(
           final Class<? extends IndexDataProvider> dataProv) {
-    this.dataProvType = dataProv;
+    super(dataProv);
   }
 
   /**
@@ -119,7 +104,7 @@ public class DocFieldsTermsEnumTest {
     LOG.info("Test setDocument");
 
     DocFieldsTermsEnum instance = new DocFieldsTermsEnum();
-    for (int i = 0; i < Environment.getDataProvider().getDocumentCount(); i++) {
+    for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
       instance.setDocument(i);
     }
   }
@@ -133,7 +118,7 @@ public class DocFieldsTermsEnumTest {
   public void testReset() throws Exception {
     LOG.info("Test reset");
     DocFieldsTermsEnum instance = new DocFieldsTermsEnum();
-    for (int i = 0; i < Environment.getDataProvider().getDocumentCount(); i++) {
+    for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
       instance.setDocument(i);
       int count = 0;
       int oldCount = 0;
@@ -168,8 +153,8 @@ public class DocFieldsTermsEnumTest {
 
     // test with all fields enabled
     instance = new DocFieldsTermsEnum();
-    for (int i = 0; i < Environment.getDataProvider().getDocumentCount(); i++) {
-      tfMap = Environment.getDataProvider().getDocumentModel(i).termFreqMap; //index.getDocumentTermFrequencyMap(i);
+    for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
+      tfMap = Environment.getDataProvider().getDocumentModel(i).termFreqMap;
       dftMap = new HashMap<>(tfMap.size());
 
       instance.setDocument(i);

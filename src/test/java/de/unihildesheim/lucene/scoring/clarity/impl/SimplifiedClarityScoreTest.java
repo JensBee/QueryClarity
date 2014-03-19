@@ -18,13 +18,13 @@ package de.unihildesheim.lucene.scoring.clarity.impl;
 
 import de.unihildesheim.TestConfig;
 import de.unihildesheim.lucene.Environment;
+import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.index.TestIndex;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.MathUtils;
 import java.util.ArrayList;
 import java.util.Collection;
-import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -42,22 +42,13 @@ import org.slf4j.LoggerFactory;
  * @author Jens Bertram <code@jens-bertram.net>
  */
 @RunWith(Parameterized.class)
-public class SimplifiedClarityScoreTest {
+public final class SimplifiedClarityScoreTest extends MultiIndexDataProviderTestCase {
 
   /**
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(
           SimplifiedClarityScoreTest.class);
-  /**
-   * DataProvider instance currently in use.
-   */
-  private final Class<? extends IndexDataProvider> dataProvType;
-
-  /**
-   * Test documents index.
-   */
-  private static TestIndex index;
 
   /**
    * Static initializer run before all tests.
@@ -86,26 +77,17 @@ public class SimplifiedClarityScoreTest {
    */
   @Before
   public void setUp() throws Exception {
-    Environment.clear();
-    if (this.dataProvType == null) {
-      index.setupEnvironment();
-    } else {
-      index.setupEnvironment(this.dataProvType);
-    }
-    index.clearTermData();
-    Environment.clearAllProperties();
+    caseSetUp();
   }
 
   @Parameters
   public static Collection<Object[]> data() {
-    Collection<Object[]> params = TestConfig.getDataProviderParameter();
-    params.add(new Object[]{null});
-    return params;
+    return getCaseParameters();
   }
 
   public SimplifiedClarityScoreTest(
           final Class<? extends IndexDataProvider> dataProv) {
-    this.dataProvType = dataProv;
+    super(dataProv);
   }
 
   /**
@@ -119,7 +101,7 @@ public class SimplifiedClarityScoreTest {
     final String query = index.getQueryString();
     final SimplifiedClarityScore instance = new SimplifiedClarityScore();
 
-    final Collection<BytesWrap> queryTerms = new ArrayList(15);
+    final Collection<BytesWrap> queryTerms = new ArrayList<>(15);
     for (String qTerm : query.split("\\s+")) {
       queryTerms.add(new BytesWrap(qTerm.getBytes("UTF-8")));
     }

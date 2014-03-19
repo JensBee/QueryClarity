@@ -18,6 +18,7 @@ package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModel;
+import de.unihildesheim.lucene.query.TermsQueryBuilder;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.RandomValue;
 import de.unihildesheim.util.StringUtils;
@@ -26,9 +27,11 @@ import de.unihildesheim.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.util.concurrent.processing.Source;
 import java.io.File;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -39,6 +42,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.search.Query;
 import org.mapdb.BTreeMap;
 import org.mapdb.DBMaker;
 import org.mapdb.Fun;
@@ -51,7 +55,8 @@ import org.slf4j.LoggerFactory;
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public final class TestIndex implements IndexDataProvider,
-        Environment.FieldsChangedListener {
+        Environment.FieldsChangedListener,
+        Environment.StopwordsChangedListener {
 
   /**
    * Logger instance for this class.
@@ -79,6 +84,11 @@ public final class TestIndex implements IndexDataProvider,
    * Temporary Lucene index held in memory.
    */
   private static TempDiskIndex tmpIdx;
+
+  /**
+   * List of stop-words to exclude from term frequency calculations.
+   */
+  private static Collection<BytesWrap> stopWords = Collections.emptySet();
 
   /**
    * Configuration to create different sizes of test indexes.
@@ -135,31 +145,31 @@ public final class TestIndex implements IndexDataProvider,
     /**
      * Minimum and maximum amount of fields to create.
      */
-    private final int[] FIELDS;
+    final int[] fieldCount;
     /**
      * Minimum and maximum number of documents to create.
      */
-    private final int[] DOCS;
+    final int[] docCount;
     /**
      * Minimum and maximum length of a random generated document (in terms per
      * field).
      */
-    private final int[] DOC_LENGTH;
+    final int[] docLength;
     /**
      * Minimum and maximum length of a random term in a document.
      */
-    private final int[] TERM_LENGTH;
+    final int[] termLength;
     /**
      * Minimum and maximum length of a random generated query.
      */
-    private final int[] QUERY_LENGTH;
+    final int[] queryLength;
 
     IndexSize(final int[] sizes) {
-      DOCS = new int[]{sizes[0], sizes[1]};
-      FIELDS = new int[]{sizes[2], sizes[3]};
-      DOC_LENGTH = new int[]{sizes[4], sizes[5]};
-      TERM_LENGTH = new int[]{sizes[6], sizes[7]};
-      QUERY_LENGTH = new int[]{sizes[8], sizes[9]};
+      docCount = new int[]{sizes[0], sizes[1]};
+      fieldCount = new int[]{sizes[2], sizes[3]};
+      docLength = new int[]{sizes[4], sizes[5]};
+      termLength = new int[]{sizes[6], sizes[7]};
+      queryLength = new int[]{sizes[8], sizes[9]};
     }
   }
 
@@ -188,15 +198,28 @@ public final class TestIndex implements IndexDataProvider,
     if (!initialized) {
       idxConf = indexSize;
       createIndex();
-      if (Environment.isInitialized()) {
-        Environment.addFieldsChangedListener(this);
-      }
+      Environment.addFieldsChangedListener(this);
+      Environment.addStopwordsChangedListener(this);
     }
     this.activeFieldState = new int[fields.size()];
     // set all fields active
     Arrays.fill(this.activeFieldState, 1);
 
     this.prefixMap = new ConcurrentHashMap<>();
+  }
+
+  @Override
+  public int getDocumentFrequency(BytesWrap term) {
+    if (stopWords.contains(term)) {
+      return 0;
+    }
+    int freq = 0;
+    for (Integer docId : getDocumentIds()) {
+      if (documentContains(docId, term)) {
+        freq++;
+      }
+    }
+    return freq;
   }
 
   /**
@@ -218,8 +241,8 @@ public final class TestIndex implements IndexDataProvider,
     idx = DBMaker.newTempTreeMap();
 
     // generate random document fields
-    final int fieldsCount = RandomValue.getInteger(idxConf.FIELDS[0],
-            idxConf.FIELDS[1]);
+    final int fieldsCount = RandomValue.getInteger(idxConf.fieldCount[0],
+            idxConf.fieldCount[1]);
     fields = new ArrayList<>(fieldsCount);
     for (int i = 0; i < fieldsCount; i++) {
       fields.add(i + "_" + RandomValue.getString(3, 10));
@@ -229,23 +252,23 @@ public final class TestIndex implements IndexDataProvider,
     tmpIdx = new TempDiskIndex(fields.toArray(new String[fields.size()]));
 
     // set the number of random documents to create
-    documentsCount = RandomValue.getInteger(idxConf.DOCS[0],
-            idxConf.DOCS[1]);
+    documentsCount = RandomValue.getInteger(idxConf.docCount[0],
+            idxConf.docCount[1]);
 
     LOG.info("Creating a {} sized index with {} documents, {} fields each "
             + "and a maximum of {} terms per field. This may take some time.",
             idxConf.toString(), documentsCount, fieldsCount,
-            idxConf.DOC_LENGTH[1]);
+            idxConf.docLength[1]);
 
     final int termSeedSize = (int) ((fieldsCount * documentsCount
-            * idxConf.DOC_LENGTH[1]) * 0.0005);
+            * idxConf.docLength[1]) * 0.005);
 
     // generate a seed of random terms
     LOG.info("Creating term seed with {} terms.", termSeedSize);
     final List<String> seedTermList = new ArrayList<>(termSeedSize);
     while (seedTermList.size() < termSeedSize) {
-      seedTermList.add(RandomValue.getString(idxConf.TERM_LENGTH[0],
-              idxConf.TERM_LENGTH[1]));
+      seedTermList.add(RandomValue.getString(idxConf.termLength[0],
+              idxConf.termLength[1]));
     }
 
     // gather some documents for bulk commits
@@ -259,11 +282,12 @@ public final class TestIndex implements IndexDataProvider,
 
       // create document fields
       for (int field = 0; field < fieldsCount; field++) {
-        int fieldTerms = RandomValue.getInteger(idxConf.DOC_LENGTH[0],
-                idxConf.DOC_LENGTH[1]);
+        int fieldTerms = RandomValue.getInteger(idxConf.docLength[0],
+                idxConf.docLength[1]);
         StringBuilder content = new StringBuilder(fieldTerms
-                * idxConf.TERM_LENGTH[1]);
-        Map<BytesWrap, AtomicInteger> fieldTermFreq = new HashMap(fieldTerms);
+                * idxConf.termLength[1]);
+        Map<BytesWrap, AtomicInteger> fieldTermFreq
+                = new HashMap<>(fieldTerms);
 
         // create terms for each field
         for (int term = 0; term < fieldTerms; term++) {
@@ -326,13 +350,48 @@ public final class TestIndex implements IndexDataProvider,
   }
 
   /**
-   * Get a random query matching terms from the documents in index.
+   * Get a random query matching terms from the documents in index. The terms
+   * in the query are not unique.
    *
-   * @return Random query
+   * @return Random query string
    * @throws ParseException Thrown on query parsing errors
    */
   public String getQueryString() throws ParseException {
-    return getQueryString(null);
+    return getQueryString(null, false);
+  }
+
+  /**
+   * Get a random query matching terms from the documents in index. The terms
+   * in the query are not unique.
+   *
+   * @return Query generated from random query string
+   * @throws ParseException Thrown on query parsing errors
+   */
+  public Query getQueryObj() throws ParseException {
+    return TermsQueryBuilder.buildFromEnvironment(getQueryString());
+  }
+
+  /**
+   * Get a random query matching terms from the documents in index. All terms
+   * in the query are unique.
+   *
+   * @return Random query String
+   * @throws ParseException Thrown on query parsing errors
+   */
+  public String getUniqueQueryString() throws ParseException {
+    return getQueryString(null, true);
+  }
+
+  /**
+   * Create a query string from the given terms.
+   *
+   * @param queryTerms Terms to use in query
+   * @return A query String consisting of the given terms
+   * @throws ParseException Thrown on query parsing errors
+   */
+  public String getQueryString(final String[] queryTerms) throws
+          ParseException {
+    return getQueryString(queryTerms, false);
   }
 
   /**
@@ -342,11 +401,29 @@ public final class TestIndex implements IndexDataProvider,
    * @return A query object consisting of the given terms
    * @throws ParseException Thrown on query parsing errors
    */
-  public String getQueryString(final String[] queryTerms) throws
-          ParseException {
+  public Query getQueryObj(final String[] queryTerms) throws ParseException {
+    return TermsQueryBuilder.buildFromEnvironment(getQueryString(queryTerms));
+  }
+
+  /**
+   * Create a query object from the given terms or create a random query, if
+   * no terms were given.
+   *
+   * @param queryTerms List of terms to include in the query, or null to
+   * create a random query
+   * @param unique If true and not terms are given, then query terms are
+   * unique
+   * @return A query String consisting of the given terms
+   * @throws ParseException Thrown on query parsing errors
+   */
+  private String getQueryString(final String[] queryTerms,
+          final boolean unique) throws ParseException {
     final String queryStr;
 
     if (queryTerms != null) {
+      if (queryTerms.length == 0) {
+        throw new IllegalArgumentException("Query terms where empty.");
+      }
       // create query string from passed-in terms
       queryStr = StringUtils.join(queryTerms, " ");
     } else {
@@ -356,14 +433,36 @@ public final class TestIndex implements IndexDataProvider,
       }
 
       final List<BytesWrap> idxTerms = new ArrayList<>(getTermSet());
-      final int queryLength = RandomValue.getInteger(idxConf.QUERY_LENGTH[0],
-              idxConf.QUERY_LENGTH[1]);
-      final Collection<String> terms = new HashSet<>(queryLength);
+      final int queryLength = RandomValue.getInteger(idxConf.queryLength[0],
+              idxConf.queryLength[1]);
 
-      for (int i = 0; i < queryLength;) {
-        if (terms.add(idxTerms.get(RandomValue.
-                getInteger(0, idxTerms.size() - 1)).toString())) {
-          i++;
+      final Collection<String> terms;
+
+      // check, if terms should be unique
+      if (unique == true) {
+        terms = new HashSet<>(queryLength);
+      } else {
+        terms = new ArrayList<>(queryLength);
+      }
+
+      if (idxConf.queryLength[0] >= idxTerms.size()) {
+        LOG.warn("Minimum query length exceedes unique term count in index. "
+                + "Adding all index terms to query.");
+        for (BytesWrap term : idxTerms) {
+          terms.add(term.toString());
+        }
+      } else if (queryLength >= idxTerms.size()) {
+        LOG.warn("Random query length exceedes unique term count in index. "
+                + "Adding all index terms to query.");
+        for (BytesWrap term : idxTerms) {
+          terms.add(term.toString());
+        }
+      } else {
+        for (int i = 0; i < queryLength;) {
+          if (terms.add(idxTerms.get(RandomValue.getInteger(0, idxTerms.size()
+                  - 1)).toString())) {
+            i++;
+          }
         }
       }
 
@@ -399,8 +498,11 @@ public final class TestIndex implements IndexDataProvider,
     final File dataDir = new File(getIndexDir() + File.separatorChar + "data");
     dataDir.mkdirs();
     final Collection<String> activeFields = getActiveFields();
-    return new Environment(getIndexDir(), dataDir.getPath(),
+    final Environment env = new Environment(getIndexDir(), dataDir.getPath(),
             activeFields.toArray(new String[activeFields.size()]));
+    Environment.addFieldsChangedListener(this);
+    Environment.addStopwordsChangedListener(this);
+    return env;
   }
 
   /**
@@ -435,6 +537,11 @@ public final class TestIndex implements IndexDataProvider,
     }
   }
 
+  /**
+   * Get a list of active fields.
+   *
+   * @return Collection of active fields
+   */
   private Collection<String> getActiveFields() {
     Collection<String> fieldNames = new ArrayList<>(fields.size());
     for (int i = 0; i < fields.size(); i++) {
@@ -500,6 +607,9 @@ public final class TestIndex implements IndexDataProvider,
         Iterable<BytesWrap> docTerms = Fun.filter(idx.keySet(), fieldNum,
                 docId);
         for (BytesWrap term : docTerms) {
+          if (stopWords.contains(term)) { // skip stopwords
+            continue;
+          }
           final Long docTermFreq = idx.get(Fun.t3(fieldNum, docId, term));
           if (termFreqMap.containsKey(term)) {
             termFreqMap.put(term, termFreqMap.get(term)
@@ -565,6 +675,9 @@ public final class TestIndex implements IndexDataProvider,
           Iterable<BytesWrap> docTerms = Fun.filter(idx.keySet(), fieldNum,
                   docId);
           for (BytesWrap docTerm : docTerms) {
+            if (stopWords.contains(docTerm)) { // skip stopwords
+              continue;
+            }
             final long docTermFreqCount = idx.get(Fun.t3(fieldNum,
                     docId, docTerm));
             for (int docTermFreq = 0; docTermFreq < docTermFreqCount;
@@ -593,6 +706,9 @@ public final class TestIndex implements IndexDataProvider,
           Iterable<BytesWrap> docTerms = Fun.filter(idx.keySet(), fieldNum,
                   docId);
           for (BytesWrap docTerm : docTerms) {
+            if (stopWords.contains(docTerm)) { // skip stopwords
+              continue;
+            }
             if (docTerm == null) {
               throw new IllegalStateException("Terms was null. doc=" + docId
                       + " field=" + fields.get(fieldNum));
@@ -622,6 +738,9 @@ public final class TestIndex implements IndexDataProvider,
           Iterable<BytesWrap> docTerms = Fun.filter(idx.keySet(), fieldNum,
                   docId);
           for (BytesWrap docTerm : docTerms) {
+            if (stopWords.contains(docTerm)) { // skip stopwords
+              continue;
+            }
             frequency += idx.get(Fun.t3(fieldNum, docId, docTerm));
             tf += idx.get(Fun.t3(fieldNum, docId, docTerm));
           }
@@ -634,6 +753,9 @@ public final class TestIndex implements IndexDataProvider,
   @Override
   public Long getTermFrequency(final BytesWrap term) {
     Long frequency = 0L;
+    if (stopWords.contains(term)) { // skip stopwords
+      return frequency;
+    }
 
     for (int fieldNum = 0; fieldNum < fields.size(); fieldNum++) {
       if (activeFieldState[fieldNum] == 1) {
@@ -651,6 +773,10 @@ public final class TestIndex implements IndexDataProvider,
 
   @Override
   public double getRelativeTermFrequency(final BytesWrap term) {
+    if (stopWords.contains(term)) { // skip stopwords
+      return 0d;
+    }
+
     Long termFrequency = getTermFrequency(term);
     if (termFrequency == null) {
       return 0;
@@ -769,6 +895,9 @@ public final class TestIndex implements IndexDataProvider,
 
   @Override
   public boolean documentContains(final int documentId, final BytesWrap term) {
+    if (stopWords.contains(term)) { // skip stopwords
+      return false;
+    }
     checkDocumentId(documentId);
     return getDocumentTermFrequencyMap(documentId).keySet().contains(term);
   }
@@ -794,13 +923,27 @@ public final class TestIndex implements IndexDataProvider,
   }
 
   @Override
-  public void fieldsChanged(final String[] oldFields, final String[] newFields) {
+  public void fieldsChanged(final String[] oldFields) {
     LOG.debug("Fields changed updating states.");
     // set all fields inactive
     Arrays.fill(this.activeFieldState, 0);
     // activate single fields
-    for (String field : newFields) {
+    for (String field : Environment.getFields()) {
       setFieldState(field, true);
+    }
+  }
+
+  @Override
+  public void wordsChanged(final Collection<String> oldWords) {
+    LOG.debug("Stopwords changed updating caches.");
+    final Collection<String> newStopWords = Environment.getStopwords();
+    stopWords = DBMaker.newTempHashSet();
+    for (String stopWord : newStopWords) {
+      try {
+        stopWords.add(new BytesWrap(stopWord.getBytes("UTF-8")));
+      } catch (UnsupportedEncodingException ex) {
+        LOG.error("Error adding stopword '" + stopWord + "'.", ex);
+      }
     }
   }
 

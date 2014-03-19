@@ -18,6 +18,7 @@ package de.unihildesheim.util;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 /**
  * Utility class for string operations.
@@ -34,7 +35,7 @@ public final class StringUtils {
   }
 
   /**
-   * Join a string array using a given separator string.
+   * Joins a string array using a given separator string.
    *
    * @param strings Strings to join
    * @param seperator Separator char
@@ -52,9 +53,36 @@ public final class StringUtils {
     return joinedStr.toString();
   }
 
-  public static Collection<String> split(final String str,
+  /**
+   * Joins a string array using a given separator string.
+   *
+   * @param strings Strings to join
+   * @param seperator Separator char
+   * @return Joined string
+   */
+  public static String join(final List<String> strings,
           final String seperator) {
-    return Arrays.asList(str.split(seperator));
+    @SuppressWarnings("StringBufferWithoutInitialCapacity")
+    final StringBuilder joinedStr = new StringBuilder();
+    for (int i = 0, il = strings.size(); i < il; i++) {
+      if (i > 0) {
+        joinedStr.append(seperator);
+      }
+      joinedStr.append(strings.get(i));
+    }
+    return joinedStr.toString();
+  }
+
+  /**
+   * Splits the given string at the given separator.
+   *
+   * @param str String to split
+   * @param separator Separator to use for splitting
+   * @return Collection of splitted string parts
+   */
+  public static Collection<String> split(final String str,
+          final String separator) {
+    return Arrays.asList(str.split(separator));
   }
 
   /**

@@ -16,18 +16,14 @@
  */
 package de.unihildesheim.lucene.scoring.clarity.impl;
 
+import de.unihildesheim.lucene.scoring.ScoringResult;
 import de.unihildesheim.lucene.scoring.clarity.ClarityScoreCalculation;
 
 /**
  * Wrapper class enclosing the results of a clarity score calculation.
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public final class ClarityScoreResult {
-
-  /**
-   * Calculated clarity score.
-   */
-  private final Double score;
+public class ClarityScoreResult extends ScoringResult {
 
   /**
    * Used implementation of {@link ClarityScoreCalculation}.
@@ -42,8 +38,9 @@ public final class ClarityScoreResult {
    */
   ClarityScoreResult(final Class<? extends ClarityScoreCalculation> cscType,
           final double clarityScore) {
+    super();
     this.type = cscType;
-    this.score = clarityScore;
+    setScore(clarityScore);
   }
 
   /**
@@ -52,17 +49,8 @@ public final class ClarityScoreResult {
    * @param cscType Class implementing {@link ClarityScoreCalculation}
    */
   ClarityScoreResult(final Class<? extends ClarityScoreCalculation> cscType) {
+    super();
     this.type = cscType;
-    this.score = null;
-  }
-
-  /**
-   * Get the calculated clarity score.
-   *
-   * @return Calculated clarity score
-   */
-  public double getScore() {
-    return this.score;
   }
 
   /**
@@ -71,6 +59,7 @@ public final class ClarityScoreResult {
    * @return Class implementing {@link ClarityScoreCalculation} that created
    * this result instance
    */
+  @Override
   public Class<? extends ClarityScoreCalculation> getType() {
     return type;
   }

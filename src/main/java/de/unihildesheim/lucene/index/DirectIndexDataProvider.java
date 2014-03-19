@@ -24,6 +24,7 @@ import de.unihildesheim.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.util.concurrent.processing.Source;
 import java.io.File;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -51,7 +52,8 @@ import org.slf4j.LoggerFactory;
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public final class DirectIndexDataProvider
-        implements IndexDataProvider, Environment.FieldsChangedListener {
+        implements IndexDataProvider, Environment.FieldsChangedListener,
+        Environment.StopwordsChangedListener {
 
   /**
    * Logger instance for this class.
@@ -71,6 +73,10 @@ public final class DirectIndexDataProvider
    * Cached term-frequency map for all terms in index.
    */
   private Map<BytesWrap, Long> idxTfMap = null;
+  /**
+   * Cached document-frequency map for all terms in index.
+   */
+  private Map<BytesWrap, Integer> idxDfMap = null;
   /**
    * Cached overall term frequency of the index.
    */
@@ -93,6 +99,11 @@ public final class DirectIndexDataProvider
    * Manager for external added document term-data values.
    */
   private ExternalDocTermDataManager externalTermData;
+
+  /**
+   * List of stop-words to exclude from term frequency calculations.
+   */
+  private static Collection<BytesWrap> stopWords = Collections.emptySet();
 
   /**
    * Default constructor using the parameters set by {@link Environment}.
@@ -128,6 +139,7 @@ public final class DirectIndexDataProvider
             IDENTIFIER);
 
     Environment.addFieldsChangedListener(this);
+    Environment.addStopwordsChangedListener(this);
   }
 
   /**
@@ -142,6 +154,9 @@ public final class DirectIndexDataProvider
     }
   }
 
+  /**
+   * {@inheritDoc} Stop-words will be skipped.
+   */
   @Override
   public long getTermFrequency() {
     if (this.idxTf == null) {
@@ -162,40 +177,102 @@ public final class DirectIndexDataProvider
           LOG.error("Error retrieving term frequency information.", ex);
         }
       }
+
+      // remove term frequencies of stop-words
+      if (!DirectIndexDataProvider.stopWords.isEmpty()) {
+        Long tf;
+        for (BytesWrap stopWord : DirectIndexDataProvider.stopWords) {
+          tf = _getTermFrequency(stopWord);
+          if (tf != null) {
+            LOG.debug("Remove t={} tf={}", stopWord.toString(), tf);
+            this.idxTf -= tf;
+          }
+        }
+      }
     }
     return this.idxTf;
   }
 
-  @Override
-  public Long getTermFrequency(final BytesWrap term) {
+  /**
+   * Cache term frequency and document frequency values in one step. This will
+   * not omit stop-words.
+   *
+   * @param term Term to index
+   */
+  private void cacheTermFrequencies(final BytesWrap term) {
     if (this.idxTfMap == null) {
       this.idxTfMap = DBMaker.newTempHashMap();
-    } else if (this.idxTfMap.containsKey(term)) {
-      return this.idxTfMap.get(term);
+    }
+    if (this.idxDfMap == null) {
+      this.idxDfMap = DBMaker.newTempHashMap();
     }
 
-    long freq = 0;
+    long termFreq = 0;
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
+    final Collection<Integer> matchedDocs = new HashSet<>();
     for (String field : Environment.getFields()) {
       try {
         DocsEnum de = MultiFields.
                 getTermDocsEnum(Environment.getIndexReader(), MultiFields.
                         getLiveDocs(Environment.getIndexReader()), field,
                         new BytesRef(term.getBytes()));
+        if (de == null) {
+          // field or term not found
+          continue;
+        }
+
         int docId = de.nextDoc();
         while (docId != DocsEnum.NO_MORE_DOCS) {
-          freq += de.freq();
+          matchedDocs.add(docId);
+          termFreq += de.freq();
           docId = de.nextDoc();
         }
       } catch (IOException ex) {
         LOG.error("Error retrieving term frequency value.", ex);
       }
     }
-    this.idxTfMap.put(term.clone(), freq);
-    return freq;
+    this.idxTfMap.put(term.clone(), termFreq);
+    this.idxDfMap.put(term.clone(), matchedDocs.size());
   }
 
+  /**
+   * Get the term frequency including stop-words.
+   *
+   * @param term Term to lookup
+   * @return Term frequency
+   */
+  private Long _getTermFrequency(final BytesWrap term) {
+    if (this.idxTfMap == null || this.idxTfMap.get(term) == null) {
+      cacheTermFrequencies(term);
+    }
+    return this.idxTfMap.get(term);
+  }
+
+  /**
+   * {@inheritDoc} Stop-words will be skipped (their value is <tt>null</tt>).
+   */
+  @Override
+  public Long getTermFrequency(final BytesWrap term) {
+    if (DirectIndexDataProvider.stopWords.contains(term)) {
+      // skip stop-words
+      return 0L;
+    }
+    if (this.idxTfMap == null || this.idxTfMap.get(term) == null) {
+      cacheTermFrequencies(term);
+    }
+    return this.idxTfMap.get(term);
+  }
+
+  /**
+   * {@inheritDoc} Stop-words will be skipped (their value is <tt>0</tt>).
+   */
   @Override
   public double getRelativeTermFrequency(final BytesWrap term) {
+    if (DirectIndexDataProvider.stopWords.contains(term)) {
+      // skip stop-words
+      return 0d;
+    }
+
     if (term == null) {
       throw new IllegalArgumentException("Term was null.");
     }
@@ -214,7 +291,8 @@ public final class DirectIndexDataProvider
   }
 
   /**
-   * Collect and cache all index terms.
+   * Collect and cache all index terms. Stop-words will be removed from the
+   * list.
    *
    * @return Unique collection of all terms in index
    */
@@ -242,6 +320,8 @@ public final class DirectIndexDataProvider
             }
           }
         }
+        // remove stop-words
+        this.idxTerms.removeAll(DirectIndexDataProvider.stopWords);
       } catch (IOException ex) {
         LOG.error("Error retrieving field information.", ex);
       }
@@ -298,23 +378,20 @@ public final class DirectIndexDataProvider
 
   @Override
   public Object setTermData(final String prefix, final int documentId,
-          final BytesWrap term,
-          final String key, final Object value) {
+          final BytesWrap term, final String key, final Object value) {
     return this.externalTermData.setData(prefix, documentId, term, key,
             value);
   }
 
   @Override
   public Object getTermData(final String prefix, final int documentId,
-          final BytesWrap term,
-          final String key) {
+          final BytesWrap term, final String key) {
     return this.externalTermData.getData(prefix, documentId, term, key);
   }
 
   @Override
   public Map<BytesWrap, Object> getTermData(final String prefix,
-          final int documentId,
-          final String key) {
+          final int documentId, final String key) {
     return this.externalTermData.getData(prefix, documentId, key);
   }
 
@@ -323,6 +400,9 @@ public final class DirectIndexDataProvider
     this.externalTermData.clear();
   }
 
+  /**
+   * {@inheritDoc} Stop-words will be skipped while creating the model.
+   */
   @Override
   public DocumentModel getDocumentModel(final int docId) {
     checkDocId(docId);
@@ -336,11 +416,14 @@ public final class DirectIndexDataProvider
       final Map<BytesWrap, AtomicLong> tfMap = new HashMap<>();
       while (br != null) {
         final BytesWrap bw = new BytesWrap(br);
-        if (tfMap.containsKey(bw)) {
-          tfMap.get(bw).getAndAdd(dftEnum.getTotalTermFreq());
-        } else {
-          tfMap.put(bw.clone(), new AtomicLong(dftEnum.
-                  getTotalTermFreq()));
+        // skip stop-words
+        if (!DirectIndexDataProvider.stopWords.contains(bw)) {
+          if (tfMap.containsKey(bw)) {
+            tfMap.get(bw).getAndAdd(dftEnum.getTotalTermFreq());
+          } else {
+            tfMap.put(bw.clone(), new AtomicLong(dftEnum.
+                    getTotalTermFreq()));
+          }
         }
         br = dftEnum.next();
       }
@@ -368,12 +451,15 @@ public final class DirectIndexDataProvider
     return false;
   }
 
+  /**
+   * {@inheritDoc} Stop-words will be skipped.
+   */
   @Override
   public Collection<BytesWrap> getDocumentsTermSet(
           final Collection<Integer> docIds) {
     @SuppressWarnings("CollectionWithoutInitialCapacity")
     final Collection<BytesWrap> terms = new HashSet<>();
-    for (Integer docId : docIds) {
+    for (Integer docId : new HashSet<>(docIds)) {
       checkDocId(docId);
       try {
         final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(docId);
@@ -387,6 +473,8 @@ public final class DirectIndexDataProvider
                 + "docId=" + docId + ".", ex);
       }
     }
+    // remove stop-words
+    terms.removeAll(DirectIndexDataProvider.stopWords);
     return terms;
   }
 
@@ -395,8 +483,17 @@ public final class DirectIndexDataProvider
     return getDocumentIds().size();
   }
 
+  /**
+   * {@inheritDoc} Stop-words will be skipped (their value is always
+   * <tt>false</tt>).
+   */
   @Override
   public boolean documentContains(final int documentId, final BytesWrap term) {
+    if (DirectIndexDataProvider.stopWords.contains(term)) {
+      // skip stop-words
+      return false;
+    }
+
     checkDocId(documentId);
     try {
       final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(documentId);
@@ -420,10 +517,49 @@ public final class DirectIndexDataProvider
   }
 
   @Override
-  public void fieldsChanged(final String[] oldFields, final String[] newFields) {
+  public void fieldsChanged(final String[] oldFields) {
     LOG.debug("Fields changed, clearing cached data.");
+    clearCache();
+  }
+
+  private void clearCache() {
     this.idxTerms = null;
     this.idxTfMap = null;
     this.idxTf = null;
+  }
+
+  /**
+   * {@inheritDoc} Stop-words will be skipped (their value is <tt>0</tt>).
+   */
+  @Override
+  public int getDocumentFrequency(final BytesWrap term) {
+    if (DirectIndexDataProvider.stopWords.contains(term)) {
+      // skip stop-words
+      return 0;
+    }
+    if (this.idxDfMap == null || this.idxDfMap.get(term) == null) {
+      cacheTermFrequencies(term);
+    }
+    Integer freq = this.idxDfMap.get(term);
+    if (freq == null) {
+      return 0;
+    }
+    return freq;
+  }
+
+  @Override
+  public void wordsChanged(final Collection<String> oldWords) {
+    LOG.debug("Stopwords changed, clearing cached data.");
+    clearCache();
+    final Collection<String> newStopWords = Environment.getStopwords();
+    DirectIndexDataProvider.stopWords = DBMaker.newTempHashSet();
+    for (String stopWord : newStopWords) {
+      try {
+        DirectIndexDataProvider.stopWords.add(new BytesWrap(stopWord.getBytes(
+                "UTF-8")));
+      } catch (UnsupportedEncodingException ex) {
+        LOG.error("Error adding stopword '" + stopWord + "'.", ex);
+      }
+    }
   }
 }

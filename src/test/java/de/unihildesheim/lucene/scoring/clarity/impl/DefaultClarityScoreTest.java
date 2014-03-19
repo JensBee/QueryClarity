@@ -18,21 +18,22 @@ package de.unihildesheim.lucene.scoring.clarity.impl;
 
 import de.unihildesheim.TestConfig;
 import de.unihildesheim.lucene.Environment;
+import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.Feedback;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.index.TestIndex;
+import de.unihildesheim.lucene.metrics.CollectionMetrics;
 import de.unihildesheim.lucene.query.QueryUtils;
+import de.unihildesheim.lucene.query.TermsQueryBuilder;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.MathUtils;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import org.apache.lucene.search.Query;
-import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -50,21 +51,13 @@ import org.slf4j.LoggerFactory;
  * @author Jens Bertram <code@jens-bertram.net>
  */
 @RunWith(Parameterized.class)
-public final class DefaultClarityScoreTest {
+public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCase {
 
   /**
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(
           DefaultClarityScoreTest.class);
-  /**
-   * Test documents index.
-   */
-  private static TestIndex index;
-  /**
-   * DataProvider instance currently in use.
-   */
-  private final Class<? extends IndexDataProvider> dataProvType;
 
   /**
    * Static initializer run before all tests.
@@ -88,14 +81,12 @@ public final class DefaultClarityScoreTest {
 
   @Parameters
   public static Collection<Object[]> data() {
-    Collection<Object[]> params = TestConfig.getDataProviderParameter();
-    params.add(new Object[]{null});
-    return params;
+    return getCaseParameters();
   }
 
   public DefaultClarityScoreTest(
           final Class<? extends IndexDataProvider> dataProv) {
-    this.dataProvType = dataProv;
+    super(dataProv);
   }
 
   /**
@@ -105,14 +96,7 @@ public final class DefaultClarityScoreTest {
    */
   @Before
   public void setUp() throws Exception {
-    Environment.clear();
-    if (this.dataProvType == null) {
-      index.setupEnvironment();
-    } else {
-      index.setupEnvironment(this.dataProvType);
-    }
-    index.clearTermData();
-    Environment.clearAllProperties();
+    caseSetUp();
   }
 
   /**
@@ -172,9 +156,8 @@ public final class DefaultClarityScoreTest {
    */
   private double calc_pc(final BytesWrap term) {
     final double result
-            = Environment.getDataProvider().getTermFrequency(term).
-            doubleValue() / Long.valueOf(Environment.getDataProvider().
-                    getTermFrequency()).doubleValue();
+            = CollectionMetrics.tf(term).doubleValue() / Long.
+            valueOf(CollectionMetrics.tf()).doubleValue();
     return result;
   }
 
@@ -276,7 +259,7 @@ public final class DefaultClarityScoreTest {
     final String query = index.getQueryString();
     instance.calculateClarity(query);
 
-    final Collection<BytesWrap> expResult = new ArrayList(15);
+    final Collection<BytesWrap> expResult = new ArrayList<>(15);
     for (String qTerm : query.split("\\s+")) {
       expResult.add(new BytesWrap(qTerm.getBytes("UTF-8")));
     }
@@ -308,7 +291,7 @@ public final class DefaultClarityScoreTest {
     LOG.info("Test calcDocumentModel");
 
     final DefaultClarityScore instance = getInstance();
-    for (int i = 0; i < Environment.getDataProvider().getDocumentCount(); i++) {
+    for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
       final DocumentModel docModel = Environment.getDataProvider().
               getDocumentModel(i);
       instance.calcDocumentModel(docModel);
@@ -345,7 +328,7 @@ public final class DefaultClarityScoreTest {
     instance.preCalcDocumentModels();
 
     LOG.info("Calculation done, testing results.");
-    for (int i = 0; i < Environment.getDataProvider().getDocumentCount(); i++) {
+    for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
       final DocumentModel docModel = Environment.getDataProvider().
               getDocumentModel(i);
 
@@ -378,25 +361,24 @@ public final class DefaultClarityScoreTest {
   @Test
   public void testCalculateClarity() throws Exception {
     LOG.info("Test calculateClarity");
-    final Query query = QueryUtils.buildQuery(Environment.getFields(),
-            index.getQueryString());
+    final String queryString = index.getQueryString();
+    final Query query = TermsQueryBuilder.buildFromEnvironment(queryString);
     final DefaultClarityScore instance = getInstance();
 
-    final Collection<Integer> feedbackDocs = Feedback.getFixed(Environment.
-            getIndexReader(), query, instance.getFeedbackDocumentCount());
+    final Collection<Integer> feedbackDocs = Feedback.getFixed(query,
+            instance.getFeedbackDocumentCount());
     final Collection<DocumentModel> fbDocModels = new ArrayList<>(
             feedbackDocs.size());
     for (Integer docId : feedbackDocs) {
       fbDocModels.add(Environment.getDataProvider().getDocumentModel(docId));
     }
 
-    final ClarityScoreResult result = instance.calculateClarity(query,
+    final ClarityScoreResult result = instance.calculateClarity(queryString,
             feedbackDocs);
 
     LOG.debug("Calculating reference score.");
     final double score = calc_score(instance.getLangmodelWeight(),
-            fbDocModels, QueryUtils.getUniqueQueryTerms(Environment.
-                    getIndexReader(), query));
+            fbDocModels, QueryUtils.getUniqueQueryTerms(queryString));
 
     LOG.debug("Scores test={} dcs={}", score, result.getScore());
 

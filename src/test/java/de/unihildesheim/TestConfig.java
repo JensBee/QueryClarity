@@ -37,23 +37,23 @@ public class TestConfig {
   private TestConfig() {
     // empty
   }
-
-  public static Collection<Class<? extends IndexDataProvider>> getDataProvider() {
-    final Collection<Class<? extends IndexDataProvider>> providers
-            = new ArrayList<>(2);
-    providers.add(DirectIndexDataProvider.class);
-//    providers.add(CachedIndexDataProvider.class);
-    return providers;
-  }
-
-  public static Collection<Object[]> getDataProviderParameter() {
-    final Collection<Class<? extends IndexDataProvider>> providers
-            = getDataProvider();
-    final Collection<Object[]> params = new ArrayList(providers.size());
-
-    for (Class<? extends IndexDataProvider>  prov : getDataProvider()) {
-      params.add(new Object[]{prov});
-    }
-    return params;
-  }
+//
+//  public static Collection<Class<? extends IndexDataProvider>> getDataProvider() {
+//    final Collection<Class<? extends IndexDataProvider>> providers
+//            = new ArrayList<>(2);
+//    providers.add(DirectIndexDataProvider.class);
+////    providers.add(CachedIndexDataProvider.class);
+//    return providers;
+//  }
+//
+//  public static Collection<Object[]> getDataProviderParameter() {
+//    final Collection<Class<? extends IndexDataProvider>> providers
+//            = getDataProvider();
+//    final Collection<Object[]> params = new ArrayList<>(providers.size());
+//
+//    for (Class<? extends IndexDataProvider>  prov : getDataProvider()) {
+//      params.add(new Object[]{prov});
+//    }
+//    return params;
+//  }
 }

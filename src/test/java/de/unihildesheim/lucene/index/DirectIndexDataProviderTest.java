@@ -17,6 +17,7 @@
 package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.lucene.Environment;
+import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.RandomValue;
 import java.util.Arrays;
 import java.util.Collection;
@@ -26,7 +27,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.*;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,6 +63,10 @@ public final class DirectIndexDataProviderTest {
     // create the test index
     index = new TestIndex(TestIndex.IndexSize.SMALL);
     assertTrue("TestIndex is not initialized.", TestIndex.test_isInitialized());
+  }
+
+  @AfterClass
+  public static void tearDownClass() throws Exception {
   }
 
   /**
@@ -172,33 +176,37 @@ public final class DirectIndexDataProviderTest {
 
   /**
    * Test of setTermData method, of class DirectIndexDataProvider.
+   * @throws java.lang.Exception Any exception indicating a failure
    */
   @Test
-  public void testSetTermData() {
+  public void testSetTermData() throws Exception {
     IndexDataProviderTestMethods.testSetTermData(index, this.instance);
   }
 
   /**
    * Test of getTermData method, of class DirectIndexDataProvider.
+   * @throws java.lang.Exception Any exception indicating a failure
    */
   @Test
-  public void testGetTermData_4args() {
+  public void testGetTermData_4args() throws Exception {
     IndexDataProviderTestMethods.testGetTermData_4args(index, this.instance);
   }
 
   /**
    * Test of getTermData method, of class DirectIndexDataProvider.
+   * @throws java.lang.Exception Any exception indicating a failure
    */
   @Test
-  public void testGetTermData_3args() {
+  public void testGetTermData_3args() throws Exception {
     IndexDataProviderTestMethods.testGetTermData_3args(index, this.instance);
   }
 
   /**
    * Test of clearTermData method, of class DirectIndexDataProvider.
+   * @throws java.lang.Exception Any exception indicating a failure
    */
   @Test
-  public void testClearTermData() {
+  public void testClearTermData() throws Exception {
     IndexDataProviderTestMethods.testClearTermData(index, this.instance);
   }
 
@@ -206,7 +214,7 @@ public final class DirectIndexDataProviderTest {
    * Test of getDocumentModel method, of class DirectIndexDataProvider.
    */
   @Test
-  public void testGetDocumentModel() {
+  public void testGetDocumentModel() throws Exception {
     IndexDataProviderTestMethods.testGetDocumentModel(index, this.instance);
   }
 
@@ -222,7 +230,7 @@ public final class DirectIndexDataProviderTest {
    * Test of getDocumentsTermSet method, of class DirectIndexDataProvider.
    */
   @Test
-  public void testGetDocumentsTermSet() {
+  public void testGetDocumentsTermSet() throws Exception  {
     IndexDataProviderTestMethods.testGetDocumentsTermSet(index, this.instance);
   }
 
@@ -238,7 +246,7 @@ public final class DirectIndexDataProviderTest {
    * Test of documentContains method, of class DirectIndexDataProvider.
    */
   @Test
-  public void testDocumentContains() {
+  public void testDocumentContains() throws Exception {
     IndexDataProviderTestMethods.testDocumentContains(index, this.instance);
   }
 
@@ -280,8 +288,8 @@ public final class DirectIndexDataProviderTest {
 
       index.setFieldState(newFieldState);
       final Collection<String> newFields = index.test_getActiveFields();
-      instance.fieldsChanged(oldFields.toArray(new String[oldFields.size()]),
-              newFields.toArray(new String[newFields.size()]));
+//      instance.fieldsChanged(oldFields.toArray(new String[oldFields.size()]),
+//              newFields.toArray(new String[newFields.size()]));
 
       Environment.setFields(newFields.toArray(new String[newFields.size()]));
 
@@ -292,6 +300,18 @@ public final class DirectIndexDataProviderTest {
               instance.getTermFrequency());
     } else {
       LOG.warn("Skip test section. Field count == 1.");
+    }
+  }
+
+  /**
+   * Test of getDocumentFrequency method, of class DirectIndexDataProvider.
+   */
+  @Test
+  public void testGetDocumentFrequency() {
+    LOG.info("Test getDocumentFrequency");
+    for (BytesWrap term : index.getTermSet()) {
+      assertEquals("Document frequency mismatch.", index.getDocumentFrequency(
+              term), instance.getDocumentFrequency(term));
     }
   }
 }

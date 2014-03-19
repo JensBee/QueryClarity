@@ -22,7 +22,7 @@ import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.DocumentModel.DocumentModelBuilder;
 import de.unihildesheim.lucene.document.DocumentModelException;
 import de.unihildesheim.util.StringUtils;
-import de.unihildesheim.util.Configuration;
+import de.unihildesheim.util.ConfigurationOLD;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.TimeMeasure;
 import de.unihildesheim.util.concurrent.processing.CollectionSource;
@@ -92,7 +92,7 @@ public final class CachedIndexDataProvider implements IndexDataProvider {
    * Separator to store field names.
    */
   private static final String FIELD_NAME_SEP
-          = Configuration.get(PREFIX + "fieldNameSep", "\\|");
+          = ConfigurationOLD.get(PREFIX + "fieldNameSep", "\\|");
 
   /**
    * Unique identifier for this cache.
@@ -169,6 +169,11 @@ public final class CachedIndexDataProvider implements IndexDataProvider {
    * Flag indicating, if this instance stores data only temporary.
    */
   private boolean isTemporary = false;
+
+  @Override
+  public int getDocumentFrequency(BytesWrap term) {
+    throw new UnsupportedOperationException("Not supported yet.");
+  }
 
   /**
    * Static keys used to store and retrieve persistent meta information.

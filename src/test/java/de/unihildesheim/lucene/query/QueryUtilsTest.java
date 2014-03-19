@@ -75,8 +75,8 @@ public class QueryUtilsTest {
     IndexReader reader = Environment.getIndexReader();
 
     final int termsCount = RandomValue.getInteger(3, 100);
-    final Collection<BytesWrap> termsBw = new ArrayList(termsCount);
-    final Collection<String> terms = new ArrayList(termsCount);
+    final Collection<BytesWrap> termsBw = new ArrayList<>(termsCount);
+    final Collection<String> terms = new ArrayList<>(termsCount);
 
     for (int i = 0; i < termsCount; i++) {
       final String term = RandomValue.getString(1, 15);
@@ -84,12 +84,12 @@ public class QueryUtilsTest {
       terms.add(term);
     }
 
-    final Query query = QueryUtils.buildQuery(Environment.getFields(), index.
-            getQueryString(terms.toArray(new String[termsCount])));
+    final String queryString = index.getQueryString(terms.
+            toArray(new String[termsCount]));
+    final Query query = TermsQueryBuilder.buildFromEnvironment(queryString);
 
     final Collection<BytesWrap> result = QueryUtils.
-            getUniqueQueryTerms(reader,
-                    query);
+            getUniqueQueryTerms(queryString);
     assertTrue("Not all terms returned.", result.containsAll(termsBw));
     if (termsBw.size() != result.size()) {
       StringBuilder sbInitial = new StringBuilder();

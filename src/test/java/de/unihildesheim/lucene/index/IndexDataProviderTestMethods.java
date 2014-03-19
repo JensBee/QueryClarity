@@ -16,19 +16,24 @@
  */
 package de.unihildesheim.lucene.index;
 
+import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.RandomValue;
 import de.unihildesheim.util.Tuple;
 import de.unihildesheim.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.util.concurrent.processing.Processing;
+import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import org.slf4j.Logger;
@@ -53,13 +58,52 @@ final class IndexDataProviderTestMethods {
   private static final int TEST_TERMDATA_AMOUNT = 10000;
 
   /**
+   * Picks some (1 to n) terms from the index and sets them as stop-words.
+   * @param index TestIndex
+   * @param instance Data provider
+   * @return Stop words term collection
+   */
+  private static Collection<String> setRandomStopWords(final TestIndex index,
+          final IndexDataProvider instance) {
+    // random list of stopwords
+    Iterator<BytesWrap> termsIt = instance.getTermsIterator();
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
+    final Collection<String> stopWords = new ArrayList<>();
+    while (termsIt.hasNext()) {
+      if (RandomValue.getBoolean()) {
+        stopWords.add(termsIt.next().toString());
+      } else {
+        termsIt.next();
+      }
+    }
+    if (stopWords.isEmpty()) {
+      stopWords.add(new ArrayList<>(index.getTermSet()).get(0).toString());
+    }
+    Environment.setStopwords(stopWords);
+    return stopWords;
+  }
+
+  /**
    * Test of getTermFrequency method.
    */
   protected static void testGetTermFrequency_0args(final TestIndex index,
           final IndexDataProvider instance) {
     LOG.info("Test getTermFrequency 0arg");
+    // plain check against test index
     assertEquals("Term frequency differs.", index.getTermFrequency(),
             instance.getTermFrequency());
+
+    final long unfilteredTf = index.getTermFrequency();
+
+    // check with stopwords
+    setRandomStopWords(index, instance);
+    final long filteredTf = index.getTermFrequency();
+    assertEquals("Term frequency differs. plain="+unfilteredTf+" filter="+filteredTf+".", index.getTermFrequency(),
+            instance.getTermFrequency());
+
+
+    assertNotEquals("TF using stop-words should be lower than without.",
+            filteredTf, unfilteredTf);
   }
 
   /**
@@ -68,11 +112,22 @@ final class IndexDataProviderTestMethods {
   protected static void testGetTermFrequency_BytesWrap(final TestIndex index,
           final IndexDataProvider instance) {
     LOG.info("Test getTermFrequency 1arg");
-    final Iterator<BytesWrap> idxTermsIt = index.getTermsIterator();
+    Iterator<BytesWrap> idxTermsIt = index.getTermsIterator();
+
     while (idxTermsIt.hasNext()) {
       final BytesWrap idxTerm = idxTermsIt.next();
       assertEquals("Term frequency differs. term=" + idxTerm, index.
               getTermFrequency(idxTerm), instance.getTermFrequency(idxTerm));
+    }
+
+    // check with stopwords
+    setRandomStopWords(index, instance);
+    idxTermsIt = index.getTermsIterator();
+    while (idxTermsIt.hasNext()) {
+      final BytesWrap idxTerm = idxTermsIt.next();
+      assertEquals("Term frequency differs (using stopwords). term=" + idxTerm,
+              index.getTermFrequency(idxTerm), instance.getTermFrequency(
+                      idxTerm));
     }
   }
 
@@ -82,11 +137,22 @@ final class IndexDataProviderTestMethods {
   protected static void testGetRelativeTermFrequency(final TestIndex index,
           final IndexDataProvider instance) {
     LOG.info("Test getRelativeTermFrequency");
-    final Iterator<BytesWrap> idxTermsIt = index.getTermsIterator();
+    Iterator<BytesWrap> idxTermsIt = index.getTermsIterator();
+
     while (idxTermsIt.hasNext()) {
       final BytesWrap idxTerm = idxTermsIt.next();
       assertEquals("Relative term frequency differs. term=" + idxTerm, index.
               getRelativeTermFrequency(idxTerm), instance.
+              getRelativeTermFrequency(idxTerm), 0);
+    }
+
+    // check with stopwords
+    setRandomStopWords(index, instance);
+    idxTermsIt = index.getTermsIterator();
+    while (idxTermsIt.hasNext()) {
+      final BytesWrap idxTerm = idxTermsIt.next();
+      assertEquals("Relative term frequency differs (using stopwords). term="
+              + idxTerm, index.getRelativeTermFrequency(idxTerm), instance.
               getRelativeTermFrequency(idxTerm), 0);
     }
   }
@@ -99,7 +165,22 @@ final class IndexDataProviderTestMethods {
           final IndexDataProvider instance) {
     LOG.info("Test getTermsIterator");
     Iterator<BytesWrap> result = instance.getTermsIterator();
+
     int iterations = 0;
+    while (result.hasNext()) {
+      iterations++;
+      result.next();
+    }
+
+    assertEquals("Not all terms found while iterating.", instance.
+            getUniqueTermsCount(), iterations);
+    assertEquals("Different values for unique terms reported.", index.
+            getUniqueTermsCount(), instance.getUniqueTermsCount());
+
+    // test with stopwords
+    setRandomStopWords(index, instance);
+    iterations = 0;
+    result = instance.getTermsIterator();
     while (result.hasNext()) {
       iterations++;
       result.next();
@@ -125,7 +206,7 @@ final class IndexDataProviderTestMethods {
    * Test of getDocumentModel method, of class CachedIndexDataProvider.
    */
   protected static void testGetDocumentModel(final TestIndex index,
-          final IndexDataProvider instance) {
+          final IndexDataProvider instance) throws Exception {
     LOG.info("Test getDocumentModel");
     Iterator<Integer> docIdIt = index.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
@@ -135,6 +216,28 @@ final class IndexDataProviderTestMethods {
 
       assertTrue("Equals failed for docId=" + docId, eDocModel.equals(
               iDocModel));
+    }
+
+    // test with stopwords
+    final Collection<String> stopWords = setRandomStopWords(index, instance);
+
+    docIdIt = index.getDocumentIdIterator();
+    while (docIdIt.hasNext()) {
+      final Integer docId = docIdIt.next();
+      final DocumentModel iDocModel = instance.getDocumentModel(docId);
+      final DocumentModel eDocModel = index.getDocumentModel(docId);
+
+      assertTrue("Equals failed for docId=" + docId, eDocModel.equals(
+              iDocModel));
+      for (String term : stopWords) {
+        final BytesWrap bw = new BytesWrap(term.getBytes("UTF-8"));
+        assertFalse("Stopword found in docModel.", eDocModel.contains(bw));
+        assertEquals("Stopword frequency should be null.", null, eDocModel.
+                termFrequency(bw));
+        assertFalse("Stopword found in docModel.", iDocModel.contains(bw));
+        assertEquals("Stopword frequency should be null.", null, iDocModel.
+                termFrequency(bw));
+      }
     }
   }
 
@@ -174,9 +277,13 @@ final class IndexDataProviderTestMethods {
           final IndexDataProvider instance) {
     LOG.info("Test getUniqueTermsCount");
 
-    long result = instance.getUniqueTermsCount();
     assertEquals("Unique term count values are different.",
-            index.getTermSet().size(), result);
+            index.getTermSet().size(), instance.getUniqueTermsCount());
+
+    // test with stopwords
+    setRandomStopWords(index, instance);
+    assertEquals("Unique term count values are different.",
+            index.getTermSet().size(), instance.getUniqueTermsCount());
   }
 
   /**
@@ -200,13 +307,24 @@ final class IndexDataProviderTestMethods {
    * Test of documentContains method.
    */
   protected static void testDocumentContains(final TestIndex index,
-          final IndexDataProvider instance) {
+          final IndexDataProvider instance) throws Exception {
     LOG.info("Test documentContains");
     for (int i = 0; i < index.getDocumentCount(); i++) {
       final DocumentModel docModel = index.getDocumentModel(i);
       for (BytesWrap bw : docModel.termFreqMap.keySet()) {
         assertTrue("Document contains term mismatch.", index.documentContains(
                 i, bw));
+      }
+    }
+
+    // test with stopwords
+    final Collection<String> stopWords = setRandomStopWords(index, instance);
+    for (String term : stopWords) {
+      final BytesWrap bw = new BytesWrap(term.getBytes("UTF-8"));
+      for (int i = 0; i < index.getDocumentCount(); i++) {
+        final DocumentModel docModel = index.getDocumentModel(i);
+        assertFalse("Document should not contain a stop-word.", index.
+                documentContains(i, bw));
       }
     }
   }
@@ -228,7 +346,8 @@ final class IndexDataProviderTestMethods {
    * Test of setTermData method.
    */
   protected static void testSetTermData(final TestIndex index,
-          final IndexDataProvider instance) {
+          final IndexDataProvider instance) throws
+          UnsupportedEncodingException {
     LOG.info("Test setTermData");
     final String prefix = "test";
     final String key = "testKey";
@@ -255,7 +374,8 @@ final class IndexDataProviderTestMethods {
    * Test of getTermData method.
    */
   protected static void testGetTermData_4args(final TestIndex index,
-          final IndexDataProvider instance) {
+          final IndexDataProvider instance) throws
+          UnsupportedEncodingException {
     LOG.info("Test getTermData_4args");
     final String prefix = "test4a";
     final String key = "testKey4a";
@@ -308,7 +428,8 @@ final class IndexDataProviderTestMethods {
    * Test of getTermData method.
    */
   protected static void testGetTermData_3args(final TestIndex index,
-          final IndexDataProvider instance) {
+          final IndexDataProvider instance) throws
+          UnsupportedEncodingException {
     LOG.info("Test getTermData_3args");
 
     final String prefix = "test3a";
@@ -326,7 +447,7 @@ final class IndexDataProviderTestMethods {
             new CollectionSource<>(testData), index, prefix));
     p.process();
 
-    Map<BytesWrap, Integer> expResult = new HashMap(testData.size());
+    Map<BytesWrap, Integer> expResult = new HashMap<>(testData.size());
     for (Tuple.Tuple4<Integer, BytesWrap, String, Integer> t4 : testData) {
       expResult.put(t4.b, t4.d);
     }
@@ -349,7 +470,8 @@ final class IndexDataProviderTestMethods {
    * Test of clearTermData method.
    */
   protected static void testClearTermData(final TestIndex index,
-          final IndexDataProvider instance) {
+          final IndexDataProvider instance) throws
+          UnsupportedEncodingException {
     LOG.info("Test clearTermData");
     final String prefix = "testClear";
     instance.registerPrefix(prefix);
@@ -375,11 +497,11 @@ final class IndexDataProviderTestMethods {
    * Test of getDocumentsTermSet method.
    */
   protected static void testGetDocumentsTermSet(final TestIndex index,
-          final IndexDataProvider instance) {
+          final IndexDataProvider instance) throws Exception {
     LOG.info("Test getDocumentsTermSet");
     final int docAmount = RandomValue.getInteger(2, (int) index.
             getDocumentCount() - 1);
-    Collection<Integer> docIds = new HashSet(docAmount);
+    Collection<Integer> docIds = new HashSet<>(docAmount);
     for (int i = 0; i < docAmount;) {
       if (docIds.add(RandomValue.getInteger(0, RandomValue.getInteger(2,
               (int) index.getDocumentCount() - 1)))) {
@@ -392,6 +514,21 @@ final class IndexDataProviderTestMethods {
     assertEquals("Not the same amount of terms retrieved.", expResult.size(),
             result.size());
     assertTrue("Not all terms retrieved.", expResult.containsAll(result));
+
+    // test with stopwords
+    final Collection<String> stopWords = setRandomStopWords(index, instance);
+    expResult = index.getDocumentsTermSet(docIds);
+    result = instance.getDocumentsTermSet(docIds);
+    assertEquals("Not the same amount of terms retrieved.", expResult.size(),
+            result.size());
+    assertTrue("Not all terms retrieved.", expResult.containsAll(result));
+    for (String word : stopWords) {
+      final BytesWrap bw = new BytesWrap(word.getBytes("UTF-8"));
+      assertFalse("Stop word should not be in result set.", expResult.
+              contains(bw));
+      assertFalse("Stop word should not be in result set.", result.
+              contains(bw));
+    }
   }
 
   /**

@@ -18,6 +18,7 @@ package de.unihildesheim.lucene.scoring.clarity.impl;
 
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModel;
+import de.unihildesheim.lucene.metrics.CollectionMetrics;
 import de.unihildesheim.util.concurrent.processing.Processing;
 import de.unihildesheim.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.util.concurrent.processing.Source;
@@ -68,8 +69,7 @@ public final class DefaultClarityScorePrecalculator {
    * Pre-calculate all document models for all terms known from the index.
    */
   public void preCalculate() {
-    LOG.info("Pre-calculating {} models.", Environment.getDataProvider().
-            getDocumentCount());
+    LOG.info("Pre-calculating {} models.", CollectionMetrics.numberOfDocuments());
     final Processing pPipe = new Processing(new DocumentModelCalculator(
             Environment.getDataProvider().getDocumentIdSource()));
     pPipe.process();

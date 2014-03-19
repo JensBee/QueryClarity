@@ -398,7 +398,7 @@ public final class CachedIndexDataProviderTest {
    * Test of getDocumentModel method, of class CachedIndexDataProvider.
    */
   @Test
-  public void testGetDocumentModel() {
+  public void testGetDocumentModel() throws Exception {
     IndexDataProviderTestMethods.testGetDocumentModel(index, instance);
   }
 
@@ -412,9 +412,10 @@ public final class CachedIndexDataProviderTest {
 
   /**
    * Test of setTermData method, of class CachedIndexDataProvider.
+   * @throws java.lang.Exception Any exception indicating a failure
    */
   @Test
-  public void testSetTermData() {
+  public void testSetTermData() throws Exception {
     IndexDataProviderTestMethods.testSetTermData(index, instance);
   }
 
@@ -484,17 +485,19 @@ public final class CachedIndexDataProviderTest {
 
   /**
    * Test of getTermData method, of class CachedIndexDataProvider.
+   * @throws java.lang.Exception Any exception indicating a failure
    */
   @Test
-  public void testGetTermData_4args() {
+  public void testGetTermData_4args() throws Exception {
     IndexDataProviderTestMethods.testGetTermData_4args(index, instance);
   }
 
   /**
    * Test of getTermData method, of class CachedIndexDataProvider.
+   * @throws java.lang.Exception Any exception indicating a failure
    */
   @Test
-  public void testGetTermData_3args() {
+  public void testGetTermData_3args() throws Exception {
     IndexDataProviderTestMethods.testGetTermData_3args(index, instance);
   }
 
@@ -559,7 +562,7 @@ public final class CachedIndexDataProviderTest {
    * Test of documentContains method, of class CachedIndexDataProvider.
    */
   @Test
-  public void testDocumentContains() {
+  public void testDocumentContains() throws Exception  {
     IndexDataProviderTestMethods.testDocumentContains(index, instance);
   }
 
@@ -620,7 +623,7 @@ public final class CachedIndexDataProviderTest {
    * Test of getDocumentsTermSet method, of class CachedIndexDataProvider.
    */
   @Test
-  public void testGetDocumentsTermSet() {
+  public void testGetDocumentsTermSet() throws Exception {
     IndexDataProviderTestMethods.testGetDocumentsTermSet(index, instance);
   }
 
@@ -652,9 +655,10 @@ public final class CachedIndexDataProviderTest {
 
   /**
    * Test of clearTermData method, of class CachedIndexDataProvider.
+   * @throws java.lang.Exception Any exception indicating a failure
    */
   @Test
-  public void testClearTermData() {
+  public void testClearTermData() throws Exception {
     IndexDataProviderTestMethods.testClearTermData(index, this.instance);
   }
 

@@ -18,16 +18,16 @@ package de.unihildesheim.lucene;
 
 import de.unihildesheim.lucene.index.DirectIndexDataProvider;
 import de.unihildesheim.lucene.index.IndexDataProvider;
-import de.unihildesheim.util.StringUtils;
+import de.unihildesheim.lucene.index.IndexUtils;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.text.MessageFormat;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -42,10 +42,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * Global environment for calculations.
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class Environment {
+public final class Environment {
 
   /**
    * Logger instance for this class.
@@ -64,7 +65,7 @@ public class Environment {
   /**
    * Reader to access the Lucene index.
    */
-  private static IndexReader indexReader;
+  private static IndexReader indexReader = null;
 
   /**
    * Path where additional data should be stored.
@@ -87,14 +88,40 @@ public class Environment {
   private static final Properties PROP_STORE = new Properties();
 
   /**
-   * Listeners looking for changes to document fields.
-   */
-  private static Collection<FieldsChangedListener> fieldsChangedListeners;
-
-  /**
    * Initial number of listeners expected.
    */
   private static final int DEFAULT_LISTENERS_SIZE = 5;
+
+  /**
+   * Listeners looking for changes to document fields. Directly initialized to
+   * allow adding of listeners prior to environment initialization.
+   */
+  private static Collection<FieldsChangedListener> fieldsChangedListeners
+          = new HashSet<>(DEFAULT_LISTENERS_SIZE);
+
+  /**
+   * Listeners looking for changes to the stop-words list. Directly
+   * initialized to allow adding of listeners prior to environment
+   * initialization.
+   */
+  private static Collection<StopwordsChangedListener> stopwordsChangedListeners
+          = new HashSet<>(DEFAULT_LISTENERS_SIZE);
+
+  /**
+   * Default initial size of the stop-words list.
+   */
+  private static final int DEFAULT_STOPWORDS_SIZE = 200;
+
+  /**
+   * List of stop-words to use.
+   */
+  private static Collection<String> stopWords = new HashSet<>(
+          DEFAULT_STOPWORDS_SIZE);
+
+  /**
+   * Flag indicating, if properties were loaded.
+   */
+  private static boolean propLoaded = false;
 
   /**
    * Shutdown thread saving properties back to disk.
@@ -110,14 +137,34 @@ public class Environment {
     }
   }, "Environment_shutdownHandler");
 
+  /**
+   * Basic configuration keys for application data.
+   */
   private enum PropertiesConf {
 
+    /**
+     * Name of the configuration file.
+     */
     FILENAME("environment.properties"),
+    /**
+     * Key to store a last modified timestamp.
+     */
     KEY_TIMESTAMP("timestamp"),
+    /**
+     * Format of the last modified timestamp.
+     */
     TIMESTAMP_FORMAT("MM/dd/yyyy h:mm:ss a");
 
+    /**
+     * String data of the current key.
+     */
     private final String data;
 
+    /**
+     * Initialize the Enum.
+     *
+     * @param newData Data for a key
+     */
     PropertiesConf(final String newData) {
       this.data = newData;
     }
@@ -129,13 +176,29 @@ public class Environment {
   }
 
   /**
-   * Initialize a default environment.
+   * Initialize a default environment. All document fields in the index will
+   * be used for searching. Any fields set prior to calling the constructor
+   * get overwritten.
+   *
+   * @param newIndexPath Path where the Lucene index resides
+   * @param newDataPath Path where application data is stored
+   * @throws java.io.IOException Thrown on low-level I/O errors
    */
   public Environment(final String newIndexPath, final String newDataPath)
           throws IOException {
     this(newIndexPath, newDataPath, null);
   }
 
+  /**
+   * Initialize the environment. Only the passed list of document fields will
+   * be used for searching. Any fields set prior to calling the constructor
+   * get overwritten.
+   *
+   * @param newIndexPath Path where the Lucene index resides
+   * @param newDataPath Path where application data is stored
+   * @param fields Document fields to use for searching
+   * @throws IOException Thrown on low-level I/O errors
+   */
   public Environment(final String newIndexPath, final String newDataPath,
           final String[] fields)
           throws IOException {
@@ -155,7 +218,7 @@ public class Environment {
       // use all index fields
       final Fields idxFields = MultiFields.getFields(Environment.indexReader);
       final Iterator<String> idxFieldNamesIt = idxFields.iterator();
-      final Collection<String> idxFieldNames = new HashSet(idxFields.size());
+      final Collection<String> idxFieldNames = new HashSet<>(idxFields.size());
       while (idxFieldNamesIt.hasNext()) {
         idxFieldNames.add(idxFieldNamesIt.next());
       }
@@ -163,7 +226,7 @@ public class Environment {
               size()]);
     } else {
       Environment.fields = fields;
-      checkFields(fields);
+      IndexUtils.checkFields(fields);
     }
 
     loadProperties();
@@ -173,52 +236,89 @@ public class Environment {
     } catch (IllegalArgumentException ex) {
       // already registered, or shutdown is currently happening
     }
-
-    fieldsChangedListeners = new HashSet<>(DEFAULT_LISTENERS_SIZE);
   }
 
+  /**
+   * Add a listener to get notified if document fields are changed.
+   *
+   * @param listener Listener to add
+   * @return True, if the listener was added
+   */
+  public static boolean addStopwordsChangedListener(
+          final StopwordsChangedListener listener) {
+    return Environment.stopwordsChangedListeners.add(listener);
+  }
+
+  /**
+   * Remove a listener to changes of document fields.
+   *
+   * @param listener Listener to remove
+   * @return True, if the listener was removed
+   */
+  public static boolean removeStopwordsChangedListener(
+          final StopwordsChangedListener listener) {
+    return Environment.stopwordsChangedListeners.remove(listener);
+  }
+
+  /**
+   * Add a listener to get notified if document fields are changed.
+   *
+   * @param listener Listener to add
+   * @return True, if the listener was added
+   */
   public static boolean addFieldsChangedListener(
           final FieldsChangedListener listener) {
     return Environment.fieldsChangedListeners.add(listener);
   }
 
+  /**
+   * Remove a listener to changes of document fields.
+   *
+   * @param listener Listener to remove
+   * @return True, if the listener was removed
+   */
   public static boolean removeFieldsChangedListener(
           final FieldsChangedListener listener) {
     return Environment.fieldsChangedListeners.remove(listener);
   }
 
+  /**
+   * Set the index document fields that get searched
+   *
+   * @param newFields List of fields to use for searching
+   */
   public static void setFields(final String[] newFields) {
-    checkFields(newFields);
+    IndexUtils.checkFields(newFields);
     final String[] oldFields = Environment.fields.clone();
     Environment.fields = newFields.clone();
+    LOG.info("Index fields changed: {}", Environment.fields);
     for (FieldsChangedListener listener : Environment.fieldsChangedListeners) {
-      listener.fieldsChanged(oldFields, newFields);
+      listener.fieldsChanged(oldFields);
     }
   }
 
   /**
-   * Check if all given fields are available in the current index.
+   * Set the list of stop-words to use.
    *
-   * @param indexReader Reader to access the index
-   * @param fields Fields to check
+   * @param words List of stop-words
    */
-  private static final void checkFields(final String[] fields) {
-    if (fields == null || fields.length == 0) {
-      throw new IllegalArgumentException("No fields specified.");
+  public static void setStopwords(final Collection<String> words) {
+    final Collection<String> oldWords = new ArrayList<>(Environment.stopWords);
+    Environment.stopWords.addAll(words);
+    LOG.info("Stop-words changed: {}", Environment.stopWords);
+    for (StopwordsChangedListener listener
+            : Environment.stopwordsChangedListeners) {
+      listener.wordsChanged(oldWords);
     }
+  }
 
-    // get all indexed fields from index - other fields are not of interes here
-    final Collection<String> indexedFields = MultiFields.getIndexedFields(
-            Environment.indexReader);
-
-    // check if all requested fields are available
-    if (!indexedFields.containsAll(Arrays.asList(fields))) {
-      throw new IllegalStateException(MessageFormat.format(
-              "Not all requested fields ({0}) "
-              + "are available in the current index ({1}) or are not indexed.",
-              StringUtils.join(fields, ","), Arrays.toString(indexedFields.
-                      toArray(new String[indexedFields.size()]))));
-    }
+  /**
+   * Get the list of stop-words.
+   *
+   * @return List of stop-words
+   */
+  public static Collection<String> getStopwords() {
+    return Collections.unmodifiableCollection(Environment.stopWords);
   }
 
   /**
@@ -227,7 +327,7 @@ public class Environment {
    * @return True, if the file is there, false otherwise
    * @throws IOException Thrown on low-level I/O errors
    */
-  private final boolean loadProperties() throws IOException {
+  private boolean loadProperties() throws IOException {
     boolean hasProp;
 
     final File propFile = new File(Environment.dataPath,
@@ -242,9 +342,16 @@ public class Environment {
       LOG.trace("Cache meta file " + propFile + " not found.", ex);
       hasProp = false;
     }
+    propLoaded = true;
     return hasProp;
   }
 
+  /**
+   * Check if the configured pathes are available. Tries to create some of
+   * them, if it's not the case.
+   *
+   * @throws IOException Thrown if a path is not there or it cannot be created
+   */
   private void checkPathes() throws IOException {
     if (Environment.dataPath == null || Environment.dataPath.isEmpty()) {
       throw new IllegalArgumentException("Data path was empty.");
@@ -279,7 +386,7 @@ public class Environment {
   }
 
   /**
-   * Tries to open a Lucene IndexReader
+   * Tries to open a Lucene IndexReader.
    *
    * @param indexDir Directory of the Lucene index
    * @return Reader for accessing the Lucene index
@@ -291,7 +398,7 @@ public class Environment {
   }
 
   /**
-   * Create a new instance with a default dataProvider implementation
+   * Create a new instance with a default dataProvider implementation.
    *
    * @throws IOException Thrown on low-level I/O-errors
    */
@@ -303,7 +410,7 @@ public class Environment {
   }
 
   /**
-   * Create a new instance with the given dataProvider
+   * Create a new instance with the given dataProvider.
    *
    * @param newDataProvider DataProvider to use
    */
@@ -317,6 +424,13 @@ public class Environment {
             getCanonicalName());
   }
 
+  /**
+   * Create a new instance of the given dataProvider class type.
+   *
+   * @param dataProviderClass DataProvider to instantiate
+   * @throws InstantiationException Thrown if instance could not be created
+   * @throws IllegalAccessException Thrown if instance could not be created
+   */
   public void create(
           final Class<? extends IndexDataProvider> dataProviderClass) throws
           InstantiationException, IllegalAccessException {
@@ -355,10 +469,7 @@ public class Environment {
    * @return True, if initialized, false otherwise
    */
   public static boolean isInitialized() {
-    if (instance == null) {
-      return false;
-    }
-    return true;
+    return instance != null;
   }
 
   /**
@@ -367,7 +478,10 @@ public class Environment {
    * @return List of fields passed to the IndexDataProvider
    */
   public static String[] getFields() {
-    initialized();
+    if (Environment.fields == null) {
+      throw new IllegalStateException(
+              "Environment not initialized. (fields)");
+    }
     return Environment.fields.clone();
   }
 
@@ -387,7 +501,10 @@ public class Environment {
    * @return Lucene index reader
    */
   public static IndexReader getIndexReader() {
-    initialized();
+    if (Environment.indexReader == null) {
+      throw new IllegalStateException(
+              "Environment not initialized. (indexReader)");
+    }
     return Environment.indexReader;
   }
 
@@ -397,7 +514,10 @@ public class Environment {
    * @return directory location of the Lucene index
    */
   public static String getIndexPath() {
-    initialized();
+    if (Environment.indexPath == null) {
+      throw new IllegalStateException(
+              "Environment not initialized. (indexPath)");
+    }
     return Environment.indexPath;
   }
 
@@ -407,7 +527,10 @@ public class Environment {
    * @return directory location for storing extended data
    */
   public static String getDataPath() {
-    initialized();
+    if (Environment.dataPath == null) {
+      throw new IllegalStateException(
+              "Environment not initialized. (dataPath)");
+    }
     return Environment.dataPath;
   }
 
@@ -426,7 +549,15 @@ public class Environment {
       LOG.error("Failed to save properties.", ex);
     }
     clearAllProperties();
-    fieldsChangedListeners.clear();
+    Environment.fieldsChangedListeners.clear();
+    Environment.stopwordsChangedListeners.clear();
+    Environment.dataPath = null;
+    Environment.dataProvider = null;
+    Environment.fields = null;
+    Environment.indexPath = null;
+    Environment.stopWords.clear();
+    propLoaded = false;
+    indexReader = null;
     instance = null;
   }
 
@@ -457,7 +588,10 @@ public class Environment {
    */
   public static void setProperty(final String prefix, final String key,
           final String value) {
-    initialized();
+    if (!propLoaded) {
+      throw new IllegalStateException(
+              "Environment not initialized. (properties)");
+    }
     if (prefix == null || prefix.isEmpty()) {
       throw new IllegalArgumentException("No prefix specified.");
     }
@@ -480,7 +614,10 @@ public class Environment {
    * @return The stored property vale or null, if none was found
    */
   public static String getProperty(final String prefix, final String key) {
-    initialized();
+    if (!propLoaded) {
+      throw new IllegalStateException(
+              "Environment not initialized. (properties)");
+    }
     if (prefix == null || prefix.isEmpty()) {
       throw new IllegalArgumentException("No prefix specified.");
     }
@@ -496,7 +633,6 @@ public class Environment {
    * @param prefix Prefix to identify the property store to delete
    */
   public static void clearProperties(final String prefix) {
-    initialized();
     Iterator<Object> propKeys = Environment.PROP_STORE.keySet().iterator();
     while (propKeys.hasNext()) {
       if (((String) propKeys.next()).startsWith(prefix + "_")) {
@@ -509,7 +645,6 @@ public class Environment {
    * Removes all stored properties.
    */
   public static void clearAllProperties() {
-    initialized();
     Iterator<Object> propKeys = Environment.PROP_STORE.keySet().iterator();
     while (propKeys.hasNext()) {
       propKeys.next();
@@ -530,7 +665,10 @@ public class Environment {
    */
   public static String getProperty(final String prefix, final String key,
           final String defaultValue) {
-    initialized();
+    if (!propLoaded) {
+      throw new IllegalStateException(
+              "Environment not initialized. (properties)");
+    }
     if (prefix == null || prefix.isEmpty()) {
       throw new IllegalArgumentException("No prefix specified.");
     }
@@ -547,6 +685,25 @@ public class Environment {
   @SuppressWarnings("PublicInnerClass")
   public interface FieldsChangedListener {
 
-    void fieldsChanged(final String[] oldFields, final String[] newFields);
+    /**
+     * Called, if the index document fields have changed.
+     *
+     * @param oldFields List of old fields that were used
+     */
+    void fieldsChanged(final String[] oldFields);
+  }
+
+  /**
+   * Listener interface to listen to changes of the list of stop-words.
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public interface StopwordsChangedListener {
+
+    /**
+     * Called, if the index document fields have changed.
+     *
+     * @param oldWords List of old words that were used
+     */
+    void wordsChanged(final Collection<String> oldWords);
   }
 }

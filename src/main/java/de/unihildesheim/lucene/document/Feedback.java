@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.lucene.document;
 
+import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.util.RandomValue;
 import de.unihildesheim.util.TimeMeasure;
 import java.io.IOException;
@@ -112,7 +113,7 @@ public final class Feedback {
       maxRetDocs = Math.min(maxIdxDocs, docCount);
       LOG.warn("Requested number of feedback documents ({}) "
               + "is larger than the amount of documents in the index ({}). "
-              + "Returning only {} feedback documents.",
+              + "Returning only {} feedback documents at maximum.",
               docCount, maxIdxDocs, maxRetDocs);
     } else {
       maxRetDocs = docCount;
@@ -120,65 +121,86 @@ public final class Feedback {
     return maxRetDocs;
   }
 
+  /**
+   * Same as
+   * {@link #get(org.apache.lucene.index.IndexReader, org.apache.lucene.search.Query, int)},
+   * but gets the target {@link IndexReader} from the {@link Environment}.
+   *
+   * @param query Query to get matching documents
+   * @param docCount Number of documents to return
+   * @return List of Lucene document ids
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  public static Collection<Integer> get(final Query query, final int docCount)
+          throws IOException {
+    return get(Environment.getIndexReader(), query, docCount);
+  }
+
+  /**
+   * Get a number of feedback documents matching a query.
+   *
+   * @param reader Reader to access Lucene's index
+   * @param query Query to get matching documents
+   * @param docCount Number of documents to return
+   * @return List of Lucene document ids
+   * @throws IOException Thrown on low-level I/O errors
+   */
   public static Collection<Integer> get(final IndexReader reader,
           final Query query, final int docCount) throws IOException {
     final TimeMeasure timeMeasure = new TimeMeasure().start();
     if (LOG.isDebugEnabled()) {
       if (docCount == -1) {
-        LOG.debug("Try getting all feedback documents...");
+        LOG.debug("Try getting all matching feedback documents...");
       } else {
-        LOG.debug("Try getting {} feedback documents...", docCount);
+        LOG.debug("Try getting {} matching feedback documents...", docCount);
       }
     }
-    int maxRetDocs; // maximum number of documents that can be returned
-    boolean allDocs; // true, if all documents should be retirieved
 
+    int maxRetDocs; // maximum number of documents that can be returned
     if (docCount == -1) {
       maxRetDocs = reader.maxDoc();
-      allDocs = true;
     } else {
       maxRetDocs = getMaxDocs(reader, docCount);
-      allDocs = maxRetDocs < docCount;
     }
 
     Collection<Integer> docIds;
-    if (allDocs) {
-      // get all documents from collection
-      docIds = new ArrayList<>(maxRetDocs);
-      final Bits liveDocs = MultiFields.getLiveDocs(reader);
+    // get a set of random documents
+    final TopDocs initialDocs = getDocs(reader, query, maxRetDocs);
 
-      for (int i = 0; i < reader.maxDoc(); i++) {
-        // check if document is deleted
-        if (liveDocs == null) {
-          docIds.add(i);
-        } else if (liveDocs.get(i)) {
-          docIds.add(i);
-        }
-      }
-    } else {
-      // get a set of random documents
-      final TopDocs initialDocs = getDocs(reader, query, maxRetDocs);
-
-      docIds = new HashSet<>(initialDocs.scoreDocs.length);
-      // add the matching documents to the list
-      for (ScoreDoc scoreDoc : initialDocs.scoreDocs) {
-        docIds.add(scoreDoc.doc);
-      }
+    docIds = new HashSet<>(initialDocs.scoreDocs.length);
+    // add the matching documents to the list
+    for (ScoreDoc scoreDoc : initialDocs.scoreDocs) {
+      docIds.add(scoreDoc.doc);
     }
-    LOG.debug("Getting {} feedback documents took {}.", docIds.size(),
+    LOG.debug("Getting {} matching feedback documents took {}.", docIds.size(),
             timeMeasure.getTimeString());
     return docIds;
   }
 
   /**
-   * Same as null null null null null null   {@link Feedback#getDocs(org.apache.lucene.index.IndexReader,
+   * Same as
+   * {@link #getFixed(org.apache.lucene.index.IndexReader, org.apache.lucene.search.Query, int)},
+   * but gets the target {@link IndexReader} from the {@link Environment}.
+   *
+   * @param query Query to get matching documents
+   * @param docCount Number of documents to return
+   * @return List of Lucene document ids
+   * @throws java.io.IOException Thrown on low-level I/O errors
+   */
+  public static Collection<Integer> getFixed(final Query query,
+          final int docCount) throws IOException {
+    return getFixed(Environment.getIndexReader(), query, docCount);
+  }
+
+  /**
+   * Same as {@link Feedback#get(org.apache.lucene.index.IndexReader,
    * org.apache.lucene.search.Query, int)}, except that, if the maximum number
    * of feedback documents matching the query is not reached, then random
    * documents will be picked from the index to reach this value.
    *
    * @param reader Reader to access Lucene's index
    * @param query Query to get matching documents
-   * @param docCount Number of documents to return.
+   * @param docCount Number of documents to return
    * @return List of Lucene document ids
    * @throws java.io.IOException Thrown on low-level I/O errors
    */

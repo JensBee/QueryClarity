@@ -55,6 +55,14 @@ public interface IndexDataProvider {
   Long getTermFrequency(final BytesWrap term);
 
   /**
+   * Get the document frequency of a single term in the index.
+   *
+   * @param term Term to lookup
+   * @return The frequency of the term in the index
+   */
+  int getDocumentFrequency(final BytesWrap term);
+
+  /**
    * Get the relative term frequency for a term in the index.
    *
    * @param term Term to lookup

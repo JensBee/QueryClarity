@@ -16,12 +16,18 @@
  */
 package de.unihildesheim.lucene.query;
 
+import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.LuceneDefaults;
 import de.unihildesheim.lucene.util.BytesWrap;
+import de.unihildesheim.util.StringUtils;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.text.CharacterIterator;
+import java.text.StringCharacterIterator;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.regex.Pattern;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
@@ -34,6 +40,8 @@ import org.apache.lucene.search.highlight.QueryTermExtractor;
 import org.apache.lucene.search.highlight.WeightedTerm;
 
 /**
+ * Utilities to handle queries. Currently only simple term queries are
+ * supported.
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
@@ -47,70 +55,61 @@ public final class QueryUtils {
   }
 
   /**
-   * Extract all terms of the given {@link Query}. The returned list is
-   * unique.
+   * Break down a query to it's single terms.
    *
-   * @param reader Reader to use
-   * @param query Query object to parse
-   * @return Unique list of terms of the rewritten {@link Query}
-   * @throws IOException Thrown on low-level I/O errors
+   * @param query Query to extract terms from
+   * @return Term extracted from the query
+   * @throws java.io.UnsupportedEncodingException Thrown, if encoding a term
+   * to UTF-8 fails
+   * @throws org.apache.lucene.queryparser.classic.ParseException Thrown, if
+   * query string could not be parsed
    */
-  public static Collection<BytesWrap> getUniqueQueryTerms(
-          final IndexReader reader, final Query query) throws IOException {
-    // get a list of all query terms and wrap them in an unique set
-    return new HashSet<>(getAllQueryTerms(reader, query, null));
+  private static Collection<BytesWrap> extractTerms(final String query) throws
+          UnsupportedEncodingException, ParseException {
+    if (query == null || query.isEmpty()) {
+      throw new IllegalArgumentException("Query string was empty.");
+    }
+    final SimpleTermsQuery queryObj = TermsQueryBuilder.buildFromEnvironment(
+            query);
+    final Collection<String> qTerms = queryObj.getQueryTerms();
+
+    if (qTerms.isEmpty()) {
+      throw new IllegalStateException("Query string returned no terms.");
+    }
+    final Collection<BytesWrap> bwTerms = new ArrayList<>(qTerms.size());
+    for (String qTerm : qTerms) {
+      bwTerms.add(new BytesWrap(qTerm.getBytes("UTF-8")));
+    }
+    return bwTerms;
   }
 
   /**
-   * Extract all terms of the given {@link Query}. Beware: If the query is a
-   * MultiField query then it's assumed that the query string is the same for
-   * all fields.
+   * Extract all unique terms from the query.
    *
-   * @param reader Reader to use
-   * @param query Query object to parse
-   * @param fields Document fields to extract terms from MultiField queries
-   * (may be null)
-   * @return List of all terms of the rewritten {@link Query}
-   * @throws IOException Thrown on low-level I/O errors
+   * @param query Query to extract terms from
+   * @return Collection of terms from the query string
+   * @throws java.io.UnsupportedEncodingException Thrown, if encoding a term
+   * to UTF-8 fails
+   * @throws org.apache.lucene.queryparser.classic.ParseException Thrown, if
+   * query string could not be parsed
    */
-  public static Collection<BytesWrap> getAllQueryTerms(
-          final IndexReader reader, final Query query, final String[] fields)
-          throws IOException {
-    final Query rwQuery = query.rewrite(reader);
-
-    final WeightedTerm[] wqTerms;
-    // get all terms from the query
-    if (fields == null) {
-      wqTerms = QueryTermExtractor.getTerms(rwQuery, true);
-    } else {
-      wqTerms = QueryTermExtractor.getTerms(rwQuery, true, fields[0]);
-    }
-
-    final Collection<BytesWrap> queryTerms = new ArrayList(wqTerms.length);
-    // store all plain query terms
-    for (WeightedTerm wTerm : wqTerms) {
-      queryTerms.add(new BytesWrap(wTerm.getTerm().getBytes("UTF-8")));
-    }
-
-    return queryTerms;
+  public static Collection<BytesWrap> getUniqueQueryTerms(final String query)
+          throws UnsupportedEncodingException, ParseException {
+    return new HashSet<>(extractTerms(query));
   }
 
   /**
-   * Creates a query for the given list of fields. No stop-words are removed.
+   * Extract all terms from the query.
    *
-   * @param fields Fields to include in query
-   * @param query Query string
-   * @return Query build from the given string searching the given fields
-   * @throws org.apache.lucene.queryparser.classic.ParseException Thrown if
-   * query could not be parsed
+   * @param query Query to extract terms from
+   * @return Collection of terms from the query string
+   * @throws java.io.UnsupportedEncodingException Thrown, if encoding a term
+   * to UTF-8 fails
+   * @throws org.apache.lucene.queryparser.classic.ParseException Thrown, if
+   * query string could not be parsed
    */
-  public static Query buildQuery(final String[] fields, final String query) throws
-          ParseException {
-    // create a default query
-    final Analyzer analyzer = new StandardAnalyzer(LuceneDefaults.VERSION,
-            CharArraySet.EMPTY_SET);
-    final QueryParser qParser = new MultiFieldQueryParser(
-            LuceneDefaults.VERSION, fields, analyzer);
-    return qParser.parse(query);
+  public static Collection<BytesWrap> getAllQueryTerms(final String query)
+          throws UnsupportedEncodingException, ParseException {
+    return extractTerms(query);
   }
 }

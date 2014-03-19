@@ -16,7 +16,7 @@
  */
 package de.unihildesheim.util.concurrent.processing;
 
-import de.unihildesheim.util.Configuration;
+import de.unihildesheim.util.ConfigurationOLD;
 import de.unihildesheim.util.TimeMeasure;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -61,7 +61,7 @@ public final class Processing {
   /**
    * Default number of target threads to run.
    */
-  public static final int THREADS = Configuration.getInt(
+  public static final int THREADS = ConfigurationOLD.getInt(
           CONF_PREFIX + "targetThreadsCount", Runtime.getRuntime().
           availableProcessors());
   /**

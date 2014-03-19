@@ -16,17 +16,16 @@
  */
 package de.unihildesheim.lucene.document;
 
-import de.unihildesheim.TestConfig;
-import de.unihildesheim.lucene.Environment;
+import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.index.TestIndex;
 import de.unihildesheim.lucene.query.QueryUtils;
+import de.unihildesheim.lucene.query.TermsQueryBuilder;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.RandomValue;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -44,22 +43,13 @@ import org.slf4j.LoggerFactory;
  * @author Jens Bertram <code@jens-bertram.net>
  */
 @RunWith(Parameterized.class)
-public class FeedbackTest {
+public class FeedbackTest extends MultiIndexDataProviderTestCase {
 
   /**
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(
           FeedbackTest.class);
-
-  /**
-   * Test documents index.
-   */
-  private static TestIndex index;
-  /**
-   * DataProvider instance currently in use.
-   */
-  private final Class<? extends IndexDataProvider> dataProvType;
 
   /**
    * Static initializer run before all tests.
@@ -88,24 +78,17 @@ public class FeedbackTest {
    */
   @Before
   public void setUp() throws Exception {
-    Environment.clear();
-    if (this.dataProvType == null) {
-      index.setupEnvironment();
-    } else {
-      index.setupEnvironment(this.dataProvType);
-    }
+    caseSetUp();
   }
 
   @Parameterized.Parameters
   public static Collection<Object[]> data() {
-    Collection<Object[]> params = TestConfig.getDataProviderParameter();
-    params.add(new Object[]{null});
-    return params;
+    return getCaseParameters();
   }
 
   public FeedbackTest(
           final Class<? extends IndexDataProvider> dataProv) {
-    this.dataProvType = dataProv;
+    super(dataProv);
   }
 
   /**
@@ -116,21 +99,18 @@ public class FeedbackTest {
   @Test
   public void testGet() throws Exception {
     LOG.info("Test get");
-    final IndexReader reader = Environment.getIndexReader();
     final long maxDocCount = index.getDocumentCount();
 
     Collection<Integer> result;
 
     // get all query
-    result = Feedback.get(reader, QueryUtils.buildQuery(Environment.
-            getFields(), index.getQueryString()), -1);
+    result = Feedback.get(index.getQueryObj(), -1);
     assertNotEquals("No documents retrieved from feedback.", 0,
             result.size());
 
     // try to get some random results
     for (int i = 1; i < maxDocCount; i += 10) {
-      result = Feedback.get(reader, QueryUtils.buildQuery(Environment.
-              getFields(), index.getQueryString()), i);
+      result = Feedback.get(index.getQueryObj(), i);
       assertNotEquals("There must be results.", 0, result.size());
     }
 
@@ -139,7 +119,7 @@ public class FeedbackTest {
             getInteger(0, (int) index.getDocumentCount()));
     final String[] singleTermQuery = new String[]{""};
     final String[] multiTermQuery = new String[RandomValue.getInteger(2,
-            docModel.termFreqMap.size() -1)];
+            docModel.termFreqMap.size() - 1)];
     int termIdx = 0;
     for (BytesWrap term : docModel.termFreqMap.keySet()) {
       multiTermQuery[termIdx] = term.toString();
@@ -149,13 +129,12 @@ public class FeedbackTest {
     }
     final List<BytesWrap> terms = new ArrayList(docModel.termFreqMap.
             keySet());
-    final int idx = RandomValue.getInteger(0, terms.size() -1);
+    final int idx = RandomValue.getInteger(0, terms.size() - 1);
     singleTermQuery[0] = terms.get(idx).toString();
 
     boolean foundDoc = false;
-    Query query = QueryUtils.buildQuery(Environment.getFields(), index.
-            getQueryString(singleTermQuery));
-    result = Feedback.get(reader, query, -1);
+    Query query = index.getQueryObj(singleTermQuery);
+    result = Feedback.get(query, -1);
     for (Integer docId : result) {
       if (docId.equals(docModel.id)) {
         foundDoc = true;
@@ -166,8 +145,7 @@ public class FeedbackTest {
             + " searchId=" + docModel.id, foundDoc);
 
     foundDoc = false;
-    result = Feedback.get(reader, QueryUtils.buildQuery(Environment.
-            getFields(), index.getQueryString(multiTermQuery)), -1);
+    result = Feedback.get(index.getQueryObj(multiTermQuery), -1);
     for (Integer docId : result) {
       if (docId == docModel.id) {
         foundDoc = true;
@@ -184,20 +162,17 @@ public class FeedbackTest {
   @Test
   public void testGetFixed() throws Exception {
     LOG.info("Test getFixed");
-    final IndexReader reader = Environment.getIndexReader();
     final long maxDocCount = index.getDocumentCount();
     Collection<Integer> result;
 
     // try to get some random results
     for (int i = 1; i < maxDocCount; i += 10) {
-      result = Feedback.getFixed(reader, QueryUtils.buildQuery(Environment.
-              getFields(), index.getQueryString()), i);
+      result = Feedback.getFixed(index.getQueryObj(), i);
       assertEquals("Less than expected documents returned.", i, result.size());
     }
 
     // try to get more documents than available
-    result = Feedback.getFixed(reader, QueryUtils.buildQuery(Environment.
-            getFields(), index.getQueryString()), (int) maxDocCount
+    result = Feedback.getFixed(index.getQueryObj(), (int) maxDocCount
             + 100);
     assertEquals("Less than expected documents returned.", maxDocCount,
             result.size());
@@ -219,14 +194,12 @@ public class FeedbackTest {
       }
     }
 
-    result = Feedback.getFixed(reader, QueryUtils.buildQuery(Environment.
-            getFields(), index.getQueryString(singleTermQuery)),
+    result = Feedback.getFixed(index.getQueryObj(singleTermQuery),
             (int) maxDocCount);
     assertTrue("Document not in single-term query result set.", result.
             contains(docModel.id));
 
-    result = Feedback.getFixed(reader, QueryUtils.buildQuery(Environment.
-            getFields(), index.getQueryString(multiTermQuery)),
+    result = Feedback.getFixed(index.getQueryObj(multiTermQuery),
             (int) maxDocCount);
     assertTrue("Document not in multi-term query result set.", result.
             contains(docModel.id));

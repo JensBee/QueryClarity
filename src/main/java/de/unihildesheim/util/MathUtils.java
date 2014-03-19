@@ -36,6 +36,10 @@ public class MathUtils {
    * @return Log2 of the given value
    */
   public static double log2(final double value) {
-    return Math.log(value) / Math.log(2d);
+    return logN(2, value);
+  }
+
+  public static double logN(final double base, final double value) {
+    return Math.log(value) / Math.log(base);
   }
 }

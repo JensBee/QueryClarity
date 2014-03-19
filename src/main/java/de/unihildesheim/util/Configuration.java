@@ -16,135 +16,123 @@
  */
 package de.unihildesheim.util;
 
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Properties;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Configuration manager.
+ * General configuration management class.
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public final class Configuration {
+public abstract class Configuration {
 
   /**
    * Logger instance for this class.
    */
-  private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
+  private static final Logger LOG = LoggerFactory.getLogger(
           Configuration.class);
-
-  private static Configuration instance;
 
   /**
    * Configuration properties.
    */
-  private static Properties conf;
+  private final Properties data;
+
+  public Configuration() {
+    this.data = new Properties();
+  }
+
+  public Configuration(final Map<String, String> initial) {
+    this();
+    addAll(initial);
+  }
+
+  public void debugDump() {
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Dumping configuration - start");
+      for (Entry<Object, Object> conf : this.data.entrySet()) {
+        LOG.debug(" [{}]={}", conf.getKey(), conf.getValue());
+      }
+      LOG.debug("Dumping configuration - done");
+    }
+  }
 
   /**
-   * Name of the configuration file to load.
-   */
-  private static String confFile;
-
-  /**
-   * Flag indicating, if this instance is initialized.
-   */
-  private static boolean initialized = false;
-
-  /**
-   * Initialize this singleton with a specific configuration file name.
+   * Add all entries from the given map to the configuration.
    *
-   * @param fileName Configuration file name to use
+   * @param config Map with configuration settings
    */
-  public static void initInstance(final String fileName) {
-    if (initialized) {
-      throw new IllegalStateException("Instance already initialized.");
-    }
-    if (fileName.endsWith(".properties")) {
-      confFile = fileName;
-    } else {
-      confFile = fileName + ".properties";
-    }
-    instance = new Configuration();
-    initialized = true;
-  }
-
-  /**
-   * Check if an instance is initialized.
-   */
-  private static void checkInstance() {
-    if (!initialized) {
-      throw new IllegalStateException("Instance not initialized.");
+  protected final void addAll(final Map<String, String> config) {
+    for (Entry<String, String> confEntry : config.entrySet()) {
+      this.data.setProperty(confEntry.getKey(), confEntry.getValue());
     }
   }
 
   /**
-   * Private singleton constructor.
+   * Store a string value under the given key.
+   *
+   * @param key Key to use for storing
+   * @param value Value to store
    */
-  private Configuration() {
-    conf = new Properties();
-    try (InputStream resIn = Thread.currentThread().
-            getContextClassLoader().getResourceAsStream(
-                    confFile)) {
-
-              if (resIn != null) {
-                //load a properties file from class path, inside static method
-                conf.load(resIn);
-              }
-            } catch (IOException ex) {
-              LOG.info("No configration file found. "
-                      + "Creating a new one upon exit.");
-            }
-            Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
-              @Override
-              public void run() {
-                saveConfig();
-              }
-            }, "Configuration_shurdownHandler"));
+  protected final void add(final String key, final String value) {
+    this.data.setProperty(key, value);
   }
 
   /**
-   * Save the current configuration back to disk.
+   * Store a integer value under the given key.
+   *
+   * @param key Key to use for storing
+   * @param value Value to store
    */
-  private void saveConfig() {
-    try (OutputStream propFile = new FileOutputStream(confFile)) {
-      conf.store(propFile, null);
-    } catch (IOException ex) {
-      LOG.error("Error while storing configuration.", ex);
-    }
+  protected final void add(final String key, final Integer value) {
+    this.data.setProperty(key, value.toString());
   }
 
   /**
-   * Get an configuration item by key.
+   * Store a double value under the given key.
+   *
+   * @param key Key to use for storing
+   * @param value Value to store
+   */
+  protected final void add(final String key, final Double value) {
+    this.data.setProperty(key, value.toString());
+  }
+
+  /**
+   * Tries to get a string value associated with the given key.
    *
    * @param key Configuration item key
-   * @return Value assigned to the key, or <tt>null</tt> if there was none
+   * @return String value assigned to the key, or <tt>null</tt> if there was
+   * none or there was an error interpreting the value as integer
    */
-  public static String get(final String key) {
-    checkInstance();
-    return conf.getProperty(key);
+  protected final String getString(final String key) {
+    return getString(key, null);
   }
 
   /**
-   * Get an configuration item by key, specifying a default value.
+   * Tries to get a string value associated with the given key.
    *
    * @param key Configuration item key
    * @param defaultValue Default value to use, if no data for the given key
    * was found
-   * @return Value assigned to the key, or <tt>defaultValue</tt> if there was
-   * none
+   * @return String value assigned to the key, or <tt>defaultValue</tt> if
+   * there was none or there was an error interpreting the value as integer
    */
-  public static String get(final String key, final String defaultValue) {
-    if (!initialized) {
-      return defaultValue;
-    }
-    if (!conf.containsKey(key)) {
-      // push missing value to store
-      conf.setProperty(key, defaultValue);
-    }
-    return conf.getProperty(key, defaultValue);
+  protected final String getString(final String key, final String defaultValue) {
+    return this.data.getProperty(key, defaultValue);
+  }
+
+  /**
+   * Tries to get an integer value associated with the given key.
+   *
+   * @param key Configuration item key
+   * @return Integer value assigned to the key, or <tt>null</tt> if there was
+   * none or there was an error interpreting the value as integer
+   */
+  protected final Integer getInteger(final String key) {
+    return getInteger(key, null);
   }
 
   /**
@@ -154,42 +142,54 @@ public final class Configuration {
    * @param defaultValue Default value to use, if no data for the given key
    * was found
    * @return Integer value assigned to the key, or <tt>defaultValue</tt> if
-   * there was none
+   * there was none or there was an error interpreting the value as integer
    */
-  public static Integer getInt(final String key, final Integer defaultValue) {
-    if (!initialized) {
-      return defaultValue;
-    }
-    String value = get(key);
+  protected final Integer getInteger(final String key,
+          final Integer defaultValue) {
+    final String value = getString(key);
     if (value == null) {
-      // push missing value to store
-      get(key, defaultValue.toString());
       return defaultValue;
     } else {
-      return Integer.parseInt(value);
+      try {
+        return Integer.parseInt(value);
+      } catch (NumberFormatException ex) {
+        LOG.warn("Failed to restore integer value. key={} val={}", key, value);
+        return defaultValue;
+      }
     }
   }
 
   /**
-   * Tries to get an integer value associated with the given key.
+   * Tries to get a double value associated with the given key.
+   *
+   * @param key Configuration item key
+   * @return Double value assigned to the key, or <tt>null</tt> if there was
+   * none or there was an error interpreting the value as double
+   */
+  protected final Double getDouble(final String key) {
+    return getDouble(key, null);
+  }
+
+  /**
+   * Tries to get a double value associated with the given key.
    *
    * @param key Configuration item key
    * @param defaultValue Default value to use, if no data for the given key
    * was found
    * @return Double value assigned to the key, or <tt>defaultValue</tt> if
-   * there was none
+   * there was none or there was an error interpreting the value as double
    */
-  public static Double getDouble(final String key, final Double defaultValue) {
-    if (!initialized) {
-      return defaultValue;
-    }
-    String value = get(key);
+  protected final Double getDouble(final String key, final Double defaultValue) {
+    final String value = getString(key);
     if (value == null) {
-      // push missing value to store
-      get(key, defaultValue.toString());
       return defaultValue;
     } else {
-      return Double.parseDouble(value);
+      try {
+        return Double.parseDouble(value);
+      } catch (NumberFormatException ex) {
+        LOG.warn("Failed to restore double value. key={} val={}", key, value);
+        return defaultValue;
+      }
     }
   }
 }

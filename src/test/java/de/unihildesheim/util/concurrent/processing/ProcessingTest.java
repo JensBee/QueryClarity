@@ -54,7 +54,7 @@ public class ProcessingTest {
   public void testSetSource() {
     LOG.info("Test setSource");
     final Collection coll = new ArrayList(1);
-    final Source newSource = new CollectionSource(coll);
+    final Source newSource = new CollectionSource<>(coll);
     final Processing instance = new Processing();
     instance.setSource(newSource);
 
@@ -73,7 +73,7 @@ public class ProcessingTest {
   public void testSetSourceAndTarget() {
     LOG.info("Test setSourceAndTarget");
     final Collection coll = new ArrayList(1);
-    final Source newSource = new CollectionSource(coll);
+    final Source newSource = new CollectionSource<>(coll);
     final Target newTarget = new Target.TargetTest(newSource);
     final Processing instance = new Processing();
     instance.setSourceAndTarget(newTarget);
@@ -90,7 +90,7 @@ public class ProcessingTest {
   @Test
   public void testSetTarget() {
     LOG.info("Test setTarget");
-    final Collection<String> coll = new ArrayList(1);
+    final Collection<String> coll = new ArrayList<>(1);
     final Source newSource = new CollectionSource(coll);
     final Target newTarget = new Target.TargetTest(newSource);
     final Processing instance = new Processing();
@@ -111,7 +111,7 @@ public class ProcessingTest {
   @Test
   public void testShutDown() {
     LOG.info("Test shutDown");
-    Collection<String> coll = new ArrayList(1);
+    Collection<String> coll = new ArrayList<>(1);
     Source newSource = new CollectionSource(coll);
     Target newTarget = new Target.TargetTest(newSource);
     final Processing instance = new Processing();
@@ -140,7 +140,7 @@ public class ProcessingTest {
   public void testDebugTestSource() {
     LOG.info("Test debugTestSource");
     int collSize = RandomValue.getInteger(100, 10000);
-    Collection<String> coll = new ArrayList(collSize);
+    Collection<String> coll = new ArrayList<>(collSize);
     for (int i=0; i<collSize; i++) {
       coll.add(RandomValue.getString(1, 10));
     }
@@ -159,14 +159,14 @@ public class ProcessingTest {
   @Test
   public void testProcess_0args() {
     LOG.info("Test process 0args");
-    Collection<String> coll = new ArrayList(1);
+    Collection<String> coll = new ArrayList<>(1);
     Source newSource = new CollectionSource(coll);
     Target newTarget = new Target.TargetTest(newSource);
     final Processing instance = new Processing();
     instance.setSourceAndTarget(newTarget);
 
     final int collSize = RandomValue.getInteger(100, 10000);
-    coll = new ArrayList(collSize);
+    coll = new ArrayList<>(collSize);
     for (int i=0; i<collSize; i++) {
       coll.add(RandomValue.getString(1, 10));
     }
@@ -179,14 +179,14 @@ public class ProcessingTest {
   @Test
   public void testProcess_int() {
     LOG.info("Test process 1args");
-    Collection<String> coll = new ArrayList(1);
+    Collection<String> coll = new ArrayList<>(1);
     Source newSource = new CollectionSource(coll);
     Target newTarget = new Target.TargetTest(newSource);
     final Processing instance = new Processing();
     instance.setSourceAndTarget(newTarget);
 
     final int collSize = RandomValue.getInteger(100, 10000);
-    coll = new ArrayList(collSize);
+    coll = new ArrayList<>(collSize);
     for (int i=0; i<collSize; i++) {
       coll.add(RandomValue.getString(1, 10));
     }

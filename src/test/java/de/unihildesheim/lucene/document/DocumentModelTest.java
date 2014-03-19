@@ -18,12 +18,13 @@ package de.unihildesheim.lucene.document;
 
 import de.unihildesheim.TestConfig;
 import de.unihildesheim.lucene.Environment;
+import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.index.TestIndex;
+import de.unihildesheim.lucene.metrics.CollectionMetrics;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.RandomValue;
 import edu.umd.cs.findbugs.annotations.SuppressWarnings;
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -32,7 +33,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.*;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
@@ -44,21 +44,13 @@ import org.slf4j.LoggerFactory;
  * @author Jens Bertram <code@jens-bertram.net>
  */
 @RunWith(Parameterized.class)
-public final class DocumentModelTest {
+public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
 
   /**
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(
           DocumentModelTest.class);
-  /**
-   * Test documents index.
-   */
-  private static TestIndex index;
-  /**
-   * DataProvider instance currently in use.
-   */
-  private final Class<? extends IndexDataProvider> dataProvType;
 
   /**
    * Static initializer run before all tests.
@@ -82,13 +74,11 @@ public final class DocumentModelTest {
 
   @Parameterized.Parameters
   public static Collection<Object[]> data() {
-    Collection<Object[]> params = TestConfig.getDataProviderParameter();
-    params.add(new Object[]{null});
-    return params;
+    return getCaseParameters();
   }
 
   public DocumentModelTest(final Class<? extends IndexDataProvider> dataProv) {
-    this.dataProvType = dataProv;
+    super(dataProv);
   }
 
   /**
@@ -98,12 +88,7 @@ public final class DocumentModelTest {
    */
   @Before
   public void setUp() throws Exception {
-    Environment.clear();
-    if (this.dataProvType == null) {
-      index.setupEnvironment();
-    } else {
-      index.setupEnvironment(this.dataProvType);
-    }
+    caseSetUp();
   }
 
   /**
@@ -113,7 +98,7 @@ public final class DocumentModelTest {
   public void testContains() {
     LOG.info("Test contains");
 
-    for (int i = 0; i < Environment.getDataProvider().getDocumentCount(); i++) {
+    for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
       final DocumentModel docModel = Environment.getDataProvider().
               getDocumentModel(i);
       final DocumentModel docModelExp = index.getDocumentModel(i);
@@ -132,7 +117,7 @@ public final class DocumentModelTest {
   public void testTermFrequency() {
     LOG.info("Test termFrequency");
 
-    for (int i = 0; i < Environment.getDataProvider().getDocumentCount(); i++) {
+    for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
       final Map<BytesWrap, Long> tfMap = Environment.getDataProvider().
               getDocumentModel(i).termFreqMap;
       final Map<BytesWrap, Long> tfMapExp = index.getDocumentTermFrequencyMap(
@@ -158,13 +143,13 @@ public final class DocumentModelTest {
   public void testEquals() {
     LOG.info("Test equals");
 
-    final int firstDocId = RandomValue.getInteger(0, (int) Environment.
-            getDataProvider().getDocumentCount());
-    int secondDocId = RandomValue.getInteger(0, (int) Environment.
-            getDataProvider().getDocumentCount());
+    final int firstDocId = RandomValue.getInteger(0, CollectionMetrics.
+            numberOfDocuments().intValue());
+    int secondDocId = RandomValue.getInteger(0, CollectionMetrics.
+            numberOfDocuments().intValue());
     while (secondDocId == firstDocId) {
-      secondDocId = RandomValue.getInteger(0, (int) Environment.
-              getDataProvider().getDocumentCount());
+      secondDocId = RandomValue.getInteger(0, CollectionMetrics.
+              numberOfDocuments().intValue());
     }
 
     final DocumentModel firstDocModel = Environment.getDataProvider().
@@ -191,15 +176,13 @@ public final class DocumentModelTest {
   @Test
   public void testHashCode() {
     LOG.info("Test hashCode");
-    final int firstDocId = RandomValue.getInteger(0, (int) Environment.
-            getDataProvider().
-            getDocumentCount());
-    int secondDocId = RandomValue.getInteger(0, (int) Environment.
-            getDataProvider().
-            getDocumentCount());
+    final int firstDocId = RandomValue.getInteger(0, CollectionMetrics.
+            numberOfDocuments().intValue());
+    int secondDocId = RandomValue.getInteger(0, CollectionMetrics.
+            numberOfDocuments().intValue());
     while (secondDocId == firstDocId) {
-      secondDocId = RandomValue.getInteger(0, (int) Environment.
-              getDataProvider().getDocumentCount());
+      secondDocId = RandomValue.getInteger(0, CollectionMetrics.
+              numberOfDocuments().intValue());
     }
 
     final DocumentModel firstDocModel = Environment.getDataProvider().
@@ -238,7 +221,7 @@ public final class DocumentModelTest {
   public void testGetSmoothedRelativeTermFrequency() {
     LOG.info("Test getSmoothedRelativeTermFrequency");
     final int smoothingAmount = 100;
-    for (int i = 0; i < Environment.getDataProvider().getDocumentCount(); i++) {
+    for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
       final DocumentModel docModel = Environment.getDataProvider().
               getDocumentModel(i);
       for (BytesWrap bw : docModel.termFreqMap.keySet()) {

@@ -291,7 +291,7 @@ public final class TestIndexTest {
             new CollectionSource<>(testData), index, prefix));
     p.process();
 
-    Map<BytesWrap, Integer> expResult = new HashMap(testData.size());
+    Map<BytesWrap, Integer> expResult = new HashMap<>(testData.size());
     for (Tuple.Tuple4<Integer, BytesWrap, String, Integer> t4 : testData) {
       expResult.put(t4.b, t4.d);
     }
