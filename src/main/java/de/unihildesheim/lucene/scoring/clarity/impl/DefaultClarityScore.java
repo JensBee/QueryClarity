@@ -25,7 +25,6 @@ import de.unihildesheim.lucene.metrics.CollectionMetrics;
 import de.unihildesheim.lucene.query.QueryUtils;
 import de.unihildesheim.lucene.query.TermsQueryBuilder;
 import de.unihildesheim.lucene.scoring.clarity.ClarityScoreCalculation;
-import de.unihildesheim.util.ConfigurationOLD;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.util.TimeMeasure;
@@ -42,7 +41,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.QueryBuilder;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -71,11 +69,6 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * properties stored in the {@link DataProvider}.
    */
   static final String PREFIX = "DCS";
-
-  /**
-   * Prefix used to store configuration.
-   */
-  private static final String CONF_PREFIX = PREFIX + "_";
 
   /**
    * Keys to store calculation results in document models and access
@@ -109,9 +102,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
   /**
    * Default multiplier value for relative term frequency inside documents.
    */
-  private static final double DEFAULT_LANGMODEL_WEIGHT
-          = ConfigurationOLD.getDouble(CONF_PREFIX
-                  + "defaultLangModelWeight", 0.6d);
+  private static final double DEFAULT_LANGMODEL_WEIGHT = 0.6d;
 
   /**
    * Multiplier for relative term frequency inside documents.
@@ -122,9 +113,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * Default number of feedback documents to use. Cronen-Townsend et al.
    * recommend 500 documents.
    */
-  private static final int DEFAULT_FEEDBACK_DOCS_COUNT
-          = ConfigurationOLD.getInt(CONF_PREFIX
-                  + "defaultFeedbackDocCount", 500);
+  private static final int DEFAULT_FEEDBACK_DOCS_COUNT = 500;
 
   /**
    * Number of feedback documents to use.
@@ -142,7 +131,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
   private Map<Integer, Double> queryModels;
 
   /**
-   * Cached storage of Document-id -> Term, model-value
+   * Cached storage of Document-id -> Term, model-value.
    */
   private Map<Integer, Map<BytesWrap, Object>> docModelDataCache;
 
@@ -214,7 +203,6 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * Calculate the document distribution of a term, document model (pD).
    *
    * @param docModel Document model to do the calculation for
-   * @param terms List of terms to calculate
    */
   void calcDocumentModel(final DocumentModel docModel) {
     for (BytesWrap term : docModel.termFreqMap.keySet()) {
@@ -299,17 +287,16 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * actual number of documents used is restricted by the number of documents
    * available in the index.
    *
-   * @param fbDocCount Number of documents this instance should try to get
+   * @param newFbDocCount Number of documents this instance should try to get
    */
-  public void setFeedbackDocumentCount(final int fbDocCount) {
-    this.fbDocCount = fbDocCount;
+  public void setFeedbackDocumentCount(final int newFbDocCount) {
+    this.fbDocCount = newFbDocCount;
   }
 
   /**
    * Calculate the clarity score.
    *
    * @param feedbackDocuments Document ids of feedback documents
-   * @param newQueryTerms Terms contained in the originating query
    * @return Result of the calculation
    */
   @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")

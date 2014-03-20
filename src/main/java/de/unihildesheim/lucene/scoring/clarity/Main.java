@@ -23,7 +23,6 @@ import com.beust.jcommander.ParameterException;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModelException;
 import de.unihildesheim.lucene.index.CachedIndexDataProvider;
-import de.unihildesheim.util.ConfigurationOLD;
 import java.io.IOException;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.Query;
@@ -66,7 +65,6 @@ public final class Main {
   private void runMain() throws IOException, DocumentModelException,
           ParseException {
     LOG.debug("Starting");
-    ConfigurationOLD.initInstance("config");
 
     if (this.indexDir.isEmpty() || this.queryString.isEmpty()) {
       LOG.error("No index or query specified.");

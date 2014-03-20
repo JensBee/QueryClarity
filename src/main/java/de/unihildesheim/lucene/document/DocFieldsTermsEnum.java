@@ -20,7 +20,6 @@ import de.unihildesheim.lucene.Environment;
 import java.io.IOException;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.slf4j.Logger;

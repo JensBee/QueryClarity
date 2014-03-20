@@ -580,7 +580,7 @@ public final class TestIndex implements IndexDataProvider,
    * @return All known document-ids
    */
   private Collection<Integer> getDocumentIds() {
-    final Collection<Integer> docIds = new ArrayList(documentsCount);
+    final Collection<Integer> docIds = new ArrayList<>(documentsCount);
     for (int i = 0; i < documentsCount; i++) {
       docIds.add(i);
     }

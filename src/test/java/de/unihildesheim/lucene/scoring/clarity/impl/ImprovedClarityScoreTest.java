@@ -59,6 +59,11 @@ public class ImprovedClarityScoreTest extends MultiIndexDataProviderTestCase {
           ImprovedClarityScoreTest.class);
 
   /**
+   * Delta allowed in clarity score calculation.
+   */
+  private static final double ALLOWED_SCORE_DELTA = 0.00005;
+
+  /**
    * Static initializer run before all tests.
    *
    * @throws Exception Any exception thrown indicates an error
@@ -219,15 +224,15 @@ public class ImprovedClarityScoreTest extends MultiIndexDataProviderTestCase {
             getFeedbackTerms()));
 
     double score = 0;
+    final Collection<BytesWrap> qTerms = QueryUtils.getAllQueryTerms(query);
     for (BytesWrap fbTerm : fbTerms) {
-      final double pqt = calc_pqt(conf, fbTerm, feedbackDocIds, QueryUtils.
-              getAllQueryTerms(query));
+      final double pqt = calc_pqt(conf, fbTerm, feedbackDocIds, qTerms);
       score += pqt * MathUtils.log2(pqt / CollectionMetrics.relTf(fbTerm).
               doubleValue());
     }
 
     LOG.debug("Scores test={} ics={}", score, result.getScore());
-    assertEquals(score, result.getScore(), TestConfig.DOUBLE_ALLOWED_DELTA);
+    assertEquals(score, result.getScore(), ALLOWED_SCORE_DELTA);
   }
 
 }

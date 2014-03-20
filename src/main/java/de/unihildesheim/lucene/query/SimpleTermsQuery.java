@@ -89,6 +89,7 @@ public final class SimpleTermsQuery extends Query {
   public SimpleTermsQuery(final String query,
           final QueryParser.Operator operator, final String[] fields,
           final Collection<String> stopWords) throws ParseException {
+    LOG.debug("STQ q={} op={} f={} s={}", query, operator, fields, stopWords);
     if (query == null || query.trim().isEmpty()) {
       throw new IllegalArgumentException("Empty query.");
     }

@@ -16,7 +16,6 @@
  */
 package de.unihildesheim.util.concurrent.processing;
 
-import de.unihildesheim.util.ConfigurationOLD;
 import de.unihildesheim.util.TimeMeasure;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -55,15 +54,9 @@ public final class Processing {
   private Target target = null;
 
   /**
-   * Prefix used to store configuration.
-   */
-  private static final String CONF_PREFIX = "ProcessPipe_";
-  /**
    * Default number of target threads to run.
    */
-  public static final int THREADS = ConfigurationOLD.getInt(
-          CONF_PREFIX + "targetThreadsCount", Runtime.getRuntime().
-          availableProcessors());
+  public static final int THREADS = Runtime.getRuntime().availableProcessors();
   /**
    * Latch that tracks the running threads.
    */
@@ -195,6 +188,7 @@ public final class Processing {
     executor.setTargetThreadsCount(threadCount);
 
     LOG.trace("Spawning {} Processing-Target thread.", threadCount);
+    @SuppressWarnings("unchecked")
     final Target<Object> aTarget = new Target.TargetTest<>(source);
     aTarget.setLatch(this.threadTrackingLatch);
 
@@ -282,8 +276,7 @@ public final class Processing {
     try {
       processedItems = (Long) sourceThread.get();
     } catch (InterruptedException | ExecutionException ex) {
-      if (!(ex.getCause() instanceof
-              ProcessingException.SourceHasFinishedException)) {
+      if (!(ex.getCause() instanceof ProcessingException.SourceHasFinishedException)) {
         LOG.error("Caught exception while tracking source state.", ex);
       }
     }
@@ -416,11 +409,20 @@ public final class Processing {
      * @param task Source runnable
      * @return Future to track the state
      */
-    Future runSource(final Callable task) {
+    @SuppressWarnings("unchecked")
+    Future<Object> runSource(final Callable task) {
       return threadPool.submit(task);
     }
 
-    Future runTask(final Callable task) {
+    /**
+     * Submit a task to the thread queue, returning a {@link Future} to track
+     * it's state.
+     *
+     * @param task Task runnable
+     * @return Future to track the state
+     */
+    @SuppressWarnings("unchecked")
+    Future<Object> runTask(final Callable task) {
       return threadPool.submit(task);
     }
 

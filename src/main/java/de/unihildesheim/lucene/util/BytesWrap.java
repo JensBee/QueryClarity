@@ -49,7 +49,10 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap>,
 
 //  private static final int UNSIGNED_MASK = 0xFF;
 
-  private static transient final Map<byte[], String> intern
+  /**
+   * Internal {@link Map} to cache string representations.
+   */
+  private static final transient Map<byte[], String> INTERN
           = Collections.synchronizedMap(new InternMap<byte[], String>(100000));
 
   /**
@@ -153,13 +156,13 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap>,
    */
   @Override
   public String toString() {
-    String str = intern.get(this.data);
+    String str = INTERN.get(this.data);
     if (str == null) {
       final CharsRef ref = new CharsRef(this.data.length);
       UnicodeUtil.UTF8toUTF16(this.data, 0, this.data.length, ref);
-      intern.put(this.data, ref.toString());
+      INTERN.put(this.data, ref.toString());
     }
-    str = intern.get(this.data);
+    str = INTERN.get(this.data);
     if (str == null) {
       LOG.error("String was null. bytes={} bytes_size={}", this.data,
               this.data.length);
@@ -272,16 +275,30 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap>,
     }
   }
 
+  /**
+   * Internal {@link Map} to cache values.
+   * @param <K> Key type
+   * @param <V> Value type
+   */
   private static class InternMap<K, V> extends LinkedHashMap<K, V> {
 
+    /**
+     * Maximum size of the map.
+     */
     private final int maxSize;
 
-    public InternMap(int maxSize) {
-      this.maxSize = maxSize;
+    /**
+     * Creates a new map with the given maximum size. Eldest elements will be
+     * removed if maximum map size gets reached.
+     *
+     * @param newMaxSize Maximum size of the map
+     */
+    public InternMap(final int newMaxSize) {
+      this.maxSize = newMaxSize;
     }
 
     @Override
-    protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
+    protected boolean removeEldestEntry(final Map.Entry<K, V> eldest) {
       return size() > maxSize;
     }
   }

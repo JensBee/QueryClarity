@@ -126,7 +126,7 @@ public final class ExternalDocTermDataManager {
         // create a new map
         DB.BTreeMapMaker mapMkr = db.createTreeMap(mapName);
         final BTreeKeySerializer mapKeySerializer
-                = new BTreeKeySerializer.Tuple3KeySerializer(null, null,
+                = new BTreeKeySerializer.Tuple3KeySerializer<>(null, null,
                         Serializer.INTEGER, Serializer.STRING_INTERN,
                         new BytesWrap.Serializer());
         mapMkr.keySerializer(mapKeySerializer);

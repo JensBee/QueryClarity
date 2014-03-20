@@ -16,28 +16,12 @@
  */
 package de.unihildesheim.lucene.query;
 
-import de.unihildesheim.lucene.Environment;
-import de.unihildesheim.lucene.LuceneDefaults;
 import de.unihildesheim.lucene.util.BytesWrap;
-import de.unihildesheim.util.StringUtils;
-import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.text.CharacterIterator;
-import java.text.StringCharacterIterator;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.regex.Pattern;
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.queryparser.classic.QueryParser;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.highlight.QueryTermExtractor;
-import org.apache.lucene.search.highlight.WeightedTerm;
 
 /**
  * Utilities to handle queries. Currently only simple term queries are

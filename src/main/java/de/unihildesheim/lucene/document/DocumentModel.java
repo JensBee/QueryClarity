@@ -18,7 +18,6 @@ package de.unihildesheim.lucene.document;
 
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.index.IndexDataProvider;
-import de.unihildesheim.util.ConfigurationOLD;
 import de.unihildesheim.lucene.util.BytesWrap;
 import java.util.HashMap;
 import java.util.Map;
@@ -50,6 +49,9 @@ public final class DocumentModel {
    */
   public final Map<BytesWrap, Long> termFreqMap;
 
+  /**
+   * Pre-calculated hash code for this object.
+   */
   private int hashCode;
 
   /**
@@ -95,6 +97,14 @@ public final class DocumentModel {
     return this.termFreqMap.get(term);
   }
 
+  /**
+   * Get the relative term frequency for a term in the document. Calculated by
+   * dividing the frequency of the given term  by the frequency of all
+   * terms in the document.
+   *
+   * @param term Term to lookup
+   * @return Relative frequency. Zero if term is not in document.
+   */
   public double getRelativeTermFrequency(final BytesWrap term) {
     Long tf = termFrequency(term);
     if (tf == null) {
@@ -169,18 +179,14 @@ public final class DocumentModel {
   /**
    * Builder to create new {@link DocumentModel}s.
    */
+  @SuppressWarnings("PublicInnerClass")
   public static final class DocumentModelBuilder {
 
-    /**
-     * Prefix used to store configuration.
-     */
-    private static final String CONF_PREFIX = "DMBuilder_";
     /**
      * Default number of terms to expect for a document. Used to initialize
      * data storage to a appropriate size.
      */
-    private static final int DEFAULT_TERMS_COUNT = ConfigurationOLD.
-            getInt(CONF_PREFIX + "defaultTermsCount", 100);
+    private static final int DEFAULT_TERMS_COUNT = 100;
     /**
      * Term -> frequency mapping for every known term in the document.
      */

@@ -17,20 +17,66 @@
 package de.unihildesheim.lucene.metrics;
 
 import de.unihildesheim.lucene.Environment;
+import de.unihildesheim.lucene.document.DocumentModel;
+import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.util.BytesWrap;
 import java.util.Iterator;
 
 /**
  * Document related metrics.
+ *
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public final class DocumentMetrics {
 
   /**
-   * Private constructor for utility class.
+   * Model of the current document.
    */
-  private DocumentMetrics() {
-    // empty utility constructor
+  private final DocumentModel docModel;
+
+  /**
+   * Initialize metrics for a specific document.
+   *
+   * @param documentId Document to get
+   */
+  public DocumentMetrics(final int documentId) {
+    this.docModel = Environment.getDataProvider().getDocumentModel(
+            documentId);
+  }
+
+  /**
+   * Initialize metrics for a specific document.
+   *
+   * @param documentModel Document model to use
+   */
+  public DocumentMetrics(final DocumentModel documentModel) {
+    if (documentModel == null) {
+      throw new IllegalArgumentException("DocumentModel was null.");
+    }
+    this.docModel = documentModel;
+  }
+
+  /**
+   * Initialize metrics for a specific document.
+   *
+   * @param dataProv Data provider to use
+   * @param documentId Document to get
+   */
+  public DocumentMetrics(final IndexDataProvider dataProv,
+          final int documentId) {
+    if (dataProv == null) {
+      throw new IllegalArgumentException("DataProvider was null.");
+    }
+    this.docModel = dataProv.getDocumentModel(documentId);
+  }
+
+  /**
+   * Get the frequency of all terms in the document.
+   *
+   * @return Summed frequency of all terms in document
+   */
+  public Long termFrequency() {
+    return this.docModel.termFrequency;
   }
 
   /**
@@ -47,21 +93,73 @@ public final class DocumentMetrics {
   /**
    * Get the frequency of the given term in the specific document.
    *
+   * @param dm Document model
+   * @param term Term whose frequency to get
+   * @return Frequency of the given term in the given document
+   */
+  private static Long termFrequency(final DocumentModel dm,
+          final BytesWrap term) {
+    if (term == null) {
+      throw new IllegalArgumentException("Term was null");
+    }
+    final Long freq = dm.termFreqMap.get(term);
+    if (freq == null) {
+      return 0L;
+    }
+    return freq;
+  }
+
+  /**
+   * Get the frequency of the given term in the specific document.
+   *
+   * @param term Term whose frequency to get
+   * @return Frequency of the given term in the given document
+   */
+  public Long termFrequency(final BytesWrap term) {
+    return termFrequency(this.docModel, term);
+  }
+
+  /**
+   * Get the frequency of the given term in the specific document.
+   *
    * @param documentId Id of target document
    * @param term Term whose frequency to get
    * @return Frequency of the given term in the given document
    */
   public static Long termFrequency(final int documentId,
           final BytesWrap term) {
-    if (term == null) {
-      throw new IllegalArgumentException("Term was null");
+    return termFrequency(Environment.getDataProvider().getDocumentModel(
+            documentId), term);
+  }
+
+  /**
+   * Get the number of unique terms in document.
+   *
+   * @param dm Document model
+   * @return Number of unique terms in document
+   */
+  private static Long uniqueTermCount(final DocumentModel dm) {
+    final Integer count = dm.termFreqMap.size();
+    // check for case where are more than Integer.MAX_VALUE entries
+    if (count == Integer.MAX_VALUE) {
+      Long manualCount = 0L;
+      Iterator<BytesWrap> termsIt = dm.termFreqMap.keySet().iterator();
+      while (termsIt.hasNext()) {
+        manualCount++;
+        termsIt.next();
+      }
+      return manualCount;
     }
-    final Long freq = Environment.getDataProvider().getDocumentModel(
-            documentId).termFreqMap.get(term);
-    if (freq == null) {
-      return 0L;
-    }
-    return freq;
+    return count.longValue();
+  }
+
+  /**
+   * Get the number of unique terms in document.
+   *
+   * @return Number of unique terms in document
+   */
+  public Long uniqueTermCount() {
+    return uniqueTermCount(this.docModel);
   }
 
   /**
@@ -71,19 +169,7 @@ public final class DocumentMetrics {
    * @return Number of unique terms in document
    */
   public static Long uniqueTermCount(final int documentId) {
-    final Integer count = Environment.getDataProvider().getDocumentModel(
-            documentId).termFreqMap.size();
-    // check for case where are more than Integer.MAX_VALUE entries
-    if (count == Integer.MAX_VALUE) {
-      Long manualCount = 0L;
-      Iterator<BytesWrap> termsIt = Environment.getDataProvider().
-              getDocumentModel(documentId).termFreqMap.keySet().iterator();
-      while (termsIt.hasNext()) {
-        manualCount++;
-        termsIt.next();
-      }
-      return manualCount;
-    }
-    return count.longValue();
+    return uniqueTermCount(Environment.getDataProvider().getDocumentModel(
+            documentId));
   }
 }

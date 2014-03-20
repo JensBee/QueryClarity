@@ -127,7 +127,7 @@ public class FeedbackTest extends MultiIndexDataProviderTestCase {
         break;
       }
     }
-    final List<BytesWrap> terms = new ArrayList(docModel.termFreqMap.
+    final List<BytesWrap> terms = new ArrayList<>(docModel.termFreqMap.
             keySet());
     final int idx = RandomValue.getInteger(0, terms.size() - 1);
     singleTermQuery[0] = terms.get(idx).toString();

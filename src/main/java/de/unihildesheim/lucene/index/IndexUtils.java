@@ -25,7 +25,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 
 /**
- *
+ * Simple utilities for working with a Lucene index.
  * @author Jens Bertram <code@jens-bertram.net>
  */
 public final class IndexUtils {

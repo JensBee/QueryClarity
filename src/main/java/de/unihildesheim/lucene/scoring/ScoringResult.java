@@ -16,7 +16,6 @@
  */
 package de.unihildesheim.lucene.scoring;
 
-import de.unihildesheim.util.Configuration;
 import java.util.Map;
 
 /**

@@ -22,7 +22,6 @@ import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.DocumentModel.DocumentModelBuilder;
 import de.unihildesheim.lucene.document.DocumentModelException;
 import de.unihildesheim.util.StringUtils;
-import de.unihildesheim.util.ConfigurationOLD;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.TimeMeasure;
 import de.unihildesheim.util.concurrent.processing.CollectionSource;
@@ -91,8 +90,7 @@ public final class CachedIndexDataProvider implements IndexDataProvider {
   /**
    * Separator to store field names.
    */
-  private static final String FIELD_NAME_SEP
-          = ConfigurationOLD.get(PREFIX + "fieldNameSep", "\\|");
+  private static final String FIELD_NAME_SEP = "\\|";
 
   /**
    * Unique identifier for this cache.

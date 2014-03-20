@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import org.junit.Test;
 import static org.junit.Assert.*;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 import org.slf4j.Logger;
@@ -53,7 +52,7 @@ public class ProcessingTest {
   @Test
   public void testSetSource() {
     LOG.info("Test setSource");
-    final Collection coll = new ArrayList(1);
+    final Collection<Object> coll = new ArrayList<>(1);
     final Source newSource = new CollectionSource<>(coll);
     final Processing instance = new Processing();
     instance.setSource(newSource);
@@ -72,9 +71,10 @@ public class ProcessingTest {
   @Test
   public void testSetSourceAndTarget() {
     LOG.info("Test setSourceAndTarget");
-    final Collection coll = new ArrayList(1);
+    final Collection<Object> coll = new ArrayList<>(1);
     final Source newSource = new CollectionSource<>(coll);
-    final Target newTarget = new Target.TargetTest(newSource);
+    @SuppressWarnings("unchecked")
+    final Target newTarget = new Target.TargetTest<>(newSource);
     final Processing instance = new Processing();
     instance.setSourceAndTarget(newTarget);
 
@@ -91,8 +91,9 @@ public class ProcessingTest {
   public void testSetTarget() {
     LOG.info("Test setTarget");
     final Collection<String> coll = new ArrayList<>(1);
-    final Source newSource = new CollectionSource(coll);
-    final Target newTarget = new Target.TargetTest(newSource);
+    final Source newSource = new CollectionSource<>(coll);
+    @SuppressWarnings("unchecked")
+    final Target newTarget = new Target.TargetTest<>(newSource);
     final Processing instance = new Processing();
 
     instance.setTarget(newTarget);
@@ -109,11 +110,12 @@ public class ProcessingTest {
    * Test of shutDown method, of class Processing.
    */
   @Test
+  @SuppressWarnings("unchecked")
   public void testShutDown() {
     LOG.info("Test shutDown");
     Collection<String> coll = new ArrayList<>(1);
-    Source newSource = new CollectionSource(coll);
-    Target newTarget = new Target.TargetTest(newSource);
+    Source newSource = new CollectionSource<>(coll);
+    Target newTarget = new Target.TargetTest<>(newSource);
     final Processing instance = new Processing();
     instance.setSourceAndTarget(newTarget);
 
@@ -122,12 +124,12 @@ public class ProcessingTest {
     instance.process();
 
     int collSize = RandomValue.getInteger(100, 10000);
-    coll = new ArrayList(collSize);
+    coll = new ArrayList<>(collSize);
     for (int i=0; i<collSize; i++) {
       coll.add(RandomValue.getString(1, 10));
     }
-    newSource = new CollectionSource(coll);
-    newTarget = new Target.TargetTest(newSource);
+    newSource = new CollectionSource<>(coll);
+    newTarget = new Target.TargetTest<>(newSource);
     Processing.shutDown();
     instance.setSourceAndTarget(newTarget);
     instance.process();
@@ -144,8 +146,9 @@ public class ProcessingTest {
     for (int i=0; i<collSize; i++) {
       coll.add(RandomValue.getString(1, 10));
     }
-    final Source newSource = new CollectionSource(coll);
-    final Target newTarget = new Target.TargetTest(newSource);
+    final Source newSource = new CollectionSource<>(coll);
+    @SuppressWarnings("unchecked")
+    final Target newTarget = new Target.TargetTest<>(newSource);
     final Processing instance = new Processing();
     instance.setSourceAndTarget(newTarget);
 
@@ -160,8 +163,9 @@ public class ProcessingTest {
   public void testProcess_0args() {
     LOG.info("Test process 0args");
     Collection<String> coll = new ArrayList<>(1);
-    Source newSource = new CollectionSource(coll);
-    Target newTarget = new Target.TargetTest(newSource);
+    Source newSource = new CollectionSource<>(coll);
+    @SuppressWarnings("unchecked")
+    Target newTarget = new Target.TargetTest<>(newSource);
     final Processing instance = new Processing();
     instance.setSourceAndTarget(newTarget);
 
@@ -180,8 +184,9 @@ public class ProcessingTest {
   public void testProcess_int() {
     LOG.info("Test process 1args");
     Collection<String> coll = new ArrayList<>(1);
-    Source newSource = new CollectionSource(coll);
-    Target newTarget = new Target.TargetTest(newSource);
+    Source newSource = new CollectionSource<>(coll);
+    @SuppressWarnings("unchecked")
+    Target newTarget = new Target.TargetTest<>(newSource);
     final Processing instance = new Processing();
     instance.setSourceAndTarget(newTarget);
 

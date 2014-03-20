@@ -19,11 +19,9 @@ package de.unihildesheim.lucene.query;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.index.IndexUtils;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
-import org.apache.lucene.search.Query;
 
 /**
  * Builder building a simple terms query. This relies on the
@@ -50,7 +48,7 @@ public final class TermsQueryBuilder {
   /**
    * Set the list of stop-words to exclude from the final query object.
    *
-   * @param newStopWords List of stopwords
+   * @param newStopWords List of stop-words
    * @return Self reference
    */
   public TermsQueryBuilder setStopWords(final Collection<String> newStopWords) {
@@ -131,7 +129,7 @@ public final class TermsQueryBuilder {
 
     String[] finalFields = this.fields;
     if (finalFields == null || finalFields.length == 0) {
-      Environment.getFields();
+      finalFields = Environment.getFields();
     }
 
     QueryParser.Operator finalOperator = this.operator;

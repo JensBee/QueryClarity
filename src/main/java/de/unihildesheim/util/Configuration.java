@@ -40,16 +40,28 @@ public abstract class Configuration {
    */
   private final Properties data;
 
+  /**
+   * Creates a new empty configuration object.
+   */
   public Configuration() {
     this.data = new Properties();
   }
 
+  /**
+   * Creates a new configuration object initialized with the configuration set
+   * from the given map.
+   *
+   * @param initial Initial set of configuration options
+   */
   public Configuration(final Map<String, String> initial) {
     this();
     addAll(initial);
   }
 
-  public void debugDump() {
+  /**
+   * Dump the configuration to the logger.
+   */
+  public final void debugDump() {
     if (LOG.isDebugEnabled()) {
       LOG.debug("Dumping configuration - start");
       for (Entry<Object, Object> conf : this.data.entrySet()) {

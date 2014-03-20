@@ -181,7 +181,7 @@ public final class CachedIndexDataProviderTest {
     final DocumentModel docModel = new DocumentModel.DocumentModelBuilder(1).
             getModel();
     final BytesWrap term = new BytesWrap("foo".getBytes());
-    final Collection<BytesWrap> terms = new ArrayList(1);
+    final Collection<BytesWrap> terms = new ArrayList<>(1);
     terms.add(term);
 
     exception.expect(IllegalStateException.class);

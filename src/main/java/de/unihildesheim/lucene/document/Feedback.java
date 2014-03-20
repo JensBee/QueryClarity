@@ -20,7 +20,6 @@ import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.util.RandomValue;
 import de.unihildesheim.util.TimeMeasure;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import org.apache.lucene.index.IndexReader;
