@@ -109,10 +109,19 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
     RANDOM;
   }
 
+  /**
+   * Create a new scoring instance with the default parameter set.
+   */
   public ImprovedClarityScore() {
     this(new ImprovedClarityScoreConfiguration());
   }
 
+  /**
+   * Create a new scoring instance with the parameters set in the given
+   * configuration.
+   *
+   * @param newConf Configuration
+   */
   public ImprovedClarityScore(final ImprovedClarityScoreConfiguration newConf) {
     super();
     this.conf = newConf;
@@ -212,6 +221,7 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
    * Calculate the document model for a given term. The document model is
    * calculated using Bayesian smoothing using Dirichlet priors.
    *
+   * @param docId Document id
    * @param term Term to calculate the model for
    * @return Calculated document model given the term
    */
@@ -223,14 +233,13 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
       final double lambda = this.conf.getDocumentModelParamLambda();
       final double beta = this.conf.getDocumentModelParamBeta();
 
+      final DocumentMetrics dm = new DocumentMetrics(docId);
+
       // total frequency of all terms in document
-      final double totalFreq = DocumentMetrics.termFrequency(docId).
-              doubleValue();
+      final double totalFreq = dm.termFrequency().doubleValue();
       // term frequency given the document
-      final double termFreq = DocumentMetrics.termFrequency(docId, term).
-              doubleValue();
-      final double uniqueTerms = DocumentMetrics.uniqueTermCount(docId).
-              doubleValue();
+      final double termFreq = dm.termFrequency(term).doubleValue();
+      final double uniqueTerms = dm.termCount().doubleValue();
       // relative collection frequency of the term
       final double rCollFreq = CollectionMetrics.relTf(term);
 

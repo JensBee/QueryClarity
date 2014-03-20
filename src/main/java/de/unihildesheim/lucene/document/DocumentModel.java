@@ -20,6 +20,7 @@ import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.util.BytesWrap;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import org.slf4j.Logger;
@@ -98,35 +99,22 @@ public final class DocumentModel {
   }
 
   /**
-   * Get the relative term frequency for a term in the document. Calculated by
-   * dividing the frequency of the given term  by the frequency of all
-   * terms in the document.
-   *
-   * @param term Term to lookup
-   * @return Relative frequency. Zero if term is not in document.
+   * Get the number of unique terms in document.
+   * @return Number of unique terms in document
    */
-  public double getRelativeTermFrequency(final BytesWrap term) {
-    Long tf = termFrequency(term);
-    if (tf == null) {
-      return 0d;
+  public long termCount() {
+    final Integer count = this.termFreqMap.size();
+    // check for case where are more than Integer.MAX_VALUE entries
+    if (count == Integer.MAX_VALUE) {
+      Long manualCount = 0L;
+      Iterator<BytesWrap> termsIt = this.termFreqMap.keySet().iterator();
+      while (termsIt.hasNext()) {
+        manualCount++;
+        termsIt.next();
+      }
+      return manualCount;
     }
-    return tf.doubleValue() / Long.valueOf(termFrequency).doubleValue();
-  }
-
-  public double getSmoothedRelativeTermFrequency(final BytesWrap term,
-          final double smoothing) {
-    return getSmoothedRelativeTermFrequency(Environment.getDataProvider(),
-            term, smoothing);
-  }
-
-  public double getSmoothedRelativeTermFrequency(
-          final IndexDataProvider dataProv,
-          final BytesWrap term, final double smoothing) {
-    final double termFreq = termFrequency(term).doubleValue();
-    final double relCollFreq = dataProv.getRelativeTermFrequency(term);
-    return ((termFreq + smoothing) * relCollFreq) / (termFreq
-            + (Integer.valueOf(this.termFreqMap.size()).doubleValue()
-            * smoothing));
+    return count.longValue();
   }
 
   @Override

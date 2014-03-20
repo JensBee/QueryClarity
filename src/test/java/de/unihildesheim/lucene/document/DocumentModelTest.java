@@ -16,12 +16,12 @@
  */
 package de.unihildesheim.lucene.document;
 
-import de.unihildesheim.TestConfig;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.index.TestIndex;
 import de.unihildesheim.lucene.metrics.CollectionMetrics;
+import de.unihildesheim.lucene.metrics.DocumentMetrics;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.RandomValue;
 import edu.umd.cs.findbugs.annotations.SuppressWarnings;
@@ -224,12 +224,11 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
     for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
       final DocumentModel docModel = Environment.getDataProvider().
               getDocumentModel(i);
+      final DocumentMetrics dm = new DocumentMetrics(docModel);
       for (BytesWrap bw : docModel.termFreqMap.keySet()) {
         assertNotEquals("Smoothed and absolute relative term frequency "
-                + "should not be the same.", docModel.
-                getRelativeTermFrequency(bw), docModel.
-                getSmoothedRelativeTermFrequency(Environment.getDataProvider(),
-                        bw, smoothingAmount));
+                + "should not be the same.", dm.relativeTermFrequency(bw), dm.
+                smoothedRelativeTermFrequency(bw, smoothingAmount));
       }
     }
   }

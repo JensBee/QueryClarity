@@ -16,7 +16,6 @@
  */
 package de.unihildesheim.lucene;
 
-import de.unihildesheim.TestConfig;
 import de.unihildesheim.lucene.index.DirectIndexDataProvider;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.index.TestIndex;

@@ -136,7 +136,7 @@ public final class ImprovedClarityScoreConfiguration extends Configuration {
    * @return Maximum number of feedback documents to get
    */
   public Integer getMaxFeedbackDocumentsCount() {
-    return this.getInteger(Keys.fbDocsMax.name());
+    return getInteger(Keys.fbDocsMax.name());
   }
 
   /**
@@ -145,7 +145,7 @@ public final class ImprovedClarityScoreConfiguration extends Configuration {
    * @param count Maximum number of feedback documents to get
    */
   public void setMaxFeedbackDocumentsCount(final int count) {
-    this.add(Keys.fbDocsMax.name(), count);
+    add(Keys.fbDocsMax.name(), count);
   }
 
   /**
@@ -154,7 +154,7 @@ public final class ImprovedClarityScoreConfiguration extends Configuration {
    * @return Minimum number of feedback documents to get
    */
   public Integer getMinFeedbackDocumentsCount() {
-    return this.getInteger(Keys.fbDocsMin.name());
+    return getInteger(Keys.fbDocsMin.name());
   }
 
   /**
@@ -163,7 +163,7 @@ public final class ImprovedClarityScoreConfiguration extends Configuration {
    * @param count Minimum number of feedback documents to get
    */
   public void setMinFeedbackDocumentsCount(final int count) {
-    this.add(Keys.fbDocsMin.name(), count);
+    add(Keys.fbDocsMin.name(), count);
   }
 
   /**
@@ -174,7 +174,7 @@ public final class ImprovedClarityScoreConfiguration extends Configuration {
    * @return Query simplifying policy to use
    */
   public ImprovedClarityScore.QuerySimplifyPolicy getQuerySimplifyingPolicy() {
-    final String policy = this.getString(Keys.querySimplifyingPolicy.name());
+    final String policy = getString(Keys.querySimplifyingPolicy.name());
     return ImprovedClarityScore.QuerySimplifyPolicy.valueOf(policy);
   }
 
@@ -187,7 +187,7 @@ public final class ImprovedClarityScoreConfiguration extends Configuration {
    */
   public void setQuerySimplifyingPolicy(
           final ImprovedClarityScore.QuerySimplifyPolicy policy) {
-    this.add(Keys.querySimplifyingPolicy.name(), policy.name());
+    add(Keys.querySimplifyingPolicy.name(), policy.name());
   }
 
   /**
@@ -196,7 +196,7 @@ public final class ImprovedClarityScoreConfiguration extends Configuration {
    * @return Smoothing parameter value
    */
   public Double getDocumentModelSmoothingParameter() {
-    return this.getDouble(Keys.docModelSmoothing.name());
+    return getDouble(Keys.docModelSmoothing.name());
   }
 
   /**
@@ -205,7 +205,7 @@ public final class ImprovedClarityScoreConfiguration extends Configuration {
    * @param param Smoothing parameter value
    */
   public void setDocumentModelSmoothingParameter(final double param) {
-    this.add(Keys.docModelSmoothing.name(), param);
+    add(Keys.docModelSmoothing.name(), param);
   }
 
   /**
@@ -214,7 +214,7 @@ public final class ImprovedClarityScoreConfiguration extends Configuration {
    * @return Threshold value
    */
   public Double getFeedbackTermSelectionThreshold() {
-    return this.getDouble(Keys.termSelectionThreshold.name());
+    return getDouble(Keys.termSelectionThreshold.name());
   }
 
   /**
@@ -224,7 +224,7 @@ public final class ImprovedClarityScoreConfiguration extends Configuration {
    * @param threshold Threshold % expressed as double value
    */
   public void setFeedbackTermSelectionThreshold(final double threshold) {
-    this.add(Keys.termSelectionThreshold.name(), threshold);
+    add(Keys.termSelectionThreshold.name(), threshold);
   }
 
   /**
@@ -233,7 +233,7 @@ public final class ImprovedClarityScoreConfiguration extends Configuration {
    * @return Lambda parameter value used for document model calculation
    */
   public Double getDocumentModelParamLambda() {
-    return this.getDouble(Keys.docModelParamLambda.name());
+    return getDouble(Keys.docModelParamLambda.name());
   }
 
   /**
@@ -243,7 +243,7 @@ public final class ImprovedClarityScoreConfiguration extends Configuration {
    * This value should be greater than 0 and lower or equal than/to 1.
    */
   public void setDocumentModelParamLambda(final double lambda) {
-    this.add(Keys.docModelParamLambda.name(), lambda);
+    add(Keys.docModelParamLambda.name(), lambda);
   }
 
   /**
@@ -252,7 +252,7 @@ public final class ImprovedClarityScoreConfiguration extends Configuration {
    * @return Beta parameter value used for document model calculation.
    */
   public Double getDocumentModelParamBeta() {
-    return this.getDouble(Keys.docModelParamBeta.name());
+    return getDouble(Keys.docModelParamBeta.name());
   }
 
   /**
@@ -262,6 +262,6 @@ public final class ImprovedClarityScoreConfiguration extends Configuration {
    * This value should be greater than 0 and lower than 1.
    */
   public void setDocumentModelParamBeta(final double beta) {
-    this.add(Keys.docModelParamBeta.name(), beta);
+    add(Keys.docModelParamBeta.name(), beta);
   }
 }

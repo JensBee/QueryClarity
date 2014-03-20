@@ -16,7 +16,6 @@
  */
 package de.unihildesheim.lucene.document;
 
-import de.unihildesheim.TestConfig;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.index.IndexDataProvider;

@@ -16,7 +16,6 @@
  */
 package de.unihildesheim.lucene.scoring.clarity.impl;
 
-import de.unihildesheim.TestConfig;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.document.DocumentModel;
@@ -58,6 +57,11 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
    */
   private static final Logger LOG = LoggerFactory.getLogger(
           DefaultClarityScoreTest.class);
+
+  /**
+   * Delta allowed in clarity score calculation.
+   */
+  private static final double ALLOWED_SCORE_DELTA = 0.0000000001;
 
   /**
    * Static initializer run before all tests.
@@ -271,26 +275,15 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
   }
 
   /**
-   * Test of getLanguagemodelWeight method, of class DefaultClarityScore.
-   */
-  @Test
-  public void testGetLangmodelWeight() {
-    LOG.info("Test getLangmodelWeight");
-    final DefaultClarityScore instance = getInstance();
-    final double weight = instance.getLangmodelWeight();
-    if (weight < 0 || weight > 1) {
-      fail("Weight must be in range >0, <1");
-    }
-  }
-
-  /**
    * Test of calcDocumentModels method, of class DefaultClarityScore.
    */
   @Test
   public void testCalcDocumentModel() {
     LOG.info("Test calcDocumentModel");
 
-    final DefaultClarityScore instance = getInstance();
+    final DefaultClarityScoreConfiguration dcc
+            = new DefaultClarityScoreConfiguration();
+    final DefaultClarityScore instance = new DefaultClarityScore(dcc);
     for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
       final DocumentModel docModel = Environment.getDataProvider().
               getDocumentModel(i);
@@ -300,8 +293,8 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
               getTermData(DefaultClarityScore.PREFIX, i, instance.
                       getDocModelDataKey());
       for (BytesWrap term : docModel.termFreqMap.keySet()) {
-        final double expResult = calcDocumentModel(instance.
-                getLangmodelWeight(), docModel, term);
+        final double expResult = calcDocumentModel(dcc.getLangModelWeight(),
+                docModel, term);
         if (term == null) {
           fail("***term was null");
         }
@@ -324,7 +317,9 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
   public void testPreCalcDocumentModels() {
     LOG.info("Test preCalcDocumentModels");
 
-    final DefaultClarityScore instance = getInstance();
+    final DefaultClarityScoreConfiguration dcc
+            = new DefaultClarityScoreConfiguration();
+    final DefaultClarityScore instance = new DefaultClarityScore(dcc);
     instance.preCalcDocumentModels();
 
     LOG.info("Calculation done, testing results.");
@@ -336,8 +331,8 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
               getTermData(DefaultClarityScore.PREFIX, i, instance.
                       getDocModelDataKey());
       for (BytesWrap term : docModel.termFreqMap.keySet()) {
-        final double expResult = calcDocumentModel(instance.
-                getLangmodelWeight(), docModel, term);
+        final double expResult = calcDocumentModel(dcc.getLangModelWeight(),
+                docModel, term);
         if (term == null) {
           fail("***term was null");
         }
@@ -363,10 +358,12 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
     LOG.info("Test calculateClarity");
     final String queryString = index.getQueryString();
     final Query query = TermsQueryBuilder.buildFromEnvironment(queryString);
-    final DefaultClarityScore instance = getInstance();
+    final DefaultClarityScoreConfiguration dcc
+            = new DefaultClarityScoreConfiguration();
+    final DefaultClarityScore instance = new DefaultClarityScore(dcc);
 
     final Collection<Integer> feedbackDocs = Feedback.getFixed(query,
-            instance.getFeedbackDocumentCount());
+            dcc.getFeedbackDocCount());
     final Collection<DocumentModel> fbDocModels = new ArrayList<>(
             feedbackDocs.size());
     for (Integer docId : feedbackDocs) {
@@ -377,13 +374,13 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
             feedbackDocs);
 
     LOG.debug("Calculating reference score.");
-    final double score = calc_score(instance.getLangmodelWeight(),
+    final double score = calc_score(dcc.getLangModelWeight(),
             fbDocModels, QueryUtils.getUniqueQueryTerms(queryString));
 
     LOG.debug("Scores test={} dcs={}", score, result.getScore());
 
     assertEquals("Clarity score mismatch.", score, result.getScore(),
-            TestConfig.DOUBLE_ALLOWED_DELTA);
+            ALLOWED_SCORE_DELTA);
   }
 
   /**
@@ -399,33 +396,4 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
       fail("DocModelDataKey was empty or null.");
     }
   }
-
-  /**
-   * Test of getFeedbackDocumentCount method, of class DefaultClarityScore.
-   */
-  @Test
-  public void testGetFeedbackDocumentCount() {
-    LOG.info("Test getFeedbackDocumentCount");
-    DefaultClarityScore instance = getInstance();
-    final int result = instance.getFeedbackDocumentCount();
-
-    if (result <= 0) {
-      fail("Count of feedback documents was <= 0");
-    }
-  }
-
-  /**
-   * Test of setFeedbackDocumentCount method, of class DefaultClarityScore.
-   */
-  @Test
-  public void testSetFeedbackDocumentCount() {
-    LOG.info("Test setFeedbackDocumentCount");
-    int fbDocCount = 100;
-    DefaultClarityScore instance = getInstance();
-    instance.setFeedbackDocumentCount(fbDocCount);
-
-    assertEquals("Nmber of feedback documents differs.", instance.
-            getFeedbackDocumentCount(), fbDocCount);
-  }
-
 }

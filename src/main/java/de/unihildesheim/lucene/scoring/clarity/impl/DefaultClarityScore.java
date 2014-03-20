@@ -22,6 +22,7 @@ import de.unihildesheim.lucene.document.Feedback;
 import de.unihildesheim.util.concurrent.processing.Processing;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.metrics.CollectionMetrics;
+import de.unihildesheim.lucene.metrics.DocumentMetrics;
 import de.unihildesheim.lucene.query.QueryUtils;
 import de.unihildesheim.lucene.query.TermsQueryBuilder;
 import de.unihildesheim.lucene.scoring.clarity.ClarityScoreCalculation;
@@ -100,27 +101,6 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
   }
 
   /**
-   * Default multiplier value for relative term frequency inside documents.
-   */
-  private static final double DEFAULT_LANGMODEL_WEIGHT = 0.6d;
-
-  /**
-   * Multiplier for relative term frequency inside documents.
-   */
-  private final double langmodelWeight;
-
-  /**
-   * Default number of feedback documents to use. Cronen-Townsend et al.
-   * recommend 500 documents.
-   */
-  private static final int DEFAULT_FEEDBACK_DOCS_COUNT = 500;
-
-  /**
-   * Number of feedback documents to use.
-   */
-  private int fbDocCount = DEFAULT_FEEDBACK_DOCS_COUNT;
-
-  /**
    * List of terms used in originating query.
    */
   private Collection<BytesWrap> queryTerms;
@@ -136,14 +116,28 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
   private Map<Integer, Map<BytesWrap, Object>> docModelDataCache;
 
   /**
-   * Default constructor using the {@link IndexDataProvider} for statistical
-   * index data.
+   * Configuration object used for all parameters of the calculation.
+   */
+  private final DefaultClarityScoreConfiguration conf;
+
+  /**
+   * Create a new scoring instance with the default parameter set.
    */
   public DefaultClarityScore() {
+    this(new DefaultClarityScoreConfiguration());
+  }
+
+  /**
+   * Create a new scoring instance with the parameters set in the given
+   * configuration.
+   *
+   * @param newConf Configuration
+   */
+  public DefaultClarityScore(final DefaultClarityScoreConfiguration newConf) {
     super();
-    this.langmodelWeight = DEFAULT_LANGMODEL_WEIGHT;
+    this.conf = newConf;
     this.docModelDataKey = DataKeys.docModel.name() + "_"
-            + this.langmodelWeight;
+            + this.conf.getLangModelWeight();
     Environment.getDataProvider().registerPrefix(PREFIX);
   }
 
@@ -155,8 +149,8 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    * @return The calculated default model value
    */
   private double calcDefaultDocumentModel(final BytesWrap term) {
-    return ((1 - langmodelWeight) * Environment.getDataProvider().
-            getRelativeTermFrequency(term));
+    return ((1 - this.conf.getLangModelWeight()) * Environment.
+            getDataProvider().getRelativeTermFrequency(term));
   }
 
   /**
@@ -189,16 +183,15 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     return this.queryModels.get(documentId);
   }
 
-  /**
-   * Get the language model weighting value used for calculation of document
-   * and query models.
-   *
-   * @return Weighting value
-   */
-  public double getLangmodelWeight() {
-    return langmodelWeight;
-  }
-
+//  /**
+//   * Get the language model weighting value used for calculation of document
+//   * and query models.
+//   *
+//   * @return Weighting value
+//   */
+//  public double getLangmodelWeight() {
+//    return langmodelWeight;
+//  }
   /**
    * Calculate the document distribution of a term, document model (pD).
    *
@@ -206,11 +199,9 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    */
   void calcDocumentModel(final DocumentModel docModel) {
     for (BytesWrap term : docModel.termFreqMap.keySet()) {
-      final double model = langmodelWeight * docModel.
-              getRelativeTermFrequency(term) + calcDefaultDocumentModel(term);
-//      final double model = langmodelWeight * docModel.
-//              getSmoothedRelativeTermFrequency(this.dataProv, term, 100)
-//              + calcDefaultDocumentModel(term);
+      final double model = this.conf.getLangModelWeight() * DocumentMetrics.
+              relativeTermFrequency(docModel, term)
+              + calcDefaultDocumentModel(term);
       Environment.getDataProvider().setTermData(PREFIX, docModel.id, term,
               this.docModelDataKey, model);
     }
@@ -269,28 +260,6 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
       LOG.info("No pre-calculated document models found. Need to calculate.");
       preCalcDocumentModels();
     }
-  }
-
-  /**
-   * Get the number of feedback document this instance tries to use. The
-   * actual number of documents used is restricted by the number of documents
-   * available in the index.
-   *
-   * @return Number of documents this instance tries to get
-   */
-  public int getFeedbackDocumentCount() {
-    return this.fbDocCount;
-  }
-
-  /**
-   * Sets the number of feedback document this instance tries to use. The
-   * actual number of documents used is restricted by the number of documents
-   * available in the index.
-   *
-   * @param newFbDocCount Number of documents this instance should try to get
-   */
-  public void setFeedbackDocumentCount(final int newFbDocCount) {
-    this.fbDocCount = newFbDocCount;
   }
 
   /**
@@ -414,7 +383,8 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     // get feedback documents
     final Collection<Integer> feedbackDocuments;
     try {
-      feedbackDocuments = Feedback.getFixed(queryObj, this.fbDocCount);
+      feedbackDocuments = Feedback.getFixed(queryObj, this.conf.
+              getFeedbackDocCount());
 
     } catch (IOException ex) {
       LOG.error("Caught exception while preparing calculation.", ex);
@@ -510,7 +480,8 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
 
     @Override
     public void runProcess() throws ProcessingException, InterruptedException {
-      final double weightFactor = 1 - getLangmodelWeight();
+      final double weightFactor = 1 - DefaultClarityScore.this.conf.
+              getLangModelWeight();
 
       while (!isTerminating()) {
         BytesWrap term;

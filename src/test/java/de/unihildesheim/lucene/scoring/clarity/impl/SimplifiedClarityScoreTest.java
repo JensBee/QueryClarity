@@ -16,8 +16,6 @@
  */
 package de.unihildesheim.lucene.scoring.clarity.impl;
 
-import de.unihildesheim.TestConfig;
-import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.index.TestIndex;
@@ -42,13 +40,19 @@ import org.slf4j.LoggerFactory;
  * @author Jens Bertram <code@jens-bertram.net>
  */
 @RunWith(Parameterized.class)
-public final class SimplifiedClarityScoreTest extends MultiIndexDataProviderTestCase {
+public final class SimplifiedClarityScoreTest
+extends MultiIndexDataProviderTestCase {
 
   /**
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(
           SimplifiedClarityScoreTest.class);
+
+  /**
+   * Delta allowed in clarity score calculation.
+   */
+  private static final double ALLOWED_SCORE_DELTA = 0.0000000001;
 
   /**
    * Static initializer run before all tests.
@@ -127,7 +131,7 @@ public final class SimplifiedClarityScoreTest extends MultiIndexDataProviderTest
     final ClarityScoreResult result = instance.calculateClarity(query);
 
     LOG.debug("Scores test={} scs={}", score, result.getScore());
-    assertEquals(score, result.getScore(), TestConfig.DOUBLE_ALLOWED_DELTA);
+    assertEquals(score, result.getScore(), ALLOWED_SCORE_DELTA);
   }
 
 }

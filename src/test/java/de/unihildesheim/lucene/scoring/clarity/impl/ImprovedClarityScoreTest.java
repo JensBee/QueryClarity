@@ -16,7 +16,6 @@
  */
 package de.unihildesheim.lucene.scoring.clarity.impl;
 
-import de.unihildesheim.TestConfig;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.document.Feedback;
