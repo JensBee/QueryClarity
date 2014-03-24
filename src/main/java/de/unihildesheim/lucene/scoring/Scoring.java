@@ -18,6 +18,7 @@ package de.unihildesheim.lucene.scoring;
 
 import de.unihildesheim.lucene.scoring.clarity.ClarityScoreCalculation;
 import de.unihildesheim.lucene.scoring.clarity.impl.DefaultClarityScore;
+import de.unihildesheim.lucene.scoring.clarity.impl.ImprovedClarityScore;
 import de.unihildesheim.lucene.scoring.clarity.impl.SimplifiedClarityScore;
 
 /**
@@ -37,6 +38,10 @@ public final class Scoring {
      */
     DEFAULT,
     /**
+     * Improved Clarity Score.
+     */
+    IMPROVED,
+    /**
      * Simplified Clarity Score.
      */
     SIMPLIFIED
@@ -45,14 +50,6 @@ public final class Scoring {
   private Scoring() {
 
   }
-
-//  /**
-//   * New factory instance to create scoring calculators.
-//   * @param dataProvider Provider for index data
-//   * @param reader Reader to access Lucene index, if needed
-//   */
-//  public Scoring() {
-//  }
 
   /**
    * Create a new Clarity Score calculation instance of a specific type.
@@ -63,6 +60,8 @@ public final class Scoring {
     switch (csType) {
       case DEFAULT:
         return new DefaultClarityScore();
+      case IMPROVED:
+        return new ImprovedClarityScore();
       case SIMPLIFIED:
         return new SimplifiedClarityScore();
     }

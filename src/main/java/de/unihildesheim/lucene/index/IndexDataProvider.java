@@ -46,6 +46,12 @@ public interface IndexDataProvider {
   long getTermFrequency();
 
   /**
+   * Instructs the data provider to pre-fill caches, etc. Should be called,
+   * after the {@link Environment} is set.
+   */
+  void warmUp();
+
+  /**
    * Get the term frequency of a single term in the index.
    *
    * @param term Term to lookup
@@ -117,7 +123,7 @@ public interface IndexDataProvider {
    * <p>
    * A prefix must be registered before any call to
    * {@link #setTermData(String, int, BytesWrap, String, Object)} or null null
-   * null null null null null null null null   {@link #getTermData(String, int, BytesWrap, String) can be made.
+   * null null null null null null null null null   {@link #getTermData(String, int, BytesWrap, String) can be made.
    *
    * @param prefix Prefix name to register
    */
@@ -187,6 +193,7 @@ public interface IndexDataProvider {
 
   /**
    * Get a unique set of terms for all documents identified by their id.
+   *
    * @param docIds List of document ids to extract terms from
    * @return List of terms from all documents
    */

@@ -1,10 +1,11 @@
 #!/bin/sh
 
-# memory setting
-JVM_MEM="-Xms128m -Xmx2G"
-JVM_DEFAULT="-server"
+# LUCENE 5212 5158
+# JDK 8024830
 
-JVM="$JVM_DEFAULT $JVM_MEM"
+echo Query: $1
+# memory setting
+JVM="-Xms128m -Xmx2G"
 MAVEN_OPTS="$MAVEN_OPTS $JVM"
 
 mvn exec:java -Dexec.mainClass="de.unihildesheim.lucene.index.IndexInfo" -Dexec.args="-index ./data/index $*"

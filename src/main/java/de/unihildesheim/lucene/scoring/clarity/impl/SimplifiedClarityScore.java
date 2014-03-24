@@ -90,9 +90,7 @@ public final class SimplifiedClarityScore implements ClarityScoreCalculation {
       }
       double pMl = Integer.valueOf(termCount).doubleValue() / Integer.valueOf(
               queryLength).doubleValue();
-      double pColl
-              = CollectionMetrics.tf(queryTerm).
-              doubleValue()
+      double pColl = CollectionMetrics.tf(queryTerm).doubleValue()
               / collTermCount;
       double log = (Math.log(pMl) / Math.log(2)) - (Math.log(pColl) / Math.
               log(2));

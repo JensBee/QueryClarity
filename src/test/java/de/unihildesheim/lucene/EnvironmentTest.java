@@ -180,42 +180,6 @@ public class EnvironmentTest {
   }
 
   /**
-   * Test of get method, of class Environment.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testGet() throws Exception {
-    LOG.info("Test get");
-    // should not be initialized
-    try {
-      Environment.get();
-      fail("Expected an exception to be thrown.");
-    } catch (IllegalStateException ex) {
-    }
-
-    // initialize it
-    getInstance1Arg();
-    // should succeed
-    Environment.get();
-
-    // clear instance
-    Environment.clear();
-
-    // should not be initialized
-    try {
-      Environment.get();
-      fail("Expected an exception to be thrown.");
-    } catch (IllegalStateException ex) {
-    }
-
-    // initialize again
-    getInstance1Arg();
-    // should succeed
-    Environment.get();
-  }
-
-  /**
    * Test of initialized method, of class Environment.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error

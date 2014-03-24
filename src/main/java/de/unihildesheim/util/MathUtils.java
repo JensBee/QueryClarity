@@ -16,6 +16,11 @@
  */
 package de.unihildesheim.util;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+
 /**
  *
  * @author Jens Bertram <code@jens-bertram.net>

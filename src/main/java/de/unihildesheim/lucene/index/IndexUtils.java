@@ -38,6 +38,14 @@ public final class IndexUtils {
   }
 
   /**
+   * Get a list of fields available in the index.
+   * @return Fields list
+   */
+  public static Collection<String> getFields() {
+    return MultiFields.getIndexedFields(Environment.getIndexReader());
+  }
+
+  /**
    * Check if all given fields are available in the current index. Uses the
    * {@link IndexReader} provided by the {@link Environment}. Throws an
    * {@link IllegalStateException} if not all fields are present in the index.

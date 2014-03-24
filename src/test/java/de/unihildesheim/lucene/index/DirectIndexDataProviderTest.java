@@ -87,6 +87,7 @@ public final class DirectIndexDataProviderTest {
     Environment.clear();
     index.setupEnvironment(DirectIndexDataProvider.class);
     this.instance = (DirectIndexDataProvider) Environment.getDataProvider();
+    this.instance.warmUp();
   }
 
   /**
@@ -176,6 +177,7 @@ public final class DirectIndexDataProviderTest {
 
   /**
    * Test of setTermData method, of class DirectIndexDataProvider.
+   *
    * @throws java.lang.Exception Any exception indicating a failure
    */
   @Test
@@ -185,6 +187,7 @@ public final class DirectIndexDataProviderTest {
 
   /**
    * Test of getTermData method, of class DirectIndexDataProvider.
+   *
    * @throws java.lang.Exception Any exception indicating a failure
    */
   @Test
@@ -194,6 +197,7 @@ public final class DirectIndexDataProviderTest {
 
   /**
    * Test of getTermData method, of class DirectIndexDataProvider.
+   *
    * @throws java.lang.Exception Any exception indicating a failure
    */
   @Test
@@ -203,6 +207,7 @@ public final class DirectIndexDataProviderTest {
 
   /**
    * Test of clearTermData method, of class DirectIndexDataProvider.
+   *
    * @throws java.lang.Exception Any exception indicating a failure
    */
   @Test
@@ -230,7 +235,7 @@ public final class DirectIndexDataProviderTest {
    * Test of getDocumentsTermSet method, of class DirectIndexDataProvider.
    */
   @Test
-  public void testGetDocumentsTermSet() throws Exception  {
+  public void testGetDocumentsTermSet() throws Exception {
     IndexDataProviderTestMethods.testGetDocumentsTermSet(index, this.instance);
   }
 
@@ -288,12 +293,10 @@ public final class DirectIndexDataProviderTest {
 
       index.setFieldState(newFieldState);
       final Collection<String> newFields = index.test_getActiveFields();
-//      instance.fieldsChanged(oldFields.toArray(new String[oldFields.size()]),
-//              newFields.toArray(new String[newFields.size()]));
 
       Environment.setFields(newFields.toArray(new String[newFields.size()]));
 
-      assertEquals("Wron overall term frequency count, after field change.",
+      assertEquals("Wrong overall term frequency count, after field change.",
               index.getTermFrequency(), instance.getTermFrequency());
       assertNotEquals(
               "Term frequency value not changed after changing fields.", oldTf,
@@ -310,8 +313,9 @@ public final class DirectIndexDataProviderTest {
   public void testGetDocumentFrequency() {
     LOG.info("Test getDocumentFrequency");
     for (BytesWrap term : index.getTermSet()) {
-      assertEquals("Document frequency mismatch.", index.getDocumentFrequency(
-              term), instance.getDocumentFrequency(term));
+      assertEquals("Document frequency mismatch (" + term.toString() + ").",
+              index.getDocumentFrequency(term), instance.getDocumentFrequency(
+                      term));
     }
   }
 }

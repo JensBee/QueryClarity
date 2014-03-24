@@ -22,7 +22,8 @@ import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModelException;
-import de.unihildesheim.lucene.index.CachedIndexDataProvider;
+import de.unihildesheim.lucene.index.DirectIndexDataProvider;
+import de.unihildesheim.lucene.index.IndexDataProvider;
 import java.io.IOException;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.Query;
@@ -45,6 +46,11 @@ public final class Main {
    */
   @Parameter(names = "-index", description = "Lucene index", required = true)
   private String indexDir;
+  /**
+   * CLI-parameter to specify the data directory.
+   */
+  @Parameter(names = "-data", description = "Data path", required = true)
+  private String dataDir;
 
   /**
    * Private constructor for utility class.
@@ -73,21 +79,20 @@ public final class Main {
 
     // index field to operate on
     final String[] fields = new String[]{"text"};
-    final String storageId = "clef";
 
-    Environment env = new Environment(indexDir, storageId, fields);
-    final CachedIndexDataProvider dataProv = new CachedIndexDataProvider(
-            storageId);
+    Environment env = new Environment(indexDir, dataDir, fields);
+    final IndexDataProvider dataProv = new DirectIndexDataProvider();
     env.create(dataProv);
-    if (!dataProv.tryGetStoredData()) {
-      dataProv.recalculateData(false);
-    }
+    dataProv.warmUp();
 
     LOG.info("\n--- Default Clarity Score");
     Scoring.newInstance(Scoring.ClarityScore.DEFAULT).calculateClarity(
             queryString);
     LOG.info("\n--- Simplified Clarity Score");
     Scoring.newInstance(Scoring.ClarityScore.SIMPLIFIED).
+            calculateClarity(queryString);
+    LOG.info("\n--- Improved Clarity Score");
+    Scoring.newInstance(Scoring.ClarityScore.IMPROVED).
             calculateClarity(queryString);
 
     LOG.trace("Closing lucene index.");

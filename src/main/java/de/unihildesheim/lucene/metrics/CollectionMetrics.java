@@ -17,8 +17,11 @@
 package de.unihildesheim.lucene.metrics;
 
 import de.unihildesheim.lucene.Environment;
+import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.MathUtils;
+import de.unihildesheim.util.Tuple;
+import java.util.Iterator;
 
 /**
  * Collection related metrics.
@@ -32,6 +35,37 @@ public final class CollectionMetrics {
    */
   private CollectionMetrics() {
     // empty utility constructor
+  }
+
+  /**
+   * Iterate over all terms in the index providing each term and it's index
+   * frequency.
+   *
+   * @return Iterator providing <tt>term, index</tt> frequency value pairs
+   */
+  public static Iterator<Tuple.Tuple2<BytesWrap, Long>> termFrequencyIterator() {
+    return new Iterator<Tuple.Tuple2<BytesWrap, Long>>() {
+
+      private final IndexDataProvider dataProv = Environment.getDataProvider();
+      private final Iterator<BytesWrap> idxTerms = dataProv.getTermsIterator();
+
+      @Override
+      public boolean hasNext() {
+        return idxTerms.hasNext();
+      }
+
+      @Override
+      public Tuple.Tuple2<BytesWrap, Long> next() {
+        final BytesWrap term = idxTerms.next();
+        return Tuple.tuple2(term, dataProv.getTermFrequency(term));
+      }
+
+      @Override
+      public void remove() {
+        throw new UnsupportedOperationException("Not supported yet.");
+      }
+
+    };
   }
 
   /**

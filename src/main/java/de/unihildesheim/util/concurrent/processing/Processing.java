@@ -252,7 +252,7 @@ public final class Processing {
     this.threadTrackingLatch = new CountDownLatch(threadCount);
     executor.setTargetThreadsCount(threadCount);
 
-    LOG.trace("Spawning {} Processing-Target threads.", threadCount);
+    LOG.debug("Spawning {} Processing-Target threads.", threadCount);
     for (int i = 0; i < threadCount; i++) {
       final Target aTarget = this.target.newInstance();
       aTarget.setLatch(this.threadTrackingLatch);

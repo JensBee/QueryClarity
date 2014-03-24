@@ -48,7 +48,6 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap>,
           BytesWrap.class);
 
 //  private static final int UNSIGNED_MASK = 0xFF;
-
   /**
    * Internal {@link Map} to cache string representations.
    */
@@ -199,7 +198,6 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap>,
       throw new IllegalStateException("Data was null!");
     }
     if (this.hash == null) {
-      LOG.warn("Recalc hash..");
       this.hash = Arrays.hashCode(this.data);
       if (this.hash == null) {
         throw new IllegalStateException("Hash was null!");
@@ -277,6 +275,7 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap>,
 
   /**
    * Internal {@link Map} to cache values.
+   *
    * @param <K> Key type
    * @param <V> Value type
    */

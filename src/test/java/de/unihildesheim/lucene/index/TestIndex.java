@@ -947,6 +947,11 @@ public final class TestIndex implements IndexDataProvider,
     }
   }
 
+  @Override
+  public void warmUp() {
+    // NOP
+  }
+
   // ---------- TEST ACCESSORS ----------
   /**
    * Get the currently active field names.

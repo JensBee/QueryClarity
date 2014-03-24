@@ -1449,4 +1449,9 @@ public final class CachedIndexDataProvider implements IndexDataProvider {
       }
     }
   }
+
+  @Override
+  public void warmUp() {
+    
+  }
 }

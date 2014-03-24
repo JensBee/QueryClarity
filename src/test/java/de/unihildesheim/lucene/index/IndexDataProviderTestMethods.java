@@ -59,6 +59,7 @@ final class IndexDataProviderTestMethods {
 
   /**
    * Picks some (1 to n) terms from the index and sets them as stop-words.
+   *
    * @param index TestIndex
    * @param instance Data provider
    * @return Stop words term collection
@@ -98,9 +99,9 @@ final class IndexDataProviderTestMethods {
     // check with stopwords
     setRandomStopWords(index, instance);
     final long filteredTf = index.getTermFrequency();
-    assertEquals("Term frequency differs. plain="+unfilteredTf+" filter="+filteredTf+".", index.getTermFrequency(),
+    assertEquals("Term frequency differs. plain=" + unfilteredTf + " filter="
+            + filteredTf + ".", index.getTermFrequency(),
             instance.getTermFrequency());
-
 
     assertNotEquals("TF using stop-words should be lower than without.",
             filteredTf, unfilteredTf);

@@ -258,7 +258,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
       // document models have to be calculated - this is not a must, but is a
       // good idea (performance-wise)
       LOG.info("No pre-calculated document models found. Need to calculate.");
-      preCalcDocumentModels();
+//      preCalcDocumentModels();
     }
   }
 

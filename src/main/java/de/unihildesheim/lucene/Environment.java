@@ -29,13 +29,17 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Properties;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.slf4j.Logger;
@@ -91,6 +95,11 @@ public final class Environment {
    * Initial number of listeners expected.
    */
   private static final int DEFAULT_LISTENERS_SIZE = 5;
+
+  /**
+   * Last commit generation of the index. Used to validate the cached data.
+   */
+  private static long indexGeneration;
 
   /**
    * Listeners looking for changes to document fields. Directly initialized to
@@ -200,8 +209,7 @@ public final class Environment {
    * @throws IOException Thrown on low-level I/O errors
    */
   public Environment(final String newIndexPath, final String newDataPath,
-          final String[] fields)
-          throws IOException {
+          final String[] fields) throws IOException {
     if (instance != null) {
       throw new IllegalStateException("Environment already initialized.");
     }
@@ -236,6 +244,20 @@ public final class Environment {
     } catch (IllegalArgumentException ex) {
       // already registered, or shutdown is currently happening
     }
+  }
+
+  /**
+   * Get the generation number of the index. This is the generation number of
+   * the last commit to the index.
+   *
+   * @return Generation number of the index
+   */
+  public static Long getIndexGeneration() {
+    if (Environment.indexReader == null) {
+      throw new IllegalStateException(
+              "Environment not initialized. (indexReader)");
+    }
+    return Environment.indexGeneration;
   }
 
   /**
@@ -394,6 +416,12 @@ public final class Environment {
    */
   private IndexReader openReader(final File indexDir) throws IOException {
     final Directory directory = FSDirectory.open(indexDir);
+    if (!DirectoryReader.indexExists(directory)) {
+      throw new IOException("No index found at '" + indexDir.getAbsolutePath()
+              + "'.");
+    }
+    Environment.indexGeneration = SegmentInfos.getLastCommitGeneration(
+            directory);
     return DirectoryReader.open(directory);
   }
 
@@ -441,16 +469,6 @@ public final class Environment {
     Environment.dataProvider = dataProviderClass.newInstance();
     LOG.info("DataProvider: {}", Environment.dataProvider.getClass().
             getCanonicalName());
-  }
-
-  /**
-   * Get the configured environment.
-   *
-   * @return Global environment instance
-   */
-  public static Environment get() {
-    initialized();
-    return instance;
   }
 
   /**
@@ -579,8 +597,7 @@ public final class Environment {
   }
 
   /**
-   * Stores a property value to the {@link IndexDataProvider}. Depending on
-   * the implementation this property may be persistent.
+   * Stores a property value.
    *
    * @param prefix Prefix to identify the property store
    * @param key Key to assign a property to
@@ -605,6 +622,28 @@ public final class Environment {
   }
 
   /**
+   * Removes a property.
+   *
+   * @param prefix Prefix to identify the property store
+   * @param key Key to remove
+   * @return Old value assigned with the key or <tt>null</tt> if there was
+   * none
+   */
+  public static Object removeProperty(final String prefix, final String key) {
+    if (!propLoaded) {
+      throw new IllegalStateException(
+              "Environment not initialized. (properties)");
+    }
+    if (prefix == null || prefix.isEmpty()) {
+      throw new IllegalArgumentException("No prefix specified.");
+    }
+    if (key == null || key.isEmpty()) {
+      throw new IllegalArgumentException("Key may not be null or empty.");
+    }
+    return Environment.PROP_STORE.remove(prefix + '_' + key);
+  }
+
+  /**
    * Retrieve a previously stored property from the {@link IndexDataProvider}.
    * Depending on the implementation stored property values may be persistent
    * between instantiations.
@@ -625,6 +664,32 @@ public final class Environment {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
     return Environment.PROP_STORE.getProperty(prefix + "_" + key);
+  }
+
+  /**
+   * Get a mapping of all values stored with the given prefix.
+   *
+   * @param prefix Prefix to identify the property store
+   * @return Map with all key value pairs matching the prefix
+   */
+  public static Map<String, Object> getProperties(final String prefix) {
+    if (!propLoaded) {
+      throw new IllegalStateException(
+              "Environment not initialized. (properties)");
+    }
+    if (prefix == null || prefix.isEmpty()) {
+      throw new IllegalArgumentException("No prefix specified.");
+    }
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
+    final Map<String, Object> data = new HashMap();
+    final int prefixLength = prefix.length() + 1;
+    for (Entry<Object, Object> entry : Environment.PROP_STORE.entrySet()) {
+      if (((String) entry.getKey()).startsWith(prefix)) {
+        data.put(((String) entry.getKey()).substring(prefixLength), entry.
+                getValue());
+      }
+    }
+    return data;
   }
 
   /**
