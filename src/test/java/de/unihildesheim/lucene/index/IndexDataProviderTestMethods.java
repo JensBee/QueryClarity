@@ -233,11 +233,9 @@ final class IndexDataProviderTestMethods {
       for (String term : stopWords) {
         final BytesWrap bw = new BytesWrap(term.getBytes("UTF-8"));
         assertFalse("Stopword found in docModel.", eDocModel.contains(bw));
-        assertEquals("Stopword frequency should be null.", null, eDocModel.
-                termFrequency(bw));
+        assertEquals("Stopword frequency should be null.", null, eDocModel.tf(bw));
         assertFalse("Stopword found in docModel.", iDocModel.contains(bw));
-        assertEquals("Stopword frequency should be null.", null, iDocModel.
-                termFrequency(bw));
+        assertEquals("Stopword frequency should be null.", null, iDocModel.tf(bw));
       }
     }
   }

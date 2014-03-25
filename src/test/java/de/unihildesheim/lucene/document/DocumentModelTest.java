@@ -224,10 +224,10 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
     for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
       final DocumentModel docModel = Environment.getDataProvider().
               getDocumentModel(i);
-      final DocumentMetrics dm = new DocumentMetrics(docModel);
+      final DocumentMetrics dm = docModel.metrics();
       for (BytesWrap bw : docModel.termFreqMap.keySet()) {
         assertNotEquals("Smoothed and absolute relative term frequency "
-                + "should not be the same.", dm.relativeTermFrequency(bw), dm.
+                + "should not be the same.", dm.relTf(bw), dm.
                 smoothedRelativeTermFrequency(bw, smoothingAmount));
       }
     }

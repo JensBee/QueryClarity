@@ -29,6 +29,7 @@ import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.mapdb.DataInput2;
 import org.mapdb.DataOutput2;
+import org.mapdb.Fun;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,24 +47,19 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap>,
    */
   private static final Logger LOG = LoggerFactory.getLogger(
           BytesWrap.class);
-
-//  private static final int UNSIGNED_MASK = 0xFF;
   /**
    * Internal {@link Map} to cache string representations.
    */
   private static final transient Map<byte[], String> INTERN
           = Collections.synchronizedMap(new InternMap<byte[], String>(100000));
-
   /**
    * Serialization class version id.
    */
   private static final long serialVersionUID = 0L;
-
   /**
    * Copy of the original byte array passed at construction time.
    */
   private final byte[] data;
-
   /**
    * Pre-calculated hash code of this instance. A hash code of 0 means that
    * the bytes of this instance are referenced and a hash code must be
@@ -82,7 +78,7 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap>,
       throw new IllegalArgumentException("Empty bytes given.");
     }
 
-    this.data = snapshot(existingBytes);
+    this.data = snapshot(existingBytes, 0, existingBytes.length);
     if (this.data == null || this.data.length == 0) {
       throw new IllegalArgumentException("Got zero bytes.");
     }
@@ -124,16 +120,6 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap>,
     final byte[] newData = new byte[length];
     System.arraycopy(toClone, offset, newData, 0, length);
     return newData;
-  }
-
-  /**
-   * Creates a full copy of the given array.
-   *
-   * @param toClone Array to copy
-   * @return Copy of the given array
-   */
-  private byte[] snapshot(final byte[] toClone) {
-    return snapshot(toClone, 0, toClone.length);
   }
 
   /**
@@ -189,7 +175,8 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap>,
     if (o == null || !(o instanceof BytesWrap)) {
       return false;
     }
-    return Arrays.equals(this.data, ((BytesWrap) o).data);
+    return compareTo((BytesWrap) o) == 0 ? true : false;
+//    return Arrays.equals(this.data, ((BytesWrap) o).data);
   }
 
   @Override
@@ -209,30 +196,20 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap>,
   @Override
   @SuppressWarnings("AccessingNonPublicFieldOfAnotherObject")
   public int compareTo(final BytesWrap o) {
-    // same object, same array values
-    if (this == o) {
-      return 0;
-    }
-
-    // lexicographic version
-    final int minSameSize = Math.min(data.length, o.data.length);
-    int a, b;
-    for (int i = 0; i < minSameSize; i++) {
-      a = this.data[i] & 0xff;
-      b = o.data[i] & 0xff;
-      if (a != b) {
-        return a - b;
-      }
-    }
-
-//    final int minSameSize = Math.min(data.length, o.data.length);
-//    for (int i = 0; i < minSameSize; i++) {
-//      final int cmp = this.data[i] - o.data[i];
-//      if (cmp != 0) {
-//        return cmp;
+    return Fun.BYTE_ARRAY_COMPARATOR.compare(this.data, o.data);
+//    if (this.data == o.data) {
+//      return 0;
+//    }
+//    final int len = Math.min(this.data.length, o.data.length);
+//    for (int i = 0; i < len; i++) {
+//      if (this.data[i] == o.data[i]) {
+//        continue;
+//      } else if (this.data[i] > o.data[i]) {
+//        return 1;
 //      }
 //    }
-    return data.length - o.data.length;
+//    return (this.data.length < o.data.length) ? -1 : ((this.data.length
+//            == o.data.length) ? 0 : 1);
   }
 
   /**
@@ -250,15 +227,15 @@ public final class BytesWrap implements Serializable, Comparable<BytesWrap>,
     @Override
     public void serialize(final DataOutput out, final BytesWrap value) throws
             IOException {
-      final byte[] bytes = value.getBytes();
+      @SuppressWarnings("AccessingNonPublicFieldOfAnotherObject")
+      final byte[] bytes = value.data;
       DataOutput2.packInt(out, bytes.length);
       out.write(bytes);
     }
 
     @Override
     public BytesWrap deserialize(final DataInput in, final int available)
-            throws
-            IOException {
+            throws IOException {
       if (available == 0) {
         return null;
       }

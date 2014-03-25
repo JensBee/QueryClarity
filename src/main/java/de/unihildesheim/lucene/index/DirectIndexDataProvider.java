@@ -20,7 +20,6 @@ import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocFieldsTermsEnum;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.util.BytesWrap;
-import de.unihildesheim.util.MathUtils;
 import de.unihildesheim.util.TimeMeasure;
 import de.unihildesheim.util.Tuple;
 import de.unihildesheim.util.concurrent.processing.CollectionSource;
@@ -42,7 +41,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
-import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.MultiFields;
@@ -53,9 +51,9 @@ import org.apache.lucene.util.BytesRef;
 import org.mapdb.BTreeKeySerializer;
 import org.mapdb.BTreeMap;
 import org.mapdb.DB;
+import org.mapdb.DB.BTreeMapMaker;
 import org.mapdb.DBMaker;
 import org.mapdb.Fun;
-import org.mapdb.HTreeMap;
 import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,6 +79,8 @@ public final class DirectIndexDataProvider
    * <tt>(Field, Term)</tt> to <tt>Frequency</tt>.
    */
   private BTreeMap<Fun.Tuple2<String, BytesWrap>, Long> idxTermsMap = null;
+
+  private final BTreeKeySerializer idxTermsMapKeySerializer;
 
   /**
    * Cached collection of all index terms.
@@ -148,7 +148,7 @@ public final class DirectIndexDataProvider
      */
     numberOfCaches("numberOfCaches"),
     /**
-     * Prefix for cache related informations
+     * Prefix for cache related informations.
      */
     cachePrefix("cache_"),
     /**
@@ -156,7 +156,7 @@ public final class DirectIndexDataProvider
      */
     cachePathSuffix("_path"),
     /**
-     * Suffix for cache generation
+     * Suffix for cache generation.
      */
     cacheGenSuffix("_gen");
 
@@ -165,6 +165,11 @@ public final class DirectIndexDataProvider
      */
     private final String key;
 
+    /**
+     * Create a new property item.
+     *
+     * @param str String representation of the property
+     */
     private Properties(final String str) {
       this.key = str;
     }
@@ -194,6 +199,10 @@ public final class DirectIndexDataProvider
   protected DirectIndexDataProvider(final boolean temporaray) throws
           IOException {
     this.isTemporary = temporaray;
+
+    this.idxTermsMapKeySerializer
+            = new BTreeKeySerializer.Tuple2KeySerializer<String, BytesWrap>(
+                    null, Serializer.STRING, new BytesWrap.Serializer());
 
     if (this.isTemporary) {
       LOG.warn("Caches are temporary!");
@@ -245,12 +254,18 @@ public final class DirectIndexDataProvider
   private void initDb(final DBMaker dbMkr) {
 //    dbMkr.cacheLRUEnable(); // enable last-recent-used cache
 //    dbMkr.cacheSoftRefEnable(); // enable soft reference cache
-//    dbMkr.transactionDisable();
-    dbMkr.fullChunkAllocationEnable(); // https://github.com/jankotek/MapDB/issues/303
+    dbMkr.transactionDisable(); // no transaction log
+//    dbMkr.cacheDisable();
+//    dbMkr.asyncWriteEnable();
+    dbMkr.mmapFileEnableIfSupported(); // use memory mapping
     dbMkr.closeOnJvmShutdown(); // close db on JVM termination
     this.db = dbMkr.make();
   }
 
+  /**
+   * Check current list of fields against currently indexed ones. Starts
+   * indexing of probably missing fields.
+   */
   private void indexMissingFields() {
     final List<String> eFields = Arrays.asList(this.currentFields);
     boolean hasMissingFields = !this.cachedFields.containsAll(eFields);
@@ -324,7 +339,6 @@ public final class DirectIndexDataProvider
         for (BytesWrap stopWord : DirectIndexDataProvider.stopWords) {
           tf = _getTermFrequency(stopWord);
           if (tf != null) {
-//            LOG.debug("Remove t={} tf={}", stopWord.toString(), tf);
             this.idxTf -= tf;
           }
         }
@@ -414,8 +428,10 @@ public final class DirectIndexDataProvider
    */
   private void initDb(final boolean rebuild) {
     DB.BTreeMapMaker idxTermsMapMkr = this.db.createTreeMap("idxTermsMap");
-    idxTermsMapMkr.keySerializer(BTreeKeySerializer.TUPLE2);
+    idxTermsMapMkr.keySerializer(this.idxTermsMapKeySerializer);
+//    idxTermsMapMkr.keySerializer(BTreeKeySerializer.TUPLE2);
     idxTermsMapMkr.valueSerializer(Serializer.LONG);
+    idxTermsMapMkr.nodeSize(100);
 
     if (rebuild) {
       this.db.delete("idxTermsMap");
@@ -534,7 +550,7 @@ public final class DirectIndexDataProvider
     Processing p = new Processing();
     p.setSourceAndTarget(new IndexTermsCollectorTarget(fields,
             new CollectionSource(leaves)));
-    p.process(Processing.THREADS * 2);
+    p.process(Processing.THREADS);
 
     // update properties
     Environment.setProperty(IDENTIFIER, cGenKey, Environment.
@@ -840,20 +856,42 @@ public final class DirectIndexDataProvider
 
   private class IndexTermsCollectorTarget extends Target<AtomicReaderContext> {
 
+    /**
+     * List of fields to collect terms from.
+     */
     private final Collection<String> fields;
+    /**
+     * Reusable terms enumerator instance.
+     */
     private TermsEnum termsEnum = TermsEnum.EMPTY;
+    /**
+     * Local portion of the global {@link #idxTermsMap}. Written to the global
+     * index after reading all terms from the current reader.
+     */
+    private final BTreeMap<Fun.Tuple2<String, BytesWrap>, Long> localIdxTermsMap;
+    /**
+     * Local memory database instance.
+     */
+    private final DB db;
 
     /**
-     * Document-frequency of a term by field. Stores <tt>(Field, Term)</tt> to
-     * document-frequency mapping.
+     * Initial constructor.
+     *
+     * @param newFields List of fields to collect terms from.
+     * @param newSource Source providing reader contexts
      */
-    private HTreeMap<Fun.Tuple2<String, BytesWrap>, Integer> docFreq
-            = DBMaker.newTempHashMap();
-
     public IndexTermsCollectorTarget(final Collection<String> newFields,
             final Source newSource) {
       super(newSource);
       this.fields = newFields;
+      this.db = DBMaker.newMemoryDirectDB().asyncWriteFlushDelay(100).
+              transactionDisable().compressionEnable().make();
+      DB.BTreeMapMaker mapMkr = this.db.createTreeMap("localIdxTermsMap");
+      mapMkr.keySerializer(
+              DirectIndexDataProvider.this.idxTermsMapKeySerializer);
+      mapMkr.valueSerializer(Serializer.LONG);
+      mapMkr.nodeSize(100);
+      this.localIdxTermsMap = mapMkr.makeOrGet();
     }
 
     @Override
@@ -861,75 +899,93 @@ public final class DirectIndexDataProvider
       return new IndexTermsCollectorTarget(this.fields, getSource());
     }
 
-    private void parseTerms(final Terms terms, final String field) throws
-            IOException {
-
-    }
-
     @Override
     public void runProcess() throws Exception {
-      while (!isTerminating()) {
-        AtomicReaderContext rContext;
-        try {
-          rContext = getSource().next();
-        } catch (ProcessingException.SourceHasFinishedException ex) {
-          break;
-        }
-
-        if (rContext == null) {
-          continue;
-        }
-
-        Terms terms;
-        BytesRef br;
-        // use the plain reader
-        for (String field : this.fields) {
-          terms = rContext.reader().terms(field);
+      try {
+        while (!isTerminating()) {
+          AtomicReaderContext rContext;
           try {
-            if (terms == null) {
-              LOG.warn("No terms in field '{}'.", field);
-            } else {
-              // termsEnum is bound to the current field
-              termsEnum = terms.iterator(termsEnum);
-              br = termsEnum.next();
-              while (br != null) {
-                if (termsEnum.seekExact(br)) {
-                  // get the current term in field
-                  final BytesWrap bw = new BytesWrap(br);
+            rContext = getSource().next();
+          } catch (ProcessingException.SourceHasFinishedException ex) {
+            break;
+          }
 
-                  // get the total term frequency of the current term
-                  // across all documents and the current field
-                  final long ttf = termsEnum.totalTermFreq();
-                  // add value up for all fields
-                  final Fun.Tuple2<String, BytesWrap> fieldTerm = Fun.
-                          t2(field, bw.clone());
+          if (rContext == null) {
+            continue;
+          }
 
-                  try {
-                    Long oldValue = DirectIndexDataProvider.this.idxTermsMap.
-                            putIfAbsent(fieldTerm, ttf);
-                    if (oldValue != null) {
-                      for (;;) {
-                        oldValue = DirectIndexDataProvider.this.idxTermsMap.
-                                get(fieldTerm);
-                        if (DirectIndexDataProvider.this.idxTermsMap.
-                                replace(fieldTerm, oldValue, oldValue + ttf)) {
-                          break;
+          Terms terms;
+          BytesRef br;
+          // use the plain reader
+          for (String field : this.fields) {
+            terms = rContext.reader().terms(field);
+            try {
+              if (terms == null) {
+                LOG.warn("No terms in field '{}'.", field);
+              } else {
+                // termsEnum is bound to the current field
+                termsEnum = terms.iterator(termsEnum);
+                br = termsEnum.next();
+                while (br != null) {
+                  if (termsEnum.seekExact(br)) {
+                    // get the current term in field
+                    final BytesWrap bw = new BytesWrap(br);
+
+                    // get the total term frequency of the current term
+                    // across all documents and the current field
+                    final long ttf = termsEnum.totalTermFreq();
+                    // add value up for all fields
+                    final Fun.Tuple2<String, BytesWrap> fieldTerm = Fun.
+                            t2(field, bw);
+
+                    try {
+                      Long oldValue = this.localIdxTermsMap.putIfAbsent(
+                              fieldTerm, ttf);
+                      if (oldValue != null) {
+                        for (;;) {
+                          oldValue = this.localIdxTermsMap.get(fieldTerm);
+                          if (this.localIdxTermsMap.replace(fieldTerm,
+                                  oldValue, oldValue + ttf)) {
+                            break;
+                          }
                         }
                       }
+                    } catch (Exception ex) {
+                      LOG.error("Error: f={} t={} v={}", field, bw.toString(),
+                              ttf, ex);
+                      throw ex;
                     }
-                  } catch (Exception ex) {
-                    LOG.error("Error: f={} t={} v={}", field, bw.toString(),
-                            ttf, ex);
-                    throw ex;
                   }
+                  br = termsEnum.next();
                 }
-                br = termsEnum.next();
               }
+            } catch (IOException ex) {
+              LOG.error("Failed to parse terms in field {}.", field, ex);
             }
-          } catch (IOException ex) {
-            LOG.error("Failed to parse terms in field {}.", field, ex);
           }
+
+          // write local cached data to global index
+          LOG.debug("Commiting cached data.");
+//          for (Entry<Fun.Tuple2<String, BytesWrap>, Long> entry
+//                  : this.localIdxTermsMap.entrySet()) {
+//            Long oldValue = DirectIndexDataProvider.this.idxTermsMap.
+//                    putIfAbsent(entry.getKey(), entry.getValue());
+//            if (oldValue != null) {
+//              for (;;) {
+//                oldValue = DirectIndexDataProvider.this.idxTermsMap.
+//                        get(entry.getKey());
+//                if (DirectIndexDataProvider.this.idxTermsMap.
+//                        replace(entry.getKey(), oldValue, oldValue + entry.
+//                                getValue())) {
+//                  break;
+//                }
+//              }
+//            }
+//          }
+          this.localIdxTermsMap.clear();
         }
+      } finally {
+        this.db.close();
       }
     }
   }

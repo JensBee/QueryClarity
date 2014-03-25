@@ -199,8 +199,8 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    */
   void calcDocumentModel(final DocumentModel docModel) {
     for (BytesWrap term : docModel.termFreqMap.keySet()) {
-      final double model = this.conf.getLangModelWeight() * DocumentMetrics.
-              relativeTermFrequency(docModel, term)
+      final double model = this.conf.getLangModelWeight()
+              * docModel.metrics().relTf(term)
               + calcDefaultDocumentModel(term);
       Environment.getDataProvider().setTermData(PREFIX, docModel.id, term,
               this.docModelDataKey, model);

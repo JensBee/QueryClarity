@@ -165,16 +165,4 @@ public final class CollectionMetrics {
     return MathUtils.logN(logBase, (numberOfDocuments() - docFreq + 0.5)
             / (docFreq + 0.5));
   }
-
-  /**
-   * Calculate the term frequency–inverse document frequency for a given term.
-   * The raw term frequency and the simple IDF calculation with a logarithmic
-   * base of 10 are used.
-   *
-   * @param term Term to calculate
-   * @return Term frequency–inverse document frequency
-   */
-  public static double tfIdf(final BytesWrap term) {
-    return tf(term) * idf(term);
-  }
 }

@@ -20,6 +20,7 @@ import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.util.BytesWrap;
+import de.unihildesheim.util.MathUtils;
 import java.util.Iterator;
 
 /**
@@ -77,37 +78,56 @@ public final class DocumentMetrics {
    * @param documentId Id of the document whose model to get
    * @return Document model for the given document id
    */
-  private static DocumentModel getModel(final int documentId) {
+  public static DocumentModel getModel(final int documentId) {
     return Environment.getDataProvider().getDocumentModel(documentId);
   }
 
   /**
+   * Calculate the Within-document Frequency for the given term.
+   *
+   * @param dm Document model
+   * @param term Term
+   * @return Frequency
+   */
+  public static double wdf(final DocumentModel dm, final BytesWrap term) {
+    return MathUtils.log2(tf(dm, term).doubleValue() + 1) / MathUtils.log2(tf(
+            dm).doubleValue());
+  }
+
+  /**
+   * @see #wdf(DocumentModel, BytesWrap)
+   * @param term Term whose frequency to get
+   * @return Frequency value
+   */
+  public double wdf(final BytesWrap term) {
+    return wdf(this.docModel, term);
+  }
+
+  /**
    * Get the frequency of all terms in the document.
    *
    * @return Summed frequency of all terms in document
    */
-  public Long termFrequency() {
+  public Long tf() {
     return this.docModel.termFrequency;
   }
 
   /**
-   * Get the frequency of all terms in the document.
-   *
-   * @param documentId Id of target document
+   * @see #tf()
+   * @param dm Model of target document
    * @return Summed frequency of all terms in document
    */
-  public static Long termFrequency(final int documentId) {
-    return getModel(documentId).termFrequency;
+  public static Long tf(final DocumentModel dm) {
+    return dm.termFrequency;
   }
 
   /**
-   * Get the frequency of the given term in the specific document.
-   *
+   * @see #tf(BytesWrap)
    * @param dm Document model
    * @param term Term whose frequency to get
    * @return Frequency of the given term in the given document
    */
-  public static Long termFrequency(final DocumentModel dm,
+  public static Long tf(final DocumentModel dm,
           final BytesWrap term) {
     if (term == null) {
       throw new IllegalArgumentException("Term was null");
@@ -120,23 +140,13 @@ public final class DocumentMetrics {
   }
 
   /**
-   * @see #termFrequency(DocumentModel, BytesWrap)
+   * Get the frequency of the given term in the specific document.
+   *
    * @param term Term whose frequency to get
    * @return Frequency of the given term in the given document
    */
-  public Long termFrequency(final BytesWrap term) {
-    return termFrequency(this.docModel, term);
-  }
-
-  /**
-   * @see #termFrequency(DocumentModel, BytesWrap)
-   * @param documentId Id of target document
-   * @param term Term whose frequency to get
-   * @return Frequency of the given term in the given document
-   */
-  public static Long termFrequency(final int documentId,
-          final BytesWrap term) {
-    return termFrequency(getModel(documentId), term);
+  public Long tf(final BytesWrap term) {
+    return tf(this.docModel, term);
   }
 
   /**
@@ -144,32 +154,28 @@ public final class DocumentMetrics {
    *
    * @return Number of unique terms in document
    */
-  public Long termCount() {
+  public Long uniqueTermCount() {
     return this.docModel.termCount();
   }
 
   /**
-   * Get the number of unique terms in document.
-   *
-   * @param documentId Id of target document
+   * @see #uniqueTermCount()
+   * @param dm Document model
    * @return Number of unique terms in document
    */
-  public static Long uniqueTermCount(final int documentId) {
-    return getModel(documentId).termCount();
+  public static Long uniqueTermCount(final DocumentModel dm) {
+    return dm.termCount();
   }
 
   /**
-   * Get the relative term frequency for a term in the document. Calculated by
-   * dividing the frequency of the given term by the frequency of all terms in
-   * the document.
-   *
+   * @see #relTf(BytesWrap)
    * @param dm Document model
    * @param term Term to lookup
    * @return Relative frequency. Zero if term is not in document.
    */
-  public static double relativeTermFrequency(final DocumentModel dm,
+  public static double relTf(final DocumentModel dm,
           final BytesWrap term) {
-    Long tf = dm.termFrequency(term);
+    Long tf = dm.tf(term);
     if (tf == null) {
       return 0.0;
     }
@@ -177,23 +183,15 @@ public final class DocumentMetrics {
   }
 
   /**
-   * @see #relativeTermFrequency(DocumentModel, BytesWrap)
+   * Get the relative term frequency for a term in the document. Calculated by
+   * dividing the frequency of the given term by the frequency of all terms in
+   * the document.
+   *
    * @param term Term to lookup
    * @return Relative frequency. Zero if term is not in document.
    */
-  public double relativeTermFrequency(final BytesWrap term) {
-    return relativeTermFrequency(this.docModel, term);
-  }
-
-  /**
-   * @see #relativeTermFrequency(DocumentModel, BytesWrap)
-   * @param documentId Id of target document
-   * @param term Term to lookup
-   * @return Relative frequency. Zero if term is not in document.
-   */
-  public static double relativeTermFrequency(final int documentId,
-          final BytesWrap term) {
-    return relativeTermFrequency(getModel(documentId), term);
+  public double relTf(final BytesWrap term) {
+    return relTf(this.docModel, term);
   }
 
   /**
@@ -207,20 +205,17 @@ public final class DocumentMetrics {
   }
 
   /**
-   * Checks, if the document contains the given term.
-   *
-   * @param documentId Id of target document
+   * @see #contains(BytesWrap)
+   * @param dm Document model
    * @param term Term to lookup
    * @return True, if term is in document
    */
-  public static boolean contains(final int documentId, final BytesWrap term) {
-    return getModel(documentId).contains(term);
+  public static boolean contains(final DocumentModel dm, final BytesWrap term) {
+    return dm.contains(term);
   }
 
   /**
-   * Get the relative term frequency for a term in the document. Calculated
-   * using Bayesian smoothing using Dirichlet priors.
-   *
+   * @see #smoothedRelativeTermFrequency(BytesWrap, double)
    * @param dm Document model
    * @param term Term to lookup
    * @param smoothing Smoothing parameter
@@ -229,14 +224,16 @@ public final class DocumentMetrics {
   public static double smoothedRelativeTermFrequency(
           final DocumentModel dm, final BytesWrap term,
           final double smoothing) {
-    final double termFreq = dm.termFrequency(term).doubleValue();
-    final double relCollFreq = relativeTermFrequency(dm, term);
+    final double termFreq = dm.tf(term).doubleValue();
+    final double relCollFreq = relTf(dm, term);
     return ((termFreq + smoothing) * relCollFreq) / (termFreq + (Integer.
             valueOf(dm.termFreqMap.size()).doubleValue() * smoothing));
   }
 
   /**
-   * @see #smoothedRelativeTermFrequency(DocumentModel, BytesWrap, double)
+   * Get the relative term frequency for a term in the document. Calculated
+   * using Bayesian smoothing using Dirichlet priors.
+   *
    * @param term Term to lookup
    * @param smoothing Smoothing parameter
    * @return Smoothed relative term frequency
@@ -245,18 +242,4 @@ public final class DocumentMetrics {
           final double smoothing) {
     return smoothedRelativeTermFrequency(this.docModel, term, smoothing);
   }
-
-  /**
-   * @see #smoothedRelativeTermFrequency(DocumentModel, BytesWrap, double)
-   * @param documentId Id of target document
-   * @param term Term to lookup
-   * @param smoothing Smoothing parameter
-   * @return Smoothed relative term frequency
-   */
-  public static double smoothedRelativeTermFrequency(final int documentId,
-          final BytesWrap term, final double smoothing) {
-    return smoothedRelativeTermFrequency(getModel(documentId), term,
-            smoothing);
-  }
-
 }

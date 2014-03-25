@@ -236,10 +236,10 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
       final DocumentMetrics dm = new DocumentMetrics(docId);
 
       // total frequency of all terms in document
-      final double totalFreq = dm.termFrequency().doubleValue();
+      final double totalFreq = dm.tf().doubleValue();
       // term frequency given the document
-      final double termFreq = dm.termFrequency(term).doubleValue();
-      final double uniqueTerms = dm.termCount().doubleValue();
+      final double termFreq = dm.tf(term).doubleValue();
+      final double uniqueTerms = dm.uniqueTermCount().doubleValue();
       // relative collection frequency of the term
       final double rCollFreq = CollectionMetrics.relTf(term);
 

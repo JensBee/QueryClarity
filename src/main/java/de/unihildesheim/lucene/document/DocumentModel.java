@@ -18,6 +18,7 @@ package de.unihildesheim.lucene.document;
 
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.index.IndexDataProvider;
+import de.unihildesheim.lucene.metrics.DocumentMetrics;
 import de.unihildesheim.lucene.util.BytesWrap;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -56,6 +57,11 @@ public final class DocumentModel {
   private int hashCode;
 
   /**
+   * {@link DocumentMetrics} instance for this model.
+   */
+  private DocumentMetrics metrics = null;
+
+  /**
    * Create a new model with data from the given builder.
    *
    * @param builder Builder to use
@@ -91,7 +97,7 @@ public final class DocumentModel {
    * @param term Term to lookup
    * @return Frequency in the associated document or <tt>null</tt>, if unknown
    */
-  public Long termFrequency(final BytesWrap term) {
+  public Long tf(final BytesWrap term) {
     if (term == null) {
       return null;
     }
@@ -115,6 +121,17 @@ public final class DocumentModel {
       return manualCount;
     }
     return count.longValue();
+  }
+
+  /**
+   * Get a {@link DocumentMetrics} instance for this model.
+   * @return {@link DocumentMetrics} instance loaded with this model
+   */
+  public DocumentMetrics metrics() {
+    if (this.metrics == null) {
+      this.metrics = new DocumentMetrics(this);
+    }
+    return this.metrics;
   }
 
   @Override

@@ -142,7 +142,7 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
     double model;
 
     if (docModel.contains(term)) {
-      final double ftD = docModel.termFrequency(term).doubleValue();
+      final double ftD = docModel.tf(term).doubleValue();
       final double fd = Long.valueOf(docModel.termFrequency).doubleValue();
       model = (langmodelWeight * (ftD / fd)) + calcDefaultDocumentModel(
               langmodelWeight, term);
@@ -175,7 +175,7 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
   private double calc_pd(final double langModelWeight,
           final DocumentModel docModel, final BytesWrap term) {
     // number of occurences of term in document
-    Long tf = docModel.termFrequency(term);
+    Long tf = docModel.tf(term);
     double ftd;
     if (tf == null) {
       // term is not in document

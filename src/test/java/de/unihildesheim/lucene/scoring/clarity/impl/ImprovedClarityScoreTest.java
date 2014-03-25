@@ -18,6 +18,7 @@ package de.unihildesheim.lucene.scoring.clarity.impl;
 
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
+import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.Feedback;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.index.TestIndex;
@@ -120,13 +121,14 @@ public class ImprovedClarityScoreTest extends MultiIndexDataProviderTestCase {
     final double lambda = conf.getDocumentModelParamLambda();
     final double beta = conf.getDocumentModelParamBeta();
 
-    final double termFreq = DocumentMetrics.termFrequency(docId, term);
+    final DocumentModel docModel = Environment.getDataProvider().
+            getDocumentModel(docId);
+    final double termFreq = docModel.metrics().tf(term);
     final double relCollFreq = CollectionMetrics.relTf(term);
 
     double termSum = 0;
     // get the term frequency of each term in the document
-    for (Long tfTerm : Environment.getDataProvider().
-            getDocumentModel(docId).termFreqMap.values()) {
+    for (Long tfTerm : docModel.termFreqMap.values()) {
       termSum += tfTerm + smoothing;
     }
     double model = (termFreq + (smoothing * relCollFreq)) / termSum;
