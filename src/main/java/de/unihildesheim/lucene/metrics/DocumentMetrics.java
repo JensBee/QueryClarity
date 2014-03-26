@@ -21,7 +21,6 @@ import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.MathUtils;
-import java.util.Iterator;
 
 /**
  * Document related metrics.

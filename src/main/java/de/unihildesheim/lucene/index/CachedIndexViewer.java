@@ -113,6 +113,11 @@ public final class CachedIndexViewer {
     }
   }
 
+  /**
+   * Show external term-data.
+   * @param prefix Prefix to read
+   * @param docId Document id
+   */
   @Command(description = "Show externally stored document-term data "
           + "by prefix and document-id.")
   public void showExternalTermData(

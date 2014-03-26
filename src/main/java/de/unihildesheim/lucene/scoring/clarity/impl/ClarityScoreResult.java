@@ -60,7 +60,7 @@ public class ClarityScoreResult extends ScoringResult {
    * this result instance
    */
   @Override
-  public Class<? extends ClarityScoreCalculation> getType() {
+  public final Class<? extends ClarityScoreCalculation> getType() {
     return type;
   }
 }

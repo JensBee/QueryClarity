@@ -70,7 +70,7 @@ public final class TermsQueryBuilder {
   }
 
   /**
-   * Set the boolean operator to combine single terms
+   * Set the boolean operator to combine single terms.
    *
    * @param newOperator Boolean operator
    * @return Self reference

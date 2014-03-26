@@ -259,6 +259,7 @@ public final class AtomicDouble extends Number implements Serializable {
    *
    * @param s Stream to write to
    * @serialData The current value is emitted (a {@code double}).
+   * @throws IOException Thrown on low-level I/O errors
    */
   private void writeObject(final ObjectOutputStream s) throws IOException {
     s.defaultWriteObject();
@@ -269,6 +270,8 @@ public final class AtomicDouble extends Number implements Serializable {
    * Reconstitutes the instance from a stream (that is, deserializes it).
    *
    * @param s Stream to read from
+   * @throws IOException Thrown on low-level I/O errors
+   * @throws ClassNotFoundException Thrown, if class could not be found
    */
   private void readObject(final ObjectInputStream s) throws IOException,
           ClassNotFoundException {

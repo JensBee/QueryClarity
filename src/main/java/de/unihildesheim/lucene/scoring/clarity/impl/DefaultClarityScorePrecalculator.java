@@ -69,7 +69,8 @@ public final class DefaultClarityScorePrecalculator {
    * Pre-calculate all document models for all terms known from the index.
    */
   public void preCalculate() {
-    LOG.info("Pre-calculating {} models.", CollectionMetrics.numberOfDocuments());
+    LOG.info("Pre-calculating {} models.", CollectionMetrics.
+            numberOfDocuments());
     final Processing pPipe = new Processing(new DocumentModelCalculator(
             Environment.getDataProvider().getDocumentIdSource()));
     pPipe.process();
@@ -117,7 +118,7 @@ public final class DefaultClarityScorePrecalculator {
         } else {
           // call the calculation method of the main class for each
           // document and term that is available for processing
-          getDcsInstance().calcDocumentModel(docModel);//, termList);
+          getDcsInstance().calcDocumentModel(docModel);
         }
       }
     }

@@ -43,17 +43,28 @@ public final class ExternalDocTermDataManager {
   /**
    * Store an individual map for each prefix.
    */
-  private final Map<String, BTreeMap<Fun.Tuple3<Integer, String, BytesWrap>, Object>> prefixMap;
+  private final Map<String, BTreeMap<Fun.Tuple3<
+          Integer, String, BytesWrap>, Object>> prefixMap;
   /**
    * R/w lock for {@link #prefixMap}.
    */
   private final ReentrantReadWriteLock prefixMapLock;
+  /**
+   * Database handling storage.
+   */
   private final DB db;
+  /**
+   * Prefix to use for any keys.
+   */
   private final String prefix;
 
   /**
    * Initialize the manager.
+   *
+   * @param newDb Database
+   * @param newPrefix Prefix
    */
+  @SuppressWarnings("CollectionWithoutInitialCapacity")
   ExternalDocTermDataManager(final DB newDb, final String newPrefix) {
     this.prefixMap = new HashMap<>();
     this.prefixMapLock = new ReentrantReadWriteLock();
@@ -65,12 +76,12 @@ public final class ExternalDocTermDataManager {
    * Check, if the given prefix is known. Throws a runtime {@link Exception},
    * if the prefix is not known.
    *
-   * @param prefix Prefix to check
+   * @param newPrefix Prefix to check
    */
-  private void checkPrefix(final String prefix) {
-    if (!this.prefixMap.containsKey(prefix)) {
+  private void checkPrefix(final String newPrefix) {
+    if (!this.prefixMap.containsKey(newPrefix)) {
       throw new IllegalArgumentException("Prefixed data was not known. "
-              + "Was prefix '" + prefix
+              + "Was prefix '" + newPrefix
               + "' registered before being accessed?");
     }
   }
@@ -96,25 +107,25 @@ public final class ExternalDocTermDataManager {
   /**
    * Get the document term-data map for a given prefix.
    *
-   * @param prefix Prefix to lookup
+   * @param newPrefix Prefix to lookup
    * @return Map containing stored data for the given prefix, or null if there
    * was no such prefix
    */
   private BTreeMap<Fun.Tuple3<Integer, String, BytesWrap>, Object> getDataMap(
-          final String prefix) {
-    return this.prefixMap.get(prefix);
+          final String newPrefix) {
+    return this.prefixMap.get(newPrefix);
   }
 
   /**
    * Loads a stored prefix map from the database into the cache.
    *
-   * @param prefix Prefix to load
+   * @param newPrefix Prefix to load
    */
-  protected void loadPrefix(final String prefix) {
-    if (prefix == null || prefix.length() == 0) {
+  protected void loadPrefix(final String newPrefix) {
+    if (newPrefix == null || newPrefix.length() == 0) {
       throw new IllegalArgumentException("No prefix specified.");
     }
-    final String mapName = this.prefix + prefix;
+    final String mapName = this.prefix + newPrefix;
     // stored data
     BTreeMap<Fun.Tuple3<Integer, String, BytesWrap>, Object> map;
     this.prefixMapLock.writeLock().lock();
@@ -122,7 +133,7 @@ public final class ExternalDocTermDataManager {
       if (db.exists(mapName)) {
         map = db.get(mapName);
       } else {
-        LOG.debug("Creating a new docTermData map with prefix '{}'", prefix);
+        LOG.debug("Creating a new docTermData map with prefix '{}'", newPrefix);
         // create a new map
         DB.BTreeMapMaker mapMkr = db.createTreeMap(mapName);
         final BTreeKeySerializer mapKeySerializer
@@ -133,7 +144,7 @@ public final class ExternalDocTermDataManager {
         mapMkr.valueSerializer(Serializer.JAVA);
         map = mapMkr.makeOrGet();
       }
-      this.prefixMap.put(prefix, map);
+      this.prefixMap.put(newPrefix, map);
     } finally {
       this.prefixMapLock.writeLock().unlock();
     }
@@ -142,14 +153,14 @@ public final class ExternalDocTermDataManager {
   /**
    * Store ter-data to the database.
    *
-   * @param prefix Data prefix to use
+   * @param newPrefix Data prefix to use
    * @param documentId Document-id the data belongs to
    * @param term Term the data belongs to
    * @param key Key to identify the data
    * @param value Value to store
    * @return Any previous assigned data, or null, if there was none
    */
-  protected Object setData(final String prefix, final int documentId,
+  protected Object setData(final String newPrefix, final int documentId,
           final BytesWrap term, final String key, final Object value) {
     if (term == null) {
       throw new IllegalArgumentException("Term was null.");
@@ -160,12 +171,12 @@ public final class ExternalDocTermDataManager {
     if (value == null) {
       throw new IllegalArgumentException("Null is not allowed as value.");
     }
-    checkPrefix(prefix);
+    checkPrefix(newPrefix);
     Object returnObj = null;
     this.prefixMapLock.writeLock().lock();
     try {
       returnObj
-              = this.prefixMap.get(prefix).
+              = this.prefixMap.get(newPrefix).
               put(Fun.t3(documentId, key, term.clone()), value);
     } finally {
       this.prefixMapLock.writeLock().unlock();
@@ -177,15 +188,15 @@ public final class ExternalDocTermDataManager {
    * Get stored document term-data for a specific prefix and key. This returns
    * only <tt>term, value</tt> pairs for the given document and prefix.
    *
-   * @param prefix Prefix to lookup
+   * @param newPrefix Prefix to lookup
    * @param documentId Document-id whose data to get
    * @param key Key to identify the data to get
    * @return Map with stored data for the given combination or null if there
    * is no data
    */
-  protected Map<BytesWrap, Object> getData(final String prefix,
+  protected Map<BytesWrap, Object> getData(final String newPrefix,
           final int documentId, final String key) {
-    if (prefix == null || prefix.isEmpty()) {
+    if (newPrefix == null || newPrefix.isEmpty()) {
       throw new IllegalArgumentException("No prefix specified.");
     }
     if (key == null || key.isEmpty()) {
@@ -195,7 +206,7 @@ public final class ExternalDocTermDataManager {
     this.prefixMapLock.readLock().lock();
     try {
       BTreeMap<Fun.Tuple3<Integer, String, BytesWrap>, Object> dataMap
-              = getDataMap(prefix);
+              = getDataMap(newPrefix);
       if (dataMap == null) {
         return null;
       }
@@ -215,26 +226,26 @@ public final class ExternalDocTermDataManager {
    * Get a single stored document term-data value for a specific prefix, term
    * and key.
    *
-   * @param prefix Prefix to lookup
+   * @param newPrefix Prefix to lookup
    * @param documentId Document-id whose data to get
    * @param key Key to identify the data to get
    * @param term Term to lookup
    * @return Value stored for the given combination, or null if there was no
    * data stored
    */
-  protected Object getData(final String prefix, final int documentId,
+  protected Object getData(final String newPrefix, final int documentId,
           final BytesWrap term, final String key) {
     if (term == null) {
       throw new IllegalArgumentException("Term was null.");
     }
-    if (prefix == null || prefix.isEmpty()) {
+    if (newPrefix == null || newPrefix.isEmpty()) {
       throw new IllegalArgumentException("No prefix specified.");
     }
     if (key == null || key.isEmpty()) {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
-    checkPrefix(prefix);
-    return this.prefixMap.get(prefix).get(Fun.t3(documentId, key, term));
+    checkPrefix(newPrefix);
+    return this.prefixMap.get(newPrefix).get(Fun.t3(documentId, key, term));
   }
 
 }

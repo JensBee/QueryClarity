@@ -58,11 +58,21 @@ public abstract class ScoringResult {
    */
   public abstract Class getType();
 
-  public void setData(final String key, final Object value) {
+  /**
+   * Set meta information.
+   * @param key Key
+   * @param value Value
+   */
+  public final void setData(final String key, final Object value) {
     this.data.put(key, value);
   }
 
-  public Object getData(final String key) {
+  /**
+   * Get stored meta information.
+   * @param key Key
+   * @return Value stored, or <tt>null</tt> if there was none
+   */
+  public final Object getData(final String key) {
     return this.data.get(key);
   }
 

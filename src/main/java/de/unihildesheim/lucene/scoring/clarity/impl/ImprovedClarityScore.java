@@ -152,10 +152,13 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
    *
    * @param query Query to reduce
    * @param policy Policy to use for choosing which term to remove
+   * @return Simplified query string
+   * @throws ParseException Thrown, if query string could not be parsed
+   * @throws IOException Thrown on low-level i/O errors or if a term could not
+   * be parsed to UTF-8
    */
   private String simplifyQuery(final String query,
-          final QuerySimplifyPolicy policy) throws IOException,
-          UnsupportedEncodingException, ParseException {
+          final QuerySimplifyPolicy policy) throws IOException, ParseException {
     Collection<BytesWrap> qTerms = new ArrayList<>(QueryUtils.
             getAllQueryTerms(query));
     BytesWrap termToRemove = null;
@@ -258,6 +261,8 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
   /**
    * Calculate the product of all feedback documents given the query terms.
    *
+   * @param fbDocId Feedback document id
+   * @param qTerms Query terms
    * @return Product of all document models given the query terms
    * @throws UnsupportedEncodingException Thrown, if a query term could not be
    * parsed
@@ -274,9 +279,10 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
   }
 
   /**
+   * Calculate the query model.
    *
+   * @param fbTerm Feedback term
    * @param qTerms List of query terms
-   * @param qTermIdx Index of the current query term to calculate
    * @param fbDocIds List of feedback document
    * @return Query model for the current term and set of feedback documents
    * @throws UnsupportedEncodingException Thrown, if a query term could not be
@@ -301,7 +307,7 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
   }
 
   @Override
-  public Result calculateClarity(String query) throws
+  public final Result calculateClarity(final String query) throws
           ParseException {
     if (query == null || query.isEmpty()) {
       throw new IllegalArgumentException("Query was empty.");
@@ -433,8 +439,12 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
      */
     private List<String> queries;
 
+    /**
+     * Creates an object wrapping the result with meta information.
+     * @param cscType Type of the calculation class
+     */
     @SuppressWarnings("CollectionWithoutInitialCapacity")
-    public Result(Class<? extends ClarityScoreCalculation> cscType) {
+    public Result(final Class<? extends ClarityScoreCalculation> cscType) {
       super(cscType);
       this.queries = new ArrayList<>();
       this.feedbackDocIds = Collections.emptyList();
@@ -444,7 +454,7 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
     /**
      * Set the calculation result.
      *
-     * @param score
+     * @param score Score result
      */
     private void set(final double score) {
       super.setScore(score);

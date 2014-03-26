@@ -122,8 +122,8 @@ public interface IndexDataProvider {
    * given prefix.
    * <p>
    * A prefix must be registered before any call to
-   * {@link #setTermData(String, int, BytesWrap, String, Object)} or null null
-   * null null null null null null null null null   {@link #getTermData(String, int, BytesWrap, String) can be made.
+   * {@link #setTermData(String, int, BytesWrap, String, Object)} or
+   * {@link #getTermData(String, int, BytesWrap, String) can be made.
    *
    * @param prefix Prefix name to register
    */

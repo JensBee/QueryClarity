@@ -19,10 +19,9 @@ package de.unihildesheim.lucene.scoring.clarity.impl;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.Feedback;
-import de.unihildesheim.util.concurrent.processing.Processing;
 import de.unihildesheim.lucene.index.IndexDataProvider;
+import de.unihildesheim.util.concurrent.processing.Processing;
 import de.unihildesheim.lucene.metrics.CollectionMetrics;
-import de.unihildesheim.lucene.metrics.DocumentMetrics;
 import de.unihildesheim.lucene.query.QueryUtils;
 import de.unihildesheim.lucene.query.TermsQueryBuilder;
 import de.unihildesheim.lucene.scoring.clarity.ClarityScoreCalculation;
@@ -96,6 +95,12 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
    */
   private final String docModelDataKey;
 
+  /**
+   * Get the current data key containing the current language-model weighting
+   * value.
+   *
+   * @return String key to store data
+   */
   String getDocModelDataKey() {
     return docModelDataKey;
   }
@@ -183,15 +188,6 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
     return this.queryModels.get(documentId);
   }
 
-//  /**
-//   * Get the language model weighting value used for calculation of document
-//   * and query models.
-//   *
-//   * @return Weighting value
-//   */
-//  public double getLangmodelWeight() {
-//    return langmodelWeight;
-//  }
   /**
    * Calculate the document distribution of a term, document model (pD).
    *

@@ -132,7 +132,8 @@ public abstract class Configuration {
    * @return String value assigned to the key, or <tt>defaultValue</tt> if
    * there was none or there was an error interpreting the value as integer
    */
-  protected final String getString(final String key, final String defaultValue) {
+  protected final String getString(final String key,
+          final String defaultValue) {
     return this.data.getProperty(key, defaultValue);
   }
 

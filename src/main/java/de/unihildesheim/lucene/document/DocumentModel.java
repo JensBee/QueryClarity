@@ -16,8 +16,6 @@
  */
 package de.unihildesheim.lucene.document;
 
-import de.unihildesheim.lucene.Environment;
-import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.metrics.DocumentMetrics;
 import de.unihildesheim.lucene.util.BytesWrap;
 import java.util.HashMap;
@@ -167,6 +165,9 @@ public final class DocumentModel {
     return true;
   }
 
+  /**
+   * Calculate the hash value for this object.
+   */
   private void calcHash() {
     this.hashCode = 7;
     this.hashCode = 19 * this.hashCode + this.id;

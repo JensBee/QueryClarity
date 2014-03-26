@@ -51,7 +51,6 @@ import org.apache.lucene.util.BytesRef;
 import org.mapdb.BTreeKeySerializer;
 import org.mapdb.BTreeMap;
 import org.mapdb.DB;
-import org.mapdb.DB.BTreeMapMaker;
 import org.mapdb.DBMaker;
 import org.mapdb.Fun;
 import org.mapdb.Serializer;
@@ -903,15 +902,14 @@ public final class DirectIndexDataProvider
     public void runProcess() throws Exception {
       try {
         while (!isTerminating()) {
-          AtomicReaderContext rContext;
+          final AtomicReaderContext rContext;
           try {
             rContext = getSource().next();
+            if (rContext == null) {
+              continue;
+            }
           } catch (ProcessingException.SourceHasFinishedException ex) {
             break;
-          }
-
-          if (rContext == null) {
-            continue;
           }
 
           Terms terms;
@@ -966,22 +964,22 @@ public final class DirectIndexDataProvider
 
           // write local cached data to global index
           LOG.debug("Commiting cached data.");
-//          for (Entry<Fun.Tuple2<String, BytesWrap>, Long> entry
-//                  : this.localIdxTermsMap.entrySet()) {
-//            Long oldValue = DirectIndexDataProvider.this.idxTermsMap.
-//                    putIfAbsent(entry.getKey(), entry.getValue());
-//            if (oldValue != null) {
-//              for (;;) {
-//                oldValue = DirectIndexDataProvider.this.idxTermsMap.
-//                        get(entry.getKey());
-//                if (DirectIndexDataProvider.this.idxTermsMap.
-//                        replace(entry.getKey(), oldValue, oldValue + entry.
-//                                getValue())) {
-//                  break;
-//                }
-//              }
-//            }
-//          }
+          for (Entry<Fun.Tuple2<String, BytesWrap>, Long> entry
+                  : this.localIdxTermsMap.entrySet()) {
+            Long oldValue = DirectIndexDataProvider.this.idxTermsMap.
+                    putIfAbsent(entry.getKey(), entry.getValue());
+            if (oldValue != null) {
+              for (;;) {
+                oldValue = DirectIndexDataProvider.this.idxTermsMap.
+                        get(entry.getKey());
+                if (DirectIndexDataProvider.this.idxTermsMap.
+                        replace(entry.getKey(), oldValue, oldValue + entry.
+                                getValue())) {
+                  break;
+                }
+              }
+            }
+          }
           this.localIdxTermsMap.clear();
         }
       } finally {

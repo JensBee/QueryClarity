@@ -17,7 +17,6 @@
 package de.unihildesheim.lucene.scoring.clarity.impl;
 
 import de.unihildesheim.lucene.Environment;
-import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.metrics.CollectionMetrics;
 import de.unihildesheim.lucene.query.QueryUtils;
 import de.unihildesheim.lucene.scoring.clarity.ClarityScoreCalculation;
@@ -25,7 +24,6 @@ import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.TimeMeasure;
 import java.io.UnsupportedEncodingException;
 import java.util.Collection;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.slf4j.LoggerFactory;
 
@@ -54,9 +52,6 @@ public final class SimplifiedClarityScore implements ClarityScoreCalculation {
   /**
    * Default constructor using the {@link IndexDataProvider} for statistical
    * index data.
-   *
-   * @param indexReader {@link IndexReader} to use by this instance
-   * @param dataProvider Provider for statistical index data
    */
   public SimplifiedClarityScore() {
     super();

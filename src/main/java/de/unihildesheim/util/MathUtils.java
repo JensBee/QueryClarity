@@ -16,16 +16,11 @@
  */
 package de.unihildesheim.util;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-
 /**
- *
+ * Collection of simple calculation utilities.
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class MathUtils {
+public final class MathUtils {
 
   /**
    * Private empty constructor for utility class.
@@ -44,6 +39,12 @@ public class MathUtils {
     return logN(2, value);
   }
 
+  /**
+   * Calculate the log to a given base.
+   * @param base Base
+   * @param value Value
+   * @return Log of value to base
+   */
   public static double logN(final double base, final double value) {
     return Math.log(value) / Math.log(base);
   }

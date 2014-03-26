@@ -87,6 +87,10 @@ public final class RandomValue {
     return min + 1 + (max - min) * rand.nextDouble();
   }
 
+  /**
+   * Get a random double value.
+   * @return Double value
+   */
   public static double getDouble() {
     return rand.nextDouble();
   }

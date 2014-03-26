@@ -16,7 +16,6 @@
  */
 package de.unihildesheim.lucene.query;
 
-import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.LuceneDefaults;
 import de.unihildesheim.util.StringUtils;
 import java.io.IOException;
@@ -111,6 +110,7 @@ public final class SimpleTermsQuery extends Query {
    * stopwords from the query string.
    *
    * @param query Query string to tokenize
+   * @param analyzer Analyzer to use
    * @return Tokenized query string with stop-words removed
    */
   private List<String> tokenizeQueryString(final String query,
@@ -150,7 +150,7 @@ public final class SimpleTermsQuery extends Query {
   }
 
   @Override
-  public Weight createWeight(IndexSearcher searcher) throws IOException {
+  public Weight createWeight(final IndexSearcher searcher) throws IOException {
     return new SimpleTermQueryWeight(searcher);
   }
 

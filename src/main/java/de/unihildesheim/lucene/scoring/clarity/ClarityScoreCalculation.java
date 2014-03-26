@@ -28,7 +28,6 @@ public interface ClarityScoreCalculation {
   /**
    * Calculate the clarity score based on the given query terms.
    *
-   * @param fields Document fields to query
    * @param query Query used for term extraction
    * @return Calculated clarity score for the given terms, or <tt>null</tt>
    * on errors.

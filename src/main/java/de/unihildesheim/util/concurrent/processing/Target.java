@@ -148,7 +148,7 @@ public abstract class Target<T> implements Runnable {
    * @param <T> Type of this target
    */
   @SuppressWarnings("ProtectedInnerClass")
-  protected final static class TargetTest<T> extends Target<T> implements
+  protected static final class TargetTest<T> extends Target<T> implements
           Callable<Long> {
 
     /**
@@ -169,7 +169,7 @@ public abstract class Target<T> implements Runnable {
      *
      * @param newSource Source to use
      */
-    public TargetTest(Source<T> newSource) {
+    public TargetTest(final Source<T> newSource) {
       super(newSource);
       this.syncLock = new Object();
     }

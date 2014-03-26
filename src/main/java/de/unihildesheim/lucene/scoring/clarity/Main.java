@@ -26,7 +26,6 @@ import de.unihildesheim.lucene.index.DirectIndexDataProvider;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import java.io.IOException;
 import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.search.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,7 +63,7 @@ public final class Main {
    *
    * @throws IOException If index could not be read
    * @throws org.apache.lucene.queryparser.classic.ParseException If the
-   * {@link Query} could not be parsed
+   * query could not be parsed
    * @throws DocumentModelException If a requested document model needed for
    * calculation could not be created
    */

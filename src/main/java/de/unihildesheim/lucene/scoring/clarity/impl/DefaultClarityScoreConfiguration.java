@@ -25,7 +25,7 @@ import java.util.Map;
  *
  * @author Jens Bertram <code@jens-bertram.net>
  */
-public class DefaultClarityScoreConfiguration extends Configuration {
+public final class DefaultClarityScoreConfiguration extends Configuration {
 
   /**
    * Default initial configuration.

@@ -47,8 +47,11 @@ public final class Scoring {
     SIMPLIFIED
   }
 
+  /**
+   * Private utility class constructor.
+   */
   private Scoring() {
-
+    // empty
   }
 
   /**

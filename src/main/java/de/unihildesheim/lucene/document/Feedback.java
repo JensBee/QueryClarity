@@ -99,7 +99,7 @@ public final class Feedback {
   }
 
   /**
-   * Get the maximum number of documents that can be retrieved,
+   * Get the maximum number of documents that can be retrieved.
    *
    * @param reader Reader to access the index
    * @param docCount Number of documents that should be retrieved
@@ -122,7 +122,7 @@ public final class Feedback {
 
   /**
    * Same as
-   * {@link #get(org.apache.lucene.index.IndexReader, org.apache.lucene.search.Query, int)},
+   * {@link #get(IndexReader, Query, int)},
    * but gets the target {@link IndexReader} from the {@link Environment}.
    *
    * @param query Query to get matching documents
@@ -178,7 +178,7 @@ public final class Feedback {
 
   /**
    * Same as
-   * {@link #getFixed(org.apache.lucene.index.IndexReader, org.apache.lucene.search.Query, int)},
+   * {@link #getFixed(IndexReader, Query, int)},
    * but gets the target {@link IndexReader} from the {@link Environment}.
    *
    * @param query Query to get matching documents

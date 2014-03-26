@@ -205,11 +205,11 @@ public final class Environment {
    *
    * @param newIndexPath Path where the Lucene index resides
    * @param newDataPath Path where application data is stored
-   * @param fields Document fields to use for searching
+   * @param newFields Document fields to use for searching
    * @throws IOException Thrown on low-level I/O errors
    */
   public Environment(final String newIndexPath, final String newDataPath,
-          final String[] fields) throws IOException {
+          final String[] newFields) throws IOException {
     if (instance != null) {
       throw new IllegalStateException("Environment already initialized.");
     }
@@ -222,7 +222,7 @@ public final class Environment {
 
     Environment.indexReader = openReader(new File(Environment.indexPath));
 
-    if (fields == null) {
+    if (newFields == null) {
       // use all index fields
       final Fields idxFields = MultiFields.getFields(Environment.indexReader);
       final Iterator<String> idxFieldNamesIt = idxFields.iterator();
@@ -233,8 +233,8 @@ public final class Environment {
       Environment.fields = idxFieldNames.toArray(new String[idxFieldNames.
               size()]);
     } else {
-      Environment.fields = fields;
-      IndexUtils.checkFields(fields);
+      Environment.fields = newFields;
+      IndexUtils.checkFields(newFields);
     }
 
     loadProperties();
@@ -305,7 +305,7 @@ public final class Environment {
   }
 
   /**
-   * Set the index document fields that get searched
+   * Set the index document fields that get searched.
    *
    * @param newFields List of fields to use for searching
    */
