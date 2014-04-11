@@ -78,19 +78,16 @@ public final class Main {
     // index field to operate on
     final String[] fields = new String[]{"text"};
 
-//    TestIndexDataProvider index = new TestIndexDataProvider(
-//            TestIndexDataProvider.IndexSize.LARGE);
-//    index.setupEnvironment(DirectIndexDataProvider.class);
     Environment env = new Environment(indexDir, dataDir, fields);
     final IndexDataProvider dataProv = new DirectIndexDataProvider();
     env.create(dataProv);
     dataProv.warmUp();
-//    LOG.info("\n--- Default Clarity Score");
-//    Scoring.newInstance(Scoring.ClarityScore.DEFAULT).calculateClarity(
-//            queryString);
-//    LOG.info("\n--- Simplified Clarity Score");
-//    Scoring.newInstance(Scoring.ClarityScore.SIMPLIFIED).
-//            calculateClarity(queryString);
+    LOG.info("\n--- Default Clarity Score");
+    Scoring.newInstance(Scoring.ClarityScore.DEFAULT).calculateClarity(
+            queryString);
+    LOG.info("\n--- Simplified Clarity Score");
+    Scoring.newInstance(Scoring.ClarityScore.SIMPLIFIED).
+            calculateClarity(queryString);
     LOG.info("\n--- Improved Clarity Score");
     Scoring.newInstance(Scoring.ClarityScore.IMPROVED).
             calculateClarity(queryString);

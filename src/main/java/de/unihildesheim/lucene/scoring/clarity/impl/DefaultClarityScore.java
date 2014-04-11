@@ -287,8 +287,9 @@ public final class DefaultClarityScore implements ClarityScoreCalculation {
   @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
   private Result calculateClarity(final Collection<Integer> feedbackDocuments) {
     // check if models are pre-calculated
-    checkPrecalculatedModels();
-
+// FIXME: currenty do not use - unsure what to do with dynamic setting of stopwords
+// Maybe allow storing a configuration (fields, stopwords, idex) triple and allow loading those
+//    checkPrecalculatedModels();
     final Result result = new Result(this.getClass());
     result.setFeedbackDocIds(feedbackDocuments);
     result.setQueryTerms(this.queryTerms);
