@@ -120,12 +120,12 @@ public final class SourceObserver implements Callable<Double> {
   @SuppressWarnings("SleepWhileInLoop")
   public Double call() {
     // short circuit if source has already finished
-    if (((Source) this.source).isFinished()) {
+    if (this.source.isFinished()) {
       return 0d;
     }
     this.overallTime.start();
     try {
-      ((Source) this.source).awaitStart();
+      this.source.awaitStart();
       this.runTime.start();
       long lastStatus = 0;
       long status = 0;

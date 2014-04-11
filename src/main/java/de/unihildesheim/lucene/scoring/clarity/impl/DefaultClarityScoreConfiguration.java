@@ -23,7 +23,7 @@ import java.util.Map;
 /**
  * Configuration for {@link DefaultClarityScore}.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public final class DefaultClarityScoreConfiguration extends Configuration {
 
@@ -49,7 +49,7 @@ public final class DefaultClarityScoreConfiguration extends Configuration {
 
   // initialize defaults map
   static {
-    defaults = new HashMap<String, String>();
+    defaults = new HashMap<>(Keys.values().length);
     /**
      * Number of feedback documents to use.
      * <p>

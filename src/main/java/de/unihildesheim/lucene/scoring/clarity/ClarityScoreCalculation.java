@@ -17,11 +17,13 @@
 package de.unihildesheim.lucene.scoring.clarity;
 
 import de.unihildesheim.lucene.scoring.clarity.impl.ClarityScoreResult;
+import de.unihildesheim.util.Configuration;
 import org.apache.lucene.queryparser.classic.ParseException;
 
 /**
+ * Generic interface for various clarity score calculation implementations.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ * @author Jens Bertram
  */
 public interface ClarityScoreCalculation {
 
@@ -36,4 +38,6 @@ public interface ClarityScoreCalculation {
    */
   ClarityScoreResult calculateClarity(final String query) throws
           ParseException;
+
+  public ClarityScoreCalculation setConfiguration(final Configuration conf);
 }

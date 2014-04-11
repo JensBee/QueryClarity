@@ -133,12 +133,81 @@ public abstract class Target<T> implements Runnable {
     } catch (ProcessingException.SourceHasFinishedException ex) {
       LOG.error("({}) Source has finished unexpectedly.", getName(), ex);
     } catch (Exception ex) { // make sure we catch everything
-      LOG.error("({}) Caught exception. target={} cause={} stack={}",
-              getName(), ex, ex.getStackTrace());
+      LOG.error("({}) Caught exception. cause={}",
+              getName(), ex, ex);
     } finally {
       this.terminate = true;
       LOG.trace("({}) Terminating.", getName());
       this.latch.countDown();
+    }
+  }
+
+  /**
+   * Simple processing target calling a single function on each object.
+   *
+   * @param <T> Type of data to process
+   */
+  public static final class TargetFuncCall<T> extends Target<T> {
+
+    /**
+     * Function to call for each element.
+     */
+    private final TargetFunc<T> tFunc;
+
+    /**
+     * Create a new {@link Processing} target invoking a function for each
+     * element.
+     *
+     * @param newSource Source providing items
+     * @param func Function to call
+     */
+    public TargetFuncCall(final Source<T> newSource, final TargetFunc<T> func) {
+      super(newSource);
+      this.tFunc = func;
+    }
+
+    @Override
+    public Target<T> newInstance() {
+      return new TargetFuncCall<>(getSource(), this.tFunc);
+    }
+
+    @Override
+    public void runProcess() throws Exception {
+      while (!isTerminating()) {
+        T data;
+        try {
+          data = getSource().next();
+        } catch (ProcessingException.SourceHasFinishedException ex) {
+          break;
+        }
+
+        this.tFunc.call(data);
+      }
+    }
+
+  }
+
+  /**
+   * Function implementation for {@link TargetFuncCall}.
+   *
+   * @param <T> Type to process
+   */
+  public abstract static class TargetFunc<T> {
+
+    /**
+     * Gets called with the current item
+     *
+     * @param data Current item
+     */
+    public abstract void call(final T data);
+
+    /**
+     * Get the name of this class.
+     *
+     * @return Name
+     */
+    public final String getName() {
+      return this.getClass().getSimpleName() + "-" + this.hashCode();
     }
   }
 
@@ -162,7 +231,7 @@ public abstract class Target<T> implements Runnable {
     /**
      * Counter of processed items.
      */
-    private AtomicLong itemCount = new AtomicLong(0);
+    private final AtomicLong itemCount = new AtomicLong(0);
 
     /**
      * Creates a new debugging {@link Target}. Only one instance may be run.

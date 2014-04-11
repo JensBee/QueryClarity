@@ -2,14 +2,14 @@
 
 # memory setting
 JVM_MEM="-Xms128m -Xmx2G"
-JVM_DEFAULT="-server" # -d64
+JVM_DEFAULT="-server -ea -d64" # -d64
 
 JVM="$JVM_DEFAULT $JVM_MEM"
 MAVEN_OPTS="$MAVEN_OPTS $JVM"
 
 if [ $# -eq 0 ]; then
-  mvn -Djava.io.tmpdir=/media/Brain2/tmp test
+  	mvn -Djava.io.tmpdir=/media/Brain2/tmp test
 else
-	mvn -Djava.io.tmpdir=/media/Brain2/tmp -Dtest=$* test
+	mvn -Djava.io.tmpdir=/media/Brain2/tmp -Dtest="$*" test
 fi
 

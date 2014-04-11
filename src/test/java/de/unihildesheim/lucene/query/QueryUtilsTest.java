@@ -16,26 +16,26 @@
  */
 package de.unihildesheim.lucene.query;
 
-import de.unihildesheim.lucene.Environment;
-import de.unihildesheim.lucene.index.TestIndex;
-import de.unihildesheim.lucene.util.BytesWrap;
+import de.unihildesheim.ByteArray;
+import de.unihildesheim.lucene.index.TestIndexDataProvider;
+import de.unihildesheim.util.ByteArrayUtil;
 import de.unihildesheim.util.RandomValue;
 import edu.umd.cs.findbugs.annotations.SuppressWarnings;
-import java.util.ArrayList;
-import java.util.Collection;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Query;
-import org.junit.After;
+
+
 import org.junit.BeforeClass;
 import org.junit.Test;
-import static org.junit.Assert.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import static org.junit.Assert.*;
+import java.util.ArrayList;
+import java.util.Collection;
 
 /**
  * Test for {@link QueryUtils}.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public class QueryUtilsTest {
 
@@ -48,7 +48,7 @@ public class QueryUtilsTest {
   /**
    * Temporary Lucene memory index.
    */
-  private static TestIndex index;
+  private static TestIndexDataProvider index;
 
   /**
    * Static initializer run before all tests.
@@ -57,55 +57,111 @@ public class QueryUtilsTest {
    */
   @BeforeClass
   public static void setUpClass() throws Exception {
+
     // create the test index
-    index = new TestIndex(TestIndex.IndexSize.SMALL);
-    assertTrue("TestIndex is not initialized.", TestIndex.test_isInitialized());
+    index = new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL);
+    assertTrue("TestIndex is not initialized.",
+            TestIndexDataProvider.isInitialized());
     index.setupEnvironment();
   }
 
   /**
-   * Test of getQueryTerms method, of class QueryUtils.
+   * Test of getUniqueQueryTerms method, of class QueryUtils.
    *
-   * @throws Exception Any exception thrown indicates an error
+   * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
   @SuppressWarnings("DM_DEFAULT_ENCODING")
-  public void testGetQueryTerms() throws Exception {
-    LOG.info("Test getQueryTerms");
-    IndexReader reader = Environment.getIndexReader();
-
+  public void testGetUniqueQueryTerms() throws Exception {
+    LOG.info("Test getUniqueQueryTerms");
     final int termsCount = RandomValue.getInteger(3, 100);
-    final Collection<BytesWrap> termsBw = new ArrayList<>(termsCount);
+    final Collection<ByteArray> termsBw = new ArrayList<>(termsCount);
     final Collection<String> terms = new ArrayList<>(termsCount);
 
     for (int i = 0; i < termsCount; i++) {
       final String term = RandomValue.getString(1, 15);
-      termsBw.add(new BytesWrap(term.getBytes()));
+
+      termsBw.add(new ByteArray(term.getBytes()));
       terms.add(term);
     }
 
-    final String queryString = index.getQueryString(terms.
-            toArray(new String[termsCount]));
-    final Query query = TermsQueryBuilder.buildFromEnvironment(queryString);
+    final String queryString = index.getQueryString(terms.toArray(
+            new String[termsCount]));
+    final Collection<ByteArray> result = QueryUtils.getUniqueQueryTerms(
+            queryString);
 
-    final Collection<BytesWrap> result = QueryUtils.
-            getUniqueQueryTerms(queryString);
     assertTrue("Not all terms returned.", result.containsAll(termsBw));
-    if (termsBw.size() != result.size()) {
-      StringBuilder sbInitial = new StringBuilder();
-      for (BytesWrap bw : termsBw) {
-        sbInitial.append(new String(bw.getBytes())).append(' ');
-      }
-      LOG.error("INITIAL: {}", sbInitial.toString());
 
-      StringBuilder sbResult = new StringBuilder();
-      for (BytesWrap bw : result) {
-        sbResult.append(new String(bw.getBytes())).append(' ');
+    if (termsBw.size() != result.size()) {
+      @java.lang.SuppressWarnings("StringBufferWithoutInitialCapacity")
+      StringBuilder sbInitial = new StringBuilder();
+
+      for (ByteArray bw : termsBw) {
+        sbInitial.append(new String(bw.bytes)).append(' ');
       }
-      LOG.error("RESULT: {}", sbResult.toString());
+
+      @java.lang.SuppressWarnings("StringBufferWithoutInitialCapacity")
+      StringBuilder sbResult = new StringBuilder();
+
+      for (ByteArray bw : result) {
+        sbResult.append(ByteArrayUtil.utf8ToString(bw)).append(
+                ' ');
+      }
     }
+
     assertEquals("Initial term list and returned list differ in size.",
             termsBw.size(), result.size());
   }
 
+  /**
+   * Test of getAllQueryTerms method, of class QueryUtils.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  @SuppressWarnings("DM_DEFAULT_ENCODING")
+  public void testGetAllQueryTerms() throws Exception {
+    LOG.info("Test getAllQueryTerms");
+    final int termsCount = RandomValue.getInteger(3, 100);
+    final Collection<ByteArray> termsBw = new ArrayList<>(termsCount);
+    final Collection<String> terms = new ArrayList<>(termsCount);
+
+    for (int i = 0; i < termsCount; i++) {
+      final String term = RandomValue.getString(1, 15);
+
+      termsBw.add(new ByteArray(term.getBytes()));
+      terms.add(term);
+    }
+
+    // double the lists
+    terms.addAll(terms);
+    termsBw.addAll(termsBw);
+
+    final String queryString = index.getQueryString(terms.toArray(
+            new String[termsCount]));
+    final Collection<ByteArray> result = QueryUtils.getAllQueryTerms(
+            queryString);
+
+    assertTrue("Not all terms returned.", result.containsAll(termsBw));
+
+    if (termsBw.size() != result.size()) {
+      @java.lang.SuppressWarnings("StringBufferWithoutInitialCapacity")
+      StringBuilder sbInitial = new StringBuilder();
+
+      for (ByteArray bw : termsBw) {
+        sbInitial.append(new String(bw.bytes)).append(' ');
+      }
+
+      @java.lang.SuppressWarnings("StringBufferWithoutInitialCapacity")
+      StringBuilder sbResult = new StringBuilder();
+
+      for (ByteArray bw : result) {
+        sbResult.append(ByteArrayUtil.utf8ToString(bw)).append(
+                ' ');
+      }
+    }
+
+    assertEquals("Initial term list and returned list differ in size.",
+            termsBw.size(), result.size());
+  }
 }

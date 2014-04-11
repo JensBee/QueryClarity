@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Simple class to measure the elapsed time.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public final class TimeMeasure {
 
@@ -155,11 +155,11 @@ public final class TimeMeasure {
     final StringBuilder timeStr = new StringBuilder(20);
 
     int day = (int) TimeUnit.SECONDS.toDays(elapsedTime);
-    long hours = TimeUnit.SECONDS.toHours(elapsedTime) - (day * 24);
+    long hours = TimeUnit.SECONDS.toHours(elapsedTime) - (day * 24L);
     long minutes = TimeUnit.SECONDS.toMinutes(elapsedTime)
-            - (TimeUnit.SECONDS.toHours(elapsedTime) * 60);
+            - (TimeUnit.SECONDS.toHours(elapsedTime) * 60L);
     long seconds = TimeUnit.SECONDS.toSeconds(elapsedTime)
-            - (TimeUnit.SECONDS.toMinutes(elapsedTime) * 60);
+            - (TimeUnit.SECONDS.toMinutes(elapsedTime) * 60L);
 
     if (day > 0) {
       timeStr.append(day).append("d ").append(hours).append("h ").append(

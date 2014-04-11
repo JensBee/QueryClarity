@@ -16,7 +16,7 @@
  */
 package de.unihildesheim.lucene.query;
 
-import de.unihildesheim.lucene.util.BytesWrap;
+import de.unihildesheim.ByteArray;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -27,7 +27,7 @@ import org.apache.lucene.queryparser.classic.ParseException;
  * Utilities to handle queries. Currently only simple term queries are
  * supported.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public final class QueryUtils {
 
@@ -48,7 +48,7 @@ public final class QueryUtils {
    * @throws org.apache.lucene.queryparser.classic.ParseException Thrown, if
    * query string could not be parsed
    */
-  private static Collection<BytesWrap> extractTerms(final String query) throws
+  private static Collection<ByteArray> extractTerms(final String query) throws
           UnsupportedEncodingException, ParseException {
     if (query == null || query.isEmpty()) {
       throw new IllegalArgumentException("Query string was empty.");
@@ -60,9 +60,9 @@ public final class QueryUtils {
     if (qTerms.isEmpty()) {
       throw new IllegalStateException("Query string returned no terms.");
     }
-    final Collection<BytesWrap> bwTerms = new ArrayList<>(qTerms.size());
+    final Collection<ByteArray> bwTerms = new ArrayList<>(qTerms.size());
     for (String qTerm : qTerms) {
-      bwTerms.add(new BytesWrap(qTerm.getBytes("UTF-8")));
+      bwTerms.add(new ByteArray(qTerm.getBytes("UTF-8")));
     }
     return bwTerms;
   }
@@ -77,7 +77,7 @@ public final class QueryUtils {
    * @throws org.apache.lucene.queryparser.classic.ParseException Thrown, if
    * query string could not be parsed
    */
-  public static Collection<BytesWrap> getUniqueQueryTerms(final String query)
+  public static Collection<ByteArray> getUniqueQueryTerms(final String query)
           throws UnsupportedEncodingException, ParseException {
     return new HashSet<>(extractTerms(query));
   }
@@ -92,7 +92,7 @@ public final class QueryUtils {
    * @throws org.apache.lucene.queryparser.classic.ParseException Thrown, if
    * query string could not be parsed
    */
-  public static Collection<BytesWrap> getAllQueryTerms(final String query)
+  public static Collection<ByteArray> getAllQueryTerms(final String query)
           throws UnsupportedEncodingException, ParseException {
     return extractTerms(query);
   }

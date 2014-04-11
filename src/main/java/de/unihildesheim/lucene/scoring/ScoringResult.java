@@ -20,7 +20,7 @@ import java.util.Map;
 
 /**
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public abstract class ScoringResult {
 
@@ -47,7 +47,7 @@ public abstract class ScoringResult {
    * Set the value of the calculated score.
    * @param newScore new score value
    */
-  protected final void setScore(final double newScore) {
+  protected final void _setScore(final double newScore) {
     this.score = newScore;
   }
 
@@ -75,5 +75,4 @@ public abstract class ScoringResult {
   public final Object getData(final String key) {
     return this.data.get(key);
   }
-
 }

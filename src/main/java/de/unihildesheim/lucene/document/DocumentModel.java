@@ -16,8 +16,8 @@
  */
 package de.unihildesheim.lucene.document;
 
+import de.unihildesheim.ByteArray;
 import de.unihildesheim.lucene.metrics.DocumentMetrics;
-import de.unihildesheim.lucene.util.BytesWrap;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public final class DocumentModel {
 
@@ -47,7 +47,7 @@ public final class DocumentModel {
   /**
    * Term->document-frequency mapping for every known term in the document.
    */
-  public final Map<BytesWrap, Long> termFreqMap;
+  public final Map<ByteArray, Long> termFreqMap;
 
   /**
    * Pre-calculated hash code for this object.
@@ -82,7 +82,7 @@ public final class DocumentModel {
    * @param term Term to lookup
    * @return True if known
    */
-  public boolean contains(final BytesWrap term) {
+  public boolean contains(final ByteArray term) {
     if (term == null) {
       return false;
     }
@@ -93,13 +93,14 @@ public final class DocumentModel {
    * Get the document-frequency for a specific term.
    *
    * @param term Term to lookup
-   * @return Frequency in the associated document or <tt>null</tt>, if unknown
+   * @return Frequency in the associated document or <tt>0</tt>, if unknown
    */
-  public Long tf(final BytesWrap term) {
+  public Long tf(final ByteArray term) {
     if (term == null) {
-      return null;
+      return 0L;
     }
-    return this.termFreqMap.get(term);
+    final Long tFreq = this.termFreqMap.get(term);
+    return tFreq == null ? 0 : tFreq;
   }
 
   /**
@@ -111,7 +112,7 @@ public final class DocumentModel {
     // check for case where are more than Integer.MAX_VALUE entries
     if (count == Integer.MAX_VALUE) {
       Long manualCount = 0L;
-      Iterator<BytesWrap> termsIt = this.termFreqMap.keySet().iterator();
+      Iterator<ByteArray> termsIt = this.termFreqMap.keySet().iterator();
       while (termsIt.hasNext()) {
         manualCount++;
         termsIt.next();
@@ -154,7 +155,7 @@ public final class DocumentModel {
       return false;
     }
 
-    for (Entry<BytesWrap, Long> entry : this.termFreqMap.entrySet()) {
+    for (Entry<ByteArray, Long> entry : this.termFreqMap.entrySet()) {
       if (entry.getValue().compareTo(other.termFreqMap.get(entry.getKey()))
               != 0) {
         LOG.debug("FAIL 3 t={} tf={} otf={}", entry.getKey(), entry.
@@ -196,7 +197,7 @@ public final class DocumentModel {
     /**
      * Term -> frequency mapping for every known term in the document.
      */
-    private final Map<BytesWrap, Long> termFreqMap;
+    private final Map<ByteArray, Long> termFreqMap;
     /**
      * Id to identify the corresponding document.
      */
@@ -250,12 +251,12 @@ public final class DocumentModel {
      * @param freq Frequency of term
      * @return Self reference
      */
-    public DocumentModelBuilder setTermFrequency(final BytesWrap term,
+    public DocumentModelBuilder setTermFrequency(final ByteArray term,
             final long freq) {
       if (term == null) {
         throw new IllegalArgumentException("Term was null.");
       }
-      this.termFreqMap.put(term.clone(), freq);
+      this.termFreqMap.put(term, freq);
       return this;
     }
 
@@ -266,13 +267,13 @@ public final class DocumentModel {
      * @return Self reference
      */
     public DocumentModelBuilder setTermFrequency(
-            final Map<BytesWrap, Long> map) {
-      for (Entry<BytesWrap, Long> entry : map.entrySet()) {
+            final Map<ByteArray, Long> map) {
+      for (Entry<ByteArray, Long> entry : map.entrySet()) {
         if (entry.getKey() == null || entry.getValue() == null) {
           throw new NullPointerException("Encountered null value in "
                   + "termFreqMap.");
         }
-        this.termFreqMap.put(entry.getKey().clone(), entry.getValue());
+        this.termFreqMap.put(entry.getKey(), entry.getValue());
       }
       return this;
     }

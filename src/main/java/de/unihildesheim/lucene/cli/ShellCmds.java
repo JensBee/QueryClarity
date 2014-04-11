@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Jens Bertram <code@jens-bertram.net>
+ * Copyright (C) 2014 Jens Bertram
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,38 +14,32 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.util;
+package de.unihildesheim.lucene.cli;
 
 /**
- * Collection of simple calculation utilities.
- 
+ * Definitions for general shell commands.
+ *
+ * @author Jens Bertram
  */
-public final class MathUtils {
+public class ShellCmds {
+
+  /**
+   * Short command to quit the shell.
+   */
+  public static final String QUIT_S = "q";
+  /**
+   * Long command to quit the shell.
+   */
+  public static final String QUIT_L = "quit";
+  /**
+   * Usage for quitting the shell.
+   */
+  public static final String QUIT_U = "Exit the shell.";
 
   /**
    * Private empty constructor for utility class.
    */
-  private MathUtils() {
+  private ShellCmds() {
     // empty
-  }
-
-  /**
-   * Calculate log2 for a given value.
-   *
-   * @param value Value to do the calculation for
-   * @return Log2 of the given value
-   */
-  public static double log2(final double value) {
-    return logN(2, value);
-  }
-
-  /**
-   * Calculate the log to a given base.
-   * @param base Base
-   * @param value Value
-   * @return Log of value to base
-   */
-  public static double logN(final double base, final double value) {
-    return Math.log(value) / Math.log(base);
   }
 }

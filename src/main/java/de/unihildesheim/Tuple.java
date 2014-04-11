@@ -1,27 +1,27 @@
 /*
- * Copyright (C) 2014 Jens Bertram <code@jens-bertram.net>
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-package de.unihildesheim.util;
+* Copyright (C) 2014 Jens Bertram <code@jens-bertram.net>
+*
+* This program is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+package de.unihildesheim;
 
 import java.io.Serializable;
 import java.util.Objects;
 
 /**
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public final class Tuple {
 
@@ -87,11 +87,10 @@ public final class Tuple {
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class Tuple2<A, B> implements Serializable {
-
     /**
-     * Serialization class version id.
+     * Serialization id.
      */
-    private static final long serialVersionUID = 0L;
+    private static final long serialVersionUID = 6255704054326088455L;
 
     /**
      * First object.
@@ -127,11 +126,7 @@ public final class Tuple {
       if (a == null ? tuple2.a != null : !a.equals(tuple2.a)) {
         return false;
       }
-      if (b == null ? tuple2.b != null : !b.equals(tuple2.b)) {
-        return false;
-      }
-
-      return true;
+      return !(b == null ? tuple2.b != null : !b.equals(tuple2.b));
     }
 
     @Override
@@ -152,11 +147,10 @@ public final class Tuple {
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class Tuple3<A, B, C> implements Serializable {
-
     /**
-     * Serialization class version id.
+     * Serialization id.
      */
-    private static final long serialVersionUID = 0L;
+    private static final long serialVersionUID = -1188331062235243640L;
 
     /**
      * First object.
@@ -201,11 +195,7 @@ public final class Tuple {
       if (b == null ? tuple3.b != null : !b.equals(tuple3.b)) {
         return false;
       }
-      if (c == null ? tuple3.c != null : !c.equals(tuple3.c)) {
-        return false;
-      }
-
-      return true;
+      return !(c == null ? tuple3.c != null : !c.equals(tuple3.c));
     }
 
     @Override
@@ -228,11 +218,10 @@ public final class Tuple {
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class Tuple4<A, B, C, D> implements Serializable {
-
     /**
-     * Serialization class version id.
+     * Serialization id.
      */
-    private static final long serialVersionUID = 0L;
+    private static final long serialVersionUID = 4744843616749888999L;
 
     /**
      * First object.
@@ -286,11 +275,7 @@ public final class Tuple {
       if (c == null ? tuple4.c != null : !c.equals(tuple4.c)) {
         return false;
       }
-      if (d == null ? tuple4.d != null : !d.equals(tuple4.d)) {
-        return false;
-      }
-
-      return true;
+      return !(d == null ? tuple4.d != null : !d.equals(tuple4.d));
     }
 
     @Override

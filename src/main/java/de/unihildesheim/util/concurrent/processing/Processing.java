@@ -18,14 +18,13 @@ package de.unihildesheim.util.concurrent.processing;
 
 import de.unihildesheim.util.TimeMeasure;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.slf4j.LoggerFactory;
@@ -33,7 +32,7 @@ import org.slf4j.LoggerFactory;
 /**
  * One source, one or more targets.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ * @author Jens Bertram
  */
 public final class Processing {
 
@@ -121,8 +120,9 @@ public final class Processing {
    * {@link Source} from the {@link Target}.
    *
    * @param newTarget Processing target
+   * @return self reference
    */
-  public void setSourceAndTarget(final Target newTarget) {
+  public Processing setSourceAndTarget(final Target newTarget) {
     if (newTarget == null) {
       throw new IllegalArgumentException("Target was null.");
     }
@@ -131,6 +131,7 @@ public final class Processing {
     }
     this.source = newTarget.getSource();
     this.target = newTarget;
+    return this;
   }
 
   /**
@@ -152,12 +153,8 @@ public final class Processing {
     if (executor == null) {
       LOG.debug("Initialize thread pool.");
       executor = new ProcessingThreadPoolExecutor();
-      Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
-        @Override
-        public void run() {
-          Processing.shutDown();
-        }
-      }, "Processing_shutdownHandler"));
+      Runtime.getRuntime().addShutdownHook(new Thread(new ShutDownHook(),
+              "Processing_shutdownHandler"));
     }
   }
 
@@ -185,7 +182,6 @@ public final class Processing {
     Long result = null;
     int threadCount = 1;
     this.threadTrackingLatch = new CountDownLatch(threadCount);
-    executor.setTargetThreadsCount(threadCount);
 
     LOG.trace("Spawning {} Processing-Target thread.", threadCount);
     @SuppressWarnings("unchecked")
@@ -238,6 +234,7 @@ public final class Processing {
    *
    * @param threadCount Number of threads to use
    */
+  @SuppressWarnings("ThrowableResultIgnored")
   public void process(final int threadCount) {
     if (this.source == null) {
       throw new IllegalStateException("No source set.");
@@ -250,7 +247,6 @@ public final class Processing {
 
     final Collection<Target> targets = new ArrayList<>(threadCount);
     this.threadTrackingLatch = new CountDownLatch(threadCount);
-    executor.setTargetThreadsCount(threadCount);
 
     LOG.debug("Spawning {} Processing-Target threads.", threadCount);
     for (int i = 0; i < threadCount; i++) {
@@ -281,20 +277,14 @@ public final class Processing {
       }
     }
 
-    // terminate observer, if any was used
-    if (sourceObserver != null) {
-      LOG.trace("Processing-Source finished. Terminating observer.");
-      sourceObserver.terminate();
-      if (sourceTime != null) {
-        try {
-          LOG.debug("Source finished with {} items after {}.", processedItems,
-                  TimeMeasure.getTimeString((Double) sourceTime.get(1,
-                                  TimeUnit.SECONDS)));
-        } catch (InterruptedException | ExecutionException | TimeoutException ex) {
-          LOG.debug("Source finished with {} items.", processedItems);
-        }
-      }
-    } else {
+    // terminate observer
+    LOG.trace("Processing-Source finished. Terminating observer.");
+    sourceObserver.terminate();
+    try {
+      LOG.debug("Source finished with {} items after {}.", processedItems,
+              TimeMeasure.getTimeString((Double) sourceTime.get(1,
+                              TimeUnit.SECONDS)));
+    } catch (InterruptedException | ExecutionException | TimeoutException ex) {
       LOG.debug("Source finished with {} items.", processedItems);
     }
 
@@ -319,78 +309,16 @@ public final class Processing {
   private static class ProcessingThreadPoolExecutor {
 
     /**
-     * Keep-alive time for waiting threads. Set to <tt>Integer.MAX_VALUE</tt>
-     * to never expire.
-     */
-    private static final long KEEP_ALIVE_TIME = Integer.MAX_VALUE;
-    /**
      * Thread pool manager.
      */
-    private ThreadPoolExecutor threadPool = null;
-    /**
-     * Size of the work queue, adapted to the number of threads to run.
-     */
-    private int workQueueSize = 15;
-    /**
-     * Working queue for runnable jobs.
-     */
-    private ArrayBlockingQueue<Runnable> workQueue = new ArrayBlockingQueue<>(
-            workQueueSize);
+    private ExecutorService threadPool = null;
 
     /**
      * Create a new processing thread pool manager. The initial allowed number
      * of parallel threads is derived from the number of processors available.
      */
     ProcessingThreadPoolExecutor() {
-      this(Runtime.getRuntime().availableProcessors());
-    }
-
-    /**
-     * Create a new processing thread pool manager with a given number of
-     * parallel threads.
-     *
-     * @param numOfTargetThreads Number of parallel threads allowed
-     */
-    ProcessingThreadPoolExecutor(final int numOfTargetThreads) {
-      final int poolSize = calcPoolSize(numOfTargetThreads);
-      this.threadPool = new ThreadPoolExecutor(poolSize,
-              poolSize, KEEP_ALIVE_TIME, TimeUnit.SECONDS, workQueue);
-    }
-
-    /**
-     * Calculates the number of needed threads to allow running all needed
-     * processes.
-     *
-     * @param numOfTargetThreads Number of targets to rn in parallel
-     * @return Final number of threads needed
-     */
-    private int calcPoolSize(final int numOfTargetThreads) {
-      // use the number of targets and reserve two threads: one for the source
-      // and one for an source-observer
-      final int poolSize = numOfTargetThreads + 2;
-      // resize queue, if needed
-      if (poolSize > workQueueSize) {
-        final Runnable[] queueContent = this.workQueue.toArray(
-                new Runnable[this.workQueue.size()]);
-        final int newQueueSize = (int) (poolSize * 1.5);
-        this.workQueue = new ArrayBlockingQueue<>(newQueueSize);
-        this.workQueue.addAll(Arrays.asList(queueContent));
-        this.workQueueSize = newQueueSize;
-      }
-      return poolSize;
-    }
-
-    /**
-     * Set the number of targets in use. This reserves space in the fixed
-     * thread pool for the {@link Processing.Source} and a
-     * {@link Processing.SourceObserver}.
-     *
-     * @param numOfTargets Number of targets to use
-     */
-    protected void setTargetThreadsCount(final int numOfTargets) {
-      final int poolSize = calcPoolSize(numOfTargets);
-      this.threadPool.setCorePoolSize(poolSize);
-      this.threadPool.setMaximumPoolSize(poolSize);
+      this.threadPool = Executors.newCachedThreadPool();
     }
 
     /**
@@ -431,6 +359,17 @@ public final class Processing {
      */
     void shutDown() {
       threadPool.shutdown();
+    }
+  }
+
+  /**
+   * Shutdown hook for processing pool.
+   */
+  private static final class ShutDownHook implements Runnable {
+
+    @Override
+    public void run() {
+      Processing.shutDown();
     }
   }
 }

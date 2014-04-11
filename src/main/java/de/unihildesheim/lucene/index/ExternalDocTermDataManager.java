@@ -16,13 +16,14 @@
  */
 package de.unihildesheim.lucene.index;
 
-import de.unihildesheim.lucene.util.BytesWrap;
+import de.unihildesheim.ByteArray;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.mapdb.BTreeKeySerializer;
-import org.mapdb.BTreeMap;
 import org.mapdb.DB;
 import org.mapdb.Fun;
 import org.mapdb.Serializer;
@@ -31,6 +32,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Manages the externally stored document term-data.
+ *
+ * @author Jens Bertram
  */
 public final class ExternalDocTermDataManager {
 
@@ -43,8 +46,8 @@ public final class ExternalDocTermDataManager {
   /**
    * Store an individual map for each prefix.
    */
-  private final Map<String, BTreeMap<Fun.Tuple3<
-          Integer, String, BytesWrap>, Object>> prefixMap;
+  private final Map<String, ConcurrentNavigableMap<Fun.Tuple3<
+          Integer, String, ByteArray>, Object>> prefixMap;
   /**
    * R/w lock for {@link #prefixMap}.
    */
@@ -66,7 +69,7 @@ public final class ExternalDocTermDataManager {
    */
   @SuppressWarnings("CollectionWithoutInitialCapacity")
   ExternalDocTermDataManager(final DB newDb, final String newPrefix) {
-    this.prefixMap = new HashMap<>();
+    this.prefixMap = new ConcurrentHashMap<>();
     this.prefixMapLock = new ReentrantReadWriteLock();
     this.db = newDb;
     this.prefix = newPrefix;
@@ -105,18 +108,6 @@ public final class ExternalDocTermDataManager {
   }
 
   /**
-   * Get the document term-data map for a given prefix.
-   *
-   * @param newPrefix Prefix to lookup
-   * @return Map containing stored data for the given prefix, or null if there
-   * was no such prefix
-   */
-  private BTreeMap<Fun.Tuple3<Integer, String, BytesWrap>, Object> getDataMap(
-          final String newPrefix) {
-    return this.prefixMap.get(newPrefix);
-  }
-
-  /**
    * Loads a stored prefix map from the database into the cache.
    *
    * @param newPrefix Prefix to load
@@ -127,23 +118,20 @@ public final class ExternalDocTermDataManager {
     }
     final String mapName = this.prefix + newPrefix;
     // stored data
-    BTreeMap<Fun.Tuple3<Integer, String, BytesWrap>, Object> map;
+    ConcurrentNavigableMap<Fun.Tuple3<Integer, String, ByteArray>, Object> map;
+    if (!db.exists(mapName)) {
+      LOG.debug("Creating a new docTermData map with prefix '{}'", newPrefix);
+    }
+    DB.BTreeMapMaker mapMkr = db.createTreeMap(mapName);
+    final BTreeKeySerializer mapKeySerializer
+            = new BTreeKeySerializer.Tuple3KeySerializer<>(null, null,
+                    Serializer.INTEGER, Serializer.STRING,
+                    ByteArray.SERIALIZER);
+    mapMkr.keySerializer(mapKeySerializer);
+    mapMkr.valueSerializer(Serializer.JAVA);
     this.prefixMapLock.writeLock().lock();
     try {
-      if (db.exists(mapName)) {
-        map = db.get(mapName);
-      } else {
-        LOG.debug("Creating a new docTermData map with prefix '{}'", newPrefix);
-        // create a new map
-        DB.BTreeMapMaker mapMkr = db.createTreeMap(mapName);
-        final BTreeKeySerializer mapKeySerializer
-                = new BTreeKeySerializer.Tuple3KeySerializer<>(null, null,
-                        Serializer.INTEGER, Serializer.STRING_INTERN,
-                        new BytesWrap.Serializer());
-        mapMkr.keySerializer(mapKeySerializer);
-        mapMkr.valueSerializer(Serializer.JAVA);
-        map = mapMkr.makeOrGet();
-      }
+      map = mapMkr.makeOrGet();
       this.prefixMap.put(newPrefix, map);
     } finally {
       this.prefixMapLock.writeLock().unlock();
@@ -161,7 +149,7 @@ public final class ExternalDocTermDataManager {
    * @return Any previous assigned data, or null, if there was none
    */
   protected Object setData(final String newPrefix, final int documentId,
-          final BytesWrap term, final String key, final Object value) {
+          final ByteArray term, final String key, final Object value) {
     if (term == null) {
       throw new IllegalArgumentException("Term was null.");
     }
@@ -175,9 +163,11 @@ public final class ExternalDocTermDataManager {
     Object returnObj = null;
     this.prefixMapLock.writeLock().lock();
     try {
-      returnObj
-              = this.prefixMap.get(newPrefix).
-              put(Fun.t3(documentId, key, term.clone()), value);
+      returnObj = this.prefixMap.get(newPrefix).put(Fun.t3(documentId, key,
+              term.clone()), value);
+    } catch (Exception ex) {
+      LOG.error("EXCEPTION CATCHED: p={} id={} k={} t={} v={}", prefix,
+              documentId, key, term, value, ex);
     } finally {
       this.prefixMapLock.writeLock().unlock();
     }
@@ -194,7 +184,9 @@ public final class ExternalDocTermDataManager {
    * @return Map with stored data for the given combination or null if there
    * is no data
    */
-  protected Map<BytesWrap, Object> getData(final String newPrefix,
+  @SuppressWarnings(
+          "CollectionWithoutInitialCapacity")
+  protected Map<ByteArray, Object> getData(final String newPrefix,
           final int documentId, final String key) {
     if (newPrefix == null || newPrefix.isEmpty()) {
       throw new IllegalArgumentException("No prefix specified.");
@@ -202,19 +194,20 @@ public final class ExternalDocTermDataManager {
     if (key == null || key.isEmpty()) {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
-    Map<BytesWrap, Object> map = null;
+    Map<ByteArray, Object> map = null;
     this.prefixMapLock.readLock().lock();
     try {
-      BTreeMap<Fun.Tuple3<Integer, String, BytesWrap>, Object> dataMap
-              = getDataMap(newPrefix);
+      ConcurrentNavigableMap<Fun.Tuple3<
+              Integer, String, ByteArray>, Object> dataMap
+              = this.prefixMap.get(newPrefix);
       if (dataMap == null) {
         return null;
       }
       // use the documents term frequency as initial size for the map
       //        map = new HashMap<>((int) (long) getTermFrequency(documentId));
       map = new HashMap<>();
-      for (BytesWrap term : Fun.filter(dataMap.keySet(), documentId, key)) {
-        map.put(term, dataMap.get(Fun.t3(documentId, key, term)));
+      for (ByteArray term : Fun.filter(dataMap.keySet(), documentId, key)) {
+        map.put(term.clone(), dataMap.get(Fun.t3(documentId, key, term)));
       }
     } finally {
       this.prefixMapLock.readLock().unlock();
@@ -234,7 +227,7 @@ public final class ExternalDocTermDataManager {
    * data stored
    */
   protected Object getData(final String newPrefix, final int documentId,
-          final BytesWrap term, final String key) {
+          final ByteArray term, final String key) {
     if (term == null) {
       throw new IllegalArgumentException("Term was null.");
     }

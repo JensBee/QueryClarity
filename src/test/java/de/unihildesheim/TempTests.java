@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Jens Bertram <code@jens-bertram.net>
+ * Copyright (C) 2014 Jens Bertram
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,26 +14,13 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.lucene;
-
-import org.apache.lucene.util.Version;
+package de.unihildesheim;
 
 /**
- * Lucene defaults for sub-packages.
+ * Temporary tests.
  *
- 
+ * @author Jens Bertram
  */
-public final class LuceneDefaults {
+public class TempTests {
 
-  /**
-   * Lucene version the packages are designed for.
-   */
-  public static final Version VERSION = Version.LUCENE_47;
-
-  /**
-   * Private constructor for utility class.
-   */
-  private LuceneDefaults() {
-    // nop constructor for utility class
-  }
 }

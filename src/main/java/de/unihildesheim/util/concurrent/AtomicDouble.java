@@ -1,17 +1,17 @@
 /*
- * Written by Doug Lea and Martin Buchholz with assistance from
- * members of JCP JSR-166 Expert Group and released to the public
- * domain, as explained at
- * http://creativecommons.org/publicdomain/zero/1.0/
- */
+* Written by Doug Lea and Martin Buchholz with assistance from
+* members of JCP JSR-166 Expert Group and released to the public
+* domain, as explained at
+* http://creativecommons.org/publicdomain/zero/1.0/
+*/
 package de.unihildesheim.util.concurrent;
 
 /*
- * Source:
- * http://gee.cs.oswego.edu/cgi-bin/viewcvs.cgi/jsr166/src/jsr166e/extra/AtomicDouble.java?revision=1.13
- * (Modified to adapt to guava coding conventions and
- * to use AtomicLongFieldUpdater instead of sun.misc.Unsafe)
- */
+* Source:
+* http://gee.cs.oswego.edu/cgi-bin/viewcvs.cgi/jsr166/src/jsr166e/extra/AtomicDouble.java?revision=1.13
+* (Modified to adapt to guava coding conventions and
+* to use AtomicLongFieldUpdater instead of sun.misc.Unsafe)
+*/
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -30,11 +30,11 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
  * that deal with numerically-based classes.
  *
  * <p>
- * <a name="bitEquals">This class compares primitive {@code double} values in
- * methods such as {@link #compareAndSet} by comparing their bitwise
- * representation using {@link Double#doubleToRawLongBits}, which differs from
- * both the primitive double {@code ==} operator and from
- * {@link Double#equals}, as if implemented by:
+ * This class compares primitive {@code double} values in methods such as
+ * {@link #compareAndSet} by comparing their bitwise representation using
+ * {@link Double#doubleToRawLongBits}, which differs from both the primitive
+ * double {@code ==} operator and from {@link Double#equals}, as if
+ * implemented by:
  * <pre> {@code
  * static boolean bitEquals(double x, double y) {
  *   long xBits = Double.doubleToRawLongBits(x);
@@ -46,22 +46,21 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
  * It is possible to write a more scalable updater, at the cost of giving up
  * strict atomicity. See for example
  * <a
- * href="http://gee.cs.oswego.edu/dl/jsr166/dist/jsr166edocs/jsr166e/DoubleAdder.html"
- * DoubleAdder>
+ * href="http://gee.cs.oswego.edu/dl/jsr166/dist/jsr166edocs/jsr166e/DoubleAdder.html">
+ * DoubleAdder</a>
  * and
  * <a
- * href="http://gee.cs.oswego.edu/dl/jsr166/dist/jsr166edocs/jsr166e/DoubleMaxUpdater.html"
- * DoubleMaxUpdater>.
+ * href="http://gee.cs.oswego.edu/dl/jsr166/dist/jsr166edocs/jsr166e/DoubleMaxUpdater.html">
+ * DoubleMaxUpdater</a>.
  *
- * @author Doug Lea
- * @author Martin Buchholz
+ * Doug Lea
+ * Martin Buchholz
  */
 public final class AtomicDouble extends Number implements Serializable {
-
   /**
    * Serialization id.
    */
-  private static final long serialVersionUID = 0L;
+  private static final long serialVersionUID = 1041898478390238059L;
 
   /**
    * Current value.
@@ -129,7 +128,7 @@ public final class AtomicDouble extends Number implements Serializable {
    */
   public double getAndSet(final double newValue) {
     long next = doubleToRawLongBits(newValue);
-    return longBitsToDouble(this.UPDATER.getAndSet(this, next));
+    return longBitsToDouble(AtomicDouble.UPDATER.getAndSet(this, next));
   }
 
   /**
@@ -144,7 +143,7 @@ public final class AtomicDouble extends Number implements Serializable {
    */
   public boolean compareAndSet(final double expect,
           final double update) {
-    return this.UPDATER.compareAndSet(this, doubleToRawLongBits(expect),
+    return AtomicDouble.UPDATER.compareAndSet(this, doubleToRawLongBits(expect),
             doubleToRawLongBits(update));
   }
 
@@ -166,7 +165,7 @@ public final class AtomicDouble extends Number implements Serializable {
    */
   public boolean weakCompareAndSet(final double expect,
           final double update) {
-    return this.UPDATER.weakCompareAndSet(this, doubleToRawLongBits(expect),
+    return AtomicDouble.UPDATER.weakCompareAndSet(this, doubleToRawLongBits(expect),
             doubleToRawLongBits(update));
   }
 
@@ -182,7 +181,7 @@ public final class AtomicDouble extends Number implements Serializable {
       double currentVal = longBitsToDouble(current);
       double nextVal = currentVal + delta;
       long next = doubleToRawLongBits(nextVal);
-      if (this.UPDATER.compareAndSet(this, current, next)) {
+      if (AtomicDouble.UPDATER.compareAndSet(this, current, next)) {
         return currentVal;
       }
     }
@@ -200,7 +199,7 @@ public final class AtomicDouble extends Number implements Serializable {
       double currentVal = longBitsToDouble(current);
       double nextVal = currentVal + delta;
       long next = doubleToRawLongBits(nextVal);
-      if (this.UPDATER.compareAndSet(this, current, next)) {
+      if (AtomicDouble.UPDATER.compareAndSet(this, current, next)) {
         return nextVal;
       }
     }
@@ -211,6 +210,7 @@ public final class AtomicDouble extends Number implements Serializable {
    *
    * @return the String representation of the current value
    */
+  @Override
   public String toString() {
     return Double.toString(get());
   }
@@ -221,6 +221,7 @@ public final class AtomicDouble extends Number implements Serializable {
    *
    * @return Integer value
    */
+  @Override
   public int intValue() {
     return (int) get();
   }
@@ -231,6 +232,7 @@ public final class AtomicDouble extends Number implements Serializable {
    *
    * @return Long value
    */
+  @Override
   public long longValue() {
     return (long) get();
   }
@@ -241,6 +243,7 @@ public final class AtomicDouble extends Number implements Serializable {
    *
    * @return Float value
    */
+  @Override
   public float floatValue() {
     return (float) get();
   }
@@ -250,6 +253,7 @@ public final class AtomicDouble extends Number implements Serializable {
    *
    * @return Double value
    */
+  @Override
   public double doubleValue() {
     return get();
   }

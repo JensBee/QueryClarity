@@ -16,13 +16,13 @@
  */
 package de.unihildesheim.lucene.query;
 
+import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.LuceneDefaults;
 import de.unihildesheim.util.StringUtils;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
@@ -48,7 +48,7 @@ import org.slf4j.LoggerFactory;
  * the {@link Analyzer} and {@link QueryParser} static and listens to changes
  * to the {@link Environment}.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public final class SimpleTermsQuery extends Query {
 
@@ -99,6 +99,9 @@ public final class SimpleTermsQuery extends Query {
     this.queryTerms = tokenizeQueryString(query, analyzer);
     final String stoppedQuery = StringUtils.join(this.queryTerms, " ");
 
+    if (stoppedQuery.trim().isEmpty()) {
+      throw new ParseException("Stopped query is empty.");
+    }
     LOG.debug("Queries: orig={} stopped={}", query, stoppedQuery);
 
     qParser.setDefaultOperator(operator);
@@ -131,12 +134,20 @@ public final class SimpleTermsQuery extends Query {
   }
 
   /**
+   * Get the Query object.
+   * @return Query object
+   */
+  protected Query getQueryObj() {
+    return this.queryObj;
+  }
+
+  /**
    * Get the list of terms from the original query. Stop-words are removed.
    *
    * @return List of query terms with stop-words removed
    */
   public List<String> getQueryTerms() {
-    return Collections.unmodifiableList(this.queryTerms);
+    return new ArrayList<>(this.queryTerms);
   }
 
   @Override
@@ -174,7 +185,7 @@ public final class SimpleTermsQuery extends Query {
     public SimpleTermQueryWeight(final IndexSearcher searcher) throws
             IOException {
       super();
-      stqWeight = queryObj.createWeight(searcher);
+      stqWeight = getQueryObj().createWeight(searcher);
     }
 
     @Override

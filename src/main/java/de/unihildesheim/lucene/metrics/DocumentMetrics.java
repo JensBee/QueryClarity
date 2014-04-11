@@ -16,18 +16,27 @@
  */
 package de.unihildesheim.lucene.metrics;
 
+import de.unihildesheim.ByteArray;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.index.IndexDataProvider;
-import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.MathUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Document related metrics.
+ * Document related metrics. High-Level API for accessing
+ * {@link IndexDataProvider} data.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public final class DocumentMetrics {
+
+  /**
+   * Logger instance for this class.
+   */
+  private static final Logger LOG = LoggerFactory.getLogger(
+          DocumentMetrics.class);
 
   /**
    * Model of the current document.
@@ -88,17 +97,17 @@ public final class DocumentMetrics {
    * @param term Term
    * @return Frequency
    */
-  public static double wdf(final DocumentModel dm, final BytesWrap term) {
+  public static double wdf(final DocumentModel dm, final ByteArray term) {
     return MathUtils.log2(tf(dm, term).doubleValue() + 1) / MathUtils.log2(tf(
             dm).doubleValue());
   }
 
   /**
-   * @see #wdf(DocumentModel, BytesWrap)
+   * @see #wdf(DocumentModel, ByteArray)
    * @param term Term whose frequency to get
    * @return Frequency value
    */
-  public double wdf(final BytesWrap term) {
+  public double wdf(final ByteArray term) {
     return wdf(this.docModel, term);
   }
 
@@ -121,13 +130,12 @@ public final class DocumentMetrics {
   }
 
   /**
-   * @see #tf(BytesWrap)
+   * @see #tf(ByteArray)
    * @param dm Document model
    * @param term Term whose frequency to get
    * @return Frequency of the given term in the given document
    */
-  public static Long tf(final DocumentModel dm,
-          final BytesWrap term) {
+  public static Long tf(final DocumentModel dm, final ByteArray term) {
     if (term == null) {
       throw new IllegalArgumentException("Term was null");
     }
@@ -144,7 +152,7 @@ public final class DocumentMetrics {
    * @param term Term whose frequency to get
    * @return Frequency of the given term in the given document
    */
-  public Long tf(final BytesWrap term) {
+  public Long tf(final ByteArray term) {
     return tf(this.docModel, term);
   }
 
@@ -167,15 +175,14 @@ public final class DocumentMetrics {
   }
 
   /**
-   * @see #relTf(BytesWrap)
+   * @see #relTf(ByteArray)
    * @param dm Document model
    * @param term Term to lookup
    * @return Relative frequency. Zero if term is not in document.
    */
-  public static double relTf(final DocumentModel dm,
-          final BytesWrap term) {
+  public static Double relTf(final DocumentModel dm, final ByteArray term) {
     Long tf = dm.tf(term);
-    if (tf == null) {
+    if (tf == 0) {
       return 0.0;
     }
     return tf.doubleValue() / Long.valueOf(dm.termFrequency).doubleValue();
@@ -189,7 +196,7 @@ public final class DocumentMetrics {
    * @param term Term to lookup
    * @return Relative frequency. Zero if term is not in document.
    */
-  public double relTf(final BytesWrap term) {
+  public Double relTf(final ByteArray term) {
     return relTf(this.docModel, term);
   }
 
@@ -199,29 +206,29 @@ public final class DocumentMetrics {
    * @param term Term to lookup
    * @return True, if term is in document
    */
-  public boolean contains(final BytesWrap term) {
+  public boolean contains(final ByteArray term) {
     return this.docModel.contains(term);
   }
 
   /**
-   * @see #contains(BytesWrap)
+   * @see #contains(ByteArray)
    * @param dm Document model
    * @param term Term to lookup
    * @return True, if term is in document
    */
-  public static boolean contains(final DocumentModel dm, final BytesWrap term) {
+  public static boolean contains(final DocumentModel dm, final ByteArray term) {
     return dm.contains(term);
   }
 
   /**
-   * @see #smoothedRelativeTermFrequency(BytesWrap, double)
+   * @see #smoothedRelativeTermFrequency(ByteArray, double)
    * @param dm Document model
    * @param term Term to lookup
    * @param smoothing Smoothing parameter
    * @return Smoothed relative term frequency
    */
   public static double smoothedRelativeTermFrequency(
-          final DocumentModel dm, final BytesWrap term,
+          final DocumentModel dm, final ByteArray term,
           final double smoothing) {
     final double termFreq = dm.tf(term).doubleValue();
     final double relCollFreq = relTf(dm, term);
@@ -237,7 +244,7 @@ public final class DocumentMetrics {
    * @param smoothing Smoothing parameter
    * @return Smoothed relative term frequency
    */
-  public double smoothedRelativeTermFrequency(final BytesWrap term,
+  public double smoothedRelativeTermFrequency(final ByteArray term,
           final double smoothing) {
     return smoothedRelativeTermFrequency(this.docModel, term, smoothing);
   }

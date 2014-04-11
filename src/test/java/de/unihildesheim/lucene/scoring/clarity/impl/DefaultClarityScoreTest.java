@@ -16,16 +16,18 @@
  */
 package de.unihildesheim.lucene.scoring.clarity.impl;
 
+import de.unihildesheim.ByteArray;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.Feedback;
 import de.unihildesheim.lucene.index.IndexDataProvider;
-import de.unihildesheim.lucene.index.TestIndex;
+import de.unihildesheim.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.lucene.metrics.CollectionMetrics;
+import de.unihildesheim.lucene.metrics.DocumentMetrics;
 import de.unihildesheim.lucene.query.QueryUtils;
 import de.unihildesheim.lucene.query.TermsQueryBuilder;
-import de.unihildesheim.lucene.util.BytesWrap;
+import de.unihildesheim.util.ByteArrayUtil;
 import de.unihildesheim.util.MathUtils;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -34,10 +36,12 @@ import java.util.Iterator;
 import java.util.Map;
 import org.apache.lucene.search.Query;
 import org.junit.AfterClass;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import static org.junit.Assert.*;
-import org.junit.Before;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -46,11 +50,10 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Test for {@link DefaultClarityScore}.
- *
- * @author Jens Bertram <code@jens-bertram.net>
  */
 @RunWith(Parameterized.class)
-public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCase {
+public final class DefaultClarityScoreTest
+        extends MultiIndexDataProviderTestCase {
 
   /**
    * Logger instance for this class.
@@ -70,8 +73,9 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
    */
   @BeforeClass
   public static void setUpClass() throws Exception {
-    index = new TestIndex(TestIndex.IndexSize.SMALL);
-    assertTrue("TestIndex is not initialized.", TestIndex.test_isInitialized());
+    index = new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL);
+    assertTrue("TestIndex is not initialized.", TestIndexDataProvider.
+            isInitialized());
   }
 
   /**
@@ -83,14 +87,26 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
     index.dispose();
   }
 
+  /**
+   * Get parameters for parameterized test.
+   *
+   * @return Test parameters
+   */
   @Parameters
   public static Collection<Object[]> data() {
     return getCaseParameters();
   }
 
+  /**
+   * Initialize test with the current parameter.
+   *
+   * @param dataProv {@link IndexDataProvider} to use
+   * @param rType Data provider configuration
+   */
   public DefaultClarityScoreTest(
-          final Class<? extends IndexDataProvider> dataProv) {
-    super(dataProv);
+          final Class<? extends IndexDataProvider> dataProv,
+          final MultiIndexDataProviderTestCase.RunType rType) {
+    super(dataProv, rType);
   }
 
   /**
@@ -121,12 +137,8 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
    * @return Calculated document model (pdt)
    */
   private static double calcDefaultDocumentModel(final double langmodelWeight,
-          final BytesWrap term) {
-    final double ft = Environment.getDataProvider().getTermFrequency(term).
-            doubleValue();
-    final double f = Long.valueOf(Environment.getDataProvider().
-            getTermFrequency()).doubleValue();
-    return (1 - langmodelWeight) * (ft / f);
+          final ByteArray term) {
+    return (1 - langmodelWeight) * CollectionMetrics.relTf(term);
   }
 
   /**
@@ -137,16 +149,15 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
    * @param term Term to calculate
    * @return Calculated document model (pdt)
    */
-  private static double calcDocumentModel(final double langmodelWeight,
-          final DocumentModel docModel, final BytesWrap term) {
+  private double calcDocumentModel(final double langmodelWeight,
+          final DocumentModel docModel, final ByteArray term) {
     double model;
 
     if (docModel.contains(term)) {
-      final double ftD = docModel.tf(term).doubleValue();
-      final double fd = Long.valueOf(docModel.termFrequency).doubleValue();
-      model = (langmodelWeight * (ftD / fd)) + calcDefaultDocumentModel(
-              langmodelWeight, term);
+      model = (docModel.metrics().relTf(term) * langmodelWeight)
+              + calcDefaultDocumentModel(langmodelWeight, term);
     } else {
+      LOG.error("({}) MISSING TERM!", getDataProviderName());
       model = calcDefaultDocumentModel(langmodelWeight, term);
     }
     return model;
@@ -158,11 +169,8 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
    * @param term Term to calculate for
    * @return collection distribution for the given term
    */
-  private double calc_pc(final BytesWrap term) {
-    final double result
-            = CollectionMetrics.tf(term).doubleValue() / Long.
-            valueOf(CollectionMetrics.tf()).doubleValue();
-    return result;
+  private double calc_pc(final ByteArray term) {
+    return CollectionMetrics.relTf(term);
   }
 
   /**
@@ -173,21 +181,9 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
    * @return document model for the given term
    */
   private double calc_pd(final double langModelWeight,
-          final DocumentModel docModel, final BytesWrap term) {
-    // number of occurences of term in document
-    Long tf = docModel.tf(term);
-    double ftd;
-    if (tf == null) {
-      // term is not in document
-      ftd = 0d;
-    } else {
-      ftd = tf.doubleValue();
-    }
-    // number of terms in docment
-    final double fd = Long.valueOf(docModel.termFrequency).doubleValue();
-
-    final double result = (langModelWeight * (ftd / fd)) + ((1
-            - langModelWeight) * calc_pc(term));
+          final DocumentModel docModel, final ByteArray term) {
+    final double result = (langModelWeight * docModel.metrics().relTf(term))
+            + ((1 - langModelWeight) * calc_pc(term));
     return result;
   }
 
@@ -200,15 +196,14 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
    * @param query Query issued
    * @return Query distribution model for the given term
    */
-  private double calc_pq(final double langModelWeight, final BytesWrap term,
+  private double calc_pq(final double langModelWeight, final ByteArray term,
           final Collection<DocumentModel> feedbackDocs,
-          final Collection<BytesWrap> query) {
+          final Collection<ByteArray> query) {
     double pq = 0;
     // go through all feedback documents
     for (DocumentModel docModel : feedbackDocs) {
-      double docValue = 0;
-      docValue = calc_pd(langModelWeight, docModel, term);
-      for (BytesWrap qTerm : query) {
+      double docValue = calc_pd(langModelWeight, docModel, term);
+      for (ByteArray qTerm : query) {
         docValue *= calc_pd(langModelWeight, docModel, qTerm);
       }
       pq += docValue;
@@ -226,8 +221,8 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
    */
   private double calc_score(final double langModelWeight,
           final Collection<DocumentModel> feedbackDocs,
-          final Collection<BytesWrap> query) {
-    final Iterator<BytesWrap> termsIt;
+          final Collection<ByteArray> query) {
+    final Iterator<ByteArray> termsIt;
     double score = 0;
 
     // calculation with all collection terms
@@ -239,12 +234,12 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
     for (DocumentModel docModel : feedbackDocs) {
       fbDocIds.add(docModel.id);
     }
-    termsIt = Environment.getDataProvider().getDocumentsTermSet(fbDocIds).
-            iterator();
+    termsIt = Environment.getDataProvider().
+            getDocumentsTermSet(fbDocIds).iterator();
 
     // go through all terms
     while (termsIt.hasNext()) {
-      final BytesWrap idxTerm = termsIt.next();
+      final ByteArray idxTerm = termsIt.next();
       final double pq = calc_pq(langModelWeight, idxTerm, feedbackDocs, query);
       score += pq * MathUtils.log2(pq / calc_pc(idxTerm));
     }
@@ -263,15 +258,14 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
     final String query = index.getQueryString();
     instance.calculateClarity(query);
 
-    final Collection<BytesWrap> expResult = new ArrayList<>(15);
-    for (String qTerm : query.split("\\s+")) {
-      expResult.add(new BytesWrap(qTerm.getBytes("UTF-8")));
-    }
-    final Collection<BytesWrap> result = instance.getQueryTerms();
+    final Collection<ByteArray> expResult = QueryUtils.getUniqueQueryTerms(
+            query);
+    final Collection<ByteArray> result = instance.getQueryTerms();
 
-    assertEquals("Query term count mismatch.", expResult.size(), result.size());
-    assertTrue("Query term collections mismatch.", result.containsAll(
-            expResult));
+    assertEquals(getDataProviderName() + ": Query term count mismatch.",
+            expResult.size(), result.size());
+    assertTrue(getDataProviderName() + ": Query term collections mismatch.",
+            result.containsAll(expResult));
   }
 
   /**
@@ -285,26 +279,17 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
             = new DefaultClarityScoreConfiguration();
     final DefaultClarityScore instance = new DefaultClarityScore(dcc);
     for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
-      final DocumentModel docModel = Environment.getDataProvider().
-              getDocumentModel(i);
+      final DocumentModel docModel = DocumentMetrics.getModel(i);
       instance.calcDocumentModel(docModel);
 
-      Map<BytesWrap, Object> valueMap = Environment.getDataProvider().
+      Map<ByteArray, Object> valueMap = Environment.getDataProvider().
               getTermData(DefaultClarityScore.PREFIX, i, instance.
                       getDocModelDataKey());
-      for (BytesWrap term : docModel.termFreqMap.keySet()) {
+      for (ByteArray term : docModel.termFreqMap.keySet()) {
         final double expResult = calcDocumentModel(dcc.getLangModelWeight(),
                 docModel, term);
-        if (term == null) {
-          fail("***term was null");
-        }
-        if (valueMap == null) {
-          fail("***valueMap was null");
-        }
-        if (valueMap.get(term) == null) {
-          fail("***valueMapData was null");
-        }
-        assertEquals("Calculated document model value differs.", expResult,
+        assertEquals(getDataProviderName()
+                + ": Calculated document model value differs.", expResult,
                 valueMap.get(term));
       }
     }
@@ -322,28 +307,21 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
     final DefaultClarityScore instance = new DefaultClarityScore(dcc);
     instance.preCalcDocumentModels();
 
-    LOG.info("Calculation done, testing results.");
+    LOG.info("({}) Calculation done, testing results.", getDataProviderName());
     for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
-      final DocumentModel docModel = Environment.getDataProvider().
-              getDocumentModel(i);
+      final DocumentModel docModel = DocumentMetrics.getModel(i);
 
-      Map<BytesWrap, Object> valueMap = Environment.getDataProvider().
+      Map<ByteArray, Object> valueMap = Environment.getDataProvider().
               getTermData(DefaultClarityScore.PREFIX, i, instance.
                       getDocModelDataKey());
-      for (BytesWrap term : docModel.termFreqMap.keySet()) {
+      for (ByteArray term : docModel.termFreqMap.keySet()) {
         final double expResult = calcDocumentModel(dcc.getLangModelWeight(),
                 docModel, term);
-        if (term == null) {
-          fail("***term was null");
-        }
-        if (valueMap == null) {
-          fail("***valueMap was null");
-        }
-        if (valueMap.get(term) == null) {
-          fail("***valueMapData was null");
-        }
-        assertEquals("Calculated document model value differs. docId=" + i
-                + " term=" + term + "", expResult, valueMap.get(term));
+        assertEquals(getDataProviderName()
+                + ": Calculated document model value differs. docId=" + i
+                + " term=" + ByteArrayUtil.utf8ToString(term) + " b=" + term
+                + " v=" + valueMap.get(term), expResult, (Double) valueMap.
+                get(term), 0d);
       }
     }
   }
@@ -354,8 +332,8 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  public void testCalculateClarity() throws Exception {
-    LOG.info("Test calculateClarity");
+  public void testCalculateClarity_String_Collection() throws Exception {
+    LOG.info("Test calculateClarity [queryString, feedbackDocs]");
     final String queryString = index.getQueryString();
     final Query query = TermsQueryBuilder.buildFromEnvironment(queryString);
     final DefaultClarityScoreConfiguration dcc
@@ -367,20 +345,21 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
     final Collection<DocumentModel> fbDocModels = new ArrayList<>(
             feedbackDocs.size());
     for (Integer docId : feedbackDocs) {
-      fbDocModels.add(Environment.getDataProvider().getDocumentModel(docId));
+      fbDocModels.add(DocumentMetrics.getModel(docId));
     }
 
-    final ClarityScoreResult result = instance.calculateClarity(queryString,
-            feedbackDocs);
+    final DefaultClarityScore.Result result = instance.calculateClarity(
+            queryString, feedbackDocs);
 
-    LOG.debug("Calculating reference score.");
+    LOG.debug("({}) Calculating reference score.", getDataProviderName());
     final double score = calc_score(dcc.getLangModelWeight(),
-            fbDocModels, QueryUtils.getUniqueQueryTerms(queryString));
+            fbDocModels, instance.getQueryTerms());
 
-    LOG.debug("Scores test={} dcs={}", score, result.getScore());
+    LOG.debug("({}) Scores test={} dcs={}", getDataProviderName(), score,
+            result.getScore());
 
-    assertEquals("Clarity score mismatch.", score, result.getScore(),
-            ALLOWED_SCORE_DELTA);
+    assertEquals(getDataProviderName() + ": Clarity score mismatch.", score,
+            result.getScore(), ALLOWED_SCORE_DELTA);
   }
 
   /**
@@ -393,7 +372,40 @@ public final class DefaultClarityScoreTest extends MultiIndexDataProviderTestCas
     final String result = instance.getDocModelDataKey();
 
     if (result == null || result.isEmpty()) {
-      fail("DocModelDataKey was empty or null.");
+      fail(getDataProviderName() + ": DocModelDataKey was empty or null.");
     }
+  }
+
+  /**
+   * Test of calculateClarity method, of class DefaultClarityScore.
+   *
+   * @throws Exception Any exception thrown indicates an error
+   */
+  @Test
+  public void testCalculateClarity_String() throws Exception {
+    LOG.info("calculateClarity [query string]");
+    final String queryString = index.getQueryString();
+    final DefaultClarityScoreConfiguration dcc
+            = new DefaultClarityScoreConfiguration();
+    final DefaultClarityScore instance = new DefaultClarityScore(dcc);
+    final DefaultClarityScore.Result result
+            = instance.calculateClarity(queryString);
+
+    final Collection<Integer> feedbackDocs = result.getFeedbackDocuments();
+    final Collection<DocumentModel> fbDocModels = new ArrayList<>(
+            feedbackDocs.size());
+    for (Integer docId : feedbackDocs) {
+      fbDocModels.add(DocumentMetrics.getModel(docId));
+    }
+
+    LOG.debug("({}) Calculating reference score.", getDataProviderName());
+    final double score = calc_score(dcc.getLangModelWeight(),
+            fbDocModels, result.getQueryTerms());
+
+    LOG.debug("({}) Scores test={} dcs={}", getDataProviderName(), score,
+            result.getScore());
+
+    assertEquals(getDataProviderName() + ": Clarity score mismatch.", score,
+            result.getScore(), ALLOWED_SCORE_DELTA);
   }
 }

@@ -20,7 +20,7 @@ import java.util.Random;
 
 /**
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public final class RandomValue {
 

@@ -16,9 +16,9 @@
  */
 package de.unihildesheim.lucene;
 
-import de.unihildesheim.lucene.index.TestIndex;
+import de.unihildesheim.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.util.RandomValue;
-import de.unihildesheim.util.Tuple;
+import de.unihildesheim.Tuple;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,12 +27,9 @@ import java.util.HashMap;
 import java.util.Map;
 import org.apache.lucene.index.IndexNotFoundException;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.*;
-import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
@@ -42,7 +39,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Setup a working environment.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public class EnvironmentTest {
 
@@ -55,7 +52,7 @@ public class EnvironmentTest {
   /**
    * Temporary Lucene memory index.
    */
-  private static TestIndex index;
+  private static TestIndexDataProvider index;
 
   /**
    * General rule to catch expected exceptions.
@@ -64,8 +61,11 @@ public class EnvironmentTest {
   @java.lang.SuppressWarnings("PublicField")
   public ExpectedException exception = ExpectedException.none();
 
+  /**
+   * Temporary directory to store test data.
+   */
   @Rule
-  public TemporaryFolder tmpDir = new TemporaryFolder();
+  private final TemporaryFolder tmpDir = new TemporaryFolder();
 
   /**
    * Static initializer run before all tests.
@@ -75,18 +75,14 @@ public class EnvironmentTest {
   @BeforeClass
   public static void setUpClass() throws Exception {
     // create the test index
-    index = new TestIndex(TestIndex.IndexSize.SMALL);
-    assertTrue("TestIndex is not initialized.", TestIndex.test_isInitialized());
+    index = new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL);
+    assertTrue("TestIndex is not initialized.", TestIndexDataProvider.isInitialized());
   }
 
-  @AfterClass
-  public static void tearDownClass() throws Exception {
-  }
-
-  @Before
-  public void setUp() throws Exception {
-  }
-
+  /**
+   * Run after each test
+   * @throws Exception Any exception thrown indicates an error
+   */
   @After
   public void tearDown() throws Exception {
     Environment.clear();
@@ -176,7 +172,7 @@ public class EnvironmentTest {
   @Test
   public void testCreate_IndexDataProvider() throws Exception {
     LOG.info("Test create 1arg");
-    final Environment instance = getInstance1Arg();
+    getInstance1Arg();
   }
 
   /**
@@ -220,7 +216,7 @@ public class EnvironmentTest {
   public void testGetFields() throws Exception {
     LOG.info("Test getFields");
     @SuppressWarnings("MismatchedReadAndWriteOfArray")
-    final Collection<String> expResult = index.test_getActiveFields();
+    final Collection<String> expResult = index.getActiveFieldNames();
     Collection<String> resultColl;
 
     // not initialized

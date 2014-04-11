@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.lucene.index;
+package de.unihildesheim.lucene.cli;
 
 import asg.cliche.CLIException;
 import asg.cliche.Command;
@@ -40,24 +40,29 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 
 /**
+ * Simple interface to get some basic Lucene index informations.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ * @author Jens Bertram
  */
 public final class IndexInfo {
 
   /**
    * CLI-parameter to specify the Lucene index directory.
    */
-  @Parameter(names = "-index", description = "Lucene index", required = true)
+  @Parameter(names = CliParams.INDEX_DIR_P, description
+          = CliParams.INDEX_DIR_U,
+          required = true)
   private String indexDir;
 
   /**
    * CLI-parameter specifying the storage id to load.
    */
-  @Parameter(names = "-command", description
-          = "Single command to run and exit", required = false, variableArity
-          = true)
-  private List<String> runCommand = new ArrayList<String>();
+  @Parameter(names = CliParams.SHELL_EXEC_P, description
+          = CliParams.SHELL_EXEC_U,
+          required = false, variableArity = true)
+  @SuppressWarnings({"CollectionWithoutInitialCapacity",
+    "MismatchedQueryAndUpdateOfCollection"})
+  private final List<String> runCommand = new ArrayList<>();
 
   /**
    * Reader to access Lucene index.
@@ -66,6 +71,7 @@ public final class IndexInfo {
 
   /**
    * List document fields from Lucene index.
+   *
    * @throws java.io.IOException Thrown on low-level I/O errors
    */
   @Command(description = "List document fields from Lucene index.")
@@ -91,6 +97,7 @@ public final class IndexInfo {
 
   /**
    * Get summed term frequency for a field.
+   *
    * @param fieldName Field name
    * @throws IOException Thrown on low-level I/O errors
    */
@@ -106,6 +113,7 @@ public final class IndexInfo {
 
   /**
    * Get term frequencies for a field and each term.
+   *
    * @param fieldName Field name
    * @throws IOException Thrown on low-level I/O errors
    */
@@ -137,13 +145,15 @@ public final class IndexInfo {
   /**
    * Quit the instance.
    */
-  @Command(description = "Quit.")
+  @Command(abbrev = ShellCmds.QUIT_S, name = ShellCmds.QUIT_L, description
+          = ShellCmds.QUIT_U)
   public void quit() {
     System.exit(0);
   }
 
   /**
    * Run the instance.
+   *
    * @throws IOException Thrown on low-level I/O errors
    */
   private void start() throws IOException {

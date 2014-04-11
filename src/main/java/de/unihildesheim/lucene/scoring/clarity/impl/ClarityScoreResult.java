@@ -21,7 +21,7 @@ import de.unihildesheim.lucene.scoring.clarity.ClarityScoreCalculation;
 
 /**
  * Wrapper class enclosing the results of a clarity score calculation.
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public class ClarityScoreResult extends ScoringResult {
 
@@ -40,7 +40,7 @@ public class ClarityScoreResult extends ScoringResult {
           final double clarityScore) {
     super();
     this.type = cscType;
-    setScore(clarityScore);
+    _setScore(clarityScore);
   }
 
   /**

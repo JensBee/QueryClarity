@@ -25,7 +25,7 @@ import org.slf4j.LoggerFactory;
 /**
  * General configuration management class.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public abstract class Configuration {
 

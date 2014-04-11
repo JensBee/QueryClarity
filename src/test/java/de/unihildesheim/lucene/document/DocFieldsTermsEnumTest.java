@@ -16,24 +16,25 @@
  */
 package de.unihildesheim.lucene.document;
 
-import de.unihildesheim.lucene.Environment;
+import de.unihildesheim.ByteArray;
 import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.index.IndexDataProvider;
-import de.unihildesheim.lucene.index.TestIndex;
+import de.unihildesheim.lucene.index.IndexTestUtil;
+import de.unihildesheim.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.lucene.metrics.CollectionMetrics;
-import de.unihildesheim.lucene.util.BytesWrap;
-import de.unihildesheim.util.RandomValue;
-import java.util.Arrays;
+import de.unihildesheim.lucene.metrics.DocumentMetrics;
+import de.unihildesheim.lucene.util.BytesRefUtil;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import org.apache.lucene.util.BytesRef;
 import org.junit.AfterClass;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import static org.junit.Assert.*;
-import org.junit.Before;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
@@ -42,10 +43,11 @@ import org.slf4j.LoggerFactory;
 /**
  * Test for {@link DocFieldsTermsEnum}.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ *
  */
 @RunWith(Parameterized.class)
-public class DocFieldsTermsEnumTest extends MultiIndexDataProviderTestCase {
+public final class DocFieldsTermsEnumTest
+        extends MultiIndexDataProviderTestCase {
 
   /**
    * Logger instance for this class.
@@ -60,8 +62,9 @@ public class DocFieldsTermsEnumTest extends MultiIndexDataProviderTestCase {
    */
   @BeforeClass
   public static void setUpClass() throws Exception {
-    index = new TestIndex(TestIndex.IndexSize.SMALL);
-    assertTrue("TestIndex is not initialized.", TestIndex.test_isInitialized());
+    index = new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL);
+    assertTrue("TestIndex is not initialized.", TestIndexDataProvider.
+            isInitialized());
   }
 
   /**
@@ -83,14 +86,26 @@ public class DocFieldsTermsEnumTest extends MultiIndexDataProviderTestCase {
     caseSetUp();
   }
 
+  /**
+   * Get parameters for parameterized test.
+   *
+   * @return Test parameters
+   */
   @Parameterized.Parameters
   public static Collection<Object[]> data() {
     return getCaseParameters();
   }
 
+  /**
+   * Initialize test with the current parameter.
+   *
+   * @param dataProv {@link IndexDataProvider} to use
+   * @param rType Data provider configuration
+   */
   public DocFieldsTermsEnumTest(
-          final Class<? extends IndexDataProvider> dataProv) {
-    super(dataProv);
+          final Class<? extends IndexDataProvider> dataProv,
+          final MultiIndexDataProviderTestCase.RunType rType) {
+    super(dataProv, rType);
   }
 
   /**
@@ -132,7 +147,8 @@ public class DocFieldsTermsEnumTest extends MultiIndexDataProviderTestCase {
         count++;
         br = instance.next();
       }
-      assertEquals("Resetted iteration yields different count.", oldCount,
+      assertEquals(getDataProviderName()
+              + ": Resetted iteration yields different count.", oldCount,
               count);
     }
   }
@@ -145,89 +161,48 @@ public class DocFieldsTermsEnumTest extends MultiIndexDataProviderTestCase {
   @Test
   public void testNext() throws Exception {
     LOG.info("Test next");
-    DocFieldsTermsEnum instance;
+    final DocFieldsTermsEnum instance = new DocFieldsTermsEnum();
 
-    Map<BytesWrap, Long> dftMap;
-    Map<BytesWrap, Long> tfMap;
+    final Collection<ByteArray> stopwords = IndexTestUtil.
+            getStopwordsFromEnvironment();
+    final boolean excludeStopwords = stopwords != null;
 
-    // test with all fields enabled
-    instance = new DocFieldsTermsEnum();
     for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
-      tfMap = Environment.getDataProvider().getDocumentModel(i).termFreqMap;
-      dftMap = new HashMap<>(tfMap.size());
+      final Map<ByteArray, Long> tfMap
+              = DocumentMetrics.getModel(i).termFreqMap;
+      final Map<ByteArray, Long> dftMap = new HashMap<>(tfMap.size());
 
       instance.setDocument(i);
       BytesRef br = instance.next();
       while (br != null) {
-        final BytesWrap bw = new BytesWrap(br);
-        if (dftMap.containsKey(bw)) {
-          dftMap.put(bw.clone(), dftMap.get(bw) + instance.getTotalTermFreq());
+        final ByteArray bytes = BytesRefUtil.toByteArray(br);
+        if (excludeStopwords && stopwords.contains(bytes)) {
+          br = instance.next();
+          continue;
+        }
+        if (dftMap.containsKey(bytes)) {
+          dftMap.put(bytes.clone(), dftMap.get(bytes) + instance.
+                  getTotalTermFreq());
         } else {
-          dftMap.put(bw.clone(), instance.getTotalTermFreq());
+          dftMap.put(bytes.clone(), instance.getTotalTermFreq());
         }
         br = instance.next();
       }
 
-      assertEquals("Term map sizes differ.", tfMap.size(), dftMap.size());
-      assertTrue("Not all terms are present.", dftMap.keySet().containsAll(
-              tfMap.keySet()));
+      assertEquals(getDataProviderName()
+              + ": Term map sizes differs (stopped: " + excludeStopwords
+              + ").", tfMap.size(), dftMap.size());
+      assertTrue(getDataProviderName()
+              + ": Not all terms are present (stopped: " + excludeStopwords
+              + ").", dftMap.keySet().containsAll(tfMap.keySet()));
 
-      for (Entry<BytesWrap, Long> tfEntry : tfMap.entrySet()) {
-        assertEquals("Term frequency values differ. docId=" + i + " term="
+      for (Entry<ByteArray, Long> tfEntry : tfMap.entrySet()) {
+        assertEquals(getDataProviderName()
+                + ": Term frequency values differs (stopped: "
+                + excludeStopwords + "). docId=" + i + " term="
                 + tfEntry.toString(), tfEntry.getValue(), dftMap.get(tfEntry.
                         getKey()));
       }
-    }
-
-    // test with some fields enabled
-    final int[] fieldState = index.getFieldState();
-    int[] newFieldState = new int[fieldState.length];
-
-    if (fieldState.length > 1) {
-      // toggle some fields
-      newFieldState = fieldState.clone();
-      // ensure both states are not the same
-      while (Arrays.equals(newFieldState, fieldState)) {
-        for (int i = 0; i < fieldState.length; i++) {
-          newFieldState[i] = RandomValue.getInteger(0, 1);
-        }
-      }
-
-      index.setFieldState(newFieldState);
-      final Collection<String> fields = index.test_getActiveFields();
-      instance = new DocFieldsTermsEnum(Environment.getIndexReader(), fields.
-              toArray(new String[fields.size()]));
-
-      for (int i = 0; i < index.getDocumentCount(); i++) {
-        tfMap = index.getDocumentTermFrequencyMap(i);
-        dftMap = new HashMap<>(tfMap.size());
-
-        instance.setDocument(i);
-        BytesRef br = instance.next();
-        while (br != null) {
-          final BytesWrap bw = new BytesWrap(br);
-          if (dftMap.containsKey(bw)) {
-            dftMap.put(bw.clone(), dftMap.get(bw) + instance.
-                    getTotalTermFreq());
-          } else {
-            dftMap.put(bw.clone(), instance.getTotalTermFreq());
-          }
-          br = instance.next();
-        }
-
-        assertEquals("Term map sizes differ.", tfMap.size(), dftMap.size());
-        assertTrue("Not all terms are present.", dftMap.keySet().containsAll(
-                tfMap.keySet()));
-
-        for (Entry<BytesWrap, Long> tfEntry : tfMap.entrySet()) {
-          assertEquals("Term frequency values differ. docId=" + i + " term="
-                  + tfEntry.toString(), tfEntry.getValue(),
-                  (Long) dftMap.get(tfEntry.getKey()));
-        }
-      }
-      index.setFieldState(fieldState);
-    } else {
-      LOG.warn("Skip test section. Field count == 1.");
     }
   }
 
@@ -239,37 +214,46 @@ public class DocFieldsTermsEnumTest extends MultiIndexDataProviderTestCase {
   @Test
   public void testGetTotalTermFreq() throws Exception {
     LOG.info("Test getTotalTermFreq");
-
-    Map<BytesWrap, Long> dftMap;
-    Map<BytesWrap, Long> tfMap;
-
     final DocFieldsTermsEnum instance = new DocFieldsTermsEnum();
+
+    final Collection<ByteArray> stopwords = IndexTestUtil.
+            getStopwordsFromEnvironment();
+    final boolean excludeStopwords = stopwords != null;
+
     for (int i = 0; i < index.getDocumentCount(); i++) {
-      tfMap = index.getDocumentTermFrequencyMap(i);
-      dftMap = new HashMap<>(tfMap.size());
+      final Map<ByteArray, Long> tfMap = index.getDocumentTermFrequencyMap(i);
+      final Map<ByteArray, Long> dftMap = new HashMap<>(tfMap.size());
 
       instance.setDocument(i);
       BytesRef br = instance.next();
       while (br != null) {
-        final BytesWrap bw = new BytesWrap(br);
-        if (dftMap.containsKey(bw)) {
-          dftMap.put(bw.clone(), dftMap.get(bw) + instance.getTotalTermFreq());
+        final ByteArray bytes = BytesRefUtil.toByteArray(br);
+        if (excludeStopwords && stopwords.contains(bytes)) {
+          br = instance.next();
+          continue;
+        }
+        if (dftMap.containsKey(bytes)) {
+          dftMap.put(bytes, dftMap.get(bytes) + instance.getTotalTermFreq());
         } else {
-          dftMap.put(bw.clone(), instance.getTotalTermFreq());
+          dftMap.put(bytes, instance.getTotalTermFreq());
         }
         br = instance.next();
       }
 
-      assertEquals("Term map sizes differ.", tfMap.size(), dftMap.size());
-      assertTrue("Not all terms are present.", dftMap.keySet().containsAll(
-              tfMap.keySet()));
+      assertEquals(getDataProviderName()
+              + ": Term map sizes differ (stopped: " + excludeStopwords + ").",
+              tfMap.size(), dftMap.size());
+      assertTrue(getDataProviderName()
+              + ": Not all terms are present (stopped: " + excludeStopwords
+              + ").", dftMap.keySet().containsAll(tfMap.keySet()));
 
-      for (Entry<BytesWrap, Long> tfEntry : tfMap.entrySet()) {
-        assertEquals("Term frequency values differ. docId=" + i + " term="
-                + tfEntry.toString(), tfEntry.getValue(), (Long) dftMap.get(
+      for (Entry<ByteArray, Long> tfEntry : tfMap.entrySet()) {
+        assertEquals(getDataProviderName()
+                + ": Term frequency values differ (stopped: "
+                + excludeStopwords + "). docId=" + i + " term="
+                + tfEntry.toString(), tfEntry.getValue(), dftMap.get(
                         tfEntry.getKey()));
       }
     }
   }
-
 }

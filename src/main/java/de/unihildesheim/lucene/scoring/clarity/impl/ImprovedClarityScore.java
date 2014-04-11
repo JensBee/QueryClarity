@@ -16,26 +16,35 @@
  */
 package de.unihildesheim.lucene.scoring.clarity.impl;
 
+import de.unihildesheim.ByteArray;
 import de.unihildesheim.lucene.Environment;
+import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.Feedback;
 import de.unihildesheim.lucene.metrics.CollectionMetrics;
 import de.unihildesheim.lucene.metrics.DocumentMetrics;
 import de.unihildesheim.lucene.query.QueryUtils;
 import de.unihildesheim.lucene.query.TermsQueryBuilder;
 import de.unihildesheim.lucene.scoring.clarity.ClarityScoreCalculation;
-import de.unihildesheim.lucene.util.BytesWrap;
+import de.unihildesheim.util.ByteArrayUtil;
+import de.unihildesheim.util.Configuration;
 import de.unihildesheim.util.MathUtils;
 import de.unihildesheim.util.RandomValue;
+import de.unihildesheim.util.TimeMeasure;
+import de.unihildesheim.util.concurrent.AtomicDouble;
+import de.unihildesheim.util.concurrent.processing.CollectionSource;
+import de.unihildesheim.util.concurrent.processing.Processing;
+import de.unihildesheim.util.concurrent.processing.Target;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.Query;
@@ -52,7 +61,7 @@ import org.slf4j.LoggerFactory;
  * Conference on Information and Knowledge Management, 439–448. CIKM ’08. New
  * York, NY, USA: ACM, 2008. doi:10.1145/1458082.1458142.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ *
  */
 public class ImprovedClarityScore implements ClarityScoreCalculation {
 
@@ -70,7 +79,7 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
   /**
    * Configuration object used for all parameters of the calculation.
    */
-  private final ImprovedClarityScoreConfiguration conf;
+  private ImprovedClarityScoreConfiguration conf;
 
   /**
    * Cache for calculated document model values.
@@ -122,13 +131,24 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
    *
    * @param newConf Configuration
    */
-  public ImprovedClarityScore(final ImprovedClarityScoreConfiguration newConf) {
+  public ImprovedClarityScore(final Configuration newConf) {
     super();
-    this.conf = newConf;
+    setConfiguration(newConf);
     Environment.getDataProvider().registerPrefix(PREFIX);
+  }
+
+  @Override
+  public final ImprovedClarityScore setConfiguration(
+          final Configuration newConf) {
+    if (!(newConf instanceof ImprovedClarityScoreConfiguration)) {
+      throw new IllegalArgumentException("Wrong configuration type.");
+    }
+    this.conf = (ImprovedClarityScoreConfiguration) newConf;
+    this.conf.debugDump();
     this.docModelCache = new ConcurrentHashMap<>(this.conf.
             getMaxFeedbackDocumentsCount());
     parseConfig();
+    return this;
   }
 
   /**
@@ -159,9 +179,9 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
    */
   private String simplifyQuery(final String query,
           final QuerySimplifyPolicy policy) throws IOException, ParseException {
-    Collection<BytesWrap> qTerms = new ArrayList<>(QueryUtils.
+    Collection<ByteArray> qTerms = new ArrayList<>(QueryUtils.
             getAllQueryTerms(query));
-    BytesWrap termToRemove = null;
+    ByteArray termToRemove = null;
     if (new HashSet<>(qTerms).size() == 1) {
       LOG.debug("Return empty string from one term query.");
       return "";
@@ -169,40 +189,40 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
 
     switch (policy) {
       case FIRST:
-        termToRemove = ((List<BytesWrap>) qTerms).get(0);
+        termToRemove = ((List<ByteArray>) qTerms).get(0);
         break;
       case HIGHEST_DOCFREQ:
         long docFreq = 0;
         qTerms = new HashSet<>(qTerms);
-        for (BytesWrap term : qTerms) {
+        for (ByteArray term : qTerms) {
           final long tDocFreq = CollectionMetrics.df(term);
           if (tDocFreq > docFreq) {
-            termToRemove = term.clone();
+            termToRemove = term;
             docFreq = tDocFreq;
           } else if (tDocFreq == docFreq && RandomValue.getBoolean()) {
-            termToRemove = term.clone();
+            termToRemove = term;
           }
         }
         break;
       case HIGHEST_TERMFREQ:
         long collFreq = 0;
         qTerms = new HashSet<>(qTerms);
-        for (BytesWrap term : qTerms) {
+        for (ByteArray term : qTerms) {
           final long tCollFreq = CollectionMetrics.tf(term);
           if (tCollFreq > collFreq) {
-            termToRemove = term.clone();
+            termToRemove = term;
             collFreq = tCollFreq;
           } else if (tCollFreq == collFreq && RandomValue.getBoolean()) {
-            termToRemove = term.clone();
+            termToRemove = term;
           }
         }
         break;
       case LAST:
-        termToRemove = ((List<BytesWrap>) qTerms).get(qTerms.size() - 1);
+        termToRemove = ((List<ByteArray>) qTerms).get(qTerms.size() - 1);
         break;
       case RANDOM:
         final int idx = RandomValue.getInteger(0, qTerms.size() - 1);
-        termToRemove = ((List<BytesWrap>) qTerms).get(idx);
+        termToRemove = ((List<ByteArray>) qTerms).get(idx);
         break;
     }
 
@@ -211,12 +231,13 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
     }
 
     final StringBuilder sb = new StringBuilder(100);
-    for (BytesWrap qTerm : qTerms) {
-      sb.append(qTerm.toString()).append(' ');
+    for (ByteArray qTerm : qTerms) {
+      sb.append(ByteArrayUtil.utf8ToString(qTerm)).append(' ');
     }
 
-    LOG.debug("Remove term={} policy={} oldQ={} newQ={}", termToRemove.
-            toString(), policy, query, sb.toString().trim());
+    LOG.debug("Remove term={} policy={} oldQ={} newQ={}", ByteArrayUtil.
+            utf8ToString(termToRemove), policy, query, sb.toString().
+            trim());
     return sb.toString().trim();
   }
 
@@ -224,25 +245,26 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
    * Calculate the document model for a given term. The document model is
    * calculated using Bayesian smoothing using Dirichlet priors.
    *
-   * @param docId Document id
+   * @param dm Document id
    * @param term Term to calculate the model for
    * @return Calculated document model given the term
    */
-  private double calcDocumentModel(final int docId, final BytesWrap term) {
-    Double model = this.docModelCache.get(docId + term.toString());
+  private double calcDocumentModel(final DocumentModel dm,
+          final ByteArray term) {
+    Double model = this.docModelCache.get(dm.id + Arrays.toString(term.bytes));
 
     if (model == null) {
       final double smoothing = this.conf.getDocumentModelSmoothingParameter();
       final double lambda = this.conf.getDocumentModelParamLambda();
       final double beta = this.conf.getDocumentModelParamBeta();
 
-      final DocumentMetrics dm = new DocumentMetrics(docId);
+      final DocumentMetrics dom = new DocumentMetrics(dm);
 
       // total frequency of all terms in document
-      final double totalFreq = dm.tf().doubleValue();
+      final double totalFreq = dom.tf().doubleValue();
       // term frequency given the document
-      final double termFreq = dm.tf(term).doubleValue();
-      final double uniqueTerms = dm.uniqueTermCount().doubleValue();
+      final double termFreq = dom.tf(term).doubleValue();
+      final double uniqueTerms = dom.uniqueTermCount().doubleValue();
       // relative collection frequency of the term
       final double rCollFreq = CollectionMetrics.relTf(term);
 
@@ -252,30 +274,11 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
       model = (lambda * ((beta * model) + ((1 - beta) * rCollFreq))) + ((1
               - lambda) * rCollFreq);
 
-      this.docModelCache.put(docId + term.toString(), model);
+      this.docModelCache.put(dm.id + Arrays.toString(term.bytes),
+              model);
     }
 
     return model;
-  }
-
-  /**
-   * Calculate the product of all feedback documents given the query terms.
-   *
-   * @param fbDocId Feedback document id
-   * @param qTerms Query terms
-   * @return Product of all document models given the query terms
-   * @throws UnsupportedEncodingException Thrown, if a query term could not be
-   * parsed
-   */
-  private double calcDocModelQueryTermsProduct(
-          final Integer fbDocId, final Collection<BytesWrap> qTerms) throws
-          UnsupportedEncodingException {
-    double product = 1L;
-    // iterate through all query terms
-    for (BytesWrap qTerm : qTerms) {
-      product *= calcDocumentModel(fbDocId, qTerm);
-    }
-    return product;
   }
 
   /**
@@ -288,25 +291,29 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
    * @throws UnsupportedEncodingException Thrown, if a query term could not be
    * parsed
    */
-  private double calcQueryModel(final BytesWrap fbTerm,
-          final Collection<BytesWrap> qTerms,
+  protected final double calcQueryModel(final ByteArray fbTerm,
+          final Collection<ByteArray> qTerms,
           final Collection<Integer> fbDocIds) throws
           UnsupportedEncodingException {
     double model = 0d;
 
     for (Integer fbDocId : fbDocIds) {
+      final DocumentModel dm = DocumentMetrics.getModel(fbDocId);
       // document model for the given term pD(t)
-      final double docModel = calcDocumentModel(fbDocId, fbTerm);
+      final double docModel = calcDocumentModel(dm, fbTerm);
       // calculate the product of the document models for all query terms
       // given the current document
-      final double docModelQtProduct = calcDocModelQueryTermsProduct(fbDocId,
-              qTerms);
+      double docModelQtProduct = 1d;
+      for (ByteArray qTerm : qTerms) {
+        docModelQtProduct *= calcDocumentModel(dm, qTerm);
+      }
       model += docModel * docModelQtProduct;
     }
     return model;
   }
 
   @Override
+  @SuppressWarnings("AccessingNonPublicFieldOfAnotherObject")
   public final Result calculateClarity(final String query) throws
           ParseException {
     if (query == null || query.isEmpty()) {
@@ -316,20 +323,22 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
     // result object
     final Result result = new Result(this.getClass());
     // final clarity score
-    double score = 0;
+    final AtomicDouble score = new AtomicDouble(0);
     // collection of feedback document ids
     Collection<Integer> feedbackDocIds;
     // save base data to result object
-    result.queries.add(query);
-    result.conf = this.conf;
+    result.addQuery(query);
+    result.setConf(this.conf);
+
+    LOG.info("Calculating clarity score. query={}", query);
+    final TimeMeasure timeMeasure = new TimeMeasure().start();
 
     // run a query to get feedback
     TermsQueryBuilder qBuilder = new TermsQueryBuilder().setBoolOperator(
             QueryParser.Operator.AND);
     Query queryObj = qBuilder.buildUsingEnvironment(query);
     try {
-      feedbackDocIds = new HashSet<>(this.conf.
-              getMaxFeedbackDocumentsCount());
+      feedbackDocIds = new HashSet<>(this.conf.getMaxFeedbackDocumentsCount());
       feedbackDocIds.addAll(Feedback.get(queryObj, this.conf.
               getMaxFeedbackDocumentsCount()));
 
@@ -338,7 +347,7 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
       int docsToGet;
       while (feedbackDocIds.size() < this.conf.getMinFeedbackDocumentsCount()) {
         // set flag indicating we simplified the query
-        result.wasQuerySimplified = true;
+        result.setQuerySimplified(true);
         LOG.info("Minimum number of feedback documents not reached "
                 + "({}/{}). Simplifying query using {} policy.",
                 feedbackDocIds.size(), this.conf.
@@ -353,7 +362,7 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
                   "No query terms left while trying "
                   + "to reach the minimum nmber of feedback documents.");
         }
-        result.queries.add(simplifiedQuery);
+        result.addQuery(simplifiedQuery);
         docsToGet = this.conf.getMaxFeedbackDocumentsCount()
                 - feedbackDocIds.size();
         queryObj = qBuilder.buildUsingEnvironment(simplifiedQuery);
@@ -362,7 +371,7 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
 
       // collect all unique terms from feedback documents
       @SuppressWarnings("CollectionWithoutInitialCapacity")
-      final List<BytesWrap> fbTerms = new ArrayList<>(Environment.
+      final List<ByteArray> fbTerms = new ArrayList<>(Environment.
               getDataProvider().getDocumentsTermSet(feedbackDocIds));
       // get document frequency threshold
       int minDf = (int) (CollectionMetrics.numberOfDocuments()
@@ -374,41 +383,122 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
       LOG.debug("Document frequency threshold is {} = {}", minDf, this.conf.
               getFeedbackTermSelectionThreshold());
       LOG.debug("Initial term set size {}", fbTerms.size());
-      final Iterator<BytesWrap> fbTermsIt = fbTerms.iterator();
+
+      // keep results of concurrent term eliminations
+      final ConcurrentLinkedQueue<ByteArray> reducedFbTerms
+              = new ConcurrentLinkedQueue<>();
+
       // remove all terms whose threshold is too low
-      while (fbTermsIt.hasNext()) {
-        final BytesWrap term = fbTermsIt.next();
-        if (CollectionMetrics.df(term) < minDf) {
-          fbTermsIt.remove();
-        }
-      }
-      LOG.debug("Reduced term set size {}", fbTerms.size());
+      new Processing(
+              new Target.TargetFuncCall<>(
+                      new CollectionSource<>(fbTerms),
+                      new FbTermReducerTarget(minDf, reducedFbTerms)
+              )).process();
+      LOG.debug("Reduced term set size {}", reducedFbTerms.size());
 
       // do the final calculation for all remaining feedback terms
-      final Collection<BytesWrap> queryTerms = QueryUtils.getAllQueryTerms(
-              query);
-      for (int i = 0; i < fbTerms.size(); i++) {
-        // query model for the current term
-        final double queryModel = calcQueryModel(fbTerms.get(i), queryTerms,
-                feedbackDocIds);
-        score += queryModel * MathUtils.log2(queryModel / CollectionMetrics.
-                relTf(fbTerms.get(i)).doubleValue());
-      }
-
       LOG.debug("Using {} feedback documents.", feedbackDocIds.size());
+      new Processing(
+              new Target.TargetFuncCall<>(
+                      new CollectionSource<>(reducedFbTerms),
+                      new ModelCalculatorTarget(
+                              feedbackDocIds,
+                              QueryUtils.getAllQueryTerms(query),
+                              score)
+              )).process();
 
-      result.set(score);
-      result.feedbackDocIds = feedbackDocIds;
-      result.feedbackTerms = fbTerms;
+      result.setScore(score.get());
+      result.setFeedbackDocIds(feedbackDocIds);
+      result.setFeedbackTerms(fbTerms);
 
-      LOG.debug(
-              "Calculation results: query={} docModels={} terms={} score={}.",
-              query, feedbackDocIds.size(), fbTerms.size(), score);
+      timeMeasure.stop();
+      LOG.debug("Calculating improved clarity score for query {} "
+              + "with {} document models and {} terms took {}. {}", query,
+              feedbackDocIds.size(), fbTerms.size(), timeMeasure.
+              getTimeString(), score);
     } catch (IOException ex) {
       LOG.error("Caught exception while retrieving feedback documents.", ex);
     }
 
     return result;
+  }
+
+  private static class FbTermReducerTarget
+          extends Target.TargetFunc<ByteArray> {
+
+    /**
+     * Target to store terms passing through the reducing process.
+     */
+    private final ConcurrentLinkedQueue<ByteArray> reducedTermsTarget;
+    /**
+     * Minimum document frequency for a term to pass.
+     */
+    private final int minDf;
+
+    FbTermReducerTarget(final int minDocFreq,
+            final ConcurrentLinkedQueue<ByteArray> reducedFbTerms) {
+      super();
+      this.reducedTermsTarget = reducedFbTerms;
+      this.minDf = minDocFreq;
+    }
+
+    @Override
+    public void call(final ByteArray term) {
+      if (term != null) {
+        if (CollectionMetrics.df(term) >= this.minDf) {
+          this.reducedTermsTarget.add(term);
+        }
+      }
+    }
+  }
+
+  /**
+   * {@link Processing} {@link Target} to calculate document models.
+   */
+  private class ModelCalculatorTarget
+          extends Target.TargetFunc<ByteArray> {
+
+    /**
+     * Query terms.
+     */
+    private final Collection<ByteArray> queryTerms;
+    /**
+     * Ids of feedback documents to use.
+     */
+    private final Collection<Integer> feedbackDocIds;
+    /**
+     * Final score to add calculation results to.
+     */
+    private final AtomicDouble score;
+
+    /**
+     * Create a new calculator for document models.
+     *
+     * @param fbDocIds Feedback document ids
+     * @param qTerms Query terms
+     * @param result Result to add to
+     */
+    ModelCalculatorTarget(final Collection<Integer> fbDocIds,
+            final Collection<ByteArray> qTerms, final AtomicDouble result) {
+      super();
+      this.queryTerms = qTerms;
+      this.feedbackDocIds = fbDocIds;
+      this.score = result;
+    }
+
+    @Override
+    public void call(final ByteArray term) {
+      if (term != null) {
+        try {
+          final double queryModel = calcQueryModel(term, this.queryTerms,
+                  this.feedbackDocIds);
+          score.addAndGet(queryModel * MathUtils.log2(queryModel
+                  / CollectionMetrics.relTf(term)));
+        } catch (UnsupportedEncodingException ex) {
+          LOG.error("Error calculating model for term '{}'", term, ex);
+        }
+      }
+    }
   }
 
   /**
@@ -429,7 +519,7 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
     /**
      * Terms from feedback documents used for calculation.
      */
-    private Collection<BytesWrap> feedbackTerms;
+    private Collection<ByteArray> feedbackTerms;
     /**
      * Flag indicating, if the query was simplified.
      */
@@ -437,18 +527,19 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
     /**
      * List of queries issued to get feedback documents.
      */
-    private List<String> queries;
+    private final List<String> queries;
 
     /**
      * Creates an object wrapping the result with meta information.
+     *
      * @param cscType Type of the calculation class
      */
     @SuppressWarnings("CollectionWithoutInitialCapacity")
     public Result(final Class<? extends ClarityScoreCalculation> cscType) {
       super(cscType);
       this.queries = new ArrayList<>();
-      this.feedbackDocIds = Collections.emptyList();
-      this.feedbackTerms = Collections.emptyList();
+      this.feedbackDocIds = Collections.<Integer>emptyList();
+      this.feedbackTerms = Collections.<ByteArray>emptyList();
     }
 
     /**
@@ -456,8 +547,53 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
      *
      * @param score Score result
      */
-    private void set(final double score) {
-      super.setScore(score);
+    protected void setScore(final double score) {
+      super._setScore(score);
+    }
+
+    /**
+     * Set the list of feedback documents used.
+     *
+     * @param fbDocIds List of feedback documents
+     */
+    protected void setFeedbackDocIds(final Collection<Integer> fbDocIds) {
+      this.feedbackDocIds = Collections.unmodifiableCollection(fbDocIds);
+    }
+
+    /**
+     * Set the list of feedback terms used.
+     *
+     * @param fbTerms List of feedback terms
+     */
+    protected void setFeedbackTerms(final Collection<ByteArray> fbTerms) {
+      this.feedbackTerms = Collections.unmodifiableCollection(fbTerms);
+    }
+
+    /**
+     * Set the flag, if this query was simplified.
+     *
+     * @param state True, if simplified
+     */
+    protected void setQuerySimplified(final boolean state) {
+      this.wasQuerySimplified = state;
+    }
+
+    /**
+     * Set the configuration that was used.
+     *
+     * @param newConf Configuration used
+     */
+    protected void setConf(final ImprovedClarityScoreConfiguration newConf) {
+      this.conf = newConf;
+    }
+
+    /**
+     * Add a query string to the list of issued queries.
+     *
+     * @param query Query to add
+     */
+    protected void addQuery(final String query) {
+      this.queries.add(query);
     }
 
     /**
@@ -483,7 +619,7 @@ public class ImprovedClarityScore implements ClarityScoreCalculation {
      *
      * @return Feedback terms used for calculation
      */
-    public Collection<BytesWrap> getFeedbackTerms() {
+    public Collection<ByteArray> getFeedbackTerms() {
       return Collections.unmodifiableCollection(this.feedbackTerms);
     }
 

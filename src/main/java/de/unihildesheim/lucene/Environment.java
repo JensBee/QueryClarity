@@ -26,12 +26,14 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
@@ -48,7 +50,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Global environment for calculations.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ *
  */
 public final class Environment {
 
@@ -105,15 +107,7 @@ public final class Environment {
    * Listeners looking for changes to document fields. Directly initialized to
    * allow adding of listeners prior to environment initialization.
    */
-  private static Collection<FieldsChangedListener> fieldsChangedListeners
-          = new HashSet<>(DEFAULT_LISTENERS_SIZE);
-
-  /**
-   * Listeners looking for changes to the stop-words list. Directly
-   * initialized to allow adding of listeners prior to environment
-   * initialization.
-   */
-  private static Collection<StopwordsChangedListener> stopwordsChangedListeners
+  private static Collection<EnvironmentEventListener> eventListeners
           = new HashSet<>(DEFAULT_LISTENERS_SIZE);
 
   /**
@@ -131,6 +125,23 @@ public final class Environment {
    * Flag indicating, if properties were loaded.
    */
   private static boolean propLoaded = false;
+
+  /**
+   * For testing only. If true, indication we run a test case.
+   */
+  private static boolean isTestRun = false;
+
+  public enum EventType {
+
+    /**
+     * Listener listening to changes to available fields.
+     */
+    FIELDS_CHANGED,
+    /**
+     * Listener listening to changes to stopwords.
+     */
+    STOPWORDS_CHANGED
+  }
 
   /**
    * Shutdown thread saving properties back to disk.
@@ -230,12 +241,14 @@ public final class Environment {
       while (idxFieldNamesIt.hasNext()) {
         idxFieldNames.add(idxFieldNamesIt.next());
       }
-      Environment.fields = idxFieldNames.toArray(new String[idxFieldNames.
-              size()]);
+      setFields(idxFieldNames.toArray(new String[idxFieldNames.
+              size()]));
     } else {
-      Environment.fields = newFields;
       IndexUtils.checkFields(newFields);
+      setFields(newFields);
     }
+
+    setStopwords(Collections.<String>emptyList(), false);
 
     loadProperties();
 
@@ -261,47 +274,67 @@ public final class Environment {
   }
 
   /**
-   * Add a listener to get notified if document fields are changed.
+   * Add a listener to get notified for changes to the environment.
    *
    * @param listener Listener to add
    * @return True, if the listener was added
    */
-  public static boolean addStopwordsChangedListener(
-          final StopwordsChangedListener listener) {
-    return Environment.stopwordsChangedListeners.add(listener);
+  public static boolean addEventListener(
+          final EnvironmentEventListener listener) {
+    return eventListeners.add(listener);
   }
 
   /**
-   * Remove a listener to changes of document fields.
+   * Remove a listener to get notified for changes to the environment.
    *
    * @param listener Listener to remove
    * @return True, if the listener was removed
    */
-  public static boolean removeStopwordsChangedListener(
-          final StopwordsChangedListener listener) {
-    return Environment.stopwordsChangedListeners.remove(listener);
+  public static boolean removeEventListener(
+          final EnvironmentEventListener listener) {
+    return eventListeners.remove(listener);
   }
 
   /**
-   * Add a listener to get notified if document fields are changed.
+   * Set the index document fields that get searched and the index document
+   * fields that get searched in one step.
    *
-   * @param listener Listener to add
-   * @return True, if the listener was added
+   * @param newFields List of fields to use for searching
+   * @param words List of stop-words
    */
-  public static boolean addFieldsChangedListener(
-          final FieldsChangedListener listener) {
-    return Environment.fieldsChangedListeners.add(listener);
+  public static void setFieldsAndWords(final String[] newFields,
+          final Collection<String> words) {
+    setFields(newFields, false);
+    setStopwords(words, false);
+    final List<Environment.EventType> events = new ArrayList<>(2);
+    events.add(EventType.FIELDS_CHANGED);
+    events.add(EventType.STOPWORDS_CHANGED);
+    for (EnvironmentEventListener listener
+            : Environment.eventListeners) {
+      listener.eventsFired(events);
+    }
   }
 
   /**
-   * Remove a listener to changes of document fields.
+   * Set the index document fields that get searched.
    *
-   * @param listener Listener to remove
-   * @return True, if the listener was removed
+   * @param newFields List of fields to use for searching
+   * @param fireEvent If true, an event is fired
    */
-  public static boolean removeFieldsChangedListener(
-          final FieldsChangedListener listener) {
-    return Environment.fieldsChangedListeners.remove(listener);
+  private static void setFields(final String[] newFields,
+          final boolean fireEvent) {
+    @SuppressWarnings("CollectionsToArray")
+    final String[] uniqueFields
+            = new HashSet<>(Arrays.asList(newFields)).toArray(new String[0]);
+    IndexUtils.checkFields(uniqueFields);
+    Environment.fields = uniqueFields;
+    LOG.info("Index fields changed: {}", Arrays.toString(Environment.fields));
+    if (fireEvent) {
+      for (EnvironmentEventListener listener
+              : Environment.eventListeners) {
+        listener.eventFired(EventType.FIELDS_CHANGED);
+      }
+    }
   }
 
   /**
@@ -310,12 +343,26 @@ public final class Environment {
    * @param newFields List of fields to use for searching
    */
   public static void setFields(final String[] newFields) {
-    IndexUtils.checkFields(newFields);
-    final String[] oldFields = Environment.fields.clone();
-    Environment.fields = newFields.clone();
-    LOG.info("Index fields changed: {}", Environment.fields);
-    for (FieldsChangedListener listener : Environment.fieldsChangedListeners) {
-      listener.fieldsChanged(oldFields);
+    setFields(newFields, true);
+  }
+
+  /**
+   * Set the list of stop-words to use.
+   *
+   * @param words List of stop-words
+   * @param fireEvent If true, an event is fired
+   */
+  private static void setStopwords(final Collection<String> words,
+          final boolean fireEvent) {
+    Environment.stopWords.clear();
+    Environment.stopWords.addAll(words);
+    LOG.info("Stop-words changed: using {} stopwords.", Environment.stopWords.
+            size());
+    if (fireEvent) {
+      for (EnvironmentEventListener listener
+              : Environment.eventListeners) {
+        listener.eventFired(EventType.STOPWORDS_CHANGED);
+      }
     }
   }
 
@@ -325,13 +372,23 @@ public final class Environment {
    * @param words List of stop-words
    */
   public static void setStopwords(final Collection<String> words) {
-    final Collection<String> oldWords = new ArrayList<>(Environment.stopWords);
-    Environment.stopWords.addAll(words);
-    LOG.info("Stop-words changed: {}", Environment.stopWords);
-    for (StopwordsChangedListener listener
-            : Environment.stopwordsChangedListeners) {
-      listener.wordsChanged(oldWords);
-    }
+    setStopwords(words, true);
+  }
+
+  /**
+   * Testing only. Indicate we are running a test case.
+   */
+  public static void setTestRun() {
+    Environment.isTestRun = true;
+  }
+
+  /**
+   * Testing only. Check if a test run is configured.
+   *
+   * @return True, if a test is currently running
+   */
+  public static boolean isTestRun() {
+    return Environment.isTestRun;
   }
 
   /**
@@ -567,8 +624,7 @@ public final class Environment {
       LOG.error("Failed to save properties.", ex);
     }
     clearAllProperties();
-    Environment.fieldsChangedListeners.clear();
-    Environment.stopwordsChangedListeners.clear();
+    Environment.eventListeners.clear();
     Environment.dataPath = null;
     Environment.dataProvider = null;
     Environment.fields = null;
@@ -681,7 +737,7 @@ public final class Environment {
       throw new IllegalArgumentException("No prefix specified.");
     }
     @SuppressWarnings("CollectionWithoutInitialCapacity")
-    final Map<String, Object> data = new HashMap();
+    final Map<String, Object> data = new HashMap<>();
     final int prefixLength = prefix.length() + 1;
     for (Entry<Object, Object> entry : Environment.PROP_STORE.entrySet()) {
       if (((String) entry.getKey()).startsWith(prefix)) {
@@ -745,30 +801,23 @@ public final class Environment {
   }
 
   /**
-   * Listener interface to listen to changes of document fields.
+   * Interface for listeners to get notified on {@link Environment} parameter
+   * changes.
    */
-  @SuppressWarnings("PublicInnerClass")
-  public interface FieldsChangedListener {
+  public interface EnvironmentEventListener {
 
     /**
-     * Called, if the index document fields have changed.
+     * General event notification method. Fires multiple events.
      *
-     * @param oldFields List of old fields that were used
+     * @param events Multiple events triggered
      */
-    void fieldsChanged(final String[] oldFields);
-  }
-
-  /**
-   * Listener interface to listen to changes of the list of stop-words.
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public interface StopwordsChangedListener {
+    void eventsFired(final List<EventType> events);
 
     /**
-     * Called, if the index document fields have changed.
+     * Event notification method.
      *
-     * @param oldWords List of old words that were used
+     * @param event Event triggered
      */
-    void wordsChanged(final Collection<String> oldWords);
+    void eventFired(final EventType event);
   }
 }

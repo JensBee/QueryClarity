@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
  * Enumerator iterating over the terms of multiple document fields in lucene
  * index. This steps through each {@link TermsEnum} for each specified field.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ * @author Jens Bertram
  */
 public final class DocFieldsTermsEnum {
 
@@ -240,7 +240,7 @@ public final class DocFieldsTermsEnum {
         LOG.error("Caught NullPointerException for field={} doc={}. "
                 + "Either the field does not exist or "
                 + "there were no term-vectors stored.",
-                this.fields[this.currentFieldIdx], this.docId, ex);
+                this.fields[this.currentFieldIdx], this.docId);
       }
       this.currentFieldIdx++;
     }

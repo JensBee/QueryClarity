@@ -16,18 +16,19 @@
  */
 package de.unihildesheim.lucene.scoring.clarity.impl;
 
+import de.unihildesheim.ByteArray;
 import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.index.IndexDataProvider;
-import de.unihildesheim.lucene.index.TestIndex;
-import de.unihildesheim.lucene.util.BytesWrap;
+import de.unihildesheim.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.util.MathUtils;
 import java.util.ArrayList;
 import java.util.Collection;
 import org.junit.AfterClass;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import static org.junit.Assert.*;
-import org.junit.Before;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -37,11 +38,11 @@ import org.slf4j.LoggerFactory;
 /**
  * Test for {@link SimplifiedClarityScore}.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 @RunWith(Parameterized.class)
 public final class SimplifiedClarityScoreTest
-extends MultiIndexDataProviderTestCase {
+        extends MultiIndexDataProviderTestCase {
 
   /**
    * Logger instance for this class.
@@ -61,8 +62,9 @@ extends MultiIndexDataProviderTestCase {
    */
   @BeforeClass
   public static void setUpClass() throws Exception {
-    index = new TestIndex(TestIndex.IndexSize.SMALL);
-    assertTrue("TestIndex is not initialized.", TestIndex.test_isInitialized());
+    index = new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL);
+    assertTrue("TestIndex is not initialized.", TestIndexDataProvider.
+            isInitialized());
   }
 
   /**
@@ -84,14 +86,26 @@ extends MultiIndexDataProviderTestCase {
     caseSetUp();
   }
 
+  /**
+   * Use all {@link IndexDataProvider}s for testing.
+   *
+   * @return Parameter collection
+   */
   @Parameters
   public static Collection<Object[]> data() {
     return getCaseParameters();
   }
 
+  /**
+   * Setup test using a defined {@link IndexDataProvider}.
+   *
+   * @param dataProv Data provider to use
+   * @param rType Data provider configuration
+   */
   public SimplifiedClarityScoreTest(
-          final Class<? extends IndexDataProvider> dataProv) {
-    super(dataProv);
+          final Class<? extends IndexDataProvider> dataProv,
+          final MultiIndexDataProviderTestCase.RunType rType) {
+    super(dataProv, rType);
   }
 
   /**
@@ -105,9 +119,9 @@ extends MultiIndexDataProviderTestCase {
     final String query = index.getQueryString();
     final SimplifiedClarityScore instance = new SimplifiedClarityScore();
 
-    final Collection<BytesWrap> queryTerms = new ArrayList<>(15);
+    final Collection<ByteArray> queryTerms = new ArrayList<>(15);
     for (String qTerm : query.split("\\s+")) {
-      queryTerms.add(new BytesWrap(qTerm.getBytes("UTF-8")));
+      queryTerms.add(new ByteArray(qTerm.getBytes("UTF-8")));
     }
 
     final double ql = Integer.valueOf(queryTerms.size()).doubleValue();
@@ -115,9 +129,9 @@ extends MultiIndexDataProviderTestCase {
             doubleValue();
 
     double score = 0;
-    for (BytesWrap term : queryTerms) {
+    for (ByteArray term : queryTerms) {
       double qtf = 0;
-      for (BytesWrap aTerm : queryTerms) {
+      for (ByteArray aTerm : queryTerms) {
         if (aTerm.equals(term)) {
           qtf++;
         }

@@ -23,7 +23,7 @@ import java.util.List;
 /**
  * Utility class for string operations.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public final class StringUtils {
 
@@ -42,8 +42,8 @@ public final class StringUtils {
    * @return Joined string
    */
   public static String join(final String[] strings, final String seperator) {
-    final StringBuilder joinedStr = new StringBuilder(strings.toString().
-            length());
+    @SuppressWarnings("StringBufferWithoutInitialCapacity")
+    final StringBuilder joinedStr = new StringBuilder();
     for (int i = 0, il = strings.length; i < il; i++) {
       if (i > 0) {
         joinedStr.append(seperator);

@@ -35,7 +35,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Utility class to get feedback documents needed for calculations.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public final class Feedback {
 
@@ -121,9 +121,8 @@ public final class Feedback {
   }
 
   /**
-   * Same as
-   * {@link #get(IndexReader, Query, int)},
-   * but gets the target {@link IndexReader} from the {@link Environment}.
+   * Same as {@link #get(IndexReader, Query, int)}, but gets the target
+   * {@link IndexReader} from the {@link Environment}.
    *
    * @param query Query to get matching documents
    * @param docCount Number of documents to return
@@ -171,15 +170,14 @@ public final class Feedback {
     for (ScoreDoc scoreDoc : initialDocs.scoreDocs) {
       docIds.add(scoreDoc.doc);
     }
-    LOG.debug("Getting {} matching feedback documents took {}.", docIds.size(),
-            timeMeasure.getTimeString());
+    LOG.debug("Getting {} matching feedback documents took {}.", docIds.
+            size(), timeMeasure.getTimeString());
     return docIds;
   }
 
   /**
-   * Same as
-   * {@link #getFixed(IndexReader, Query, int)},
-   * but gets the target {@link IndexReader} from the {@link Environment}.
+   * Same as {@link #getFixed(IndexReader, Query, int)}, but gets the target
+   * {@link IndexReader} from the {@link Environment}.
    *
    * @param query Query to get matching documents
    * @param docCount Number of documents to return
@@ -221,7 +219,7 @@ public final class Feedback {
       final Bits liveDocs = MultiFields.getLiveDocs(reader);
 
       while (randDocs > 0) {
-        final int docId = RandomValue.getInteger(0, maxRetDocs);
+        final int docId = RandomValue.getInteger(0, maxRetDocs - 1);
 
         // check if document is not already collected..
         if (!docIds.contains(docId)) {

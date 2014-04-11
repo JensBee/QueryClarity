@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.lucene.index;
+package de.unihildesheim.lucene;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
@@ -23,14 +23,18 @@ import org.apache.lucene.document.FieldType;
 /**
  * Based on https://stackoverflow.com/a/11963832
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public class VecTextField extends Field {
 
-  /* Indexed, tokenized, not stored. */
+  /**
+   * Indexed, tokenized, not stored.
+   */
   public static final FieldType TYPE_NOT_STORED = new FieldType();
 
-  /* Indexed, tokenized, stored. */
+  /**
+   * Indexed, tokenized, stored.
+   */
   public static final FieldType TYPE_STORED = new FieldType();
 
   static {
@@ -50,6 +54,10 @@ public class VecTextField extends Field {
 
   /**
    * Creates a new TextField with String value.
+   *
+   * @param name Fields name
+   * @param value Value
+   * @param store Storage configuration
    */
   public VecTextField(final String name, final String value, final Store store) {
     super(name, value, store == Store.YES ? TYPE_STORED : TYPE_NOT_STORED);

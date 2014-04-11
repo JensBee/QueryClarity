@@ -16,11 +16,12 @@
  */
 package de.unihildesheim.lucene.scoring.clarity.impl;
 
-import de.unihildesheim.lucene.Environment;
+import de.unihildesheim.ByteArray;
+import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.metrics.CollectionMetrics;
 import de.unihildesheim.lucene.query.QueryUtils;
 import de.unihildesheim.lucene.scoring.clarity.ClarityScoreCalculation;
-import de.unihildesheim.lucene.util.BytesWrap;
+import de.unihildesheim.util.Configuration;
 import de.unihildesheim.util.TimeMeasure;
 import java.io.UnsupportedEncodingException;
 import java.util.Collection;
@@ -38,8 +39,6 @@ import org.slf4j.LoggerFactory;
  * Alberto Apostolico and Massimo Melucci, 43–54. Lecture Notes in Computer
  * Science 3246. Springer Berlin Heidelberg, 2004.
  * http://link.springer.com/chapter/10.1007/978-3-540-30213-1_5.
- *
- * @author Jens Bertram <code@jens-bertram.net>
  */
 public final class SimplifiedClarityScore implements ClarityScoreCalculation {
 
@@ -58,27 +57,43 @@ public final class SimplifiedClarityScore implements ClarityScoreCalculation {
   }
 
   /**
+   * Constructor to satisfy automatic instantiation. No configuration is
+   * actually used.
+   *
+   * @param conf Configuration (ignored)
+   */
+  public SimplifiedClarityScore(final Configuration conf) {
+    this();
+  }
+
+  @Override
+  public final SimplifiedClarityScore setConfiguration(
+          final Configuration conf) {
+    return this;
+  }
+
+  /**
    * Calculate the Simplified Clarity Score for the given query terms.
    *
    * @param queryTerms Query terms to use for calculation
    * @return The calculated score
    */
-  private double calculateScore(final Collection<BytesWrap> queryTerms) {
+  private double calculateScore(final Collection<ByteArray> queryTerms) {
     // length of the (rewritten) query
     final int queryLength = queryTerms.size();
     // number of unique terms in collection
-    final double collTermCount = Long.valueOf(Environment.getDataProvider().
-            getUniqueTermsCount()).doubleValue();
+    final double collTermCount = CollectionMetrics.numberOfUniqueTerms().
+            doubleValue();
 
     double result = 0d;
 
     // calculate max likelyhood of the query model for each term in the query
     // iterate over all query terms
-    for (BytesWrap queryTerm : queryTerms) {
+    for (ByteArray queryTerm : queryTerms) {
       // number of times a query term appears in the query
       int termCount = 0;
       // count the number of occurences
-      for (BytesWrap aTerm : queryTerms) {
+      for (ByteArray aTerm : queryTerms) {
         if (aTerm.equals(queryTerm)) {
           termCount++;
         }
@@ -103,7 +118,7 @@ public final class SimplifiedClarityScore implements ClarityScoreCalculation {
     }
 
     // pre-check query terms
-    final Collection<BytesWrap> queryTerms;
+    final Collection<ByteArray> queryTerms;
     try {
       // get all query terms - list must NOT be unique!
       queryTerms = QueryUtils.getAllQueryTerms(query);
@@ -123,7 +138,7 @@ public final class SimplifiedClarityScore implements ClarityScoreCalculation {
     LOG.debug("Calculation results: query={} score={}.", query, score);
 
     LOG.debug("Calculating simplified clarity score for query {} "
-            + "took {}.", query, timeMeasure.getTimeString());
+            + "took {}. {}", query, timeMeasure.getTimeString(), score);
 
     return new ClarityScoreResult(this.getClass(), score);
   }

@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * modified while being used as source, the behavior is undefined.
  *
  * @param <T> Type of the collections elements
+ 
  */
 public final class CollectionSource<T> extends Source<T> {
 
@@ -36,7 +37,7 @@ public final class CollectionSource<T> extends Source<T> {
   /**
    * Iterator over the wrapped source.
    */
-  private volatile Iterator<T> itemsIt;
+  private volatile Iterator<T> itemsIt = null;
   /**
    * Number of provided items.
    */
@@ -54,11 +55,10 @@ public final class CollectionSource<T> extends Source<T> {
   }
 
   @Override
-  public synchronized T next() throws ProcessingException,
-          InterruptedException {
-    if (itemsIt.hasNext()) {
+  public synchronized T next() throws ProcessingException, InterruptedException {
+    if (this.itemsIt != null && this.itemsIt.hasNext()) {
       this.sourcedItemCount.incrementAndGet();
-      return itemsIt.next();
+      return this.itemsIt.next();
     }
     stop();
     return null;

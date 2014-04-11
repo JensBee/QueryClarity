@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Test for {@link Processing}.
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public class ProcessingTest {
 
@@ -153,7 +153,7 @@ public class ProcessingTest {
     instance.setSourceAndTarget(newTarget);
 
     long amount = instance.debugTestSource();
-    assertEquals((long) collSize, amount);
+    assertEquals(collSize, amount);
   }
 
   /**

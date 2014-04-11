@@ -16,21 +16,28 @@
  */
 package de.unihildesheim.lucene.query;
 
+import de.unihildesheim.ByteArray;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.index.IndexDataProvider;
-import de.unihildesheim.lucene.index.TestIndex;
+import de.unihildesheim.lucene.index.TestIndexDataProvider;
+import de.unihildesheim.util.ByteArrayUtil;
+import de.unihildesheim.util.RandomValue;
 import de.unihildesheim.util.StringUtils;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Weight;
+import org.junit.After;
 import org.junit.AfterClass;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import static org.junit.Assert.*;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
@@ -39,7 +46,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Test for {@link SimpleTermsQuery}.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ *
  */
 @RunWith(Parameterized.class)
 public final class SimpleTermsQueryTest extends MultiIndexDataProviderTestCase {
@@ -57,8 +64,9 @@ public final class SimpleTermsQueryTest extends MultiIndexDataProviderTestCase {
    */
   @BeforeClass
   public static void setUpClass() throws Exception {
-    index = new TestIndex(TestIndex.IndexSize.SMALL);
-    assertTrue("TestIndex is not initialized.", TestIndex.test_isInitialized());
+    index = new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL);
+    assertTrue("TestIndex is not initialized.", TestIndexDataProvider.
+            isInitialized());
   }
 
   /**
@@ -80,25 +88,49 @@ public final class SimpleTermsQueryTest extends MultiIndexDataProviderTestCase {
     caseSetUp();
   }
 
+  @After
+  public void tearDown() throws Exception {
+  }
+
   /**
    * Use all {@link IndexDataProvider}s for testing.
    *
-   * @return
+   * @return Parameter collection
    */
   @Parameterized.Parameters
   public static Collection<Object[]> data() {
     return getCaseParameters();
   }
 
+  /**
+   * Setup test using a defined {@link IndexDataProvider}.
+   *
+   * @param dataProv Data provider to use
+   * @param rType Data provider configuration
+   */
   public SimpleTermsQueryTest(
-          final Class<? extends IndexDataProvider> dataProv) {
-    super(dataProv);
+          final Class<? extends IndexDataProvider> dataProv,
+          final MultiIndexDataProviderTestCase.RunType rType) {
+    super(dataProv, rType);
   }
 
+  /**
+   * Get an instance with random query string
+   *
+   * @return Instance with a random query string set
+   * @throws Exception Any exception thrown indicates an error
+   */
   private SimpleTermsQuery getInstance() throws Exception {
     return getInstance(index.getQueryString());
   }
 
+  /**
+   * Get an instance with the given query string set
+   *
+   * @param query Query string
+   * @return Instance with the given query string set
+   * @throws Exception Any exception thrown indicates an error
+   */
   private SimpleTermsQuery getInstance(final String query) throws Exception {
     return new SimpleTermsQuery(query, SimpleTermsQuery.DEFAULT_OPERATOR,
             Environment.getFields(), Environment.getStopwords());
@@ -110,23 +142,23 @@ public final class SimpleTermsQueryTest extends MultiIndexDataProviderTestCase {
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
+  @SuppressWarnings("ResultOfObjectAllocationIgnored")
   public void testConstructor() throws Exception {
     LOG.info("Test constructor");
-    SimpleTermsQuery instance;
     try {
-      instance = new SimpleTermsQuery(" ", SimpleTermsQuery.DEFAULT_OPERATOR,
+      new SimpleTermsQuery(" ", SimpleTermsQuery.DEFAULT_OPERATOR,
               Environment.getFields(), Environment.getStopwords());
       fail("Expected exception: Empty query string.");
     } catch (IllegalArgumentException ex) {
     }
     try {
-      instance = new SimpleTermsQuery(null, SimpleTermsQuery.DEFAULT_OPERATOR,
+      new SimpleTermsQuery(null, SimpleTermsQuery.DEFAULT_OPERATOR,
               Environment.getFields(), Environment.getStopwords());
       fail("Expected exception: Empty query string (null).");
     } catch (IllegalArgumentException ex) {
     }
     try {
-      instance = new SimpleTermsQuery("", SimpleTermsQuery.DEFAULT_OPERATOR,
+      new SimpleTermsQuery("", SimpleTermsQuery.DEFAULT_OPERATOR,
               Environment.getFields(), Environment.getStopwords());
       fail("Expected exception: Empty query string.");
     } catch (IllegalArgumentException ex) {
@@ -161,34 +193,6 @@ public final class SimpleTermsQueryTest extends MultiIndexDataProviderTestCase {
   }
 
   /**
-   * Test of wordsChanged method, of class SimpleTermQuery.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testWordsChanged() throws Exception {
-    LOG.info("Test wordsChanged");
-    final Collection<String> oldWords = new ArrayList<>(Environment.
-            getStopwords());
-
-    SimpleTermsQuery instance;
-    final String queryStr = index.getQueryString();
-    instance = getInstance(queryStr);
-    final String preFilter = instance.toString();
-
-    final List<String> qTerms
-            = new ArrayList<>(StringUtils.split(queryStr, " "));
-    final List<String> stopWords = new ArrayList<>(1);
-    stopWords.add(qTerms.get(0));
-    Environment.setStopwords(stopWords);
-    instance = getInstance(queryStr);
-    final String postFilter = instance.toString();
-
-    assertNotEquals("Pre- and post-filtered queries should not be the same.",
-            preFilter, postFilter);
-  }
-
-  /**
    * Test of createWeight method, of class SimpleTermQuery.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
@@ -201,6 +205,50 @@ public final class SimpleTermsQueryTest extends MultiIndexDataProviderTestCase {
     final SimpleTermsQuery instance = getInstance();
     Weight result = instance.createWeight(searcher);
     LOG.debug("W: {}", result);
+  }
+
+  /**
+   * Test of getQueryObj method, of class SimpleTermsQuery.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public void testGetQueryObj() throws Exception {
+    LOG.info("Test getQueryObj");
+    final String queryStr = index.getQueryString();
+    final SimpleTermsQuery instance = getInstance(queryStr);
+    final Collection<String> result = instance.getQueryTerms();
+    final Collection<ByteArray> exp = QueryUtils.getAllQueryTerms(queryStr);
+    final Collection<String> expResult = new ArrayList<>(exp.size());
+    for (ByteArray ba : exp) {
+      expResult.add(ByteArrayUtil.utf8ToString(ba));
+    }
+
+    assertEquals("Term count differs.", expResult.size(), result.size());
+    assertTrue("Not all terms present.", expResult.containsAll(result));
+  }
+
+  /**
+   * Test of getQueryTerms method, of class SimpleTermsQuery.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public void testGetQueryTerms() throws Exception {
+    LOG.info("Test getQueryTerms");
+    final int termsCount = RandomValue.getInteger(3, 100);
+    final List<String> terms = new ArrayList<>(termsCount);
+
+    for (int i = 0; i < termsCount; i++) {
+      final String term = RandomValue.getString(1, 15);
+      terms.add(term);
+    }
+    SimpleTermsQuery instance = getInstance(StringUtils.join(terms, " "));
+
+    assertEquals("Not all terms returned.", terms.size(), instance.
+            getQueryTerms().size());
+    assertTrue("Not all terms in result set.", instance.getQueryTerms().
+            containsAll(terms));
   }
 
 }

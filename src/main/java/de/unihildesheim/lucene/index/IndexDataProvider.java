@@ -16,8 +16,9 @@
  */
 package de.unihildesheim.lucene.index;
 
+import de.unihildesheim.ByteArray;
 import de.unihildesheim.lucene.document.DocumentModel;
-import de.unihildesheim.lucene.util.BytesWrap;
+import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.util.concurrent.processing.Source;
 import java.util.Collection;
 import java.util.Iterator;
@@ -34,7 +35,7 @@ import java.util.Map;
  * Also, any restriction to a subset of index fields must be applied by the
  * implementing class as they are no enforced.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public interface IndexDataProvider {
 
@@ -58,7 +59,7 @@ public interface IndexDataProvider {
    * @return The frequency of the term in the index, or <tt>null</tt> if none
    * was stored
    */
-  Long getTermFrequency(final BytesWrap term);
+  Long getTermFrequency(final ByteArray term);
 
   /**
    * Get the document frequency of a single term in the index.
@@ -66,7 +67,7 @@ public interface IndexDataProvider {
    * @param term Term to lookup
    * @return The frequency of the term in the index
    */
-  int getDocumentFrequency(final BytesWrap term);
+  int getDocumentFrequency(final ByteArray term);
 
   /**
    * Get the relative term frequency for a term in the index.
@@ -74,7 +75,7 @@ public interface IndexDataProvider {
    * @param term Term to lookup
    * @return Relative term frequency for the given term
    */
-  double getRelativeTermFrequency(final BytesWrap term);
+  double getRelativeTermFrequency(final ByteArray term);
 
   /**
    * Close this instance. This is meant for handling cleanups after using this
@@ -87,14 +88,14 @@ public interface IndexDataProvider {
    *
    * @return Unique terms iterator
    */
-  Iterator<BytesWrap> getTermsIterator();
+  Iterator<ByteArray> getTermsIterator();
 
   /**
    * Get a {@link ProcessPipe.Source} providing all known terms.
    *
    * @return {@link ProcessPipe.Source} providing all known terms
    */
-  Source<BytesWrap> getTermsSource();
+  Source<ByteArray> getTermsSource();
 
   /**
    * Get an iterator over all known document-ids.
@@ -122,8 +123,7 @@ public interface IndexDataProvider {
    * given prefix.
    * <p>
    * A prefix must be registered before any call to
-   * {@link #setTermData(String, int, BytesWrap, String, Object)} or
-   * {@link #getTermData(String, int, BytesWrap, String) can be made.
+   * <tt>setTermData()</tt> or <tt>getTermData()</tt> can be made.
    *
    * @param prefix Prefix name to register
    */
@@ -143,7 +143,7 @@ public interface IndexDataProvider {
    * @return Any previously set value or null, if there was none
    */
   Object setTermData(final String prefix, final int documentId,
-          final BytesWrap term, final String key, final Object value);
+          final ByteArray term, final String key, final Object value);
 
   /**
    * Get enhanced data stored with a prefix (to distinguish data types) for a
@@ -157,7 +157,7 @@ public interface IndexDataProvider {
    * none
    */
   Object getTermData(final String prefix, final int documentId,
-          final BytesWrap term, final String key);
+          final ByteArray term, final String key);
 
   /**
    * Get all term-data stored under a given prefix, document-id and key.
@@ -167,7 +167,7 @@ public interface IndexDataProvider {
    * @param key Key to identify the data
    * @return Mapping of all stored data
    */
-  Map<BytesWrap, Object> getTermData(final String prefix,
+  Map<ByteArray, Object> getTermData(final String prefix,
           final int documentId, final String key);
 
   /**
@@ -197,7 +197,7 @@ public interface IndexDataProvider {
    * @param docIds List of document ids to extract terms from
    * @return List of terms from all documents
    */
-  Collection<BytesWrap> getDocumentsTermSet(final Collection<Integer> docIds);
+  Collection<ByteArray> getDocumentsTermSet(final Collection<Integer> docIds);
 
   /**
    * Get the number of all Documents (models) known to this instance.
@@ -213,5 +213,17 @@ public interface IndexDataProvider {
    * @param term Term to lookup
    * @return True, if it contains the term, false otherwise
    */
-  boolean documentContains(final int documentId, final BytesWrap term);
+  boolean documentContains(final int documentId, final ByteArray term);
+
+  /**
+   * Test accessor: get stopwords.
+   * @return List of stopwords currently set
+   */
+  Collection<String> testGetStopwords();
+
+  /**
+   * Test accessor: get fields.
+   * @return List of fields currently set
+   */
+  Collection<String> testGetFieldNames();
 }

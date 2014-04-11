@@ -28,7 +28,7 @@ import org.apache.lucene.queryparser.classic.QueryParser;
  * {@link Environment} to validate some data. Further the {@link Environment}
  * may be used to get default values for some query parameters.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public final class TermsQueryBuilder {
 

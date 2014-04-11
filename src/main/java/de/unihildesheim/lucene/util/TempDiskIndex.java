@@ -14,13 +14,13 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.lucene.index;
+package de.unihildesheim.lucene.util;
 
 import de.unihildesheim.lucene.LuceneDefaults;
+import de.unihildesheim.lucene.VecTextField;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -40,7 +40,7 @@ import org.slf4j.LoggerFactory;
  * Testing index that keeps all data temporary on disk and provides utility
  * functions to test data retrieval.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public final class TempDiskIndex {
 
@@ -53,7 +53,7 @@ public final class TempDiskIndex {
   /**
    * Lucene index.
    */
-  private final Directory index;
+  final Directory index;
 
   /**
    * File directory of the index.
@@ -68,12 +68,12 @@ public final class TempDiskIndex {
   /**
    * Writer for the temporary index.
    */
-  private final IndexWriter writer;
+  final IndexWriter writer;
 
   /**
    * Shutdown handler closing the index.
    */
-  private Thread shutdowHandler = new Thread(new Runnable() {
+  private final Thread shutdowHandler = new Thread(new Runnable() {
     @Override
     public void run() {
       try {
@@ -146,6 +146,10 @@ public final class TempDiskIndex {
     return DirectoryReader.open(this.index);
   }
 
+  /**
+   * Commit all pending data.
+   * @throws IOException Thrown on low-level I/O errors
+   */
   public void flush() throws IOException {
     this.writer.commit();
   }

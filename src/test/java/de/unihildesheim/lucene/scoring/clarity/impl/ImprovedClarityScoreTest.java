@@ -16,29 +16,29 @@
  */
 package de.unihildesheim.lucene.scoring.clarity.impl;
 
+import de.unihildesheim.ByteArray;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.Feedback;
 import de.unihildesheim.lucene.index.IndexDataProvider;
-import de.unihildesheim.lucene.index.TestIndex;
+import de.unihildesheim.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.lucene.metrics.CollectionMetrics;
 import de.unihildesheim.lucene.metrics.DocumentMetrics;
 import de.unihildesheim.lucene.query.QueryUtils;
 import de.unihildesheim.lucene.query.TermsQueryBuilder;
-import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.MathUtils;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.Query;
-import org.junit.After;
 import org.junit.AfterClass;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import static org.junit.Assert.*;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
@@ -46,11 +46,10 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Test for {@link ImprovedClarityScore}.
- *
- * @author Jens Bertram <code@jens-bertram.net>
  */
 @RunWith(Parameterized.class)
-public class ImprovedClarityScoreTest extends MultiIndexDataProviderTestCase {
+public final class ImprovedClarityScoreTest
+        extends MultiIndexDataProviderTestCase {
 
   /**
    * Logger instance for this class.
@@ -61,7 +60,7 @@ public class ImprovedClarityScoreTest extends MultiIndexDataProviderTestCase {
   /**
    * Delta allowed in clarity score calculation.
    */
-  private static final double ALLOWED_SCORE_DELTA = 0.00005;
+  private static final double ALLOWED_SCORE_DELTA = 0.00009;
 
   /**
    * Static initializer run before all tests.
@@ -70,8 +69,9 @@ public class ImprovedClarityScoreTest extends MultiIndexDataProviderTestCase {
    */
   @BeforeClass
   public static void setUpClass() throws Exception {
-    index = new TestIndex(TestIndex.IndexSize.SMALL);
-    assertTrue("TestIndex is not initialized.", TestIndex.test_isInitialized());
+    index = new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL);
+    assertTrue("TestIndex is not initialized.", TestIndexDataProvider.
+            isInitialized());
   }
 
   /**
@@ -93,22 +93,30 @@ public class ImprovedClarityScoreTest extends MultiIndexDataProviderTestCase {
     caseSetUp();
   }
 
-  @After
-  public void tearDown() throws Exception {
-  }
-
+  /**
+   * Use all {@link IndexDataProvider}s for testing.
+   *
+   * @return Parameter collection
+   */
   @Parameterized.Parameters
   public static Collection<Object[]> data() {
     return getCaseParameters();
   }
 
+  /**
+   * Setup test using a defined {@link IndexDataProvider}.
+   *
+   * @param dataProv Data provider to use
+   * @param rType Data provider configuration
+   */
   public ImprovedClarityScoreTest(
-          final Class<? extends IndexDataProvider> dataProv) {
-    super(dataProv);
+          final Class<? extends IndexDataProvider> dataProv,
+          final MultiIndexDataProviderTestCase.RunType rType) {
+    super(dataProv, rType);
   }
 
   /**
-   * Calculate the document model
+   * Calculate the document model.
    *
    * @param conf Configuration
    * @param docId Document-id
@@ -116,13 +124,12 @@ public class ImprovedClarityScoreTest extends MultiIndexDataProviderTestCase {
    * @return Document model value
    */
   private double calc_pdt(final ImprovedClarityScoreConfiguration conf,
-          final int docId, final BytesWrap term) {
+          final int docId, final ByteArray term) {
     final double smoothing = conf.getDocumentModelSmoothingParameter();
     final double lambda = conf.getDocumentModelParamLambda();
     final double beta = conf.getDocumentModelParamBeta();
 
-    final DocumentModel docModel = Environment.getDataProvider().
-            getDocumentModel(docId);
+    final DocumentModel docModel = DocumentMetrics.getModel(docId);
     final double termFreq = docModel.metrics().tf(term);
     final double relCollFreq = CollectionMetrics.relTf(term);
 
@@ -148,12 +155,12 @@ public class ImprovedClarityScoreTest extends MultiIndexDataProviderTestCase {
    * @return Query model value
    */
   private double calc_pqt(final ImprovedClarityScoreConfiguration conf,
-          final BytesWrap term, final Collection<Integer> fbDocIds,
-          final Collection<BytesWrap> queryTerms) {
+          final ByteArray term, final Collection<Integer> fbDocIds,
+          final Collection<ByteArray> queryTerms) {
     double model = 0;
     for (Integer fbDocId : fbDocIds) {
       double aModel = calc_pdt(conf, fbDocId, term);
-      for (BytesWrap qTerm : queryTerms) {
+      for (ByteArray qTerm : queryTerms) {
         aModel *= calc_pdt(conf, fbDocId, qTerm);
       }
       model += aModel;
@@ -203,17 +210,17 @@ public class ImprovedClarityScoreTest extends MultiIndexDataProviderTestCase {
     }
 
     // extract terms from feedback documents
-    final Collection<BytesWrap> fbTerms = Environment.getDataProvider().
+    final Collection<ByteArray> fbTerms = Environment.getDataProvider().
             getDocumentsTermSet(feedbackDocIds);
 
     // get document frequency threshold
     int minDf = (int) (CollectionMetrics.numberOfDocuments()
             * conf.getFeedbackTermSelectionThreshold());
-    final Iterator<BytesWrap> fbTermsIt = fbTerms.iterator();
+    final Iterator<ByteArray> fbTermsIt = fbTerms.iterator();
 
     // remove terms with lower than threshold df
     while (fbTermsIt.hasNext()) {
-      final BytesWrap term = fbTermsIt.next();
+      final ByteArray term = fbTermsIt.next();
       if (CollectionMetrics.df(term) < minDf) {
         fbTermsIt.remove();
       }
@@ -225,15 +232,13 @@ public class ImprovedClarityScoreTest extends MultiIndexDataProviderTestCase {
             getFeedbackTerms()));
 
     double score = 0;
-    final Collection<BytesWrap> qTerms = QueryUtils.getAllQueryTerms(query);
-    for (BytesWrap fbTerm : fbTerms) {
+    final Collection<ByteArray> qTerms = QueryUtils.getAllQueryTerms(query);
+    for (ByteArray fbTerm : fbTerms) {
       final double pqt = calc_pqt(conf, fbTerm, feedbackDocIds, qTerms);
-      score += pqt * MathUtils.log2(pqt / CollectionMetrics.relTf(fbTerm).
-              doubleValue());
+      score += pqt * MathUtils.log2(pqt / CollectionMetrics.relTf(fbTerm));
     }
 
     LOG.debug("Scores test={} ics={}", score, result.getScore());
     assertEquals(score, result.getScore(), ALLOWED_SCORE_DELTA);
   }
-
 }

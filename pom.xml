@@ -11,10 +11,12 @@
   <url>http://maven.apache.org</url>
 
   <repositories>
+    <!-- Currently build locally
     <repository>
       <id>sonatype-nexus-snapshots</id>
       <url>https://oss.sonatype.org/content/repositories/snapshots</url>
     </repository>
+    -->
   </repositories>
 
   <properties>
@@ -23,6 +25,7 @@
 
   <build>
     <plugins>
+      <!--
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>cobertura-maven-plugin</artifactId>
@@ -41,10 +44,11 @@
           </execution>
         </executions>
       </plugin>
+      -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>2.3.2</version>
+        <version>3.1</version>
         <configuration>
           <source>1.7</source>
           <target>1.7</target>
@@ -54,23 +58,36 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>2.16</version>
+        <version>2.17</version>
       </plugin>
     </plugins>
   </build>
 
   <reporting>
     <plugins>
+      <!--
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>cobertura-maven-plugin</artifactId>
         <version>2.6</version>
       </plugin>
+      -->
+      <!--
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-report-plugin</artifactId>
-        <version>2.16</version>
+        <version>2.17</version>
       </plugin>
+      -->
+      <!--
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-checkstyle-plugin</artifactId>
+        <configuration>
+          <configLocation>config/sun_checks.xml</configLocation>
+        </configuration>
+      </plugin>
+      -->
     </plugins>
   </reporting>
 
@@ -91,11 +108,13 @@
       <artifactId>lucene-analyzers-common</artifactId>
       <version>4.7.0</version>
     </dependency>
-    <!--<dependency>
+    <!--
+    <dependency>
       <groupId>org.apache.lucene</groupId>
       <artifactId>lucene-highlighter</artifactId>
       <version>4.7.0</version>
-    </dependency>-->
+    </dependency>
+    -->
     <dependency>
       <groupId>org.apache.lucene</groupId>
       <artifactId>lucene-queryparser</artifactId>
@@ -109,8 +128,24 @@
     <dependency>
       <groupId>org.mapdb</groupId>
       <artifactId>mapdb</artifactId>
-      <version>0.9.11</version>
+      <version>1.0.0-SNAPSHOT</version>
     </dependency>
+    <dependency>
+      <groupId>org.ini4j</groupId>
+      <artifactId>ini4j</artifactId>
+      <version>0.5.2</version>
+    </dependency>
+    <dependency>
+      <groupId>args4j</groupId>
+      <artifactId>args4j</artifactId>
+      <version>2.0.26</version>
+    </dependency>
+    <dependency>
+      <groupId>com.googlecode.cliche</groupId>
+      <artifactId>cliche</artifactId>
+      <version>1.0-SNAPSHOT</version>
+    </dependency>
+    <!-- TEST dependencies -->
     <dependency>
       <groupId>com.google.code.findbugs</groupId>
       <artifactId>findbugs</artifactId>
@@ -127,11 +162,6 @@
       <artifactId>annotations</artifactId>
       <version>2.0.0</version>
       <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>com.googlecode.cliche</groupId>
-      <artifactId>cliche</artifactId>
-      <version>1.0-SNAPSHOT</version>
     </dependency>
   </dependencies>
 </project>

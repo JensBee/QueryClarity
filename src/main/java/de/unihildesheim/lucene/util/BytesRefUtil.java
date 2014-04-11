@@ -14,38 +14,33 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.util;
+package de.unihildesheim.lucene.util;
+
+import de.unihildesheim.ByteArray;
+import org.apache.lucene.util.BytesRef;
 
 /**
- * Collection of simple calculation utilities.
+ *
  
  */
-public final class MathUtils {
+public class BytesRefUtil {
 
   /**
    * Private empty constructor for utility class.
    */
-  private MathUtils() {
+  private BytesRefUtil() {
     // empty
   }
 
   /**
-   * Calculate log2 for a given value.
+   * Create a {@link ByteArray} by copying the bytes from the given
+   * {@link BytesRef}.
    *
-   * @param value Value to do the calculation for
-   * @return Log2 of the given value
+   * @param br {@link BytesRef} to copy from
+   * @return New {@link ByteArray} instance with bytes copied from the
+   * {@link BytesRef}
    */
-  public static double log2(final double value) {
-    return logN(2, value);
-  }
-
-  /**
-   * Calculate the log to a given base.
-   * @param base Base
-   * @param value Value
-   * @return Log of value to base
-   */
-  public static double logN(final double base, final double value) {
-    return Math.log(value) / Math.log(base);
+  public static ByteArray toByteArray(final BytesRef br) {
+    return new ByteArray(br.bytes, br.offset, br.length);
   }
 }

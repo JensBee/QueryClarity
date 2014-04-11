@@ -16,17 +16,17 @@
  */
 package de.unihildesheim.lucene.metrics;
 
+import de.unihildesheim.ByteArray;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.index.IndexDataProvider;
-import de.unihildesheim.lucene.util.BytesWrap;
 import de.unihildesheim.util.MathUtils;
-import de.unihildesheim.util.Tuple;
+import de.unihildesheim.Tuple;
 import java.util.Iterator;
 
 /**
  * Collection related metrics.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public final class CollectionMetrics {
 
@@ -43,11 +43,11 @@ public final class CollectionMetrics {
    *
    * @return Iterator providing <tt>term, index</tt> frequency value pairs
    */
-  public static Iterator<Tuple.Tuple2<BytesWrap, Long>> termFrequencyIterator() {
-    return new Iterator<Tuple.Tuple2<BytesWrap, Long>>() {
+  public static Iterator<Tuple.Tuple2<ByteArray, Long>> termFrequencyIterator() {
+    return new Iterator<Tuple.Tuple2<ByteArray, Long>>() {
 
       private final IndexDataProvider dataProv = Environment.getDataProvider();
-      private final Iterator<BytesWrap> idxTerms = dataProv.getTermsIterator();
+      private final Iterator<ByteArray> idxTerms = dataProv.getTermsIterator();
 
       @Override
       public boolean hasNext() {
@@ -55,8 +55,8 @@ public final class CollectionMetrics {
       }
 
       @Override
-      public Tuple.Tuple2<BytesWrap, Long> next() {
-        final BytesWrap term = idxTerms.next();
+      public Tuple.Tuple2<ByteArray, Long> next() {
+        final ByteArray term = idxTerms.next();
         return Tuple.tuple2(term, dataProv.getTermFrequency(term));
       }
 
@@ -66,6 +66,14 @@ public final class CollectionMetrics {
       }
 
     };
+  }
+
+  /**
+   * Get the number of unique terms in the index.
+   * @return Number of unique terms in index
+   */
+  public static Long numberOfUniqueTerms() {
+    return Environment.getDataProvider().getUniqueTermsCount();
   }
 
   /**
@@ -83,7 +91,7 @@ public final class CollectionMetrics {
    * @param term Term to lookup.
    * @return Document frequency of the given term
    */
-  public static Integer df(final BytesWrap term) {
+  public static Integer df(final ByteArray term) {
     return Environment.getDataProvider().getDocumentFrequency(term);
   }
 
@@ -102,7 +110,7 @@ public final class CollectionMetrics {
    * @param term Term to lookup
    * @return Collection frequency of the given term
    */
-  public static Long tf(final BytesWrap term) {
+  public static Long tf(final ByteArray term) {
     return Environment.getDataProvider().getTermFrequency(term);
   }
 
@@ -114,7 +122,7 @@ public final class CollectionMetrics {
    * @param term Term to lookup
    * @return Relative collection frequency of the given term
    */
-  public static Double relTf(final BytesWrap term) {
+  public static Double relTf(final ByteArray term) {
     return Environment.getDataProvider().getRelativeTermFrequency(term);
   }
 
@@ -125,7 +133,7 @@ public final class CollectionMetrics {
    * @param term Term to calculate
    * @return Inverse document frequency (log10)
    */
-  public static Double idf(final BytesWrap term) {
+  public static Double idf(final ByteArray term) {
     return idf(term, 10d);
   }
 
@@ -137,7 +145,7 @@ public final class CollectionMetrics {
    * @param logBase Logarithmic base
    * @return Inverse document frequency (logN)
    */
-  public static Double idf(final BytesWrap term, final double logBase) {
+  public static Double idf(final ByteArray term, final double logBase) {
     return MathUtils.logN(logBase, 1 + (numberOfDocuments() / df(term)));
   }
 
@@ -148,7 +156,7 @@ public final class CollectionMetrics {
    * @param term Term to calculate
    * @return Inverse document frequency BM25 (logN)
    */
-  public static Double idfBM25(final BytesWrap term) {
+  public static Double idfBM25(final ByteArray term) {
     return idfBM25(term, 10d);
   }
 
@@ -160,7 +168,7 @@ public final class CollectionMetrics {
    * @param logBase Logarithmic base
    * @return Inverse document frequency BM25 (logN)
    */
-  public static Double idfBM25(final BytesWrap term, final double logBase) {
+  public static Double idfBM25(final ByteArray term, final double logBase) {
     final int docFreq = df(term);
     return MathUtils.logN(logBase, (numberOfDocuments() - docFreq + 0.5)
             / (docFreq + 0.5));

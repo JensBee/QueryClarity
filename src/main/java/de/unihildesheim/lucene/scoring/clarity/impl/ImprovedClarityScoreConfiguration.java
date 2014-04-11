@@ -23,7 +23,7 @@ import java.util.Map;
 /**
  * Configuration for {@link ImprovedClarityScore}.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public final class ImprovedClarityScoreConfiguration extends Configuration {
 
@@ -70,7 +70,7 @@ public final class ImprovedClarityScoreConfiguration extends Configuration {
 
   // initialize defaults map
   static {
-    defaults = new HashMap<String, String>();
+    defaults = new HashMap<>(Keys.values().length);
     /**
      * Lambda value for calculating document models.
      * <p>

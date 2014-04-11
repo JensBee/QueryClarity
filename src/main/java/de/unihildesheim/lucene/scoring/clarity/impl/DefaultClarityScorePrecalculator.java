@@ -19,11 +19,9 @@ package de.unihildesheim.lucene.scoring.clarity.impl;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.metrics.CollectionMetrics;
+import de.unihildesheim.lucene.metrics.DocumentMetrics;
 import de.unihildesheim.util.concurrent.processing.Processing;
-import de.unihildesheim.util.concurrent.processing.ProcessingException;
-import de.unihildesheim.util.concurrent.processing.Source;
 import de.unihildesheim.util.concurrent.processing.Target;
-import java.io.IOException;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -31,7 +29,7 @@ import org.slf4j.LoggerFactory;
  * expensive in time, so this class makes heavy use of parallel calculations
  * to try to minimize th needed time.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ * @author Jens Bertram
  */
 public final class DefaultClarityScorePrecalculator {
 
@@ -71,47 +69,23 @@ public final class DefaultClarityScorePrecalculator {
   public void preCalculate() {
     LOG.info("Pre-calculating {} models.", CollectionMetrics.
             numberOfDocuments());
-    final Processing pPipe = new Processing(new DocumentModelCalculator(
-            Environment.getDataProvider().getDocumentIdSource()));
-    pPipe.process();
+    new Processing(
+            new Target.TargetFuncCall<>(
+                    Environment.getDataProvider().getDocumentIdSource(),
+                    new DocumentModelCalculatorTargetCall()
+            )).process();
   }
 
   /**
-   * {@link Processing.Target} creating document models.
+   * Function target for document model creation.
    */
-  private final class DocumentModelCalculator
-          extends Target<Integer> {
-
-    /**
-     * @param source {@link Source} for this {@link Target}
-     */
-    DocumentModelCalculator(final Source<Integer> source) {
-      super(source);
-    }
+  private final class DocumentModelCalculatorTargetCall extends
+          Target.TargetFunc<Integer> {
 
     @Override
-    public Target<Integer> newInstance() {
-      return new DocumentModelCalculator(getSource());
-    }
-
-    @Override
-    public void runProcess() throws IOException, ProcessingException,
-            InterruptedException {
-
-      while (!isTerminating()) {
-        Integer docId;
-        try {
-          docId = getSource().next();
-        } catch (ProcessingException.SourceHasFinishedException ex) {
-          break;
-        }
-
-        if (docId == null) {
-          continue;
-        }
-
-        DocumentModel docModel = Environment.getDataProvider()
-                .getDocumentModel(docId);
+    public void call(final Integer docId) {
+      if (docId != null) {
+        final DocumentModel docModel = DocumentMetrics.getModel(docId);
         if (docModel == null) {
           LOG.warn("({}) Model for document-id {} was null.", this.
                   getName(), docId);

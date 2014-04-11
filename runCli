@@ -1,0 +1,9 @@
+#!/bin/sh
+
+JVM="-Xms128m -Xmx2G"
+MAVEN_OPTS="$MAVEN_OPTS $JVM"
+
+CLASS=$1
+shift
+
+mvn exec:java -Dexec.mainClass="de.unihildesheim.lucene.cli.${CLASS}" -Dexec.args="$*"

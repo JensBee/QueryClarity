@@ -16,7 +16,6 @@
  */
 package de.unihildesheim.lucene.scoring.clarity;
 
-import de.unihildesheim.lucene.scoring.Scoring;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
@@ -24,14 +23,15 @@ import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModelException;
 import de.unihildesheim.lucene.index.DirectIndexDataProvider;
 import de.unihildesheim.lucene.index.IndexDataProvider;
+import de.unihildesheim.lucene.scoring.Scoring;
 import java.io.IOException;
-import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.search.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ * @author Jens Bertram
  */
 public final class Main {
 
@@ -62,13 +62,12 @@ public final class Main {
    * Private constructor for static main class.
    *
    * @throws IOException If index could not be read
-   * @throws org.apache.lucene.queryparser.classic.ParseException If the
-   * query could not be parsed
+   * @throws org.apache.lucene.queryparser.classic.ParseException If the query
+   * could not be parsed
    * @throws DocumentModelException If a requested document model needed for
    * calculation could not be created
    */
-  private void runMain() throws IOException, DocumentModelException,
-          ParseException {
+  private void runMain() throws Exception {
     LOG.debug("Starting");
 
     if (this.indexDir.isEmpty() || this.queryString.isEmpty()) {
@@ -79,22 +78,24 @@ public final class Main {
     // index field to operate on
     final String[] fields = new String[]{"text"};
 
+//    TestIndexDataProvider index = new TestIndexDataProvider(
+//            TestIndexDataProvider.IndexSize.LARGE);
+//    index.setupEnvironment(DirectIndexDataProvider.class);
     Environment env = new Environment(indexDir, dataDir, fields);
     final IndexDataProvider dataProv = new DirectIndexDataProvider();
     env.create(dataProv);
     dataProv.warmUp();
-
-    LOG.info("\n--- Default Clarity Score");
-    Scoring.newInstance(Scoring.ClarityScore.DEFAULT).calculateClarity(
-            queryString);
-    LOG.info("\n--- Simplified Clarity Score");
-    Scoring.newInstance(Scoring.ClarityScore.SIMPLIFIED).
-            calculateClarity(queryString);
+//    LOG.info("\n--- Default Clarity Score");
+//    Scoring.newInstance(Scoring.ClarityScore.DEFAULT).calculateClarity(
+//            queryString);
+//    LOG.info("\n--- Simplified Clarity Score");
+//    Scoring.newInstance(Scoring.ClarityScore.SIMPLIFIED).
+//            calculateClarity(queryString);
     LOG.info("\n--- Improved Clarity Score");
     Scoring.newInstance(Scoring.ClarityScore.IMPROVED).
             calculateClarity(queryString);
 
-    LOG.trace("Closing lucene index.");
+    LOG.info("Closing data provider & lucene index.");
     dataProv.dispose();
   }
 
@@ -111,8 +112,7 @@ public final class Main {
    * @throws DocumentModelException If a requested document model needed for
    * calculation could not be created
    */
-  public static void main(final String[] args) throws IOException,
-          DocumentModelException, ParseException {
+  public static void main(final String[] args) throws Exception {
     final Main main = new Main();
     final JCommander jc = new JCommander(main);
     try {
@@ -123,5 +123,7 @@ public final class Main {
       System.exit(1);
     }
     main.runMain();
+    LOG.debug("FIN");
+    System.exit(0);
   }
 }

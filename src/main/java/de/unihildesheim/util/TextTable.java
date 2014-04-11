@@ -22,7 +22,7 @@ import java.io.PrintStream;
  * Utility class to create simple ASCII tables outputted to a
  * {@link PrintStream}.
  *
- * @author Jens Bertram <code@jens-bertram.net>
+ 
  */
 public final class TextTable {
 
@@ -33,7 +33,7 @@ public final class TextTable {
   /**
    * Global cell with definition.
    */
-  private int[] cells;
+  private int[] cells = new int[0];
   /**
    * Flag indicating, if the global cells have been set.
    */
@@ -146,6 +146,8 @@ public final class TextTable {
    *
    * @param newCells Cells specified by their width
    */
+  @SuppressWarnings({"ConfusingArrayVararg",
+    "PrimitiveArrayArgumentToVariableArgMethod"})
   public void hLine(final int... newCells) {
     hLine(true, newCells);
   }
@@ -153,6 +155,8 @@ public final class TextTable {
   /**
    * Same as {@link #hLine(int...)}, but uses the globally specified cells.
    */
+  @SuppressWarnings({"ConfusingArrayVararg",
+    "PrimitiveArrayArgumentToVariableArgMethod"})
   public void hLine() {
     hasCells();
     hLine(true, this.cells);
@@ -221,6 +225,8 @@ public final class TextTable {
    * @param newCells Cells of the table
    */
   private void printHeader(final String title, final int... newCells) {
+    @SuppressWarnings({"ConfusingArrayVararg",
+      "PrimitiveArrayArgumentToVariableArgMethod"})
     int width = getCellsWidth(newCells);
     // fix spacing introduced by vertical lines
     if (newCells.length > 3) {
@@ -235,6 +241,8 @@ public final class TextTable {
    * @param title Title of the table
    * @param newCells Cell widths
    */
+  @SuppressWarnings({"ConfusingArrayVararg",
+    "PrimitiveArrayArgumentToVariableArgMethod"})
   public void header(final String title, final int... newCells) {
     hLine(false, newCells);
     printHeader(title, newCells);
@@ -247,6 +255,8 @@ public final class TextTable {
    *
    * @param title Title of the table
    */
+  @SuppressWarnings({"ConfusingArrayVararg",
+    "PrimitiveArrayArgumentToVariableArgMethod"})
   public void header(final String title) {
     hasCells();
     header(title, this.cells);
@@ -259,6 +269,8 @@ public final class TextTable {
    * @param columns Column titles
    * @param cellWidths Cell widths
    */
+  @SuppressWarnings({"ConfusingArrayVararg",
+    "PrimitiveArrayArgumentToVariableArgMethod"})
   public void header(final String title, final String[] columns,
           final int[] cellWidths) {
     hLine(false, cellWidths);
