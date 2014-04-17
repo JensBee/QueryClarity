@@ -25,7 +25,6 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -33,7 +32,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
@@ -50,7 +48,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Global environment for calculations.
  *
- *
+ * @author Jens Bertram
  */
 public final class Environment {
 
@@ -81,12 +79,12 @@ public final class Environment {
   /**
    * Flag indicating, if the environment is initialized.
    */
-  private static Environment instance = null;
+  private static boolean initialized;
 
   /**
    * Lucene index fields to use by DataProviders.
    */
-  private static String[] fields;
+  private static String[] fields = null;
 
   /**
    * Properties persistent stored.
@@ -94,21 +92,9 @@ public final class Environment {
   private static final Properties PROP_STORE = new Properties();
 
   /**
-   * Initial number of listeners expected.
-   */
-  private static final int DEFAULT_LISTENERS_SIZE = 5;
-
-  /**
    * Last commit generation of the index. Used to validate the cached data.
    */
   private static long indexGeneration;
-
-  /**
-   * Listeners looking for changes to document fields. Directly initialized to
-   * allow adding of listeners prior to environment initialization.
-   */
-  private static Collection<EnvironmentEventListener> eventListeners
-          = new HashSet<>(DEFAULT_LISTENERS_SIZE);
 
   /**
    * Default initial size of the stop-words list.
@@ -118,7 +104,7 @@ public final class Environment {
   /**
    * List of stop-words to use.
    */
-  private static Collection<String> stopWords = new HashSet<>(
+  private static final Collection<String> STOPWORDS = new HashSet<>(
           DEFAULT_STOPWORDS_SIZE);
 
   /**
@@ -131,6 +117,10 @@ public final class Environment {
    */
   private static boolean isTestRun = false;
 
+  /**
+   * Types of events fired by the {@link Environment}.
+   */
+  @SuppressWarnings("PublicInnerClass")
   public enum EventType {
 
     /**
@@ -196,44 +186,54 @@ public final class Environment {
   }
 
   /**
-   * Initialize a default environment. All document fields in the index will
-   * be used for searching. Any fields set prior to calling the constructor
-   * get overwritten.
+   * Create the {@link Environment}.
    *
-   * @param newIndexPath Path where the Lucene index resides
-   * @param newDataPath Path where application data is stored
-   * @throws java.io.IOException Thrown on low-level I/O errors
+   * @param iPath Index path
+   * @param dPath Data path
+   * @param isTest If true, testing flag is set
+   * @param newFields Index fields to use
+   * @param stopwords Stopwords to use
+   * @throws IOException Thrown on low-level I7O errors
    */
-  public Environment(final String newIndexPath, final String newDataPath)
-          throws IOException {
-    this(newIndexPath, newDataPath, null);
-  }
+  private static void create(final String iPath,
+          final String dPath, final boolean isTest,
+          final String[] newFields, final Collection<String> stopwords) throws
+          IOException {
+    Environment.dataPath = dPath;
+    Environment.indexPath = iPath;
+    Environment.isTestRun = isTest;
+    Environment.fields = newFields.clone();
 
-  /**
-   * Initialize the environment. Only the passed list of document fields will
-   * be used for searching. Any fields set prior to calling the constructor
-   * get overwritten.
-   *
-   * @param newIndexPath Path where the Lucene index resides
-   * @param newDataPath Path where application data is stored
-   * @param newFields Document fields to use for searching
-   * @throws IOException Thrown on low-level I/O errors
-   */
-  public Environment(final String newIndexPath, final String newDataPath,
-          final String[] newFields) throws IOException {
-    if (instance != null) {
-      throw new IllegalStateException("Environment already initialized.");
+    setStopwords(stopwords);
+
+    loadProperties();
+
+    try {
+      Runtime.getRuntime().addShutdownHook(Environment.EXIT_HANDLER);
+    } catch (IllegalArgumentException ex) {
+      // already registered, or shutdown is currently happening
     }
-
-    Environment.dataPath = newDataPath;
-    Environment.indexPath = newIndexPath;
-
-    // check, if given pathes are valid
-    checkPathes();
 
     Environment.indexReader = openReader(new File(Environment.indexPath));
 
-    if (newFields == null) {
+    Environment.initialized = true;
+
+    LOG.info("Index Path: {}", iPath);
+    LOG.info("Data Path: {}", dPath);
+  }
+
+  /**
+   * Sets the {@link IndexDataProvider} to use. This should normally be done
+   * after the {@link Environment} is created.
+   *
+   * @param idp {@link IndexDataProvider} to use
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  private static void setDataProvider(final IndexDataProvider idp) throws
+          IOException {
+    Environment.dataProvider = idp;
+
+    if (Environment.fields == null) {
       // use all index fields
       final Fields idxFields = MultiFields.getFields(Environment.indexReader);
       final Iterator<String> idxFieldNamesIt = idxFields.iterator();
@@ -244,19 +244,12 @@ public final class Environment {
       setFields(idxFieldNames.toArray(new String[idxFieldNames.
               size()]));
     } else {
-      IndexUtils.checkFields(newFields);
-      setFields(newFields);
+      IndexUtils.checkFields(Environment.fields);
+      setFields(Environment.fields);
     }
 
-    setStopwords(Collections.<String>emptyList(), false);
-
-    loadProperties();
-
-    try {
-      Runtime.getRuntime().addShutdownHook(Environment.EXIT_HANDLER);
-    } catch (IllegalArgumentException ex) {
-      // already registered, or shutdown is currently happening
-    }
+    LOG.info("DataProvider: {}", Environment.dataProvider.getClass().
+            getCanonicalName());
   }
 
   /**
@@ -274,76 +267,19 @@ public final class Environment {
   }
 
   /**
-   * Add a listener to get notified for changes to the environment.
-   *
-   * @param listener Listener to add
-   * @return True, if the listener was added
-   */
-  public static boolean addEventListener(
-          final EnvironmentEventListener listener) {
-    return eventListeners.add(listener);
-  }
-
-  /**
-   * Remove a listener to get notified for changes to the environment.
-   *
-   * @param listener Listener to remove
-   * @return True, if the listener was removed
-   */
-  public static boolean removeEventListener(
-          final EnvironmentEventListener listener) {
-    return eventListeners.remove(listener);
-  }
-
-  /**
-   * Set the index document fields that get searched and the index document
-   * fields that get searched in one step.
-   *
-   * @param newFields List of fields to use for searching
-   * @param words List of stop-words
-   */
-  public static void setFieldsAndWords(final String[] newFields,
-          final Collection<String> words) {
-    setFields(newFields, false);
-    setStopwords(words, false);
-    final List<Environment.EventType> events = new ArrayList<>(2);
-    events.add(EventType.FIELDS_CHANGED);
-    events.add(EventType.STOPWORDS_CHANGED);
-    for (EnvironmentEventListener listener
-            : Environment.eventListeners) {
-      listener.eventsFired(events);
-    }
-  }
-
-  /**
    * Set the index document fields that get searched.
    *
    * @param newFields List of fields to use for searching
    * @param fireEvent If true, an event is fired
    */
-  private static void setFields(final String[] newFields,
-          final boolean fireEvent) {
+  private static void setFields(final String[] newFields) {
     @SuppressWarnings("CollectionsToArray")
     final String[] uniqueFields
-            = new HashSet<>(Arrays.asList(newFields)).toArray(new String[0]);
+            = new HashSet<>(Arrays.asList(newFields)).toArray(
+                    new String[newFields.length]);
     IndexUtils.checkFields(uniqueFields);
     Environment.fields = uniqueFields;
-    LOG.info("Index fields changed: {}", Arrays.toString(Environment.fields));
-    if (fireEvent) {
-      for (EnvironmentEventListener listener
-              : Environment.eventListeners) {
-        listener.eventFired(EventType.FIELDS_CHANGED);
-      }
-    }
-  }
-
-  /**
-   * Set the index document fields that get searched.
-   *
-   * @param newFields List of fields to use for searching
-   */
-  public static void setFields(final String[] newFields) {
-    setFields(newFields, true);
+    LOG.info("Index fields: {}", Arrays.toString(Environment.fields));
   }
 
   /**
@@ -352,34 +288,11 @@ public final class Environment {
    * @param words List of stop-words
    * @param fireEvent If true, an event is fired
    */
-  private static void setStopwords(final Collection<String> words,
-          final boolean fireEvent) {
-    Environment.stopWords.clear();
-    Environment.stopWords.addAll(words);
-    LOG.info("Stop-words changed: using {} stopwords.", Environment.stopWords.
+  private static void setStopwords(final Collection<String> words) {
+    Environment.STOPWORDS.clear();
+    Environment.STOPWORDS.addAll(words);
+    LOG.info("Stop-words: using {} stopwords.", Environment.STOPWORDS.
             size());
-    if (fireEvent) {
-      for (EnvironmentEventListener listener
-              : Environment.eventListeners) {
-        listener.eventFired(EventType.STOPWORDS_CHANGED);
-      }
-    }
-  }
-
-  /**
-   * Set the list of stop-words to use.
-   *
-   * @param words List of stop-words
-   */
-  public static void setStopwords(final Collection<String> words) {
-    setStopwords(words, true);
-  }
-
-  /**
-   * Testing only. Indicate we are running a test case.
-   */
-  public static void setTestRun() {
-    Environment.isTestRun = true;
   }
 
   /**
@@ -397,7 +310,7 @@ public final class Environment {
    * @return List of stop-words
    */
   public static Collection<String> getStopwords() {
-    return Collections.unmodifiableCollection(Environment.stopWords);
+    return Collections.unmodifiableCollection(Environment.STOPWORDS);
   }
 
   /**
@@ -406,7 +319,7 @@ public final class Environment {
    * @return True, if the file is there, false otherwise
    * @throws IOException Thrown on low-level I/O errors
    */
-  private boolean loadProperties() throws IOException {
+  private static boolean loadProperties() throws IOException {
     boolean hasProp;
 
     final File propFile = new File(Environment.dataPath,
@@ -421,47 +334,8 @@ public final class Environment {
       LOG.trace("Cache meta file " + propFile + " not found.", ex);
       hasProp = false;
     }
-    propLoaded = true;
+    Environment.propLoaded = true;
     return hasProp;
-  }
-
-  /**
-   * Check if the configured pathes are available. Tries to create some of
-   * them, if it's not the case.
-   *
-   * @throws IOException Thrown if a path is not there or it cannot be created
-   */
-  private void checkPathes() throws IOException {
-    if (Environment.dataPath == null || Environment.dataPath.isEmpty()) {
-      throw new IllegalArgumentException("Data path was empty.");
-    }
-    if (Environment.indexPath == null || Environment.indexPath.isEmpty()) {
-      throw new IllegalArgumentException("Index path was empty.");
-    }
-
-    final File dataDir = new File(Environment.dataPath);
-    if (dataDir.exists()) {
-      if (!dataDir.isDirectory()) {
-        throw new IOException("Data path '" + Environment.dataPath
-                + "' exists, but is not a directory.");
-      }
-    } else if (!dataDir.mkdirs()) {
-      throw new IOException("Error while creating data path '"
-              + Environment.dataPath + "'.");
-    }
-    LOG.info("Data Path: {}", Environment.dataPath);
-
-    final File idxDir = new File(Environment.indexPath);
-    if (idxDir.exists()) {
-      if (!idxDir.isDirectory()) {
-        throw new IOException("Index path '" + Environment.indexPath
-                + "' exists, but is not a directory.");
-      }
-    } else if (!idxDir.mkdirs()) {
-      throw new IOException("Error while creating data path '"
-              + Environment.indexPath + "'.");
-    }
-    LOG.info("Index Path: {}", Environment.indexPath);
   }
 
   /**
@@ -471,7 +345,8 @@ public final class Environment {
    * @return Reader for accessing the Lucene index
    * @throws IOException Thrown on low-level I/O-errors
    */
-  private IndexReader openReader(final File indexDir) throws IOException {
+  private static IndexReader openReader(final File indexDir) throws
+          IOException {
     final Directory directory = FSDirectory.open(indexDir);
     if (!DirectoryReader.indexExists(directory)) {
       throw new IOException("No index found at '" + indexDir.getAbsolutePath()
@@ -482,58 +357,55 @@ public final class Environment {
     return DirectoryReader.open(directory);
   }
 
-  /**
-   * Create a new instance with a default dataProvider implementation.
-   *
-   * @throws IOException Thrown on low-level I/O-errors
-   */
-  public void create() throws IOException {
-    Environment.instance = this;
-    Environment.dataProvider = new DirectIndexDataProvider();
-    LOG.info("DataProvider: {}", Environment.dataProvider.getClass().
-            getCanonicalName());
-  }
-
-  /**
-   * Create a new instance with the given dataProvider.
-   *
-   * @param newDataProvider DataProvider to use
-   */
-  public void create(final IndexDataProvider newDataProvider) {
-    if (newDataProvider == null) {
-      throw new IllegalArgumentException("DataProvider was null.");
-    }
-    Environment.instance = this;
-    Environment.dataProvider = newDataProvider;
-    LOG.info("DataProvider: {}", Environment.dataProvider.getClass().
-            getCanonicalName());
-  }
-
-  /**
-   * Create a new instance of the given dataProvider class type.
-   *
-   * @param dataProviderClass DataProvider to instantiate
-   * @throws InstantiationException Thrown if instance could not be created
-   * @throws IllegalAccessException Thrown if instance could not be created
-   */
-  public void create(
-          final Class<? extends IndexDataProvider> dataProviderClass) throws
-          InstantiationException, IllegalAccessException {
-    if (dataProviderClass == null) {
-      throw new IllegalArgumentException("DataProvider was null.");
-    }
-    Environment.instance = this;
-    Environment.dataProvider = dataProviderClass.newInstance();
-    LOG.info("DataProvider: {}", Environment.dataProvider.getClass().
-            getCanonicalName());
-  }
-
+//  /**
+//   * Create a new instance with a default dataProvider implementation.
+//   *
+//   * @throws IOException Thrown on low-level I/O-errors
+//   */
+//  public void create() throws IOException {
+//    Environment.instance = this;
+//    Environment.dataProvider = new DirectIndexDataProvider();
+//    LOG.info("DataProvider: {}", Environment.dataProvider.getClass().
+//            getCanonicalName());
+//  }
+//  /**
+//   * Create a new instance with the given dataProvider.
+//   *
+//   * @param newDataProvider DataProvider to use
+//   */
+//  public void create(final IndexDataProvider newDataProvider) {
+//    if (newDataProvider == null) {
+//      throw new IllegalArgumentException("DataProvider was null.");
+//    }
+//    Environment.instance = this;
+//    Environment.dataProvider = newDataProvider;
+//    LOG.info("DataProvider: {}", Environment.dataProvider.getClass().
+//            getCanonicalName());
+//  }
+//  /**
+//   * Create a new instance of the given dataProvider class type.
+//   *
+//   * @param dataProviderClass DataProvider to instantiate
+//   * @throws InstantiationException Thrown if instance could not be created
+//   * @throws IllegalAccessException Thrown if instance could not be created
+//   */
+//  public void create(
+//          final Class<? extends IndexDataProvider> dataProviderClass) throws
+//          InstantiationException, IllegalAccessException {
+//    if (dataProviderClass == null) {
+//      throw new IllegalArgumentException("DataProvider was null.");
+//    }
+//    Environment.instance = this;
+//    Environment.dataProvider = dataProviderClass.newInstance();
+//    LOG.info("DataProvider: {}", Environment.dataProvider.getClass().
+//            getCanonicalName());
+//  }
   /**
    * Checks, if the environment is initialized. Throws a runtime exception, if
    * not.
    */
   private static void initialized() {
-    if (instance == null) {
+    if (!Environment.initialized) {
       throw new IllegalStateException("Environment not initialized");
     }
   }
@@ -544,7 +416,7 @@ public final class Environment {
    * @return True, if initialized, false otherwise
    */
   public static boolean isInitialized() {
-    return instance != null;
+    return Environment.initialized;
   }
 
   /**
@@ -624,15 +496,14 @@ public final class Environment {
       LOG.error("Failed to save properties.", ex);
     }
     clearAllProperties();
-    Environment.eventListeners.clear();
     Environment.dataPath = null;
     Environment.dataProvider = null;
     Environment.fields = null;
     Environment.indexPath = null;
-    Environment.stopWords.clear();
-    propLoaded = false;
-    indexReader = null;
-    instance = null;
+    Environment.STOPWORDS.clear();
+    Environment.propLoaded = false;
+    Environment.indexReader = null;
+    Environment.initialized = false;
   }
 
   /**
@@ -661,7 +532,7 @@ public final class Environment {
    */
   public static void setProperty(final String prefix, final String key,
           final String value) {
-    if (!propLoaded) {
+    if (!Environment.propLoaded) {
       throw new IllegalStateException(
               "Environment not initialized. (properties)");
     }
@@ -686,7 +557,7 @@ public final class Environment {
    * none
    */
   public static Object removeProperty(final String prefix, final String key) {
-    if (!propLoaded) {
+    if (!Environment.propLoaded) {
       throw new IllegalStateException(
               "Environment not initialized. (properties)");
     }
@@ -709,7 +580,7 @@ public final class Environment {
    * @return The stored property vale or null, if none was found
    */
   public static String getProperty(final String prefix, final String key) {
-    if (!propLoaded) {
+    if (!Environment.propLoaded) {
       throw new IllegalStateException(
               "Environment not initialized. (properties)");
     }
@@ -729,7 +600,7 @@ public final class Environment {
    * @return Map with all key value pairs matching the prefix
    */
   public static Map<String, Object> getProperties(final String prefix) {
-    if (!propLoaded) {
+    if (!Environment.propLoaded) {
       throw new IllegalStateException(
               "Environment not initialized. (properties)");
     }
@@ -786,7 +657,7 @@ public final class Environment {
    */
   public static String getProperty(final String prefix, final String key,
           final String defaultValue) {
-    if (!propLoaded) {
+    if (!Environment.propLoaded) {
       throw new IllegalStateException(
               "Environment not initialized. (properties)");
     }
@@ -801,23 +672,319 @@ public final class Environment {
   }
 
   /**
-   * Interface for listeners to get notified on {@link Environment} parameter
-   * changes.
+   * Shutdown the {@link Environment} and save all pending properties. This
+   * tries to close the {@link IndexDataProvider} and {@link IndexReader}
+   * also.
    */
-  public interface EnvironmentEventListener {
+  public static void shutdown() {
+    LOG.info("Shutting down Environment.");
+    Environment.dataProvider.dispose();
+    try {
+      Environment.indexReader.close();
+    } catch (IOException ex) {
+      LOG.error("Exception while closing IndexReader.", ex);
+    }
+    try {
+      saveProperties();
+    } catch (IOException ex) {
+      LOG.error("Exception while storing properties.", ex);
+    }
+    Runtime.getRuntime().removeShutdownHook(Environment.EXIT_HANDLER);
+    clear();
+  }
+
+  /**
+   * Builder to initialize the {@link Environment}.
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public static final class Builder {
 
     /**
-     * General event notification method. Fires multiple events.
-     *
-     * @param events Multiple events triggered
+     * Timestamp to create temporary files.
      */
-    void eventsFired(final List<EventType> events);
+    private static final long TS = (System.currentTimeMillis() / 1000L);
+    /**
+     * Index path.
+     */
+    private final String idxPath;
+    /**
+     * Data path.
+     */
+    private final String dataPath;
+    /**
+     * Index fields to use.
+     */
+    private String[] fields = null;
+    /**
+     * Stopwords to use.
+     */
+    private Collection<String> stopwords = Collections.emptySet();
+    /**
+     * Testing flag.
+     */
+    private boolean isTest = false;
+    /**
+     * Flag indicating, if warmUp should be called for the
+     * {@link IndexDataProvider}.
+     */
+    private boolean warmUp = false;
+    /**
+     * {@link IndexDataProvider} class to use.
+     */
+    private Class<? extends IndexDataProvider> dpClass = null;
+    /**
+     * Default {@link IndexDataProvider} class to use.
+     */
+    private static final Class<? extends IndexDataProvider> DP_DEFAULT_CLASS
+            = DirectIndexDataProvider.class;
+    /**
+     * {@link IndexDataProvider} to use.
+     */
+    private IndexDataProvider dpInstance = null;
+    /**
+     * Default cache name.
+     */
+    private static final String DEFAULT_CACHE_NAME = "temp-" + TS;
+    /**
+     * Named cache to use by {@link IndexDataProvider}.
+     */
+    private String cacheName = DEFAULT_CACHE_NAME;
+    /**
+     * Signals {@link IndexDataProvider} to try to create the named cache.
+     */
+    private boolean createCache = false;
+    /**
+     * Signals {@link IndexDataProvider} to try load the named cache.
+     */
+    private boolean loadCache = false;
+    /**
+     * Signals {@link IndexDataProvider} to try to load or create the named
+     * cache.
+     */
+    private boolean loadOrCreateCache = false;
 
     /**
-     * Event notification method.
+     * Initialize the builder.
      *
-     * @param event Event triggered
+     * @param newIdxPath Index path
+     * @param newDataPath Data path
+     * @throws IOException Thrown on low-level I/O errors
      */
-    void eventFired(final EventType event);
+    public Builder(final String newIdxPath, final String newDataPath) throws
+            IOException {
+      if (Environment.isInitialized()) {
+        throw new IllegalStateException("Environment already initialized.");
+      }
+      checkPathes(newIdxPath, newDataPath);
+      this.idxPath = newIdxPath + (newIdxPath.endsWith(File.separator)
+              ? "" : File.separator);
+      this.dataPath = newDataPath + (newIdxPath.endsWith(File.separator)
+              ? "" : File.separator);
+    }
+
+    /**
+     * Check if the configured pathes are available. Tries to create some of
+     * them, if it's not the case.
+     *
+     * @throws IOException Thrown if a path is not there or it cannot be
+     * created
+     */
+    private void checkPathes(final String iPath, final String dPath)
+            throws IOException {
+      if (dPath == null || dPath.isEmpty()) {
+        throw new IllegalArgumentException("Data path was empty.");
+      }
+      if (iPath == null || iPath.isEmpty()) {
+        throw new IllegalArgumentException("Index path was empty.");
+      }
+
+      final File dataDir = new File(dPath);
+      if (dataDir.exists()) {
+        if (!dataDir.isDirectory()) {
+          throw new IOException("Data path '" + dPath
+                  + "' exists, but is not a directory.");
+        }
+      } else if (!dataDir.mkdirs()) {
+        throw new IOException("Error while creating data directories '"
+                + dPath + "'.");
+      }
+
+      final File idxDir = new File(iPath);
+      if (idxDir.exists()) {
+        if (!idxDir.isDirectory()) {
+          throw new IOException("Index path '" + iPath
+                  + "' exists, but is not a directory.");
+        }
+      } else if (!idxDir.mkdirs()) {
+        throw new IOException("Error while creating index directories '"
+                + iPath + "'.");
+      }
+    }
+
+    /**
+     * Set how the {@link IndexDataProvider} should create it's cache.
+     *
+     * @param create If true, a new cache will be created
+     * @param load If true, a cache will be loaded
+     * @param loadOrCreate If true, a cache will be created, if not exist
+     */
+    private void setCacheInstruction(final boolean create, final boolean load,
+            final boolean loadOrCreate) {
+      this.createCache = false;
+      this.loadCache = false;
+      this.loadOrCreateCache = false;
+      if (create) {
+        this.createCache = true;
+      } else if (load) {
+        this.loadCache = true;
+      } else if (loadOrCreate) {
+        this.loadOrCreateCache = true;
+      }
+    }
+
+    /**
+     * Instructs the the {@link IndexDataProvider} to load the named cache.
+     *
+     * @param name Cache name
+     * @return Self reference
+     */
+    public Builder loadCache(final String name) {
+      this.cacheName = name;
+      setCacheInstruction(false, true, false);
+      return this;
+    }
+
+    /**
+     * Instructs the the {@link IndexDataProvider} to create the named cache.
+     *
+     * @param name Cache name
+     * @return Self reference
+     */
+    public Builder createCache(final String name) {
+      this.cacheName = name;
+      setCacheInstruction(true, false, false);
+      return this;
+    }
+
+    /**
+     * Instructs the the {@link IndexDataProvider} to try load the named cache
+     * and create it, if not found.
+     *
+     * @param name Cache name
+     * @return Self reference
+     */
+    public Builder loadOrCreateCache(final String name) {
+      this.cacheName = name;
+      setCacheInstruction(false, false, true);
+      return this;
+    }
+
+    /**
+     * Setup the environment.
+     *
+     * @throws IOException Thrown on low-level I/O errors
+     */
+    public void build() throws Exception {
+      Environment.create(this.idxPath, this.dataPath, this.isTest,
+              this.fields, this.stopwords);
+      if (this.dpClass != null) {
+        try {
+          this.dpInstance = this.dpClass.newInstance();
+        } catch (InstantiationException | IllegalAccessException ex) {
+          LOG.error("Error creating IndexDataProvider instance.", ex);
+          throw new IllegalStateException(
+                  "Error creating IndexDataProvider instance.");
+        }
+      } else if (this.dpInstance == null) {
+        try {
+          this.dpInstance = Builder.DP_DEFAULT_CLASS.newInstance();
+        } catch (InstantiationException | IllegalAccessException ex) {
+          LOG.error("Error creating default IndexDataProvider instance.", ex);
+          throw new IllegalStateException(
+                  "Error creating default IndexDataProvider instance.");
+        }
+      }
+      Environment.setDataProvider(this.dpInstance);
+      if (this.cacheName.equals(Builder.DEFAULT_CACHE_NAME)) {
+        this.dpInstance.createCache(Builder.DEFAULT_CACHE_NAME);
+      } else {
+        if (this.loadCache) {
+          this.dpInstance.loadCache(this.cacheName);
+        } else if (this.loadOrCreateCache) {
+          this.dpInstance.loadOrCreateCache(this.cacheName);
+        } else if (this.createCache) {
+          this.dpInstance.createCache(this.cacheName);
+        }
+      }
+      if (this.warmUp) {
+        dpInstance.warmUp();
+      }
+    }
+
+    /**
+     * Set the index document fields that get searched.
+     *
+     * @param newFields List of fields to use for searching
+     * @return Self reference
+     */
+    public Builder fields(final String[] newFields) {
+      this.fields = newFields.clone();
+      return this;
+    }
+
+    /**
+     * Set the list of stop-words to use.
+     *
+     * @param words List of stop-words
+     * @return Self reference
+     */
+    public Builder stopwords(final Collection<String> words) {
+      this.stopwords = new HashSet<>(words.size());
+      this.stopwords.addAll(words);
+      return this;
+    }
+
+    /**
+     * Set the testing flag for debugging.
+     *
+     * @return Self reference
+     */
+    public Builder testRun() {
+      this.isTest = true;
+      return this;
+    }
+
+    /**
+     * Set the {@link IndexDataProvider} class to instantiate.
+     *
+     * @param dpc {@link IndexDataProvider} class to use
+     * @return Self reference
+     */
+    public Builder dataProvider(final Class<? extends IndexDataProvider> dpc) {
+      this.dpClass = dpc;
+      return this;
+    }
+
+    /**
+     * Set the {@link IndexDataProvider} to use.
+     *
+     * @param dp {@link IndexDataProvider}
+     * @return Self reference
+     */
+    public Builder dataProvider(final IndexDataProvider dp) {
+      this.dpInstance = dp;
+      return this;
+    }
+
+    /**
+     * Call the warmUp function of the {@link IndexDataProvider} after the
+     * {@link Environment} has loaded.
+     *
+     * @return Self reference
+     */
+    public Builder autoWarmUp() {
+      this.warmUp = true;
+      return this;
+    }
   }
 }

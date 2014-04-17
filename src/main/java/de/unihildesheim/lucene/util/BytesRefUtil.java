@@ -20,8 +20,9 @@ import de.unihildesheim.ByteArray;
 import org.apache.lucene.util.BytesRef;
 
 /**
+ * Utilities for working with {@link BytesRef}s.
  *
- 
+ * @author Jens Bertram
  */
 public class BytesRefUtil {
 

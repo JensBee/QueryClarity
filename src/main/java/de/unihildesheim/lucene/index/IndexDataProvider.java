@@ -17,12 +17,12 @@
 package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.ByteArray;
-import de.unihildesheim.lucene.document.DocumentModel;
+import de.unihildesheim.SupportsPersistence;
 import de.unihildesheim.lucene.Environment;
+import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.util.concurrent.processing.Source;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.Map;
 
 /**
  * IndexDataProvider provides statistical data from the underlying Lucene
@@ -35,9 +35,9 @@ import java.util.Map;
  * Also, any restriction to a subset of index fields must be applied by the
  * implementing class as they are no enforced.
  *
- 
+ *
  */
-public interface IndexDataProvider {
+public interface IndexDataProvider extends SupportsPersistence {
 
   /**
    * Get the frequency of all terms in the index.
@@ -118,63 +118,62 @@ public interface IndexDataProvider {
    */
   long getUniqueTermsCount();
 
-  /**
-   * Tell the data provider, we want to access custom data specified by the
-   * given prefix.
-   * <p>
-   * A prefix must be registered before any call to
-   * <tt>setTermData()</tt> or <tt>getTermData()</tt> can be made.
-   *
-   * @param prefix Prefix name to register
-   */
-  void registerPrefix(final String prefix);
-
-  /**
-   * Store enhanced data for a document & term combination with a custom
-   * prefix.
-   * <tt>Null</tt> is not allowed for any parameter value.
-   *
-   * @param prefix Custom prefix, to identify where the data belongs to. Must
-   * not start with an underscore.
-   * @param documentId Document identifier
-   * @param term Term to which the data is associated.
-   * @param key Storage key.
-   * @param value Storage value
-   * @return Any previously set value or null, if there was none
-   */
-  Object setTermData(final String prefix, final int documentId,
-          final ByteArray term, final String key, final Object value);
-
-  /**
-   * Get enhanced data stored with a prefix (to distinguish data types) for a
-   * document-id and a term. The data is accessed via a key.
-   *
-   * @param prefix Prefix to stored data
-   * @param documentId Document-id the data is attached to
-   * @param term Term the data is attached to
-   * @param key Key to identify the data
-   * @return Data stored at the given location or <tt>null</tt> if there was
-   * none
-   */
-  Object getTermData(final String prefix, final int documentId,
-          final ByteArray term, final String key);
-
-  /**
-   * Get all term-data stored under a given prefix, document-id and key.
-   *
-   * @param prefix Prefix to stored data
-   * @param documentId Document-id the data is attached to
-   * @param key Key to identify the data
-   * @return Mapping of all stored data
-   */
-  Map<ByteArray, Object> getTermData(final String prefix,
-          final int documentId, final String key);
-
-  /**
-   * Removes all stored term-data.
-   */
-  void clearTermData();
-
+//  /**
+//   * Tell the data provider, we want to access custom data specified by the
+//   * given prefix.
+//   * <p>
+//   * A prefix must be registered before any call to
+//   * <tt>setTermData()</tt> or <tt>getTermData()</tt> can be made.
+//   *
+//   * @param prefix Prefix name to register
+//   */
+//  void registerPrefix(final String prefix);
+//
+//  /**
+//   * Store enhanced data for a document & term combination with a custom
+//   * prefix.
+//   * <tt>Null</tt> is not allowed for any parameter value.
+//   *
+//   * @param prefix Custom prefix, to identify where the data belongs to. Must
+//   * not start with an underscore.
+//   * @param documentId Document identifier
+//   * @param term Term to which the data is associated.
+//   * @param key Storage key.
+//   * @param value Storage value
+//   * @return Any previously set value or null, if there was none
+//   */
+//  Object setTermData(final String prefix, final int documentId,
+//          final ByteArray term, final String key, final Object value);
+//
+//  /**
+//   * Get enhanced data stored with a prefix (to distinguish data types) for a
+//   * document-id and a term. The data is accessed via a key.
+//   *
+//   * @param prefix Prefix to stored data
+//   * @param documentId Document-id the data is attached to
+//   * @param term Term the data is attached to
+//   * @param key Key to identify the data
+//   * @return Data stored at the given location or <tt>null</tt> if there was
+//   * none
+//   */
+//  Object getTermData(final String prefix, final int documentId,
+//          final ByteArray term, final String key);
+//
+//  /**
+//   * Get all term-data stored under a given prefix, document-id and key.
+//   *
+//   * @param prefix Prefix to stored data
+//   * @param documentId Document-id the data is attached to
+//   * @param key Key to identify the data
+//   * @return Mapping of all stored data
+//   */
+//  Map<ByteArray, Object> getTermData(final String prefix,
+//          final int documentId, final String key);
+//
+//  /**
+//   * Removes all stored term-data.
+//   */
+//  void clearTermData();
   /**
    * Get a {@link DocumentModel} instance for the document with the given id.
    *
@@ -217,12 +216,14 @@ public interface IndexDataProvider {
 
   /**
    * Test accessor: get stopwords.
+   *
    * @return List of stopwords currently set
    */
   Collection<String> testGetStopwords();
 
   /**
    * Test accessor: get fields.
+   *
    * @return List of fields currently set
    */
   Collection<String> testGetFieldNames();

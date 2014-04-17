@@ -48,7 +48,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Test for {@link TestIndexDataProvider}.
  *
- 
+ *
  */
 public final class TestIndexDataProviderTest {
 
@@ -90,11 +90,12 @@ public final class TestIndexDataProviderTest {
    */
   @Before
   public void setUp() throws Exception {
-    Environment.clear();
-    index.clearTermData();
-    Environment.clearAllProperties();
-    index.setupEnvironment();
-    Environment.getDataProvider().warmUp();
+    throw new UnsupportedOperationException("BROKEN!");
+//    Environment.clear();
+//    index.clearTermData();
+//    Environment.clearAllProperties();
+//    index.setupEnvironment();
+//    Environment.getDataProvider().warmUp();
   }
 
   /**
@@ -915,34 +916,6 @@ public final class TestIndexDataProviderTest {
     }
 
     @Override
-    public void registerPrefix(String prefix) {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public Object setTermData(String prefix, int documentId, ByteArray term,
-            String key, Object value) {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public Object getTermData(String prefix, int documentId, ByteArray term,
-            String key) {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public Map<ByteArray, Object> getTermData(String prefix, int documentId,
-            String key) {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public void clearTermData() {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
     public DocumentModel getDocumentModel(int docId) {
       throw new UnsupportedOperationException("Not supported yet.");
     }
@@ -975,6 +948,21 @@ public final class TestIndexDataProviderTest {
 
     @Override
     public Collection<String> testGetFieldNames() {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public void loadCache(String name) throws Exception {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public void loadOrCreateCache(String name) throws Exception {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public void createCache(String name) throws Exception {
       throw new UnsupportedOperationException("Not supported yet.");
     }
 

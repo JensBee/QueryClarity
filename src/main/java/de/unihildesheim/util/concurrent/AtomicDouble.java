@@ -1,21 +1,20 @@
 /*
-* Written by Doug Lea and Martin Buchholz with assistance from
-* members of JCP JSR-166 Expert Group and released to the public
-* domain, as explained at
-* http://creativecommons.org/publicdomain/zero/1.0/
-*/
+ * Written by Doug Lea and Martin Buchholz with assistance from
+ * members of JCP JSR-166 Expert Group and released to the public
+ * domain, as explained at
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
 package de.unihildesheim.util.concurrent;
 
 /*
-* Source:
-* http://gee.cs.oswego.edu/cgi-bin/viewcvs.cgi/jsr166/src/jsr166e/extra/AtomicDouble.java?revision=1.13
-* (Modified to adapt to guava coding conventions and
-* to use AtomicLongFieldUpdater instead of sun.misc.Unsafe)
-*/
+ * Source:
+ * http://gee.cs.oswego.edu/cgi-bin/viewcvs.cgi/jsr166/src/jsr166e/extra/AtomicDouble.java?revision=1.13
+ * (Modified to adapt to guava coding conventions and
+ * to use AtomicLongFieldUpdater instead of sun.misc.Unsafe)
+ */
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.io.Serializable;
 import static java.lang.Double.doubleToRawLongBits;
 import static java.lang.Double.longBitsToDouble;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
@@ -53,10 +52,10 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
  * href="http://gee.cs.oswego.edu/dl/jsr166/dist/jsr166edocs/jsr166e/DoubleMaxUpdater.html">
  * DoubleMaxUpdater</a>.
  *
- * Doug Lea
- * Martin Buchholz
+ * @author Doug Lea Martin Buchholz
  */
-public final class AtomicDouble extends Number implements Serializable {
+public final class AtomicDouble extends Number {
+
   /**
    * Serialization id.
    */
@@ -86,7 +85,7 @@ public final class AtomicDouble extends Number implements Serializable {
    * Creates a new {@code AtomicDouble} with initial value {@code 0.0}.
    */
   public AtomicDouble() {
-    // assert doubleToRawLongBits(0.0) == 0L;
+    assert doubleToRawLongBits(0.0) == 0L;
   }
 
   /**
@@ -114,10 +113,8 @@ public final class AtomicDouble extends Number implements Serializable {
    * @param newValue the new value
    */
   public void lazySet(final double newValue) {
-    set(newValue);
-    // TODO(user): replace with code below when jdk5 support is dropped.
-    // long next = doubleToRawLongBits(newValue);
-    // updater.lazySet(this, next);
+    long next = doubleToRawLongBits(newValue);
+    AtomicDouble.UPDATER.lazySet(this, next);
   }
 
   /**
@@ -143,7 +140,8 @@ public final class AtomicDouble extends Number implements Serializable {
    */
   public boolean compareAndSet(final double expect,
           final double update) {
-    return AtomicDouble.UPDATER.compareAndSet(this, doubleToRawLongBits(expect),
+    return AtomicDouble.UPDATER.compareAndSet(this,
+            doubleToRawLongBits(expect),
             doubleToRawLongBits(update));
   }
 
@@ -165,7 +163,8 @@ public final class AtomicDouble extends Number implements Serializable {
    */
   public boolean weakCompareAndSet(final double expect,
           final double update) {
-    return AtomicDouble.UPDATER.weakCompareAndSet(this, doubleToRawLongBits(expect),
+    return AtomicDouble.UPDATER.weakCompareAndSet(this, doubleToRawLongBits(
+            expect),
             doubleToRawLongBits(update));
   }
 

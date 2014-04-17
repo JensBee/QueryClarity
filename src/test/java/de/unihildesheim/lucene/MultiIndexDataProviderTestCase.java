@@ -18,7 +18,6 @@ package de.unihildesheim.lucene;
 
 import de.unihildesheim.lucene.index.DirectIndexDataProvider;
 import de.unihildesheim.lucene.index.IndexDataProvider;
-import de.unihildesheim.lucene.index.IndexTestUtil;
 import de.unihildesheim.lucene.index.TestIndexDataProvider;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -142,38 +141,39 @@ public class MultiIndexDataProviderTestCase {
    */
   protected final void caseSetUp() throws IOException, InstantiationException,
           IllegalAccessException {
-    Environment.clear();
-    Environment.clearAllProperties();
-    if (this.dataProvType == null) {
-      index.setupEnvironment();
-    } else {
-      index.setupEnvironment(this.dataProvType);
-    }
-    index.clearTermData();
-    LOG.info("MutilindexDataProviderTestCase SetUp "
-            + "dataProvider={} configuration={}",
-            this.dataProvType == null ? "TestIndexDataProvider"
-            : this.dataProvType, this.runType.name());
-    switch (this.runType) {
-      case RANDOM_FIELDS:
-        IndexTestUtil.setRandomFields(index);
-        break;
-      case RANDOM_FIELDS_AND_STOPPED:
-        IndexTestUtil.setRandomStopWordsAndFields(index);
-        break;
-      case STOPPED:
-        IndexTestUtil.setRandomStopWords(index);
-        break;
-      case PLAIN:
-      default:
-        break;
-    }
-    index.warmUp();
-    Environment.getDataProvider().warmUp();
-    LOG.info("MutilindexDataProviderTestCase SetUp finished "
-            + "dataProvider={} configuration={}",
-            this.dataProvType == null ? "TestIndexDataProvider"
-            : this.dataProvType, this.runType.name());
+    throw new UnsupportedOperationException("BROKEN!");
+//    Environment.clear();
+//    Environment.clearAllProperties();
+//    if (this.dataProvType == null) {
+//      index.setupEnvironment();
+//    } else {
+//      index.setupEnvironment(this.dataProvType);
+//    }
+//    index.clearTermData();
+//    LOG.info("MutilindexDataProviderTestCase SetUp "
+//            + "dataProvider={} configuration={}",
+//            this.dataProvType == null ? "TestIndexDataProvider"
+//            : this.dataProvType, this.runType.name());
+//    switch (this.runType) {
+//      case RANDOM_FIELDS:
+//        IndexTestUtil.setRandomFields(index);
+//        break;
+//      case RANDOM_FIELDS_AND_STOPPED:
+//        IndexTestUtil.setRandomStopWordsAndFields(index);
+//        break;
+//      case STOPPED:
+//        IndexTestUtil.setRandomStopWords(index);
+//        break;
+//      case PLAIN:
+//      default:
+//        break;
+//    }
+//    index.warmUp();
+//    Environment.getDataProvider().warmUp();
+//    LOG.info("MutilindexDataProviderTestCase SetUp finished "
+//            + "dataProvider={} configuration={}",
+//            this.dataProvType == null ? "TestIndexDataProvider"
+//            : this.dataProvType, this.runType.name());
   }
 
   /**

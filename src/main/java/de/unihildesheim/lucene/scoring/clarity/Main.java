@@ -22,8 +22,6 @@ import com.beust.jcommander.ParameterException;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModelException;
 import de.unihildesheim.lucene.index.DirectIndexDataProvider;
-import de.unihildesheim.lucene.index.IndexDataProvider;
-import de.unihildesheim.lucene.scoring.Scoring;
 import java.io.IOException;
 import org.apache.lucene.search.Query;
 import org.slf4j.Logger;
@@ -77,23 +75,31 @@ public final class Main {
 
     // index field to operate on
     final String[] fields = new String[]{"text"};
+//    final String[] fields = new String[]{"text", "text_de"};
 
-    Environment env = new Environment(indexDir, dataDir, fields);
-    final IndexDataProvider dataProv = new DirectIndexDataProvider();
-    env.create(dataProv);
-    dataProv.warmUp();
-    LOG.info("\n--- Default Clarity Score");
-    Scoring.newInstance(Scoring.ClarityScore.DEFAULT).calculateClarity(
-            queryString);
-    LOG.info("\n--- Simplified Clarity Score");
-    Scoring.newInstance(Scoring.ClarityScore.SIMPLIFIED).
-            calculateClarity(queryString);
-    LOG.info("\n--- Improved Clarity Score");
-    Scoring.newInstance(Scoring.ClarityScore.IMPROVED).
-            calculateClarity(queryString);
+    final DirectIndexDataProvider dataProv = new DirectIndexDataProvider();
+    new Environment.Builder(indexDir, dataDir)
+            .fields(fields)
+            .dataProvider(dataProv)
+            .loadOrCreateCache("testRun")
+            .autoWarmUp()
+            .build();
 
+//    LOG.info("\n--- Default Clarity Score");
+//    final DefaultClarityScore dcs = new DefaultClarityScore();
+//    dcs.loadOrCreateCache("testRun");
+//    dcs.preCalcDocumentModels(); // pre-calculate, if needed
+//    dcs.calculateClarity(queryString);
+//    LOG.info("\n--- Simplified Clarity Score");
+//    Scoring.newInstance(Scoring.ClarityScore.SIMPLIFIED).
+//            calculateClarity(queryString);
+//    LOG.info("\n--- Improved Clarity Score");
+//    final ImprovedClarityScore ics = new ImprovedClarityScore();
+//    ics.loadOrCreateCache("testRun");
+//    ics.preCalcDocumentModels();
+//    ics.calculateClarity(queryString);
     LOG.info("Closing data provider & lucene index.");
-    dataProv.dispose();
+    Environment.shutdown();
   }
 
   /**

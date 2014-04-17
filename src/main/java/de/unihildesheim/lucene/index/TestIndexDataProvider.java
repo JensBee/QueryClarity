@@ -62,8 +62,7 @@ import org.slf4j.LoggerFactory;
  *
  *
  */
-public final class TestIndexDataProvider implements IndexDataProvider,
-        Environment.EnvironmentEventListener {
+public final class TestIndexDataProvider implements IndexDataProvider {
 
   /**
    * Logger instance for this class.
@@ -97,6 +96,21 @@ public final class TestIndexDataProvider implements IndexDataProvider,
    */
   private static Collection<ByteArray> stopWords = Collections.
           <ByteArray>emptySet();
+
+  @Override
+  public void loadCache(String name) throws Exception {
+    throw new UnsupportedOperationException("Not supported yet.");
+  }
+
+  @Override
+  public void loadOrCreateCache(String name) throws Exception {
+    throw new UnsupportedOperationException("Not supported yet.");
+  }
+
+  @Override
+  public void createCache(String name) throws Exception {
+    throw new UnsupportedOperationException("Not supported yet.");
+  }
 
   /**
    * Configuration to create different sizes of test indexes.
@@ -220,7 +234,6 @@ public final class TestIndexDataProvider implements IndexDataProvider,
     if (!initialized) {
       idxConf = indexSize;
       createIndex();
-      Environment.addEventListener(this);
     }
     this.activeFieldState = new int[fields.size()];
     // set all fields active
@@ -583,7 +596,7 @@ public final class TestIndexDataProvider implements IndexDataProvider,
    * @return {@link Environment} instance
    * @throws IOException Thrown on low-level i/o errors
    */
-  private Environment prepareEnvironment() throws IOException {
+  private Environment.Builder prepareEnvironment() throws IOException {
     final File dataDir = new File(getIndexDir() + File.separatorChar + "data");
     if (!dataDir.exists() && !dataDir.mkdirs()) {
       throw new IOException("Failed to create data directory: '" + dataDir
@@ -592,12 +605,10 @@ public final class TestIndexDataProvider implements IndexDataProvider,
     enableAllFields();
     final String[] activeFields = getActiveFieldNames().toArray(
             new String[fields.size()]);
-    // add self prior to createion to receive all new settings upon creation
-    Environment.addEventListener(this);
-    final Environment env = new Environment(getIndexDir(), dataDir.getPath(),
-            activeFields);
-    Environment.setTestRun();
-    return env;
+    // add self prior to creation to receive all new settings upon creation
+    return new Environment.Builder(getIndexDir(), dataDir.getPath())
+            .fields(activeFields)
+            .testRun();
   }
 
   /**
@@ -612,8 +623,8 @@ public final class TestIndexDataProvider implements IndexDataProvider,
    */
   public void setupEnvironment(
           final Class<? extends IndexDataProvider> dataProv) throws
-          IOException, InstantiationException, IllegalAccessException {
-    prepareEnvironment().create(dataProv);
+          Exception {
+    prepareEnvironment().dataProvider(dataProv).build();
   }
 
   /**
@@ -624,8 +635,8 @@ public final class TestIndexDataProvider implements IndexDataProvider,
    * @throws IOException Thrown on low-level I/O errors
    */
   public void setupEnvironment(final IndexDataProvider dataProv) throws
-          IOException {
-    prepareEnvironment().create(dataProv);
+          Exception {
+    prepareEnvironment().dataProvider(dataProv).build();
   }
 
   /**
@@ -634,11 +645,8 @@ public final class TestIndexDataProvider implements IndexDataProvider,
    *
    * @throws IOException Thrown on low-level I/O errors
    */
-  public void setupEnvironment() throws IOException {
-    prepareEnvironment().create(this);
-    if (Environment.isInitialized()) {
-      Environment.addEventListener(this);
-    }
+  public void setupEnvironment() throws Exception {
+    prepareEnvironment().dataProvider(this).build();
   }
 
   /**
@@ -825,12 +833,11 @@ public final class TestIndexDataProvider implements IndexDataProvider,
     return terms;
   }
 
-  @Override
-  @SuppressWarnings("CollectionWithoutInitialCapacity")
-  public void clearTermData() {
-    this.prefixMap = new ConcurrentHashMap<>();
-  }
-
+//  @Override
+//  @SuppressWarnings("CollectionWithoutInitialCapacity")
+//  public void clearTermData() {
+//    this.prefixMap = new ConcurrentHashMap<>();
+//  }
   @Override
   public long getTermFrequency() {
     Long frequency = 0L;
@@ -912,70 +919,69 @@ public final class TestIndexDataProvider implements IndexDataProvider,
     return getTermSet().size();
   }
 
-  @Override
-  @SuppressWarnings({"SynchronizeOnNonFinalField",
-    "CollectionWithoutInitialCapacity"})
-  public Object setTermData(final String prefix, final int documentId,
-          final ByteArray term, final String key, final Object value) {
-    checkDocumentId(documentId);
-
-    if (term == null) {
-      throw new IllegalArgumentException("Term was null.");
-    }
-    if (key == null || key.isEmpty()) {
-      throw new IllegalArgumentException("Key was empty or null.");
-    }
-    if (value == null) {
-      throw new IllegalArgumentException("Value was null.");
-    }
-
-    synchronized (this.prefixMap) {
-      Map<Tuple.Tuple3<Integer, ByteArray, String>, Object> dataMap;
-      if (this.prefixMap.containsKey(prefix)) {
-        dataMap = this.prefixMap.get(prefix);
-      } else {
-        dataMap = new ConcurrentHashMap<>();
-        this.prefixMap.put(prefix, dataMap);
-      }
-
-      return dataMap.put(Tuple.tuple3(documentId, term, key), value);
-    }
-  }
-
-  @Override
-  public Object getTermData(final String prefix, final int documentId,
-          final ByteArray term, final String key) {
-    checkDocumentId(documentId);
-    Map<Tuple.Tuple3<Integer, ByteArray, String>, Object> dataMap
-            = this.prefixMap.get(prefix);
-    if (dataMap == null) {
-      return null;
-    }
-    return dataMap.get(Tuple.tuple3(documentId, term, key));
-  }
-
-  @Override
-  public Map<ByteArray, Object> getTermData(final String prefix,
-          final int documentId, final String key) {
-    checkDocumentId(documentId);
-    Map<Tuple.Tuple3<Integer, ByteArray, String>, Object> dataMap
-            = this.prefixMap.get(prefix);
-    if (dataMap == null) {
-      return null;
-    }
-    @SuppressWarnings("CollectionWithoutInitialCapacity")
-    final Map<ByteArray, Object> returnMap = new HashMap<>();
-    for (Entry<Tuple.Tuple3<Integer, ByteArray, String>, Object> dataEntry
-            : dataMap.entrySet()) {
-      if (dataEntry.getKey().a.equals(documentId) && dataEntry.getKey().c.
-              equals(key)) {
-        returnMap.put(dataEntry.getKey().b.clone(), dataEntry.
-                getValue());
-      }
-    }
-    return returnMap;
-  }
-
+//  @Override
+//  @SuppressWarnings({"SynchronizeOnNonFinalField",
+//    "CollectionWithoutInitialCapacity"})
+//  public Object setTermData(final String prefix, final int documentId,
+//          final ByteArray term, final String key, final Object value) {
+//    checkDocumentId(documentId);
+//
+//    if (term == null) {
+//      throw new IllegalArgumentException("Term was null.");
+//    }
+//    if (key == null || key.isEmpty()) {
+//      throw new IllegalArgumentException("Key was empty or null.");
+//    }
+//    if (value == null) {
+//      throw new IllegalArgumentException("Value was null.");
+//    }
+//
+//    synchronized (this.prefixMap) {
+//      Map<Tuple.Tuple3<Integer, ByteArray, String>, Object> dataMap;
+//      if (this.prefixMap.containsKey(prefix)) {
+//        dataMap = this.prefixMap.get(prefix);
+//      } else {
+//        dataMap = new ConcurrentHashMap<>();
+//        this.prefixMap.put(prefix, dataMap);
+//      }
+//
+//      return dataMap.put(Tuple.tuple3(documentId, term, key), value);
+//    }
+//  }
+//
+//  @Override
+//  public Object getTermData(final String prefix, final int documentId,
+//          final ByteArray term, final String key) {
+//    checkDocumentId(documentId);
+//    Map<Tuple.Tuple3<Integer, ByteArray, String>, Object> dataMap
+//            = this.prefixMap.get(prefix);
+//    if (dataMap == null) {
+//      return null;
+//    }
+//    return dataMap.get(Tuple.tuple3(documentId, term, key));
+//  }
+//
+//  @Override
+//  public Map<ByteArray, Object> getTermData(final String prefix,
+//          final int documentId, final String key) {
+//    checkDocumentId(documentId);
+//    Map<Tuple.Tuple3<Integer, ByteArray, String>, Object> dataMap
+//            = this.prefixMap.get(prefix);
+//    if (dataMap == null) {
+//      return null;
+//    }
+//    @SuppressWarnings("CollectionWithoutInitialCapacity")
+//    final Map<ByteArray, Object> returnMap = new HashMap<>();
+//    for (Entry<Tuple.Tuple3<Integer, ByteArray, String>, Object> dataEntry
+//            : dataMap.entrySet()) {
+//      if (dataEntry.getKey().a.equals(documentId) && dataEntry.getKey().c.
+//              equals(key)) {
+//        returnMap.put(dataEntry.getKey().b.clone(), dataEntry.
+//                getValue());
+//      }
+//    }
+//    return returnMap;
+//  }
   @Override
   public DocumentModel getDocumentModel(final int docId) {
     checkDocumentId(docId);
@@ -1008,9 +1014,7 @@ public final class TestIndexDataProvider implements IndexDataProvider,
 
   @Override
   public void dispose() {
-    if (Environment.isInitialized()) {
-      Environment.removeEventListener(this);
-    }
+    // NOP
   }
 
   @Override
@@ -1039,11 +1043,11 @@ public final class TestIndexDataProvider implements IndexDataProvider,
   public static boolean isInitialized() {
     return initialized;
   }
-
-  @Override
-  public void registerPrefix(final String prefix) {
-    // NOP
-  }
+//
+//  @Override
+//  public void registerPrefix(final String prefix) {
+//    // NOP
+//  }
 
   @Override
   public Collection<String> testGetStopwords() {
@@ -1100,18 +1104,6 @@ public final class TestIndexDataProvider implements IndexDataProvider,
         throw new IllegalArgumentException("Unhandeled event type: "
                 + eType.name());
     }
-  }
-
-  @Override
-  public void eventsFired(final List<Environment.EventType> events) {
-    for (Environment.EventType eType : events) {
-      handleEnvironmentEvent(eType);
-    }
-  }
-
-  @Override
-  public void eventFired(final Environment.EventType event) {
-    handleEnvironmentEvent(event);
   }
 
   @SuppressWarnings("PublicInnerClass")

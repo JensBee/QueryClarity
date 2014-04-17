@@ -147,6 +147,7 @@ public abstract class Target<T> implements Runnable {
    *
    * @param <T> Type of data to process
    */
+  @SuppressWarnings("PublicInnerClass")
   public static final class TargetFuncCall<T> extends Target<T> {
 
     /**
@@ -192,6 +193,7 @@ public abstract class Target<T> implements Runnable {
    *
    * @param <T> Type to process
    */
+  @SuppressWarnings("PublicInnerClass")
   public abstract static class TargetFunc<T> {
 
     /**

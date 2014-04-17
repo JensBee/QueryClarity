@@ -18,16 +18,12 @@ package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.ByteArray;
 import de.unihildesheim.lucene.document.DocumentModel;
-import de.unihildesheim.util.RandomValue;
-import de.unihildesheim.Tuple;
 import de.unihildesheim.util.ByteArrayUtil;
-import de.unihildesheim.util.concurrent.processing.CollectionSource;
+import de.unihildesheim.util.RandomValue;
 import de.unihildesheim.util.concurrent.processing.Processing;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Map;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -38,7 +34,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Shared test functions for {@link IndexDataProvider} implementing classes.
  *
- 
+ *
  */
 final class IndexDataProviderTestMethods {
 
@@ -555,26 +551,27 @@ final class IndexDataProviderTestMethods {
    */
   protected static void testSetTermData(final TestIndexDataProvider index,
           final IndexDataProvider instance) throws Exception {
-    LOG.info("Test setTermData");
-    final String prefix = "test";
-    final String key = "testKey";
-    Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>> testData;
-    Processing p;
-
-    // part one - all random data
-    testData = IndexTestUtil.generateTermData(index, TEST_TERMDATA_AMOUNT);
-    p = new Processing(new IndexTestUtil.IndexTermDataTarget(
-            new CollectionSource<>(testData), instance, prefix));
-    p.process();
-
-    instance.clearTermData();
-
-    // part two - all data on one key
-    testData = IndexTestUtil.generateTermData(instance, key,
-            TEST_TERMDATA_AMOUNT);
-    p = new Processing(new IndexTestUtil.IndexTermDataTarget(
-            new CollectionSource<>(testData), instance, prefix));
-    p.process();
+    throw new UnsupportedOperationException("BROKEN!");
+//    LOG.info("Test setTermData");
+//    final String prefix = "test";
+//    final String key = "testKey";
+//    Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>> testData;
+//    Processing p;
+//
+//    // part one - all random data
+//    testData = IndexTestUtil.generateTermData(index, TEST_TERMDATA_AMOUNT);
+//    p = new Processing(new IndexTestUtil.IndexTermDataTarget(
+//            new CollectionSource<>(testData), instance, prefix));
+//    p.process();
+//
+//    instance.clearTermData();
+//
+//    // part two - all data on one key
+//    testData = IndexTestUtil.generateTermData(instance, key,
+//            TEST_TERMDATA_AMOUNT);
+//    p = new Processing(new IndexTestUtil.IndexTermDataTarget(
+//            new CollectionSource<>(testData), instance, prefix));
+//    p.process();
   }
 
   /**
@@ -585,53 +582,54 @@ final class IndexDataProviderTestMethods {
   protected static void testGetTermData_4args(
           final TestIndexDataProvider index,
           final IndexDataProvider instance) throws Exception {
-    LOG.info("Test getTermData_4args");
-    final String prefix = "test4a";
-    final String key = "testKey4a";
-    Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>> testData;
-    Processing p;
-    int retrievalCount;
-
-    // part one - all random data
-    // create test data
-    testData = IndexTestUtil.generateTermData(index, TEST_TERMDATA_AMOUNT);
-    p = new Processing(new IndexTestUtil.IndexTermDataTarget(
-            new CollectionSource<>(testData), instance, prefix));
-    p.process();
-
-    // retrieve test data
-    retrievalCount = 0;
-    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> t4 : testData) {
-      assertEquals("Pass 1: Retrieved termData mismatch. prefix=" + prefix
-              + " docId=" + t4.a + " term=" + t4.b + " key=" + t4.c, instance.
-              getTermData(prefix, t4.a, t4.b, t4.c), t4.d);
-      retrievalCount++;
-    }
-
-    assertEquals("Pass 1: Not all set termData was retrieved.",
-            TEST_TERMDATA_AMOUNT, retrievalCount);
-
-    instance.clearTermData();
-
-    // part two - all data on one key
-    // create test data
-    testData = IndexTestUtil.generateTermData(index, key,
-            TEST_TERMDATA_AMOUNT);
-    p = new Processing(new IndexTestUtil.IndexTermDataTarget(
-            new CollectionSource<>(testData), instance, prefix));
-    p.process();
-
-    // retrieve test data
-    retrievalCount = 0;
-    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> t4 : testData) {
-      assertEquals("Pass 2: Retrieved termData mismatch.", instance.
-              getTermData(
-                      prefix, t4.a, t4.b, key), t4.d);
-      retrievalCount++;
-    }
-
-    assertEquals("Pass 2: Not all set termData was retrieved.",
-            TEST_TERMDATA_AMOUNT, retrievalCount);
+    throw new UnsupportedOperationException("BROKEN!");
+//    LOG.info("Test getTermData_4args");
+//    final String prefix = "test4a";
+//    final String key = "testKey4a";
+//    Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>> testData;
+//    Processing p;
+//    int retrievalCount;
+//
+//    // part one - all random data
+//    // create test data
+//    testData = IndexTestUtil.generateTermData(index, TEST_TERMDATA_AMOUNT);
+//    p = new Processing(new IndexTestUtil.IndexTermDataTarget(
+//            new CollectionSource<>(testData), instance, prefix));
+//    p.process();
+//
+//    // retrieve test data
+//    retrievalCount = 0;
+//    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> t4 : testData) {
+//      assertEquals("Pass 1: Retrieved termData mismatch. prefix=" + prefix
+//              + " docId=" + t4.a + " term=" + t4.b + " key=" + t4.c, instance.
+//              getTermData(prefix, t4.a, t4.b, t4.c), t4.d);
+//      retrievalCount++;
+//    }
+//
+//    assertEquals("Pass 1: Not all set termData was retrieved.",
+//            TEST_TERMDATA_AMOUNT, retrievalCount);
+//
+//    instance.clearTermData();
+//
+//    // part two - all data on one key
+//    // create test data
+//    testData = IndexTestUtil.generateTermData(index, key,
+//            TEST_TERMDATA_AMOUNT);
+//    p = new Processing(new IndexTestUtil.IndexTermDataTarget(
+//            new CollectionSource<>(testData), instance, prefix));
+//    p.process();
+//
+//    // retrieve test data
+//    retrievalCount = 0;
+//    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> t4 : testData) {
+//      assertEquals("Pass 2: Retrieved termData mismatch.", instance.
+//              getTermData(
+//                      prefix, t4.a, t4.b, key), t4.d);
+//      retrievalCount++;
+//    }
+//
+//    assertEquals("Pass 2: Not all set termData was retrieved.",
+//            TEST_TERMDATA_AMOUNT, retrievalCount);
   }
 
   /**
@@ -642,40 +640,41 @@ final class IndexDataProviderTestMethods {
   protected static void testGetTermData_3args(
           final TestIndexDataProvider index,
           final IndexDataProvider instance) throws Exception {
-    LOG.info("Test getTermData_3args");
-
-    final String prefix = "test3a";
-    final String key = "testKey3a";
-    final int docId = RandomValue.getInteger(0, (int) index.getDocumentCount()
-            - 1);
-    Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>> testData;
-    Processing p;
-    int retrievalCount;
-
-    // create test data
-    testData = IndexTestUtil.generateTermData(index, docId, key,
-            TEST_TERMDATA_AMOUNT);
-    p = new Processing(new IndexTestUtil.IndexTermDataTarget(
-            new CollectionSource<>(testData), instance, prefix));
-    p.process();
-
-    Map<ByteArray, Integer> expResult = new HashMap<>(testData.size());
-    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> t4 : testData) {
-      expResult.put(t4.b, t4.d);
-    }
-
-    // retrieve test data
-    retrievalCount = 0;
-    for (Map.Entry<ByteArray, Object> dataEntry : instance.getTermData(prefix,
-            docId, key).entrySet()) {
-      final Integer expValue = expResult.get(dataEntry.getKey());
-      final Integer value = (Integer) dataEntry.getValue();
-      assertEquals(expValue, value);
-      retrievalCount++;
-    }
-
-    assertEquals("Not all set termData was retrieved.", TEST_TERMDATA_AMOUNT,
-            retrievalCount);
+    throw new UnsupportedOperationException("BROKEN!");
+//    LOG.info("Test getTermData_3args");
+//
+//    final String prefix = "test3a";
+//    final String key = "testKey3a";
+//    final int docId = RandomValue.getInteger(0, (int) index.getDocumentCount()
+//            - 1);
+//    Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>> testData;
+//    Processing p;
+//    int retrievalCount;
+//
+//    // create test data
+//    testData = IndexTestUtil.generateTermData(index, docId, key,
+//            TEST_TERMDATA_AMOUNT);
+//    p = new Processing(new IndexTestUtil.IndexTermDataTarget(
+//            new CollectionSource<>(testData), instance, prefix));
+//    p.process();
+//
+//    Map<ByteArray, Integer> expResult = new HashMap<>(testData.size());
+//    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> t4 : testData) {
+//      expResult.put(t4.b, t4.d);
+//    }
+//
+//    // retrieve test data
+//    retrievalCount = 0;
+//    for (Map.Entry<ByteArray, Object> dataEntry : instance.getTermData(prefix,
+//            docId, key).entrySet()) {
+//      final Integer expValue = expResult.get(dataEntry.getKey());
+//      final Integer value = (Integer) dataEntry.getValue();
+//      assertEquals(expValue, value);
+//      retrievalCount++;
+//    }
+//
+//    assertEquals("Not all set termData was retrieved.", TEST_TERMDATA_AMOUNT,
+//            retrievalCount);
   }
 
   /**
@@ -685,26 +684,27 @@ final class IndexDataProviderTestMethods {
    */
   protected static void testClearTermData(final TestIndexDataProvider index,
           final IndexDataProvider instance) throws Exception {
-    LOG.info("Test clearTermData");
-    final String prefix = "testClear";
-    instance.registerPrefix(prefix);
-    Processing p;
-    Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>> testData;
-    testData = IndexTestUtil.generateTermData(index, TEST_TERMDATA_AMOUNT);
-    p = new Processing(new IndexTestUtil.IndexTermDataTarget(
-            new CollectionSource<>(testData), instance, prefix));
-    p.process();
-
-    instance.clearTermData();
-
-//    try {
-    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> t4 : testData) {
-      assertEquals("Expected empty result (null).", null, instance.
-              getTermData(prefix, t4.a, t4.b, t4.c));
-    }
-//      fail("Expected an exception to be thrown.");
-//    } catch (IllegalArgumentException ex) {
+    throw new UnsupportedOperationException("BROKEN!");
+//    LOG.info("Test clearTermData");
+//    final String prefix = "testClear";
+//    instance.registerPrefix(prefix);
+//    Processing p;
+//    Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>> testData;
+//    testData = IndexTestUtil.generateTermData(index, TEST_TERMDATA_AMOUNT);
+//    p = new Processing(new IndexTestUtil.IndexTermDataTarget(
+//            new CollectionSource<>(testData), instance, prefix));
+//    p.process();
+//
+//    instance.clearTermData();
+//
+////    try {
+//    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> t4 : testData) {
+//      assertEquals("Expected empty result (null).", null, instance.
+//              getTermData(prefix, t4.a, t4.b, t4.c));
 //    }
+////      fail("Expected an exception to be thrown.");
+////    } catch (IllegalArgumentException ex) {
+////    }
   }
 
   /**
@@ -788,8 +788,9 @@ final class IndexDataProviderTestMethods {
    * Test of registerPrefix method.
    */
   protected static void testRegisterPrefix(final IndexDataProvider instance) {
-    LOG.info("Test registerPrefix");
-    instance.registerPrefix("foo");
+    throw new UnsupportedOperationException("BROKEN!");
+//    LOG.info("Test registerPrefix");
+//    instance.registerPrefix("foo");
   }
 
   /**

@@ -39,5 +39,11 @@ public interface ClarityScoreCalculation {
   ClarityScoreResult calculateClarity(final String query) throws
           ParseException;
 
-  public ClarityScoreCalculation setConfiguration(final Configuration conf);
+  /**
+   * Sets a configuration for this {@link ClarityScoreCalculation} instance.
+   *
+   * @param conf {@link Configuration} to use
+   * @return Self reference
+   */
+  ClarityScoreCalculation setConfiguration(final Configuration conf);
 }

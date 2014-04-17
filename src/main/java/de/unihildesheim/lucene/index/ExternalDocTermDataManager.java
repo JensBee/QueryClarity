@@ -18,11 +18,8 @@ package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.ByteArray;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentNavigableMap;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.mapdb.BTreeKeySerializer;
 import org.mapdb.DB;
 import org.mapdb.Fun;
@@ -44,14 +41,11 @@ public final class ExternalDocTermDataManager {
           ExternalDocTermDataManager.class);
 
   /**
-   * Store an individual map for each prefix.
+   * Map that holds term data.
    */
-  private final Map<String, ConcurrentNavigableMap<Fun.Tuple3<
-          Integer, String, ByteArray>, Object>> prefixMap;
-  /**
-   * R/w lock for {@link #prefixMap}.
-   */
-  private final ReentrantReadWriteLock prefixMapLock;
+  private ConcurrentNavigableMap<
+          Fun.Tuple3<String, Integer, ByteArray>, Object> map;
+
   /**
    * Database handling storage.
    */
@@ -68,43 +62,18 @@ public final class ExternalDocTermDataManager {
    * @param newPrefix Prefix
    */
   @SuppressWarnings("CollectionWithoutInitialCapacity")
-  ExternalDocTermDataManager(final DB newDb, final String newPrefix) {
-    this.prefixMap = new ConcurrentHashMap<>();
-    this.prefixMapLock = new ReentrantReadWriteLock();
+  public ExternalDocTermDataManager(final DB newDb, final String newPrefix) {
     this.db = newDb;
     this.prefix = newPrefix;
-  }
-
-  /**
-   * Check, if the given prefix is known. Throws a runtime {@link Exception},
-   * if the prefix is not known.
-   *
-   * @param newPrefix Prefix to check
-   */
-  private void checkPrefix(final String newPrefix) {
-    if (!this.prefixMap.containsKey(newPrefix)) {
-      throw new IllegalArgumentException("Prefixed data was not known. "
-              + "Was prefix '" + newPrefix
-              + "' registered before being accessed?");
-    }
+    getMap(this.prefix);
   }
 
   /**
    * Remove any custom data stored while using the index.
    */
-  protected void clear() {
-    this.prefixMapLock.writeLock().lock();
-    try {
-      Iterator<String> prefixIt = this.prefixMap.keySet().iterator();
-      while (prefixIt.hasNext()) {
-        final String mapPrefix = prefixIt.next();
-        final String mapName = this.prefix + mapPrefix;
-        db.delete(mapName);
-        prefixIt.remove();
-      }
-    } finally {
-      this.prefixMapLock.writeLock().unlock();
-    }
+  public void clear() {
+    this.db.delete(this.prefix);
+    getMap(this.prefix);
   }
 
   /**
@@ -112,43 +81,38 @@ public final class ExternalDocTermDataManager {
    *
    * @param newPrefix Prefix to load
    */
-  protected void loadPrefix(final String newPrefix) {
+  private void getMap(final String newPrefix) {
     if (newPrefix == null || newPrefix.length() == 0) {
       throw new IllegalArgumentException("No prefix specified.");
     }
-    final String mapName = this.prefix + newPrefix;
     // stored data
-    ConcurrentNavigableMap<Fun.Tuple3<Integer, String, ByteArray>, Object> map;
-    if (!db.exists(mapName)) {
-      LOG.debug("Creating a new docTermData map with prefix '{}'", newPrefix);
+    if (!db.exists(this.prefix)) {
+      LOG.debug("Creating a new docTermData map with prefix '{}'",
+              this.prefix);
     }
-    DB.BTreeMapMaker mapMkr = db.createTreeMap(mapName);
+
     final BTreeKeySerializer mapKeySerializer
             = new BTreeKeySerializer.Tuple3KeySerializer<>(null, null,
-                    Serializer.INTEGER, Serializer.STRING,
+                    Serializer.STRING_INTERN, Serializer.INTEGER,
                     ByteArray.SERIALIZER);
-    mapMkr.keySerializer(mapKeySerializer);
-    mapMkr.valueSerializer(Serializer.JAVA);
-    this.prefixMapLock.writeLock().lock();
-    try {
-      map = mapMkr.makeOrGet();
-      this.prefixMap.put(newPrefix, map);
-    } finally {
-      this.prefixMapLock.writeLock().unlock();
-    }
+    DB.BTreeMapMaker mapMkr = db.createTreeMap(this.prefix)
+            .keySerializer(mapKeySerializer)
+            .valueSerializer(Serializer.BASIC)
+            .nodeSize(16)
+            .valuesOutsideNodesEnable();
+    this.map = mapMkr.makeOrGet();
   }
 
   /**
-   * Store ter-data to the database.
+   * Store term-data to the database.
    *
-   * @param newPrefix Data prefix to use
    * @param documentId Document-id the data belongs to
    * @param term Term the data belongs to
    * @param key Key to identify the data
    * @param value Value to store
    * @return Any previous assigned data, or null, if there was none
    */
-  protected Object setData(final String newPrefix, final int documentId,
+  public Object setData(final int documentId,
           final ByteArray term, final String key, final Object value) {
     if (term == null) {
       throw new IllegalArgumentException("Term was null.");
@@ -159,86 +123,55 @@ public final class ExternalDocTermDataManager {
     if (value == null) {
       throw new IllegalArgumentException("Null is not allowed as value.");
     }
-    checkPrefix(newPrefix);
     Object returnObj = null;
-    this.prefixMapLock.writeLock().lock();
     try {
-      returnObj = this.prefixMap.get(newPrefix).put(Fun.t3(documentId, key,
-              term.clone()), value);
+      returnObj = this.map.put(Fun.t3(key, documentId, term.clone()), value);
     } catch (Exception ex) {
       LOG.error("EXCEPTION CATCHED: p={} id={} k={} t={} v={}", prefix,
               documentId, key, term, value, ex);
-    } finally {
-      this.prefixMapLock.writeLock().unlock();
     }
     return returnObj;
   }
 
   /**
-   * Get stored document term-data for a specific prefix and key. This returns
-   * only <tt>term, value</tt> pairs for the given document and prefix.
+   * Get stored document term-data for a specific key. This returns only
+   * <tt>term, value</tt> pairs for the given document and prefix.
    *
-   * @param newPrefix Prefix to lookup
    * @param documentId Document-id whose data to get
    * @param key Key to identify the data to get
    * @return Map with stored data for the given combination or null if there
    * is no data
    */
-  @SuppressWarnings(
-          "CollectionWithoutInitialCapacity")
-  protected Map<ByteArray, Object> getData(final String newPrefix,
-          final int documentId, final String key) {
-    if (newPrefix == null || newPrefix.isEmpty()) {
-      throw new IllegalArgumentException("No prefix specified.");
-    }
+  @SuppressWarnings("CollectionWithoutInitialCapacity")
+  public Map<ByteArray, Object> getData(final int documentId, final String key) {
     if (key == null || key.isEmpty()) {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
-    Map<ByteArray, Object> map = null;
-    this.prefixMapLock.readLock().lock();
-    try {
-      ConcurrentNavigableMap<Fun.Tuple3<
-              Integer, String, ByteArray>, Object> dataMap
-              = this.prefixMap.get(newPrefix);
-      if (dataMap == null) {
-        return null;
-      }
-      // use the documents term frequency as initial size for the map
-      //        map = new HashMap<>((int) (long) getTermFrequency(documentId));
-      map = new HashMap<>();
-      for (ByteArray term : Fun.filter(dataMap.keySet(), documentId, key)) {
-        map.put(term.clone(), dataMap.get(Fun.t3(documentId, key, term)));
-      }
-    } finally {
-      this.prefixMapLock.readLock().unlock();
+    Map<ByteArray, Object> retMap = new HashMap<>();
+    for (ByteArray term : Fun.filter(this.map.keySet(), key, documentId)) {
+      retMap.put(term.clone(), this.map.get(Fun.t3(key, documentId, term)));
     }
-    return map;
+    return retMap;
   }
 
   /**
-   * Get a single stored document term-data value for a specific prefix, term
-   * and key.
+   * Get a single stored document term-data value for a specific term and key.
    *
-   * @param newPrefix Prefix to lookup
    * @param documentId Document-id whose data to get
    * @param key Key to identify the data to get
    * @param term Term to lookup
    * @return Value stored for the given combination, or null if there was no
    * data stored
    */
-  protected Object getData(final String newPrefix, final int documentId,
+  public Object getData(final int documentId,
           final ByteArray term, final String key) {
     if (term == null) {
       throw new IllegalArgumentException("Term was null.");
     }
-    if (newPrefix == null || newPrefix.isEmpty()) {
-      throw new IllegalArgumentException("No prefix specified.");
-    }
     if (key == null || key.isEmpty()) {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
-    checkPrefix(newPrefix);
-    return this.prefixMap.get(newPrefix).get(Fun.t3(documentId, key, term));
+    return this.map.get(Fun.t3(key, documentId, term));
   }
 
 }

@@ -19,8 +19,9 @@ package de.unihildesheim.util;
 import java.util.Random;
 
 /**
+ * Utility functions to create random values.
  *
- 
+ * @author Jens Bertram
  */
 public final class RandomValue {
 
@@ -89,6 +90,7 @@ public final class RandomValue {
 
   /**
    * Get a random double value.
+   *
    * @return Double value
    */
   public static double getDouble() {
@@ -138,6 +140,7 @@ public final class RandomValue {
 
   /**
    * Get a random boolean value.
+   *
    * @return Random boolean value
    */
   public static boolean getBoolean() {

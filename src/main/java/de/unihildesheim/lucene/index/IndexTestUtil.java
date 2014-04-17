@@ -19,23 +19,20 @@ package de.unihildesheim.lucene.index;
 import de.unihildesheim.ByteArray;
 import de.unihildesheim.Tuple;
 import de.unihildesheim.lucene.Environment;
-import de.unihildesheim.util.ByteArrayUtil;
 import de.unihildesheim.util.RandomValue;
-import de.unihildesheim.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.util.concurrent.processing.Source;
 import de.unihildesheim.util.concurrent.processing.Target;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.Iterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Utility class for testing index related functions.
  *
- 
+ *
  */
 public final class IndexTestUtil {
 
@@ -53,10 +50,11 @@ public final class IndexTestUtil {
    */
   public static void setRandomStopWordsAndFields(
           final TestIndexDataProvider dataProv) {
-    final Collection<String> stopWords = setRandomStopWords(dataProv, false);
-    final Collection<String> fields = setRandomFields(dataProv, false);
-    Environment.setFieldsAndWords(fields.toArray(new String[fields.size()]),
-            stopWords);
+    throw new UnsupportedOperationException("BROKEN!");
+//    final Collection<String> stopWords = setRandomStopWords(dataProv, false);
+//    final Collection<String> fields = setRandomFields(dataProv, false);
+//    Environment.setFieldsAndWords(fields.toArray(new String[fields.size()]),
+//            stopWords);
   }
 
   /**
@@ -68,24 +66,25 @@ public final class IndexTestUtil {
    */
   private static Collection<String> setRandomStopWords(
           final TestIndexDataProvider dataProv, final boolean set) {
-    Iterator<ByteArray> termsIt = dataProv.getTermsIterator();
-    @SuppressWarnings(value = "CollectionWithoutInitialCapacity")
-    final Collection<String> stopWords = new ArrayList<>();
-    while (termsIt.hasNext()) {
-      if (RandomValue.getBoolean()) {
-        stopWords.add(ByteArrayUtil.utf8ToString(termsIt.next()));
-      } else {
-        termsIt.next();
-      }
-    }
-    if (stopWords.isEmpty()) {
-      stopWords.add(ByteArrayUtil.utf8ToString(new ArrayList<>(
-              dataProv.getTermSet()).get(0)));
-    }
-    if (set) {
-      Environment.setStopwords(stopWords);
-    }
-    return stopWords;
+    throw new UnsupportedOperationException("BROKEN!");
+//    Iterator<ByteArray> termsIt = dataProv.getTermsIterator();
+//    @SuppressWarnings(value = "CollectionWithoutInitialCapacity")
+//    final Collection<String> stopWords = new ArrayList<>();
+//    while (termsIt.hasNext()) {
+//      if (RandomValue.getBoolean()) {
+//        stopWords.add(ByteArrayUtil.utf8ToString(termsIt.next()));
+//      } else {
+//        termsIt.next();
+//      }
+//    }
+//    if (stopWords.isEmpty()) {
+//      stopWords.add(ByteArrayUtil.utf8ToString(new ArrayList<>(
+//              dataProv.getTermSet()).get(0)));
+//    }
+//    if (set) {
+//      Environment.setStopwords(stopWords);
+//    }
+//    return stopWords;
   }
 
   /**
@@ -108,11 +107,12 @@ public final class IndexTestUtil {
    */
   private static Collection<String> setRandomFields(
           final TestIndexDataProvider index, final boolean set) {
-    Collection<String> fields = index.getRandomFields();
-    if (set) {
-      Environment.setFields(fields.toArray(new String[fields.size()]));
-    }
-    return fields;
+    throw new UnsupportedOperationException("BROKEN!");
+//    Collection<String> fields = index.getRandomFields();
+//    if (set) {
+//      Environment.setFields(fields.toArray(new String[fields.size()]));
+//    }
+//    return fields;
   }
 
   /**
@@ -132,9 +132,10 @@ public final class IndexTestUtil {
    * @param index {@link TestIndexDataProvider}
    */
   public static void setAllFields(final TestIndexDataProvider index) {
-    index.enableAllFields();
-    Collection<String> fields = index.getActiveFieldNames();
-    Environment.setFields(fields.toArray(new String[fields.size()]));
+    throw new UnsupportedOperationException("BROKEN!");
+//    index.enableAllFields();
+//    Collection<String> fields = index.getActiveFieldNames();
+//    Environment.setFields(fields.toArray(new String[fields.size()]));
   }
 
   /**
@@ -282,8 +283,9 @@ public final class IndexTestUtil {
             final IndexDataProvider newDataTarget,
             final String newPrefix) {
       super(newSource);
-      dataTarget = newDataTarget;
-      prefix = newPrefix;
+      throw new UnsupportedOperationException("BROKEN");
+//      dataTarget = newDataTarget;
+//      prefix = newPrefix;
     }
 
     /**
@@ -305,19 +307,19 @@ public final class IndexTestUtil {
 
     @Override
     public void runProcess() throws Exception {
-      while (!isTerminating()) {
-        Tuple.Tuple4<Integer, ByteArray, String, Integer> t4;
-        try {
-          t4 = getSource().next();
-        } catch (ProcessingException.SourceHasFinishedException ex) {
-          break;
-        }
-        if (t4 != null) {
-          if (dataTarget.setTermData(prefix, t4.a, t4.b, t4.c, t4.d) != null) {
-            LOG.warn("A termData value was already set.");
-          }
-        }
-      }
+//      while (!isTerminating()) {
+//        Tuple.Tuple4<Integer, ByteArray, String, Integer> t4;
+//        try {
+//          t4 = getSource().next();
+//        } catch (ProcessingException.SourceHasFinishedException ex) {
+//          break;
+//        }
+//        if (t4 != null) {
+//          if (dataTarget.setTermData(prefix, t4.a, t4.b, t4.c, t4.d) != null) {
+//            LOG.warn("A termData value was already set.");
+//          }
+//        }
+//      }
     }
 
   }

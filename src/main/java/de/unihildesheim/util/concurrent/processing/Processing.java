@@ -63,7 +63,7 @@ public final class Processing {
   /**
    * Thread pool handling thread execution.
    */
-  private static ProcessingThreadPoolExecutor executor = null;
+  private static volatile ProcessingThreadPoolExecutor executor = null;
 
   /**
    * Creates a new processing pipe with the given {@link Source} and

@@ -23,7 +23,6 @@ import org.junit.Test;
 import static org.mapdb.DBMaker.JVMSupportsLargeMappedFiles;
 
 /**
- *
  * @author Jens Bertram
  */
 public class Issue313Test {
