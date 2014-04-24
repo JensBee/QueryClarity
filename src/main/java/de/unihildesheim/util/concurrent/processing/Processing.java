@@ -23,8 +23,9 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.slf4j.LoggerFactory;
@@ -225,17 +226,24 @@ public final class Processing {
    * the default number of threads.
    */
   public void process() {
-    process(THREADS);
+    process(Processing.THREADS);
   }
 
   /**
    * Start processing with the defined {@link Source} and {@link Target} with
    * a specified number of threads.
    *
-   * @param threadCount Number of threads to use
+   * @param maxThreadCount Maximum number of threads to use
    */
   @SuppressWarnings("ThrowableResultIgnored")
-  public void process(final int threadCount) {
+  public void process(final int maxThreadCount) {
+    final int threadCount;
+    if (maxThreadCount > Processing.THREADS) {
+      threadCount = Processing.THREADS;
+    } else {
+      threadCount = maxThreadCount;
+    }
+
     if (this.source == null) {
       throw new IllegalStateException("No source set.");
     }
@@ -314,11 +322,20 @@ public final class Processing {
     private ExecutorService threadPool = null;
 
     /**
-     * Create a new processing thread pool manager. The initial allowed number
-     * of parallel threads is derived from the number of processors available.
+     * Maximum seconds a thread may be idle in the pool, before it gets
+     * removed.
+     */
+    private static final long KEEPALIVE_TIME = 60L;
+
+    /**
+     * Create a new processing thread pool manager. The maximum number of
+     * threads concurrently run is determined by the number of processors
+     * available.
      */
     ProcessingThreadPoolExecutor() {
-      this.threadPool = Executors.newCachedThreadPool();
+      this.threadPool = new ThreadPoolExecutor(Processing.THREADS,
+              Integer.MAX_VALUE, KEEPALIVE_TIME, TimeUnit.SECONDS,
+              new SynchronousQueue<Runnable>());
     }
 
     /**

@@ -18,7 +18,6 @@ package de.unihildesheim.lucene.scoring.clarity;
 
 import de.unihildesheim.lucene.scoring.clarity.impl.ClarityScoreResult;
 import de.unihildesheim.util.Configuration;
-import org.apache.lucene.queryparser.classic.ParseException;
 
 /**
  * Generic interface for various clarity score calculation implementations.
@@ -33,11 +32,8 @@ public interface ClarityScoreCalculation {
    * @param query Query used for term extraction
    * @return Calculated clarity score for the given terms, or <tt>null</tt>
    * on errors.
-   * @throws org.apache.lucene.queryparser.classic.ParseException Thrown, if
-   * the query could not be parsed
    */
-  ClarityScoreResult calculateClarity(final String query) throws
-          ParseException;
+  ClarityScoreResult calculateClarity(final String query) throws Exception;
 
   /**
    * Sets a configuration for this {@link ClarityScoreCalculation} instance.

@@ -26,7 +26,7 @@ import org.apache.lucene.index.MultiFields;
 
 /**
  * Simple utilities for working with a Lucene index.
- 
+ *
  */
 public final class IndexUtils {
 
@@ -39,9 +39,13 @@ public final class IndexUtils {
 
   /**
    * Get a list of fields available in the index.
+   *
    * @return Fields list
+   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+   * no index is provided in the {@link Environment}
    */
-  public static Collection<String> getFields() {
+  public static Collection<String> getFields() throws
+          Environment.NoIndexException {
     return MultiFields.getIndexedFields(Environment.getIndexReader());
   }
 
@@ -51,8 +55,11 @@ public final class IndexUtils {
    * {@link IllegalStateException} if not all fields are present in the index.
    *
    * @param fields Fields to check
+   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+   * no index is provided in the {@link Environment}
    */
-  public static void checkFields(final String[] fields) {
+  public static void checkFields(final String[] fields) throws
+          Environment.NoIndexException {
     checkFields(Environment.getIndexReader(), fields);
   }
 
@@ -62,9 +69,11 @@ public final class IndexUtils {
    *
    * @param reader IndexReader to use
    * @param fields Fields to check
+   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+   * no index is provided in the {@link Environment}
    */
   public static void checkFields(final IndexReader reader,
-          final String[] fields) {
+          final String[] fields) throws Environment.NoIndexException {
     if (fields == null || fields.length == 0) {
       throw new IllegalArgumentException("No fields specified.");
     }

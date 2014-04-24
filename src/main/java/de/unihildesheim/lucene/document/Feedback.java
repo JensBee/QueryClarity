@@ -35,7 +35,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Utility class to get feedback documents needed for calculations.
  *
- 
+ *
  */
 public final class Feedback {
 
@@ -128,9 +128,11 @@ public final class Feedback {
    * @param docCount Number of documents to return
    * @return List of Lucene document ids
    * @throws IOException Thrown on low-level I/O errors
+   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+   * no index is provided in the {@link Environment}
    */
   public static Collection<Integer> get(final Query query, final int docCount)
-          throws IOException {
+          throws IOException, Environment.NoIndexException {
     return get(Environment.getIndexReader(), query, docCount);
   }
 
@@ -183,9 +185,11 @@ public final class Feedback {
    * @param docCount Number of documents to return
    * @return List of Lucene document ids
    * @throws java.io.IOException Thrown on low-level I/O errors
+   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+   * no index is provided in the {@link Environment}
    */
   public static Collection<Integer> getFixed(final Query query,
-          final int docCount) throws IOException {
+          final int docCount) throws IOException, Environment.NoIndexException {
     return getFixed(Environment.getIndexReader(), query, docCount);
   }
 

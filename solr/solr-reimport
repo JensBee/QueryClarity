@@ -1,0 +1,106 @@
+#!/bin/bash
+source $(dirname $0)/solr.conf.inc
+source $(dirname $0)/misc.inc
+
+DATA_DIR="./data"
+OPWD=$(pwd)
+IMPORT_FILE="solr-import-list.txt"
+SKIP_FILE="solr-import.skip"
+MISS_FILE="solr-import.miss"
+LIST_FILE="solr-import.files"
+ROWS=10000
+CREATE_FILE=1
+DIR_DEPTH=4
+
+createFileList() {
+	printf "Creating file list ${1}.\n"
+	find ./${1} -mindepth ${DIR_DEPTH} -maxdepth ${DIR_DEPTH} -type d -print0 | while IFS= read -r -d $'\0' DIR; do
+		echo "$DIR" >> "${OPWD}/${LIST_FILE}.${1}"
+	done;
+}
+
+dump() {
+	URL_BASE="127.0.0.1:${SOLR_PORT}/solr/$1"
+	URL_IMPORTED="${URL_BASE}/select?q=*:*&fl=id&wt=csv" # need to attach &start=.. and &rows=..
+	START=0
+	printf "Dumping $1\n"
+
+	printf "Getting results $START with $ROWS rows..\n"
+	RESULT=$(wget -q -O- ${URL_IMPORTED}\&start=${START}\&rows=${ROWS} | grep -Ev "^id")
+	while [[ "" != "$RESULT" ]]; do
+		echo "$RESULT" >> "${OPWD}/${IMPORT_FILE}"
+		START=$(($START + $ROWS))
+		printf "Getting results $START with $ROWS rows..\n"
+		RESULT=$(wget -q -O- ${URL_IMPORTED}\&start=${START}\&rows=${ROWS} | grep -Ev "^id")
+	done
+}
+
+createSkip() {
+	printf "Creating skip lists.\n"
+	while read DIR; do
+		if [[ $DIR == EP* ]]; then
+			DIR0=${DIR:3:1}
+			DIR1=${DIR:4:2}
+			DIR2=${DIR:6:2}
+			DIR3=${DIR:8:2}
+			#echo ./EP/00000$DIR0/$DIR1/$DIR2/$DIR3/$DIR.xml >> ${OPWD}/${SKIP_FILE}.EP
+			echo ./EP/00000$DIR0/$DIR1/$DIR2/$DIR3 >> ${OPWD}/${SKIP_FILE}.EP
+		elif [[ $DIR == WO* ]]; then
+			DIR0=${DIR:3:4}
+			DIR1=${DIR:7:2}
+			DIR2=${DIR:9:2}
+			DIR3=${DIR:11:2}
+			#echo ./WO/00$DIR0/$DIR1/$DIR2/$DIR3/$DIR.xml >> ${OPWD}/${SKIP_FILE}.WO
+			echo ./WO/00$DIR0/$DIR1/$DIR2/$DIR3 >> ${OPWD}/${SKIP_FILE}.WO
+		fi;
+	done < "${OPWD}/${IMPORT_FILE}"
+}
+
+createMiss() {
+	printf "Create missng directories list (${1}).\n"
+	grep -Fxvf ${OPWD}/${SKIP_FILE}.${1} ${OPWD}/${LIST_FILE}.${1} > ${OPWD}/${MISS_FILE}.${1}
+}
+
+if [ ! -f "${OPWD}/${LIST_FILE}.EP" ]; then
+	cd ${DATA_DIR}
+	echo > "${OPWD}/${LIST_FILE}.EP"
+	createFileList EP
+	cd ${OPWD}
+fi;
+if [ ! -f "${OPWD}/${LIST_FILE}.WO" ]; then
+        cd ${DATA_DIR}
+      	echo > "${OPWD}/${LIST_FILE}.WO"
+        createFileList WO
+        cd ${OPWD}
+fi;
+
+if [ -z "$1" ]; then
+	# no arguments supplied, default run
+	echo > "${OPWD}/${IMPORT_FILE}"
+	dump EP
+	dump WO
+	
+	printf "Processing import file..\n"
+	
+	# read import file
+	if [ ! -f "${OPWD}/${IMPORT_FILE}" ]; then
+	        printf "Import file ${OPWD}/${IMPORT_FILE} not found.\n"
+	        exit 1
+ 	fi;
+	                
+
+	echo > "${OPWD}/${SKIP_FILE}.EP"
+	echo > "${OPWD}/${SKIP_FILE}.WO"
+	createSkip
+	
+	createMiss EP
+	createMiss WO
+else
+	# argument supplied
+	cd "${DATA_DIR}"
+	echo > "${OPWD}/${MISS_FILE}.${1}"
+	createMiss $1
+fi;
+
+cd "${OPWD}"
+

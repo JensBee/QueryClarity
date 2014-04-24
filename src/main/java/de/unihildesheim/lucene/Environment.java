@@ -65,7 +65,7 @@ public final class Environment {
   /**
    * Path where the Lucene index is located at.
    */
-  private static String indexPath;
+  private static String indexPath = null;
   /**
    * Reader to access the Lucene index.
    */
@@ -116,6 +116,10 @@ public final class Environment {
    * For testing only. If true, indication we run a test case.
    */
   private static boolean isTestRun = false;
+  /**
+   * Flag, indicating, if no index is used.
+   */
+  private static boolean noIndex = false;
 
   /**
    * Types of events fired by the {@link Environment}.
@@ -188,7 +192,8 @@ public final class Environment {
   /**
    * Create the {@link Environment}.
    *
-   * @param iPath Index path
+   * @param iPath Index path. May be null, if no index should be used. If so
+   * an {@link Exception} is thrown, if any index related function is called.
    * @param dPath Data path
    * @param isTest If true, testing flag is set
    * @param newFields Index fields to use
@@ -198,11 +203,14 @@ public final class Environment {
   private static void create(final String iPath,
           final String dPath, final boolean isTest,
           final String[] newFields, final Collection<String> stopwords) throws
-          IOException {
+          IOException, NoIndexException {
     Environment.dataPath = dPath;
-    Environment.indexPath = iPath;
+    if (iPath == null) {
+      noIndex = true;
+    } else {
+      Environment.indexPath = iPath;
+    }
     Environment.isTestRun = isTest;
-    Environment.fields = newFields.clone();
 
     setStopwords(stopwords);
 
@@ -214,11 +222,26 @@ public final class Environment {
       // already registered, or shutdown is currently happening
     }
 
-    Environment.indexReader = openReader(new File(Environment.indexPath));
+    if (!Environment.noIndex) {
+      Environment.indexReader = openReader(new File(Environment.indexPath));
+    }
+
+    if (newFields == null) {
+      if (!Environment.noIndex) {
+        final Collection<String> idxFields = IndexUtils.getFields();
+        Environment.fields = idxFields.toArray(new String[idxFields.size()]);
+      }
+    } else {
+      Environment.fields = newFields.clone();
+    }
 
     Environment.initialized = true;
 
-    LOG.info("Index Path: {}", iPath);
+    if (Environment.noIndex) {
+      LOG.info("Index Path: None. Running without any index.");
+    } else {
+      LOG.info("Index Path: {}", iPath);
+    }
     LOG.info("Data Path: {}", dPath);
   }
 
@@ -230,22 +253,26 @@ public final class Environment {
    * @throws IOException Thrown on low-level I/O errors
    */
   private static void setDataProvider(final IndexDataProvider idp) throws
-          IOException {
+          IOException, NoIndexException {
     Environment.dataProvider = idp;
 
-    if (Environment.fields == null) {
-      // use all index fields
-      final Fields idxFields = MultiFields.getFields(Environment.indexReader);
-      final Iterator<String> idxFieldNamesIt = idxFields.iterator();
-      final Collection<String> idxFieldNames = new HashSet<>(idxFields.size());
-      while (idxFieldNamesIt.hasNext()) {
-        idxFieldNames.add(idxFieldNamesIt.next());
+    if (!Environment.noIndex) {
+      if (Environment.fields == null) {
+        // use all index fields
+        final Fields idxFields = MultiFields.
+                getFields(Environment.indexReader);
+        final Iterator<String> idxFieldNamesIt = idxFields.iterator();
+        final Collection<String> idxFieldNames = new HashSet<>(idxFields.
+                size());
+        while (idxFieldNamesIt.hasNext()) {
+          idxFieldNames.add(idxFieldNamesIt.next());
+        }
+        setFields(idxFieldNames.toArray(new String[idxFieldNames.
+                size()]));
+      } else {
+        IndexUtils.checkFields(Environment.fields);
+        setFields(Environment.fields);
       }
-      setFields(idxFieldNames.toArray(new String[idxFieldNames.
-              size()]));
-    } else {
-      IndexUtils.checkFields(Environment.fields);
-      setFields(Environment.fields);
     }
 
     LOG.info("DataProvider: {}", Environment.dataProvider.getClass().
@@ -258,7 +285,10 @@ public final class Environment {
    *
    * @return Generation number of the index
    */
-  public static Long getIndexGeneration() {
+  public static Long getIndexGeneration() throws NoIndexException {
+    if (Environment.noIndex) {
+      throw NoIndexException.EXCEPTION;
+    }
     if (Environment.indexReader == null) {
       throw new IllegalStateException(
               "Environment not initialized. (indexReader)");
@@ -270,14 +300,16 @@ public final class Environment {
    * Set the index document fields that get searched.
    *
    * @param newFields List of fields to use for searching
-   * @param fireEvent If true, an event is fired
    */
-  private static void setFields(final String[] newFields) {
+  private static void setFields(final String[] newFields) throws
+          NoIndexException {
     @SuppressWarnings("CollectionsToArray")
     final String[] uniqueFields
             = new HashSet<>(Arrays.asList(newFields)).toArray(
                     new String[newFields.length]);
-    IndexUtils.checkFields(uniqueFields);
+    if (!Environment.noIndex) {
+      IndexUtils.checkFields(uniqueFields);
+    }
     Environment.fields = uniqueFields;
     LOG.info("Index fields: {}", Arrays.toString(Environment.fields));
   }
@@ -286,7 +318,6 @@ public final class Environment {
    * Set the list of stop-words to use.
    *
    * @param words List of stop-words
-   * @param fireEvent If true, an event is fired
    */
   private static void setStopwords(final Collection<String> words) {
     Environment.STOPWORDS.clear();
@@ -357,49 +388,6 @@ public final class Environment {
     return DirectoryReader.open(directory);
   }
 
-//  /**
-//   * Create a new instance with a default dataProvider implementation.
-//   *
-//   * @throws IOException Thrown on low-level I/O-errors
-//   */
-//  public void create() throws IOException {
-//    Environment.instance = this;
-//    Environment.dataProvider = new DirectIndexDataProvider();
-//    LOG.info("DataProvider: {}", Environment.dataProvider.getClass().
-//            getCanonicalName());
-//  }
-//  /**
-//   * Create a new instance with the given dataProvider.
-//   *
-//   * @param newDataProvider DataProvider to use
-//   */
-//  public void create(final IndexDataProvider newDataProvider) {
-//    if (newDataProvider == null) {
-//      throw new IllegalArgumentException("DataProvider was null.");
-//    }
-//    Environment.instance = this;
-//    Environment.dataProvider = newDataProvider;
-//    LOG.info("DataProvider: {}", Environment.dataProvider.getClass().
-//            getCanonicalName());
-//  }
-//  /**
-//   * Create a new instance of the given dataProvider class type.
-//   *
-//   * @param dataProviderClass DataProvider to instantiate
-//   * @throws InstantiationException Thrown if instance could not be created
-//   * @throws IllegalAccessException Thrown if instance could not be created
-//   */
-//  public void create(
-//          final Class<? extends IndexDataProvider> dataProviderClass) throws
-//          InstantiationException, IllegalAccessException {
-//    if (dataProviderClass == null) {
-//      throw new IllegalArgumentException("DataProvider was null.");
-//    }
-//    Environment.instance = this;
-//    Environment.dataProvider = dataProviderClass.newInstance();
-//    LOG.info("DataProvider: {}", Environment.dataProvider.getClass().
-//            getCanonicalName());
-//  }
   /**
    * Checks, if the environment is initialized. Throws a runtime exception, if
    * not.
@@ -447,7 +435,10 @@ public final class Environment {
    *
    * @return Lucene index reader
    */
-  public static IndexReader getIndexReader() {
+  public static IndexReader getIndexReader() throws NoIndexException {
+    if (Environment.noIndex) {
+      throw NoIndexException.EXCEPTION;
+    }
     if (Environment.indexReader == null) {
       throw new IllegalStateException(
               "Environment not initialized. (indexReader)");
@@ -460,7 +451,10 @@ public final class Environment {
    *
    * @return directory location of the Lucene index
    */
-  public static String getIndexPath() {
+  public static String getIndexPath() throws NoIndexException {
+    if (Environment.noIndex) {
+      throw NoIndexException.EXCEPTION;
+    }
     if (Environment.indexPath == null) {
       throw new IllegalStateException(
               "Environment not initialized. (indexPath)");
@@ -679,10 +673,12 @@ public final class Environment {
   public static void shutdown() {
     LOG.info("Shutting down Environment.");
     Environment.dataProvider.dispose();
-    try {
-      Environment.indexReader.close();
-    } catch (IOException ex) {
-      LOG.error("Exception while closing IndexReader.", ex);
+    if (!Environment.noIndex) {
+      try {
+        Environment.indexReader.close();
+      } catch (IOException ex) {
+        LOG.error("Exception while closing IndexReader.", ex);
+      }
     }
     try {
       saveProperties();
@@ -691,6 +687,15 @@ public final class Environment {
     }
     Runtime.getRuntime().removeShutdownHook(Environment.EXIT_HANDLER);
     clear();
+  }
+
+  public static final class NoIndexException extends Exception {
+
+    private static final NoIndexException EXCEPTION = new NoIndexException();
+
+    private NoIndexException() {
+      super("Environment is running without index.");
+    }
   }
 
   /**
@@ -744,11 +749,11 @@ public final class Environment {
     /**
      * Default cache name.
      */
-    private static final String DEFAULT_CACHE_NAME = "temp-" + TS;
+    public static final String DEFAULT_CACHE_NAME = "temp-";
     /**
      * Named cache to use by {@link IndexDataProvider}.
      */
-    private String cacheName = DEFAULT_CACHE_NAME;
+    private String cacheName = DEFAULT_CACHE_NAME + TS;
     /**
      * Signals {@link IndexDataProvider} to try to create the named cache.
      */
@@ -764,7 +769,37 @@ public final class Environment {
     private boolean loadOrCreateCache = false;
 
     /**
-     * Initialize the builder.
+     * Builder initializer.
+     *
+     * @param newIdxPath Index path, may be null, to run without an index
+     * @param newDataPath Data path
+     * @param allowNoIndex If true, empty value for index path is allowed
+     * @throws IOException Thrown on low-level I/O errors
+     */
+    private Builder(final String newIdxPath, final String newDataPath,
+            final boolean allowNoIndex) throws IOException {
+      if (!allowNoIndex && (newIdxPath == null || newIdxPath.isEmpty())) {
+        throw new IllegalArgumentException("Empty index path.");
+      }
+      if (newDataPath == null || newDataPath.isEmpty()) {
+        throw new IllegalArgumentException("Empty data path.");
+      }
+      if (Environment.isInitialized()) {
+        throw new IllegalStateException("Environment already initialized.");
+      }
+      checkPathes(newIdxPath, newDataPath);
+      if (newIdxPath == null || newIdxPath.isEmpty()) {
+        this.idxPath = null;
+      } else {
+        this.idxPath = newIdxPath + (newIdxPath.endsWith(File.separator)
+                ? "" : File.separator);
+      }
+      this.dataPath = newDataPath + (newDataPath.endsWith(File.separator)
+              ? "" : File.separator);
+    }
+
+    /**
+     * Initialize the builder with a given index and data path.
      *
      * @param newIdxPath Index path
      * @param newDataPath Data path
@@ -772,14 +807,19 @@ public final class Environment {
      */
     public Builder(final String newIdxPath, final String newDataPath) throws
             IOException {
-      if (Environment.isInitialized()) {
-        throw new IllegalStateException("Environment already initialized.");
-      }
-      checkPathes(newIdxPath, newDataPath);
-      this.idxPath = newIdxPath + (newIdxPath.endsWith(File.separator)
-              ? "" : File.separator);
-      this.dataPath = newDataPath + (newIdxPath.endsWith(File.separator)
-              ? "" : File.separator);
+      this(newIdxPath, newDataPath, false);
+    }
+
+    /**
+     * Initializes the builder using no index. You should use a appropriate
+     * {@link IndexDataProvider} that supplies the needed informations without
+     * a separate Lucene index.
+     *
+     * @param newDataPath Data path
+     * @throws IOException Thrown on low-level I/O errors
+     */
+    public Builder(final String newDataPath) throws IOException {
+      this(null, newDataPath, true);
     }
 
     /**
@@ -791,13 +831,6 @@ public final class Environment {
      */
     private void checkPathes(final String iPath, final String dPath)
             throws IOException {
-      if (dPath == null || dPath.isEmpty()) {
-        throw new IllegalArgumentException("Data path was empty.");
-      }
-      if (iPath == null || iPath.isEmpty()) {
-        throw new IllegalArgumentException("Index path was empty.");
-      }
-
       final File dataDir = new File(dPath);
       if (dataDir.exists()) {
         if (!dataDir.isDirectory()) {
@@ -809,15 +842,17 @@ public final class Environment {
                 + dPath + "'.");
       }
 
-      final File idxDir = new File(iPath);
-      if (idxDir.exists()) {
-        if (!idxDir.isDirectory()) {
-          throw new IOException("Index path '" + iPath
-                  + "' exists, but is not a directory.");
+      if (iPath != null) { // may be null, if we run without any index
+        final File idxDir = new File(iPath);
+        if (idxDir.exists()) {
+          if (!idxDir.isDirectory()) {
+            throw new IOException("Index path '" + iPath
+                    + "' exists, but is not a directory.");
+          }
+        } else if (!idxDir.mkdirs()) {
+          throw new IOException("Error while creating index directories '"
+                  + iPath + "'.");
         }
-      } else if (!idxDir.mkdirs()) {
-        throw new IOException("Error while creating index directories '"
-                + iPath + "'.");
       }
     }
 
@@ -882,7 +917,8 @@ public final class Environment {
     /**
      * Setup the environment.
      *
-     * @throws IOException Thrown on low-level I/O errors
+     * @throws Exception Thrown, if creating the {@link Environment} or
+     * {@link IndexDataProvider} fails
      */
     public void build() throws Exception {
       Environment.create(this.idxPath, this.dataPath, this.isTest,

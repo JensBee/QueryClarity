@@ -21,14 +21,12 @@ import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.query.QueryUtils;
 import de.unihildesheim.util.ByteArrayUtil;
-import de.unihildesheim.util.RandomValue;
 import de.unihildesheim.util.concurrent.processing.Source;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -37,7 +35,6 @@ import org.junit.AfterClass;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -48,9 +45,10 @@ import org.slf4j.LoggerFactory;
 /**
  * Test for {@link TestIndexDataProvider}.
  *
- *
+ * @author Jens Bertram
  */
-public final class TestIndexDataProviderTest {
+public final class TestIndexDataProviderTest
+        extends IndexDataProviderTestMethods {
 
   /**
    * Logger instance for this class.
@@ -62,6 +60,13 @@ public final class TestIndexDataProviderTest {
    * Temporary Lucene memory index.
    */
   private static TestIndexDataProvider index;
+
+  private static final Class<? extends IndexDataProvider> DATAPROV_CLASS
+          = TestIndexDataProvider.class;
+
+  public TestIndexDataProviderTest() {
+    super(index, DATAPROV_CLASS);
+  }
 
   /**
    * Static initializer run before all tests.
@@ -84,48 +89,35 @@ public final class TestIndexDataProviderTest {
   }
 
   /**
-   * Run before each test starts.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
+   * Run before each test.
    */
   @Before
-  public void setUp() throws Exception {
-    throw new UnsupportedOperationException("BROKEN!");
-//    Environment.clear();
-//    index.clearTermData();
-//    Environment.clearAllProperties();
-//    index.setupEnvironment();
-//    Environment.getDataProvider().warmUp();
+  public void setUp() {
+    Environment.clear();
+    Environment.clearAllProperties();
   }
 
   /**
-   * Test of getDocumentFrequency method, of class TestIndexDataProvider.
+   * Initialize the {@link Environment}.
+   *
+   * @param fields Fields to use (may be null to use all)
+   * @param stopwords Stopwords to use (may be null)
+   * @throws Exception Any exception indicates an error
    */
-  @Test
-  public void testGetDocumentFrequency() {
-    LOG.info("Test getDocumentFrequency");
-    final Collection<ByteArray> idxTerms = index.getTermSet();
-
-    for (ByteArray term : idxTerms) {
-      int docCount = 0;
-      final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
-      while (docIdIt.hasNext()) {
-        final int docId = docIdIt.next();
-        if (index.documentContains(docId, term)) {
-          docCount++;
-        }
-      }
-      assertEquals("Document frequency differs.", docCount, index.
-              getDocumentFrequency(term));
-    }
+  private void initEnvironment(final Collection<String> fields,
+          final Collection<String> stopwords) throws Exception {
+    index.setupEnvironment(fields, stopwords);
+    Environment.getDataProvider().warmUp();
   }
 
   /**
    * Test of getIndexDir method, of class TestIndexDataProvider.
+   *
+   * @throws Exception Any exception indicates an error
    */
   @Test
-  public void testGetIndexDir() {
-    LOG.info("GTest getIndexDir");
+  public void testGetIndexDir() throws Exception {
+    initEnvironment(null, null);
     assertTrue("Index dir does not exist.", new File(index.getIndexDir()).
             exists());
   }
@@ -138,15 +130,13 @@ public final class TestIndexDataProviderTest {
   @Test
   @SuppressWarnings("UnnecessaryUnboxing")
   public void testGetQueryString_0args() throws Exception {
-    LOG.info("Test getQueryString");
+    initEnvironment(null, null);
     final String qString = index.getQueryString();
     final Collection<ByteArray> qTerms = QueryUtils.getUniqueQueryTerms(
             qString);
-    final Collection<String> sWordsStr = Environment.getStopwords();
-    final Collection<ByteArray> sWords = new ArrayList<>(sWordsStr.size());
-    for (String sWord : sWordsStr) {
-      sWords.add(new ByteArray(sWord.getBytes("UTF-8")));
-    }
+    final Collection<ByteArray> sWords = IndexTestUtil.
+            getStopwordBytesFromEnvironment();
+
     for (ByteArray qTerm : qTerms) {
       if (sWords.contains(qTerm)) {
         assertEquals("Stopword has term frequency >0.", 0L, index.
@@ -165,7 +155,7 @@ public final class TestIndexDataProviderTest {
   @Test
   @SuppressWarnings("UnnecessaryUnboxing")
   public void testGetQueryObj_0args() throws Exception {
-    LOG.info("Test getQueryObj");
+    initEnvironment(null, null);
     // stopwords are already removed
     final Collection<String> qTerms = index.getQueryObj().getQueryTerms();
     for (String term : qTerms) {
@@ -182,7 +172,7 @@ public final class TestIndexDataProviderTest {
    */
   @Test
   public void testGetUniqueQueryString() throws Exception {
-    LOG.info("Test getUniqueQueryString");
+    initEnvironment(null, null);
     String result = index.getUniqueQueryString();
     Collection<ByteArray> qTerms = QueryUtils.getAllQueryTerms(result);
     Set<ByteArray> qTermsUnique = new HashSet<>(qTerms);
@@ -197,7 +187,7 @@ public final class TestIndexDataProviderTest {
    */
   @Test
   public void testGetQueryString_StringArr() throws Exception {
-    LOG.info("Test getQueryString [terms]");
+    initEnvironment(null, null);
     final String oQueryStr = index.getQueryString();
     final Collection<ByteArray> oQueryTerms = QueryUtils.getAllQueryTerms(
             oQueryStr);
@@ -220,7 +210,7 @@ public final class TestIndexDataProviderTest {
   @Test
   @SuppressWarnings("UnnecessaryUnboxing")
   public void testGetQueryObj_StringArr() throws Exception {
-    LOG.info("Test getQueryObj [terms]");
+    initEnvironment(null, null);
     final String oQueryStr = index.getQueryString();
     final Collection<ByteArray> oQueryTerms = QueryUtils.getAllQueryTerms(
             oQueryStr);
@@ -255,7 +245,7 @@ public final class TestIndexDataProviderTest {
    */
   @Test
   public void testGetRandomFields() throws Exception {
-    LOG.info("Test getRandomFields");
+    initEnvironment(null, null);
     Collection<String> result = index.getRandomFields();
     final Iterator<String> fields = MultiFields.getFields(index.getIndex().
             getReader()).iterator();
@@ -271,40 +261,14 @@ public final class TestIndexDataProviderTest {
   }
 
   /**
-   * Test of enableAllFields method, of class TestIndexDataProvider.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  @Test
-  public void testEnableAllFields() throws Exception {
-    LOG.info("Test enableAllFields");
-    final Iterator<String> fields = MultiFields.getFields(index.getIndex().
-            getReader()).iterator();
-    @SuppressWarnings("CollectionWithoutInitialCapacity")
-    final Collection<String> fieldNames = new ArrayList<>();
-    while (fields.hasNext()) {
-      fieldNames.add(fields.next());
-    }
-
-    index.enableAllFields();
-    final Collection<String> knownFields = index.getActiveFieldNames();
-
-    assertEquals("Field count differs.", fieldNames.size(), knownFields.size());
-    assertTrue("Not all fields in result set.", knownFields.containsAll(
-            fieldNames));
-  }
-
-  /**
    * Test of setupEnvironment method, of class TestIndexDataProvider.
    *
    * @throws Exception Any exception indicates an error
    */
   @Test
   public void testSetupEnvironment_Class() throws Exception {
-    LOG.info("setupEnvironment [class]");
-    Environment.clear();
     Class<? extends IndexDataProvider> dataProv = FakeIndexDataProvider.class;
-    index.setupEnvironment(dataProv);
+    index.setupEnvironment(dataProv, null, null);
     assertTrue("Expected environment to be initialized.", Environment.
             isInitialized());
     assertTrue("IndexDataProvider is not of expected type.", Environment.
@@ -318,10 +282,8 @@ public final class TestIndexDataProviderTest {
    */
   @Test
   public void testSetupEnvironment_IndexDataProvider() throws Exception {
-    LOG.info("Test setupEnvironment [instance]");
-    Environment.clear();
     IndexDataProvider dataProv = new FakeIndexDataProvider();
-    index.setupEnvironment(dataProv);
+    index.setupEnvironment(dataProv, null, null);
     assertTrue("Expected environment to be initialized.", Environment.
             isInitialized());
     assertTrue("IndexDataProvider is not of expected type.", Environment.
@@ -335,9 +297,7 @@ public final class TestIndexDataProviderTest {
    */
   @Test
   public void testSetupEnvironment_0args() throws Exception {
-    LOG.info("Test setupEnvironment");
-    Environment.clear();
-    index.setupEnvironment();
+    initEnvironment(null, null);
     assertTrue("Expected environment to be initialized.", Environment.
             isInitialized());
     assertTrue("IndexDataProvider is not of expected type.", Environment.
@@ -351,8 +311,8 @@ public final class TestIndexDataProviderTest {
    */
   @Test
   public void testGetActiveFieldNames() throws Exception {
-    LOG.info("Test getActiveFieldNames");
-    final Collection<String> aFields = IndexTestUtil.setRandomFields(index);
+    final Collection<String> aFields = IndexTestUtil.getRandomFields(index);
+    initEnvironment(aFields, null);
     final Collection<String> result = index.getActiveFieldNames();
 
     assertEquals("Number of fields differs.", aFields.size(), result.size());
@@ -364,10 +324,12 @@ public final class TestIndexDataProviderTest {
   /**
    * Test of getDocumentTermFrequencyMap method, of class
    * TestIndexDataProvider.
+   *
+   * @throws Exception Any exception indicates an error
    */
   @Test
-  public void testGetDocumentTermFrequencyMap() {
-    LOG.info("Test getDocumentTermFrequencyMap");
+  public void testGetDocumentTermFrequencyMap() throws Exception {
+    initEnvironment(null, null);
     for (int i = 0; i < index.getDocumentCount(); i++) {
       final DocumentModel docModel = index.getDocumentModel(i);
       final Map<ByteArray, Long> dtfMap = index.getDocumentTermFrequencyMap(i);
@@ -384,34 +346,13 @@ public final class TestIndexDataProviderTest {
   }
 
   /**
-   * Test of getDocumentTermSet method, of class TestIndexDataProvider.
-   */
-  @Test
-  public void testGetDocumentTermSet() {
-    LOG.info("Test getDocumentTermSet");
-    for (int i = 0; i < index.getDocumentCount(); i++) {
-      final DocumentModel docModel = index.getDocumentModel(i);
-      final Map<ByteArray, Long> dtfMap = index.getDocumentTermFrequencyMap(i);
-      assertEquals(
-              "Document model term list size != DocumentTermFrequencyMap.size().",
-              dtfMap.size(), docModel.termFreqMap.size());
-      assertTrue("Document model term set != DocumentTermFrequencyMap keys.",
-              dtfMap.keySet().containsAll(docModel.termFreqMap.keySet()));
-      for (Entry<ByteArray, Long> e : dtfMap.entrySet()) {
-        assertEquals("Frequency value mismatch.", e.getValue(),
-                docModel.termFreqMap.get(e.getKey()));
-      }
-    }
-  }
-
-  /**
    * Test of getTermList method, of class TestIndexDataProvider.
    *
    * @throws Exception Any exception indicates an error
    */
   @Test
   public void testGetTermList() throws Exception {
-    LOG.info("Test getTermList");
+    initEnvironment(null, null);
     final Collection<ByteArray> result = index.getTermList();
     final Collection<ByteArray> tSet = new HashSet<>(result);
 
@@ -434,7 +375,7 @@ public final class TestIndexDataProviderTest {
    */
   @Test
   public void testGetTermSet() throws Exception {
-    LOG.info("Test getTermSet");
+    initEnvironment(null, null);
     Collection<ByteArray> result = index.getTermSet();
 
     assertFalse("Empty terms set.", result.isEmpty());
@@ -445,413 +386,15 @@ public final class TestIndexDataProviderTest {
   }
 
   /**
-   * Test of clearTermData method, of class TestIndexDataProvider.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  @Test
-  public void testClearTermData() throws Exception {
-    IndexDataProviderTestMethods.testClearTermData(index, index);
-  }
-
-  /**
-   * Test of getTermFrequency method, of class TestIndexDataProvider.
-   */
-  @Test
-  public void testGetTermFrequency_0args() {
-    LOG.info("Test getTermFrequency []");
-    assertEquals("Term frequency and term list size differs.", index.
-            getTermFrequency(), index.getTermList().size());
-  }
-
-  /**
-   * Test of getTermFrequency method, of class TestIndexDataProvider.
-   */
-  @Test
-  @SuppressWarnings("UnnecessaryUnboxing")
-  public void testGetTermFrequency_ByteArray() {
-    LOG.info("Test getTermFrequency [term]");
-    final Collection<ByteArray> terms = index.getTermList();
-    for (ByteArray term : terms) {
-      assertNotNull("Expected frequency value for term.", index.
-              getTermFrequency(term));
-      assertNotEquals("Expected frequency value >0 for term.", index.
-              getTermFrequency(term).longValue(), 0L);
-    }
-  }
-
-  /**
-   * Test of getRelativeTermFrequency method, of class TestIndexDataProvider.
-   */
-  @Test
-  public void testGetRelativeTermFrequency() {
-    LOG.info("Test getRelativeTermFrequency");
-    final Collection<ByteArray> terms = index.getTermList();
-    for (ByteArray term : terms) {
-      assertNotEquals("Expected frequency value >0 term.", index.
-              getRelativeTermFrequency(term), 0);
-      assertEquals(
-              "Calculated and reported relative term frequency differs. tf="
-              + index.getTermFrequency(term) + " cf=" + index.
-              getTermFrequency(),
-              (index.getTermFrequency(term).doubleValue() / Long.valueOf(
-                      index.getTermFrequency()).doubleValue()),
-              index.getRelativeTermFrequency(term), 0d);
-    }
-  }
-
-  /**
-   * Test of getTermsIterator method, of class TestIndexDataProvider.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  @Test
-  public void testGetTermsIterator() throws Exception {
-    IndexDataProviderTestMethods.testGetTermsIterator(index, index);
-  }
-
-  /**
-   * Test of getTermsIterator method, of class TestIndexDataProvider. Using
-   * stopwords.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  @Test
-  public void testGetTermsIterator__stopped() throws Exception {
-    IndexDataProviderTestMethods.testGetTermsIterator__stopped(index, index);
-  }
-
-  /**
-   * Test of getTermsIterator method, of class TestIndexDataProvider. Using
-   * random fields.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  @Test
-  public void testGetTermsIterator__randField() throws Exception {
-    IndexDataProviderTestMethods.testGetTermsIterator__randField(index, index);
-  }
-
-  /**
-   * Test of getTermsSource method, of class TestIndexDataProvider.
-   */
-  @Test
-  public void testGetTermsSource() {
-    IndexDataProviderTestMethods.testGetTermsSource(index, index);
-  }
-
-  /**
-   * Test of getDocumentIdIterator method, of class TestIndexDataProvider.
-   */
-  @Test
-  public void testGetDocumentIdIterator() {
-    LOG.info("Test getDocumentIdIterator");
-    final List<Integer> docIdList = new ArrayList<>((int) index.
-            getDocumentCount());
-    for (int i = 0; i < index.getDocumentCount(); i++) {
-      docIdList.add(i);
-    }
-    Iterator<Integer> docIdIt = index.getDocumentIdIterator();
-    while (docIdIt.hasNext()) {
-      assertTrue("Unknown document-id found.", docIdList.
-              remove(docIdIt.next()));
-    }
-    assertTrue("Document-ids left after iteration.", docIdList.isEmpty());
-  }
-
-  /**
-   * Test of getDocumentIdSource method, of class TestIndexDataProvider.
-   */
-  @Test
-  public void testGetDocumentIdSource() {
-    IndexDataProviderTestMethods.testGetDocumentIdSource(index, index);
-  }
-
-  /**
-   * Test of getUniqueTermsCount method, of class TestIndexDataProvider.
-   */
-  @Test
-  public void testGetUniqueTermsCount() {
-    IndexDataProviderTestMethods.testGetUniqueTermsCount(index, index);
-  }
-
-  /**
-   * Test of getUniqueTermsCount method, of class TestIndexDataProvider. Using
-   * stopwords.
-   */
-  @Test
-  public void testGetUniqueTermsCount__stopped() {
-    IndexDataProviderTestMethods.
-            testGetUniqueTermsCount__stopped(index, index);
-  }
-
-  /**
-   * Test of getUniqueTermsCount method, of class TestIndexDataProvider. Using
-   * random fields.
-   */
-  @Test
-  public void testGetUniqueTermsCount__randFields() {
-    IndexDataProviderTestMethods.
-            testGetUniqueTermsCount__randFields(index, index);
-  }
-
-  /**
-   * Test of setTermData method, of class TestIndexDataProvider.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testSetTermData() throws Exception {
-    IndexDataProviderTestMethods.testSetTermData(index, index);
-  }
-
-  /**
-   * Test of getTermData method, of class TestIndexDataProvider.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testGetTermData_4args() throws Exception {
-    IndexDataProviderTestMethods.testGetTermData_4args(index, index);
-  }
-
-  /**
-   * Test of getTermData method, of class TestIndexDataProvider.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testGetTermData_3args() throws Exception {
-    IndexDataProviderTestMethods.testGetTermData_3args(index, index);
-  }
-
-  /**
-   * Test of getDocumentModel method, of class TestIndexDataProvider.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  @Test
-  public void testGetDocumentModel() throws Exception {
-    IndexDataProviderTestMethods.testGetDocumentModel(index, index);
-  }
-
-  /**
-   * Test of getDocumentModel method, of class TestIndexDataProvider. Using
-   * stopwords.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  @Test
-  public void testGetDocumentModel__stopped() throws Exception {
-    IndexDataProviderTestMethods.testGetDocumentModel__stopped(index, index);
-  }
-
-  /**
-   * Test of getDocumentModel method, of class TestIndexDataProvider. Using
-   * random fields.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  @Test
-  public void testGetDocumentModel__randField() throws Exception {
-    IndexDataProviderTestMethods.testGetDocumentModel__randField(index, index);
-  }
-
-  /**
-   * Test of hasDocument method, of class TestIndexDataProvider.
-   */
-  @Test
-  public void testHasDocument() {
-    IndexDataProviderTestMethods.testHasDocument(index, index);
-  }
-
-  /**
-   * Test of getDocumentCount method, of class TestIndexDataProvider.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  @Test
-  public void testGetDocumentCount() throws Exception {
-    LOG.info("Test getDocumentCount");
-    assertNotEquals("No documents found.", 0, index.getDocumentCount());
-    assertEquals("Document count mismatch.", index.getIndex().getReader().
-            maxDoc(), index.getDocumentCount());
-  }
-
-  /**
-   * Test of documentContains method, of class TestIndexDataProvider.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  @Test
-  public void testDocumentContains() throws Exception {
-    IndexDataProviderTestMethods.testDocumentContains(index);
-  }
-
-  /**
-   * Test of documentContains method, of class TestIndexDataProvider. Using
-   * stopwords.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  @Test
-  public void testDocumentContains__stopped() throws Exception {
-    IndexDataProviderTestMethods.testDocumentContains__stopped(index, index);
-  }
-
-  /**
-   * Test of documentContains method, of class TestIndexDataProvider. Using
-   * random fields.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  @Test
-  public void testDocumentContains__randField() throws Exception {
-    IndexDataProviderTestMethods.testDocumentContains__randField(index, index);
-  }
-
-  /**
-   * Test of dispose method, of class TestIndexDataProvider.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  @Test
-  public void testDispose() throws Exception {
-    LOG.info("Test dispose");
-    index.dispose(); // expect nothing special here
-  }
-
-  /**
-   * Test of getDocumentsTermSet method, of class TestIndexDataProvider.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  @Test
-  public void testGetDocumentsTermSet() throws Exception {
-    LOG.info("Test getDocumentsTermSet");
-    final int docCount = RandomValue.getInteger(2, (int) index.
-            getDocumentCount());
-    final Collection<Integer> docIds = new ArrayList<>(docCount);
-    @SuppressWarnings("CollectionWithoutInitialCapacity")
-    final Collection<ByteArray> expResult = new HashSet<>();
-
-    // collect some random document ids
-    for (int i = 0; i < docCount; i++) {
-      docIds.add(RandomValue.getInteger(0,
-              (int) index.getDocumentCount() - 1));
-    }
-
-    // get terms from those random documents
-    for (Integer docId : docIds) {
-      expResult.addAll(index.getDocumentTermSet(docId));
-    }
-
-    // get the termSet for those random documents
-    final Collection<ByteArray> result = index.getDocumentsTermSet(docIds);
-
-    assertEquals("Term count mismatch.", expResult.size(), result.size());
-    assertTrue("Terms mismatch.", result.containsAll(expResult));
-  }
-
-//  /**
-//   * Test of fieldsChanged method, of class TestIndexDataProvider.
-//   *
-//   * @throws Exception Any exception indicates an error
-//   */
-//  @Test
-//  public void testFieldsChanged() throws Exception {
-//    LOG.info("Test fieldsChanged");
-//    // this should trigger fieldsChanged
-//    final Collection<String> fld = IndexTestUtil.setRandomFields(index);
-//    Collection<String> cFld = index.getActiveFieldNames();
-//    assertEquals("Field sizes differ.", fld.size(), cFld.size());
-//    assertTrue("Not all fields present.", cFld.containsAll(fld));
-//
-//    index.fieldsChanged(new String[0]);
-//    cFld = index.getActiveFieldNames();
-//    assertEquals("Field sizes differ.", fld.size(), cFld.size());
-//    assertTrue("Not all fields present.", cFld.containsAll(fld));
-//
-//    index.fieldsChanged(null);
-//    cFld = index.getActiveFieldNames();
-//    assertEquals("Field sizes differ.", fld.size(), cFld.size());
-//    assertTrue("Not all fields present.", cFld.containsAll(fld));
-//  }
-//
-//  /**
-//   * Test of wordsChanged method, of class TestIndexDataProvider.
-//   *
-//   * @throws Exception Any exception indicates an error
-//   */
-//  @Test
-//  public void testWordsChanged() throws Exception {
-//    LOG.info("Test wordsChanged");
-//    IndexTestUtil.setRandomStopWords(index);
-//    final Collection<String> words = Environment.getStopwords();
-//
-//    Collection<String> cWords = index.testGetStopwords();
-//    assertEquals("Stopword list size differs.", words.size(), cWords.size());
-//    assertTrue("Not all stopwords present.", cWords.containsAll(words));
-//
-//    index.wordsChanged(Collections.<String>emptyList());
-//    cWords = index.testGetStopwords();
-//    assertEquals("Stopword list size differs.", words.size(), cWords.size());
-//    assertTrue("Not all stopwords present.", cWords.containsAll(words));
-//
-//    index.wordsChanged(null);
-//    cWords = index.testGetStopwords();
-//    assertEquals("Stopword list size differs.", words.size(), cWords.size());
-//    assertTrue("Not all stopwords present.", cWords.containsAll(words));
-//  }
-  /**
-   * Test of warmUp method, of class TestIndexDataProvider.
-   */
-  @Test
-  public void testWarmUp() {
-    LOG.info("Test warmUp()");
-    index.warmUp(); // expect to do nothing
-  }
-
-  /**
    * Test of isInitialized method, of class TestIndexDataProvider.
+   *
+   * @throws Exception Any exception indicates an error
    */
   @Test
-  public void testIsInitialized() {
-    LOG.info("Test isInitialized");
+  public void testIsInitialized() throws Exception {
+    initEnvironment(null, null);
     assertTrue("Index should be initialized.", TestIndexDataProvider.
             isInitialized());
-  }
-
-  /**
-   * Test of registerPrefix method, of class TestIndexDataProvider.
-   */
-  @Test
-  public void testRegisterPrefix() {
-    IndexDataProviderTestMethods.testRegisterPrefix(index);
-  }
-
-  /**
-   * Test of testGetStopwords method, of class TestIndexDataProvider.
-   */
-  @Test
-  public void testTestGetStopwords() {
-    LOG.info("testGetStopwords");
-    final Collection<String> words = Environment.getStopwords();
-    Collection<String> cWords = index.testGetStopwords();
-    assertEquals("Stopword list size differs.", words.size(), cWords.size());
-    assertTrue("Not all stopwords present.", cWords.containsAll(words));
-  }
-
-  /**
-   * Test of testGetFieldNames method, of class TestIndexDataProvider.
-   */
-  @Test
-  public void testTestGetFieldNames() {
-    LOG.info("testGetFieldNames");
-    final Collection<String> fld = IndexTestUtil.setRandomFields(index);
-    Collection<String> cFld = index.testGetFieldNames();
-    assertEquals("Field sizes differ.", fld.size(), cFld.size());
-    assertTrue("Not all fields present.", cFld.containsAll(fld));
   }
 
   /**
@@ -938,16 +481,6 @@ public final class TestIndexDataProviderTest {
 
     @Override
     public boolean documentContains(int documentId, ByteArray term) {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public Collection<String> testGetStopwords() {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public Collection<String> testGetFieldNames() {
       throw new UnsupportedOperationException("Not supported yet.");
     }
 

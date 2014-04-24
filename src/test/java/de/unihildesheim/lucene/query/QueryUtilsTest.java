@@ -21,21 +21,19 @@ import de.unihildesheim.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.util.ByteArrayUtil;
 import de.unihildesheim.util.RandomValue;
 import edu.umd.cs.findbugs.annotations.SuppressWarnings;
-
-
-import org.junit.BeforeClass;
-import org.junit.Test;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import static org.junit.Assert.*;
 import java.util.ArrayList;
 import java.util.Collection;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Test for {@link QueryUtils}.
  *
- 
+ *
  */
 public class QueryUtilsTest {
 
@@ -62,7 +60,7 @@ public class QueryUtilsTest {
     index = new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL);
     assertTrue("TestIndex is not initialized.",
             TestIndexDataProvider.isInitialized());
-    index.setupEnvironment();
+    index.setupEnvironment(null, null);
   }
 
   /**

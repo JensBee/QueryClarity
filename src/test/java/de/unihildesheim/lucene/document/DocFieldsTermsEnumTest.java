@@ -163,8 +163,7 @@ public final class DocFieldsTermsEnumTest
     LOG.info("Test next");
     final DocFieldsTermsEnum instance = new DocFieldsTermsEnum();
 
-    final Collection<ByteArray> stopwords = IndexTestUtil.
-            getStopwordsFromEnvironment();
+    final Collection<ByteArray> stopwords = IndexTestUtil.getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;
 
     for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
@@ -216,8 +215,7 @@ public final class DocFieldsTermsEnumTest
     LOG.info("Test getTotalTermFreq");
     final DocFieldsTermsEnum instance = new DocFieldsTermsEnum();
 
-    final Collection<ByteArray> stopwords = IndexTestUtil.
-            getStopwordsFromEnvironment();
+    final Collection<ByteArray> stopwords = IndexTestUtil.getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;
 
     for (int i = 0; i < index.getDocumentCount(); i++) {

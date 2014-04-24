@@ -19,6 +19,7 @@ package de.unihildesheim.lucene.index;
 import de.unihildesheim.ByteArray;
 import de.unihildesheim.Tuple;
 import de.unihildesheim.lucene.Environment;
+import de.unihildesheim.util.ByteArrayUtil;
 import de.unihildesheim.util.RandomValue;
 import de.unihildesheim.util.concurrent.processing.Source;
 import de.unihildesheim.util.concurrent.processing.Target;
@@ -26,6 +27,7 @@ import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Iterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,100 +44,66 @@ public final class IndexTestUtil {
   private static final Logger LOG = LoggerFactory.getLogger(
           IndexTestUtil.class);
 
-  /**
-   * Pick some (1 to n) terms from the index and sets them as stop-words and
-   * set random index fields active for the {@link Environment}.
-   *
-   * @param dataProv Data provider
-   */
-  public static void setRandomStopWordsAndFields(
-          final TestIndexDataProvider dataProv) {
-    throw new UnsupportedOperationException("BROKEN!");
-//    final Collection<String> stopWords = setRandomStopWords(dataProv, false);
-//    final Collection<String> fields = setRandomFields(dataProv, false);
-//    Environment.setFieldsAndWords(fields.toArray(new String[fields.size()]),
-//            stopWords);
+  public static IndexDataProvider createInstance(
+          final TestIndexDataProvider index,
+          final Class<? extends IndexDataProvider> dataProv,
+          final Collection<String> fields,
+          final Collection<String> stopwords) throws Exception {
+    Environment.clear();
+    index.setupEnvironment(dataProv, fields, stopwords);
+    IndexDataProvider instance = Environment.getDataProvider();
+    instance.createCache("test");
+    instance.warmUp();
+    return instance;
   }
 
   /**
-   * Picks some (1 to n) terms from the index and sets them as stop-words.
-   *
-   * @param dataProv Data provider
-   * @param set If true, set new stop-words to {@link Environment}
-   * @return Stop words term collection
-   */
-  private static Collection<String> setRandomStopWords(
-          final TestIndexDataProvider dataProv, final boolean set) {
-    throw new UnsupportedOperationException("BROKEN!");
-//    Iterator<ByteArray> termsIt = dataProv.getTermsIterator();
-//    @SuppressWarnings(value = "CollectionWithoutInitialCapacity")
-//    final Collection<String> stopWords = new ArrayList<>();
-//    while (termsIt.hasNext()) {
-//      if (RandomValue.getBoolean()) {
-//        stopWords.add(ByteArrayUtil.utf8ToString(termsIt.next()));
-//      } else {
-//        termsIt.next();
-//      }
-//    }
-//    if (stopWords.isEmpty()) {
-//      stopWords.add(ByteArrayUtil.utf8ToString(new ArrayList<>(
-//              dataProv.getTermSet()).get(0)));
-//    }
-//    if (set) {
-//      Environment.setStopwords(stopWords);
-//    }
-//    return stopWords;
-  }
-
-  /**
-   * Picks some (1 to n) terms from the index and sets them as stop-words.
+   * Picks some (1 to n) terms from the index.
    *
    * @param dataProv Data provider
    * @return Stop words term collection
    */
-  public static Collection<String> setRandomStopWords(
+  public static Collection<String> getRandomStopWords(
           final TestIndexDataProvider dataProv) {
-    return setRandomStopWords(dataProv, true);
+    Iterator<ByteArray> termsIt = dataProv.getTermsIterator();
+    @SuppressWarnings(value = "CollectionWithoutInitialCapacity")
+    final Collection<String> stopWords = new ArrayList<>();
+    while (termsIt.hasNext()) {
+      if (RandomValue.getBoolean()) {
+        stopWords.add(ByteArrayUtil.utf8ToString(termsIt.next()));
+      } else {
+        termsIt.next();
+      }
+    }
+    if (stopWords.isEmpty()) {
+      stopWords.add(ByteArrayUtil.utf8ToString(new ArrayList<>(
+              dataProv.getTermSet()).get(0)));
+    }
+    return stopWords;
   }
 
   /**
-   * Set random index fields active for the {@link Environment}.
+   * Get random index fields.
    *
    * @param index {@link TestIndexDataProvider}
    * @param set If true, set fields to {@link Environment}
    * @return List of fields set
    */
-  private static Collection<String> setRandomFields(
+  private static Collection<String> getRandomFields(
           final TestIndexDataProvider index, final boolean set) {
-    throw new UnsupportedOperationException("BROKEN!");
-//    Collection<String> fields = index.getRandomFields();
-//    if (set) {
-//      Environment.setFields(fields.toArray(new String[fields.size()]));
-//    }
-//    return fields;
+    Collection<String> fields = index.getRandomFields();
+    return fields;
   }
 
   /**
-   * Set random index fields active for the {@link Environment}.
+   * Get random index fields.
    *
    * @param index {@link TestIndexDataProvider}
    * @return List of fields set
    */
-  public static Collection<String> setRandomFields(
+  public static Collection<String> getRandomFields(
           final TestIndexDataProvider index) {
-    return setRandomFields(index, true);
-  }
-
-  /**
-   * Set all index fields active for the {@link Environment}.
-   *
-   * @param index {@link TestIndexDataProvider}
-   */
-  public static void setAllFields(final TestIndexDataProvider index) {
-    throw new UnsupportedOperationException("BROKEN!");
-//    index.enableAllFields();
-//    Collection<String> fields = index.getActiveFieldNames();
-//    Environment.setFields(fields.toArray(new String[fields.size()]));
+    return getRandomFields(index, true);
   }
 
   /**
@@ -145,7 +113,7 @@ public final class IndexTestUtil {
    * @throws UnsupportedEncodingException Thrown, if a stopword could not be
    * proper encoded
    */
-  public static Collection<ByteArray> getStopwordsFromEnvironment() throws
+  public static Collection<ByteArray> getStopwordBytesFromEnvironment() throws
           UnsupportedEncodingException {
     final Collection<String> stopwordsStr = Environment.getStopwords();
     if (!stopwordsStr.isEmpty()) {

@@ -108,14 +108,14 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
   }
 
   /**
-   * Test method for contains method, of class DocumentModel.
+   * Test of contains method, of class DocumentModel.
    *
    * @throws Exception Any exception thrown indicates an error
    */
-  @SuppressWarnings("null")
-  private void _testContains() throws Exception {
+  @Test
+  public void testContains() throws Exception {
     final Collection<ByteArray> stopwords = IndexTestUtil.
-            getStopwordsFromEnvironment();
+            getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;
 
     for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
@@ -136,53 +136,14 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
   }
 
   /**
-   * Test of contains method, of class DocumentModel.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testContains() throws Exception {
-    LOG.info("Test contains");
-    _testContains();
-  }
-
-  /**
-   * Test of contains method, of class DocumentModel.
-   * <p>
-   * Using random fields.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testContains_randFields() throws Exception {
-    LOG.info("Test contains (random fields)");
-    IndexTestUtil.setRandomFields(index);
-    _testContains();
-  }
-
-  /**
-   * Test of contains method, of class DocumentModel.
-   * <p>
-   * Using stopwords.
+   * Test of termFreqMap field, of class DocumentModel.
    *
    * @throws Exception Any exception indicates an error
    */
   @Test
-  public void testContains_stopped() throws Exception {
-    LOG.info("Test contains (stopped)");
-    IndexTestUtil.setRandomStopWords(index);
-    _testContains();
-  }
-
-  /**
-   * Test method for termFreqMap field, of class DocumentModel.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  @SuppressWarnings("null")
-  private void _testTermFreqMap() throws Exception {
+  public void testTermFreqMap() throws Exception {
     final Collection<ByteArray> stopwords = IndexTestUtil.
-            getStopwordsFromEnvironment();
+            getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;
 
     for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
@@ -212,49 +173,10 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
   }
 
   /**
-   * Test of termFreqMap field, of class DocumentModel.
-   *
-   * @throws Exception Any exception indicates an error
+   * Test of equals method, of class DocumentModel.
    */
   @Test
-  public void testTermFreqMap() throws Exception {
-    LOG.info("Test termFreqMap");
-    _testTermFreqMap();
-  }
-
-  /**
-   * Test of termFreqMap field, of class DocumentModel.
-   * <p>
-   * Using random fields.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  @Test
-  public void testTermFreqMap_randFields() throws Exception {
-    LOG.info("Test termFreqMap (random fields)");
-    IndexTestUtil.setRandomFields(index);
-    _testTermFreqMap();
-  }
-
-  /**
-   * Test of termFreqMap field, of class DocumentModel.
-   * <p>
-   * Using stopwords.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  @Test
-  public void testTermFreqMap_stopped() throws Exception {
-    LOG.info("Test termFreqMap (stopped)");
-    IndexTestUtil.setRandomStopWords(index);
-    _testTermFreqMap();
-  }
-
-  /**
-   * Test method for equals method, of class DocumentModel.
-   */
-  @edu.umd.cs.findbugs.annotations.SuppressWarnings({"DM_DEFAULT_ENCODING"})
-  public void _testEquals() {
+  public void testEquals() {
     final int firstDocId = RandomValue.getInteger(0, CollectionMetrics.
             numberOfDocuments().intValue() - 1);
     int secondDocId = RandomValue.getInteger(0, CollectionMetrics.
@@ -279,39 +201,6 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
             + ": Derived DocumentModel should not be the same "
             + "as the original one.", firstDocModel.equals(
                     derivedDocModel.getModel()));
-  }
-
-  /**
-   * Test of equals method, of class DocumentModel.
-   */
-  @Test
-  public void testEquals() {
-    LOG.info("Test equals");
-    _testEquals();
-  }
-
-  /**
-   * Test of equals method, of class DocumentModel.
-   * <p>
-   * Using random fields.
-   */
-  @Test
-  public void testEquals_randFields() {
-    LOG.info("Test equals (random fields)");
-    IndexTestUtil.setRandomFields(index);
-    _testEquals();
-  }
-
-  /**
-   * Test of equals method, of class DocumentModel.
-   * <p>
-   * Using random fields.
-   */
-  @Test
-  public void testEquals_stopped() {
-    LOG.info("Test equals (stopped)");
-    IndexTestUtil.setRandomStopWords(MultiIndexDataProviderTestCase.index);
-    _testEquals();
   }
 
   /**
@@ -379,14 +268,14 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
   }
 
   /**
-   * Test method for tf method, of class DocumentModel.
+   * Test of tf method, of class DocumentModel.
    *
    * @throws Exception Any exception indicates an error
    */
-  @SuppressWarnings("null")
-  private void _testTf() throws Exception {
+  @Test
+  public void testTf() throws Exception {
     final Collection<ByteArray> stopwords = IndexTestUtil.
-            getStopwordsFromEnvironment();
+            getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;
 
     for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
@@ -404,37 +293,14 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
   }
 
   /**
-   * Test of tf method, of class DocumentModel.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  @Test
-  public void testTf() throws Exception {
-    LOG.info("tf");
-    _testTf();
-  }
-
-  /**
-   * Test of tf method, of class DocumentModel.
+   * Test of termCount method, of class DocumentModel.
    *
    * @throws java.lang.Exception Any exception indicates an error
    */
   @Test
-  public void testTf_stopped() throws Exception {
-    LOG.info("tf (stopped)");
-    IndexTestUtil.setRandomStopWords(index);
-    _testTf();
-  }
-
-  /**
-   * Test method for termCount method, of class DocumentModel.
-   *
-   * @throws java.lang.Exception Any exception indicates an error
-   */
-  @SuppressWarnings("null")
-  private void _testTermCount() throws Exception {
+  public void testTermCount() throws Exception {
     final Collection<ByteArray> stopwords = IndexTestUtil.
-            getStopwordsFromEnvironment();
+            getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;
 
     for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
@@ -448,31 +314,6 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
         }
       }
     }
-  }
-
-  /**
-   * Test of termCount method, of class DocumentModel.
-   *
-   * @throws java.lang.Exception Any exception indicates an error
-   */
-  @Test
-  public void testTermCount() throws Exception {
-    LOG.info("Test termCount");
-    _testTermCount();
-  }
-
-  /**
-   * Test of termCount method, of class DocumentModel.
-   * <p>
-   * Using stopwords.
-   *
-   * @throws java.lang.Exception Any exception indicates an error
-   */
-  @Test
-  public void testTermCount_stopped() throws Exception {
-    LOG.info("Test termCount (stopped)");
-    IndexTestUtil.setRandomStopWords(index);
-    _testTermCount();
   }
 
   /**

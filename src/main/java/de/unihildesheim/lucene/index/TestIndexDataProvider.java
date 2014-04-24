@@ -17,7 +17,6 @@
 package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.ByteArray;
-import de.unihildesheim.Tuple;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.query.SimpleTermsQuery;
@@ -28,7 +27,6 @@ import de.unihildesheim.util.RandomValue;
 import de.unihildesheim.util.StringUtils;
 import de.unihildesheim.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.util.concurrent.processing.Processing;
-import de.unihildesheim.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.util.concurrent.processing.Source;
 import de.unihildesheim.util.concurrent.processing.Target;
 import java.io.File;
@@ -45,12 +43,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.mapdb.BTreeKeySerializer;
-import org.mapdb.DB;
 import org.mapdb.DBMaker;
 import org.mapdb.Fun;
 import org.mapdb.Serializer;
@@ -186,6 +182,11 @@ public final class TestIndexDataProvider implements IndexDataProvider {
      */
     final int[] queryLength;
 
+    /**
+     * Initialize the index configuration.
+     *
+     * @param sizes Size configuration
+     */
     IndexSize(final int[] sizes) {
       docCount = new int[]{sizes[0], sizes[1]};
       fieldCount = new int[]{sizes[2], sizes[3]};
@@ -196,20 +197,9 @@ public final class TestIndexDataProvider implements IndexDataProvider {
   }
 
   /**
-   * Temporary database backend.
-   */
-  private static DB db;
-
-  /**
    * Size of the index actually used.
    */
-  private IndexSize idxConf;
-
-  /**
-   * Map: <tt>(prefix -> ([document-id, term, key] -> value))</tt>.
-   */
-  private Map<String, Map<Tuple.Tuple3<
-          Integer, ByteArray, String>, Object>> prefixMap;
+  protected IndexSize idxConf;
 
   /**
    * Number of documents in index.
@@ -238,8 +228,6 @@ public final class TestIndexDataProvider implements IndexDataProvider {
     this.activeFieldState = new int[fields.size()];
     // set all fields active
     Arrays.fill(this.activeFieldState, 1);
-
-    this.prefixMap = new ConcurrentHashMap<>();
   }
 
   @Override
@@ -312,81 +300,22 @@ public final class TestIndexDataProvider implements IndexDataProvider {
               idxConf.termLength[1]));
     }
 
-    // gather some documents for bulk commits
-    final double bulkSize = documentsCount * 0.1;
-//    List<String[]> documentList = new ArrayList<>((int) bulkSize);
-
     LOG.info("Creating {} documents.", documentsCount);
     final Collection<Integer> latch = new ArrayList<>(documentsCount);
     for (int doc = 0; doc < documentsCount; doc++) {
       latch.add(doc);
     }
-    new Processing(new DocCreator(new CollectionSource<>(latch),
-            seedTermList, fieldsCount)).process();
-
-//    LOG.info("Creating {} documents.", documentsCount);
-//    // create documents
-//    for (int doc = 0; doc < documentsCount; doc++) {
-//      LOG.info("doc {}", doc);
-//      final String[] docContent = new String[fieldsCount];
-//
-//      // create document fields
-//      for (int field = 0; field < fieldsCount; field++) {
-//        int fieldTerms = RandomValue.getInteger(idxConf.docLength[0],
-//                idxConf.docLength[1]);
-//        StringBuilder content = new StringBuilder(fieldTerms
-//                * idxConf.termLength[1]);
-//        Map<ByteArray, AtomicInteger> fieldTermFreq
-//                = new HashMap<>(fieldTerms);
-//
-//        // create terms for each field
-//        for (int term = 0; term < fieldTerms; term++) {
-//          // pick a document term from the seed
-//          final String docTerm = seedTermList.get(RandomValue.getInteger(0,
-//                  seedTermList.size() - 1));
-//          // add it to the list of known terms
-//          final ByteArray docTermBytes = new ByteArray(docTerm.getBytes(
-//                  "UTF-8"));
-//
-//          // count term frequencies
-//          if (fieldTermFreq.containsKey(docTermBytes)) {
-//            fieldTermFreq.get(docTermBytes).incrementAndGet();
-//          } else {
-//            fieldTermFreq.put(docTermBytes,
-//                    new AtomicInteger(1));
-//          }
-//
-//          // append term to content
-//          content.append(docTerm);
-//          if (term + 1 < fieldTerms) {
-//            content.append(' ');
-//          }
-//        }
-//        // store document field
-//        docContent[field] = content.toString();
-//
-//        // store document field term frequency value
-//        for (Entry<ByteArray, AtomicInteger> ftfEntry : fieldTermFreq.
-//                entrySet()) {
-//          idx.put(Fun.t3(field, doc, ftfEntry.getKey()),
-//                  ftfEntry.getValue().longValue());
-//        }
-//      }
-//
-//      // commit documents in bulk to index
-//      if (documentList.size() > bulkSize) {
-//        tmpIdx.addDocs(documentList);
-//        documentList = new ArrayList<>((int) bulkSize);
-//      }
-//
-//      // store document content to bulk commit cache
-//      documentList.add(docContent.clone());
-//    }
-    // comit any leftover documents
-//    if (!documentList.isEmpty()) {
-//      tmpIdx.addDocs(documentList);
-//    }
+    Map<Integer, String[]> idxMap = DBMaker.newTempTreeMap();
+    new Processing(
+            new Target.TargetFuncCall<>(
+                    new CollectionSource<>(latch),
+                    new DocCreator(idxMap, seedTermList, fieldsCount)
+            )).process();
+    for (String[] c : idxMap.values()) {
+      TestIndexDataProvider.tmpIdx.addDoc(c);
+    }
     tmpIdx.flush();
+    idxMap.clear();
 
     initialized = true;
   }
@@ -575,56 +504,86 @@ public final class TestIndexDataProvider implements IndexDataProvider {
   /**
    * Set all fields active.
    */
-  public void enableAllFields() {
+  private void enableAllFields() {
     Arrays.fill(this.activeFieldState, 1);
     LOG.debug("Enabled all {} fields.", this.activeFieldState.length);
   }
 
-//  /**
-//   * Set index field bit-mask.
-//   *
-//   * @param state bit-mask of active index fields. 0 means off, 1 means on
-//   */
-//  public void setFieldState(final int[] state) {
-//    for (int i = 0; i < state.length && i < activeFieldState.length; i++) {
-//      activeFieldState[i] = state[i];
-//    }
-//  }
   /**
    * Prepare the {@link Environment} for testing.
    *
+   * @param newFields Document fields to use
+   * @param newStopwords List of stopwords to set
    * @return {@link Environment} instance
    * @throws IOException Thrown on low-level i/o errors
    */
-  private Environment.Builder prepareEnvironment() throws IOException {
+  private Environment.Builder prepareEnvironment(
+          final Collection<String> newFields,
+          final Collection<String> newStopwords) throws IOException {
     final File dataDir = new File(getIndexDir() + File.separatorChar + "data");
     if (!dataDir.exists() && !dataDir.mkdirs()) {
       throw new IOException("Failed to create data directory: '" + dataDir
               + "'");
     }
-    enableAllFields();
-    final String[] activeFields = getActiveFieldNames().toArray(
-            new String[fields.size()]);
-    // add self prior to creation to receive all new settings upon creation
-    return new Environment.Builder(getIndexDir(), dataDir.getPath())
+
+    final String[] activeFields;
+    if (newFields == null) {
+      enableAllFields();
+      activeFields = getActiveFieldNames().toArray(
+              new String[this.activeFieldState.length]);
+    } else {
+      activeFields = newFields.toArray(new String[newFields.size()]);
+      Arrays.fill(this.activeFieldState, 0);
+      // activate single fields
+      for (String field : newFields) {
+        setFieldState(field, true);
+      }
+    }
+
+    if (newStopwords == null) {
+      TestIndexDataProvider.stopWords = Collections.emptySet();
+    } else {
+      TestIndexDataProvider.stopWords = DBMaker.newTempHashSet();
+      for (String stopWord : newStopwords) {
+        try {
+          TestIndexDataProvider.stopWords.add(new ByteArray(stopWord.getBytes(
+                  "UTF-8")));
+        } catch (UnsupportedEncodingException ex) {
+          LOG.error("Error adding stopword '" + stopWord + "'.", ex);
+        }
+      }
+    }
+
+    LOG.info("Preparing Environment. fields={}", Arrays.toString(
+            activeFields));
+
+    final Environment.Builder envBuilder = new Environment.Builder(
+            getIndexDir(), dataDir.getPath())
             .fields(activeFields)
             .testRun();
+    if (newStopwords != null) {
+      LOG.info("Preparing Environment. stopwords={}", newStopwords);
+      envBuilder.stopwords(newStopwords);
+    }
+
+    return envBuilder;
   }
 
   /**
    * Setup the {@link Environment} based around the test index.
    *
    * @param dataProv DataProvider to use. May be null, to get a default one.
-   * @throws IOException Thrown on low-level I/O errors
-   * @throws java.lang.InstantiationException Thrown, if the desired
-   * DataProvider could not be created
-   * @throws java.lang.IllegalAccessException Thrown, if the desired
+   * @param fields Document fields to use
+   * @param stopwords List of stopwords to set
+   * @throws Exception Thrown on low-level I/O errors or if the desired
    * DataProvider could not be created
    */
   public void setupEnvironment(
-          final Class<? extends IndexDataProvider> dataProv) throws
+          final Class<? extends IndexDataProvider> dataProv,
+          final Collection<String> fields,
+          final Collection<String> stopwords) throws
           Exception {
-    prepareEnvironment().dataProvider(dataProv).build();
+    prepareEnvironment(fields, stopwords).dataProvider(dataProv).build();
   }
 
   /**
@@ -632,21 +591,26 @@ public final class TestIndexDataProvider implements IndexDataProvider {
    * instance.
    *
    * @param dataProv DataProvider to use.
-   * @throws IOException Thrown on low-level I/O errors
+   * @throws Exception Thrown on low-level I/O errors or if the desired
+   * DataProvider could not be created
    */
-  public void setupEnvironment(final IndexDataProvider dataProv) throws
+  public void setupEnvironment(final IndexDataProvider dataProv,
+          final Collection<String> fields,
+          final Collection<String> stopwords) throws
           Exception {
-    prepareEnvironment().dataProvider(dataProv).build();
+    prepareEnvironment(fields, stopwords).dataProvider(dataProv).build();
   }
 
   /**
    * Setup the {@link Environment} based around the test index using a default
    * {@link IndexDataProvider} implementation.
    *
-   * @throws IOException Thrown on low-level I/O errors
+   * @throws Exception Thrown on low-level I/O errors or if the desired
+   * DataProvider could not be created
    */
-  public void setupEnvironment() throws Exception {
-    prepareEnvironment().dataProvider(this).build();
+  public void setupEnvironment(final Collection<String> fields,
+          final Collection<String> stopwords) throws Exception {
+    prepareEnvironment(fields, stopwords).dataProvider(this).build();
   }
 
   /**
@@ -833,25 +797,23 @@ public final class TestIndexDataProvider implements IndexDataProvider {
     return terms;
   }
 
-//  @Override
-//  @SuppressWarnings("CollectionWithoutInitialCapacity")
-//  public void clearTermData() {
-//    this.prefixMap = new ConcurrentHashMap<>();
-//  }
   @Override
   public long getTermFrequency() {
     Long frequency = 0L;
 
     for (int fieldNum = 0; fieldNum < fields.size(); fieldNum++) {
-      if (activeFieldState[fieldNum] == 1) {
-        for (int docId = 0; docId < documentsCount; docId++) {
-          Iterable<ByteArray> docTerms = Fun.filter(idx.keySet(), fieldNum,
-                  docId);
+      if (this.activeFieldState[fieldNum] == 1) {
+        for (int docId = 0; docId < TestIndexDataProvider.documentsCount;
+                docId++) {
+          Iterable<ByteArray> docTerms = Fun.filter(TestIndexDataProvider.idx.
+                  keySet(), fieldNum, docId);
           for (ByteArray docTerm : docTerms) {
-            if (stopWords.contains(docTerm)) { // skip stopwords
+            if (TestIndexDataProvider.stopWords.contains(docTerm)) {
+              // skip stopwords
               continue;
             }
-            frequency += idx.get(Fun.t3(fieldNum, docId, docTerm));
+            frequency += TestIndexDataProvider.idx.get(Fun.t3(fieldNum, docId,
+                    docTerm));
           }
         }
       }
@@ -919,69 +881,6 @@ public final class TestIndexDataProvider implements IndexDataProvider {
     return getTermSet().size();
   }
 
-//  @Override
-//  @SuppressWarnings({"SynchronizeOnNonFinalField",
-//    "CollectionWithoutInitialCapacity"})
-//  public Object setTermData(final String prefix, final int documentId,
-//          final ByteArray term, final String key, final Object value) {
-//    checkDocumentId(documentId);
-//
-//    if (term == null) {
-//      throw new IllegalArgumentException("Term was null.");
-//    }
-//    if (key == null || key.isEmpty()) {
-//      throw new IllegalArgumentException("Key was empty or null.");
-//    }
-//    if (value == null) {
-//      throw new IllegalArgumentException("Value was null.");
-//    }
-//
-//    synchronized (this.prefixMap) {
-//      Map<Tuple.Tuple3<Integer, ByteArray, String>, Object> dataMap;
-//      if (this.prefixMap.containsKey(prefix)) {
-//        dataMap = this.prefixMap.get(prefix);
-//      } else {
-//        dataMap = new ConcurrentHashMap<>();
-//        this.prefixMap.put(prefix, dataMap);
-//      }
-//
-//      return dataMap.put(Tuple.tuple3(documentId, term, key), value);
-//    }
-//  }
-//
-//  @Override
-//  public Object getTermData(final String prefix, final int documentId,
-//          final ByteArray term, final String key) {
-//    checkDocumentId(documentId);
-//    Map<Tuple.Tuple3<Integer, ByteArray, String>, Object> dataMap
-//            = this.prefixMap.get(prefix);
-//    if (dataMap == null) {
-//      return null;
-//    }
-//    return dataMap.get(Tuple.tuple3(documentId, term, key));
-//  }
-//
-//  @Override
-//  public Map<ByteArray, Object> getTermData(final String prefix,
-//          final int documentId, final String key) {
-//    checkDocumentId(documentId);
-//    Map<Tuple.Tuple3<Integer, ByteArray, String>, Object> dataMap
-//            = this.prefixMap.get(prefix);
-//    if (dataMap == null) {
-//      return null;
-//    }
-//    @SuppressWarnings("CollectionWithoutInitialCapacity")
-//    final Map<ByteArray, Object> returnMap = new HashMap<>();
-//    for (Entry<Tuple.Tuple3<Integer, ByteArray, String>, Object> dataEntry
-//            : dataMap.entrySet()) {
-//      if (dataEntry.getKey().a.equals(documentId) && dataEntry.getKey().c.
-//              equals(key)) {
-//        returnMap.put(dataEntry.getKey().b.clone(), dataEntry.
-//                getValue());
-//      }
-//    }
-//    return returnMap;
-//  }
   @Override
   public DocumentModel getDocumentModel(final int docId) {
     checkDocumentId(docId);
@@ -1043,148 +942,97 @@ public final class TestIndexDataProvider implements IndexDataProvider {
   public static boolean isInitialized() {
     return initialized;
   }
-//
-//  @Override
-//  public void registerPrefix(final String prefix) {
-//    // NOP
-//  }
-
-  @Override
-  public Collection<String> testGetStopwords() {
-    final Collection<String> sWords = new ArrayList<>(stopWords.size());
-    for (ByteArray sw : stopWords) {
-      sWords.add(ByteArrayUtil.utf8ToString(sw));
-    }
-    return sWords;
-  }
-
-  @Override
-  public Collection<String> testGetFieldNames() {
-    return getActiveFieldNames();
-  }
 
   /**
-   * Handle index fields changes.
+   * {@link Processing} {@link Target} creating random documents.
    */
-  private void fieldsChanged() {
-    LOG.debug("Fields changed updating states.");
-    // set all fields inactive
-    Arrays.fill(this.activeFieldState, 0);
-    // activate single fields
-    for (String field : Environment.getFields()) {
-      setFieldState(field, true);
-    }
-  }
-
-  /**
-   * Handle stopword changes.
-   */
-  private void wordsChanged() {
-    LOG.debug("Stopwords changed updating caches.");
-    final Collection<String> newStopWords = Environment.getStopwords();
-    stopWords = DBMaker.newTempHashSet();
-    for (String stopWord : newStopWords) {
-      try {
-        stopWords.add(new ByteArray(stopWord.getBytes("UTF-8")));
-      } catch (UnsupportedEncodingException ex) {
-        LOG.error("Error adding stopword '" + stopWord + "'.", ex);
-      }
-    }
-  }
-
-  private void handleEnvironmentEvent(final Environment.EventType eType) {
-    switch (eType) {
-      case FIELDS_CHANGED:
-        fieldsChanged();
-        break;
-      case STOPWORDS_CHANGED:
-        wordsChanged();
-        break;
-      default:
-        throw new IllegalArgumentException("Unhandeled event type: "
-                + eType.name());
-    }
-  }
-
   @SuppressWarnings("PublicInnerClass")
-  public final class DocCreator extends Target<Integer> {
+  public final class DocCreator extends Target.TargetFunc<Integer> {
 
+    /**
+     * Seed list with document terms.
+     */
     private final List<String> seedTermList;
+    /**
+     * Number of fields to create.
+     */
     private final int fieldsCount;
+    /**
+     * Map caching target documents.
+     */
+    private Map<Integer, String[]> contentCache;
 
     /**
      * Factory instance creator
      *
-     * @param newSource Source to use
+     * @param targetMap Target map to put results in
+     * @param newSeedTermList List with terms to add to documents
+     * @param newFieldsCount Number of fields to create
      */
-    private DocCreator(final Source<Integer> newSource,
-            final List<String> newSeedTermList, final int newFieldsCount) {
-      super(newSource);
+    private DocCreator(
+            final Map<Integer, String[]> targetMap,
+            final List<String> newSeedTermList,
+            final int newFieldsCount) {
       this.seedTermList = newSeedTermList;
       this.fieldsCount = newFieldsCount;
+      this.contentCache = targetMap;
     }
 
     @Override
-    public Target<Integer> newInstance() {
-      return new DocCreator(this.getSource(), this.seedTermList,
-              this.fieldsCount);
-    }
-
-    @Override
-    public void runProcess() throws Exception {
-      while (!isTerminating()) {
-        final Integer doc;
-        try {
-          doc = getSource().next();
-        } catch (ProcessingException.SourceHasFinishedException ex) {
-          break;
-        }
-
-        final String[] docContent = new String[fieldsCount];
-
-        // create document fields
-        for (int field = 0; field < fieldsCount; field++) {
-          int fieldTerms = RandomValue.getInteger(idxConf.docLength[0],
-                  idxConf.docLength[1]);
-          final StringBuilder content = new StringBuilder(fieldTerms
-                  * idxConf.termLength[1]);
-          final Map<ByteArray, AtomicInteger> fieldTermFreq
-                  = new HashMap<>(fieldTerms);
-
-          // create terms for each field
-          for (int term = 0; term < fieldTerms; term++) {
-            // pick a document term from the seed
-            final String docTerm = seedTermList.get(RandomValue.getInteger(0,
-                    seedTermList.size() - 1));
-            // add it to the list of known terms
-            final ByteArray docTermBytes = new ByteArray(docTerm.getBytes(
-                    "UTF-8"));
-
-            // count term frequencies
-            if (fieldTermFreq.containsKey(docTermBytes)) {
-              fieldTermFreq.get(docTermBytes).incrementAndGet();
-            } else {
-              fieldTermFreq.put(docTermBytes,
-                      new AtomicInteger(1));
-            }
-
-            // append term to content
-            content.append(docTerm).append(' ');
-          }
-          // store document field
-          docContent[field] = content.toString().trim();
-
-          // store document field term frequency value
-          for (Entry<ByteArray, AtomicInteger> ftfEntry : fieldTermFreq.
-                  entrySet()) {
-            idx.put(Fun.t3(field, doc, ftfEntry.getKey()),
-                    ftfEntry.getValue().longValue());
-          }
-        }
-
-        tmpIdx.addDoc(docContent);
+    public void call(final Integer docId) {
+      if (docId == null) {
+        return;
       }
-    }
 
+      final String[] docContent = new String[fieldsCount];
+
+      // create document fields
+      for (int field = 0; field < fieldsCount; field++) {
+        int fieldTerms = RandomValue.getInteger(idxConf.docLength[0],
+                idxConf.docLength[1]);
+        final StringBuilder content = new StringBuilder(fieldTerms
+                * idxConf.termLength[1]);
+        final Map<ByteArray, AtomicInteger> fieldTermFreq
+                = new HashMap<>(fieldTerms);
+
+        // create terms for each field
+        for (int term = 0; term < fieldTerms; term++) {
+          // pick a document term from the seed
+          final String docTerm = seedTermList.get(RandomValue.getInteger(0,
+                  seedTermList.size() - 1));
+          // add it to the list of known terms
+          final ByteArray docTermBytes;
+          try {
+            docTermBytes = new ByteArray(docTerm.getBytes("UTF-8"));
+          } catch (UnsupportedEncodingException ex) {
+            LOG.error("Error encoding term. term={}", docTerm);
+            continue;
+          }
+
+          // count term frequencies
+          if (fieldTermFreq.containsKey(docTermBytes)) {
+            fieldTermFreq.get(docTermBytes).incrementAndGet();
+          } else {
+            fieldTermFreq.put(docTermBytes,
+                    new AtomicInteger(1));
+          }
+
+          // append term to content
+          content.append(docTerm).append(' ');
+        }
+        // store document field
+        docContent[field] = content.toString().trim();
+        LOG.debug("DOC doc={} f={} c={}", docId, field, docContent[field]);
+
+        // store document field term frequency value
+        for (Entry<ByteArray, AtomicInteger> ftfEntry : fieldTermFreq.
+                entrySet()) {
+          idx.put(Fun.t3(field, docId, ftfEntry.getKey()),
+                  ftfEntry.getValue().longValue());
+        }
+      }
+
+      this.contentCache.put(docId, docContent);
+    }
   }
 }

@@ -18,6 +18,7 @@ package de.unihildesheim.lucene;
 
 import de.unihildesheim.lucene.index.DirectIndexDataProvider;
 import de.unihildesheim.lucene.index.IndexDataProvider;
+import de.unihildesheim.lucene.index.IndexTestUtil;
 import de.unihildesheim.lucene.index.TestIndexDataProvider;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -133,47 +134,43 @@ public class MultiIndexDataProviderTestCase {
   /**
    * Setup the {@link IndexDataProvider} for a test.
    *
-   * @throws IOException Thrown on low-level I7O errors
-   * @throws InstantiationException Thrown, if a DataProvider could not be
-   * created
-   * @throws IllegalAccessException Thrown, if a DataProvider could not be
-   * created
+   * @throws IOException Any exception indicates an error
    */
-  protected final void caseSetUp() throws IOException, InstantiationException,
-          IllegalAccessException {
-    throw new UnsupportedOperationException("BROKEN!");
-//    Environment.clear();
-//    Environment.clearAllProperties();
-//    if (this.dataProvType == null) {
-//      index.setupEnvironment();
-//    } else {
-//      index.setupEnvironment(this.dataProvType);
-//    }
-//    index.clearTermData();
-//    LOG.info("MutilindexDataProviderTestCase SetUp "
-//            + "dataProvider={} configuration={}",
-//            this.dataProvType == null ? "TestIndexDataProvider"
-//            : this.dataProvType, this.runType.name());
-//    switch (this.runType) {
-//      case RANDOM_FIELDS:
-//        IndexTestUtil.setRandomFields(index);
-//        break;
-//      case RANDOM_FIELDS_AND_STOPPED:
-//        IndexTestUtil.setRandomStopWordsAndFields(index);
-//        break;
-//      case STOPPED:
-//        IndexTestUtil.setRandomStopWords(index);
-//        break;
-//      case PLAIN:
-//      default:
-//        break;
-//    }
-//    index.warmUp();
-//    Environment.getDataProvider().warmUp();
-//    LOG.info("MutilindexDataProviderTestCase SetUp finished "
-//            + "dataProvider={} configuration={}",
-//            this.dataProvType == null ? "TestIndexDataProvider"
-//            : this.dataProvType, this.runType.name());
+  protected final void caseSetUp() throws Exception {
+    Environment.clear();
+    Environment.clearAllProperties();
+    LOG.info("MutilindexDataProviderTestCase SetUp "
+            + "dataProvider={} configuration={}",
+            this.dataProvType == null ? "TestIndexDataProvider"
+            : this.dataProvType, this.runType.name());
+    Collection<String> fields = null;
+    Collection<String> stopwords = null;
+    switch (this.runType) {
+      case RANDOM_FIELDS:
+        fields = IndexTestUtil.getRandomFields(index);
+        break;
+      case RANDOM_FIELDS_AND_STOPPED:
+        fields = IndexTestUtil.getRandomFields(index);
+        stopwords = IndexTestUtil.getRandomStopWords(index);
+        break;
+      case STOPPED:
+        stopwords = IndexTestUtil.getRandomStopWords(index);
+        break;
+      case PLAIN:
+      default:
+        break;
+    }
+    if (this.dataProvType == null) {
+      index.setupEnvironment(fields, stopwords);
+    } else {
+      index.setupEnvironment(this.dataProvType, fields, stopwords);
+    }
+    index.warmUp();
+    Environment.getDataProvider().warmUp();
+    LOG.info("MutilindexDataProviderTestCase SetUp finished "
+            + "dataProvider={} configuration={}",
+            this.dataProvType == null ? "TestIndexDataProvider"
+            : this.dataProvType, this.runType.name());
   }
 
   /**

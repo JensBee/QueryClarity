@@ -156,23 +156,57 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
     setConfiguration(newConf);
   }
 
+  /**
+   *
+   * @param name
+   * @throws IOException
+   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+   * no index is provided in the {@link Environment}
+   */
   @Override
-  public void loadOrCreateCache(final String name) throws IOException {
+  public void loadOrCreateCache(final String name) throws IOException,
+          Environment.NoIndexException {
     initCache(name, false, true);
   }
 
+  /**
+   *
+   * @param name
+   * @throws IOException
+   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+   * no index is provided in the {@link Environment}
+   */
   @Override
-  public void createCache(final String name) throws IOException {
+  public void createCache(final String name) throws IOException,
+          Environment.NoIndexException {
     initCache(name, true, true);
   }
 
+  /**
+   *
+   * @param name
+   * @throws IOException
+   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+   * no index is provided in the {@link Environment}
+   */
   @Override
-  public void loadCache(final String name) throws IOException {
+  public void loadCache(final String name) throws IOException,
+          Environment.NoIndexException {
     initCache(name, false, false);
   }
 
+  /**
+   *
+   * @param name
+   * @param createNew
+   * @param createIfNeeded
+   * @throws IOException
+   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+   * no index is provided in the {@link Environment}
+   */
   private void initCache(final String name, boolean createNew,
-          final boolean createIfNeeded) throws IOException {
+          final boolean createIfNeeded) throws IOException,
+          Environment.NoIndexException {
     final Persistence.Builder psb;
     if (Environment.isTestRun() || this.cacheTemporary) {
       psb = new Persistence.Builder(IDENTIFIER
@@ -327,7 +361,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
               new Target.TargetFuncCall<>(
                       Environment.getDataProvider().getDocumentIdSource(),
                       new DocumentModelCalculatorTarget()
-              )).process();
+              )).process(CollectionMetrics.numberOfDocuments().intValue());
       hasData.set(true);
     }
   }
@@ -386,7 +420,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
             new Target.TargetFuncCall<>(
                     new CollectionSource<>(feedbackDocuments),
                     new QueryModelCalulatorTarget(queryTerms, this.queryModels)
-            )).process();
+            )).process(feedbackDocuments.size());
 
     final AtomicDouble score = new AtomicDouble(0);
     final Source<ByteArray> sourceCollection;
@@ -401,19 +435,19 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
 //      this.queryTerms.size());
 //  sourceCollection = new CollectionSource<>(this.queryTerms);
     // terms from feedback documents only
-    sourceCollection = new CollectionSource<>(Environment.getDataProvider().
-            getDocumentsTermSet(feedbackDocuments));
+    final Collection<ByteArray> termSet = Environment.getDataProvider().
+            getDocumentsTermSet(feedbackDocuments);
 
     LOG.info("Calculating query probability values "
             + "for {} feedback documents.", feedbackDocuments.size());
     p.setSourceAndTarget(
             new Target.TargetFuncCall<>(
-                    sourceCollection,
+                    new CollectionSource<>(termSet),
                     new QueryProbabilityCalculatorTarget(
                             this.conf.getLangModelWeight(),
                             this.queryModels,
                             feedbackDocuments, score)
-            )).process();
+            )).process(termSet.size());
 
     result.setScore(score.doubleValue());
 
@@ -432,9 +466,12 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
    * @param query Original query
    * @param feedbackDocuments Documents to use for feedback calculations
    * @return Calculated clarity score
+   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+   * no index is provided in the {@link Environment}
    */
   protected Result calculateClarity(final String query,
-          final Collection<Integer> feedbackDocuments) {
+          final Collection<Integer> feedbackDocuments) throws
+          Environment.NoIndexException {
     if (!this.hasCache) {
       this.cacheTemporary = true;
       try {
@@ -461,7 +498,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
 
   @Override
   public Result calculateClarity(final String query) throws
-          ParseException {
+          ParseException, Environment.NoIndexException {
     if (query == null || query.isEmpty()) {
       throw new IllegalArgumentException("Query was empty.");
     }

@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  *
- 
+ *
  */
 public final class DocumentModel {
 
@@ -105,6 +105,7 @@ public final class DocumentModel {
 
   /**
    * Get the number of unique terms in document.
+   *
    * @return Number of unique terms in document
    */
   public long termCount() {
@@ -124,6 +125,7 @@ public final class DocumentModel {
 
   /**
    * Get a {@link DocumentMetrics} instance for this model.
+   *
    * @return {@link DocumentMetrics} instance loaded with this model
    */
   public DocumentMetrics metrics() {
@@ -147,6 +149,9 @@ public final class DocumentModel {
 
     if (this.id != other.id || this.termFrequency != other.termFrequency
             || this.termFreqMap.size() != other.termFreqMap.size()) {
+      LOG.debug("FAIL 1 id={}::{} tf={}::{} tfm={}::{}", this.id, other.id,
+              this.termFrequency, other.termFrequency, this.termFreqMap.size(),
+              other.termFreqMap.size());
       return false;
     }
 

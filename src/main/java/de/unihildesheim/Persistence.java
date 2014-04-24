@@ -113,8 +113,10 @@ public final class Persistence {
      * in the meta-information.
      *
      * @return True, if both generation numbers are the same.
+     * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+     * no index is provided in the {@link Environment}
      */
-    public boolean generationCurrent() {
+    public boolean generationCurrent() throws Environment.NoIndexException {
       return Environment.getIndexGeneration().
               equals(this.indexCommitGen.get());
     }
@@ -125,8 +127,11 @@ public final class Persistence {
    *
    * @param newDb Database reference
    * @param empty True if the store should be treated as being empty
+   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+   * no index is provided in the {@link Environment}
    */
-  public Persistence(final DB newDb, final boolean empty) {
+  public Persistence(final DB newDb, final boolean empty) throws
+          Environment.NoIndexException {
     this.db = newDb;
     if (empty) {
       getMetaData(true);
@@ -163,8 +168,11 @@ public final class Persistence {
 
   /**
    * Update the meta-data records. This does not commit data to the database.
+   *
+   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+   * no index is provided in the {@link Environment}
    */
-  public void updateMetaData() {
+  public void updateMetaData() throws Environment.NoIndexException {
     LOG.debug("Updating meta-data.");
     meta.indexPath.set(Environment.getIndexPath());
     meta.indexCommitGen.set(Environment.getIndexGeneration());
@@ -251,7 +259,13 @@ public final class Persistence {
       return this;
     }
 
-    public Persistence make() throws IOException {
+    /**
+     *
+     * @return @throws IOException
+     * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+     * no index is provided in the {@link Environment}
+     */
+    public Persistence make() throws IOException, Environment.NoIndexException {
       if (exists()) {
         throw new IOException("Database file exists: " + getFileName());
       }
@@ -259,14 +273,28 @@ public final class Persistence {
       return new Persistence(this.dbMkr.make(), true);
     }
 
-    public Persistence get() throws FileNotFoundException {
+    /**
+     *
+     * @return @throws FileNotFoundException
+     * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+     * no index is provided in the {@link Environment}
+     */
+    public Persistence get() throws FileNotFoundException,
+            Environment.NoIndexException {
       if (!exists()) {
         throw new FileNotFoundException("Database file not found.");
       }
       return new Persistence(this.dbMkr.make(), false);
     }
 
-    public Persistence makeOrGet() {
+    /**
+     *
+     * @return @throws FileNotFoundException
+     * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+     * no index is provided in the {@link Environment}
+     */
+    public Persistence makeOrGet() throws FileNotFoundException,
+            Environment.NoIndexException {
       try {
         if (exists()) {
           return get();

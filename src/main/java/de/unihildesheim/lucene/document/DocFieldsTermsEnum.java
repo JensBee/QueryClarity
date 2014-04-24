@@ -20,6 +20,7 @@ import de.unihildesheim.lucene.Environment;
 import java.io.IOException;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.slf4j.Logger;
@@ -83,7 +84,7 @@ public final class DocFieldsTermsEnum {
    * @param targetFields Lucene index fields to operate on
    * @throws java.io.IOException Thrown on low-level I/O errors
    */
-  protected DocFieldsTermsEnum(final IndexReader indexReader,
+  public DocFieldsTermsEnum(final IndexReader indexReader,
           final String[] targetFields) throws IOException {
     this(indexReader, targetFields, null);
   }
@@ -92,10 +93,15 @@ public final class DocFieldsTermsEnum {
    * Generic reusable {@link DocFieldsTermsEnum} instance. To actually reuse
    * this instance the {@link #setDocument(int)} function must be called
    * before {@link #next()} can be used, to set the document to operate on.
+   * * <p>
+   * The {@link IndexReader} and list of fields will be retrieved from the
+   * {@link Environment}.
    *
    * @throws java.io.IOException Thrown on low-level I/O errors
+   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+   * no index is provided in the {@link Environment}
    */
-  public DocFieldsTermsEnum() throws IOException {
+  public DocFieldsTermsEnum() throws IOException, Environment.NoIndexException {
     this(Environment.getIndexReader(), Environment.getFields(), null);
   }
 
@@ -103,12 +109,18 @@ public final class DocFieldsTermsEnum {
    * Generic reusable {@link DocFieldsTermsEnum} instance. To actually reuse
    * this instance the {@link #setDocument(int)} function must be called
    * before {@link #next()} can be used, to set the document to operate on.
+   * <p>
+   * The {@link IndexReader} and list of fields will be retrieved from the
+   * {@link Environment}.
    *
    * @param documentId Lucene document-id for which the enumeration should be
    * done
    * @throws java.io.IOException Thrown on low-level I/O errors
+   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+   * no index is provided in the {@link Environment}
    */
-  public DocFieldsTermsEnum(final int documentId) throws IOException {
+  public DocFieldsTermsEnum(final int documentId) throws IOException,
+          Environment.NoIndexException {
     this(Environment.getIndexReader(), Environment.getFields(), documentId);
   }
 
@@ -148,6 +160,10 @@ public final class DocFieldsTermsEnum {
   public void setDocument(final int documentId) throws IOException {
     this.docId = documentId;
     this.docFields = this.reader.getTermVectors(documentId);
+    if (this.docFields == null) {
+      throw new IllegalStateException("No term vectors stored. docId="
+              + this.docId);
+    }
     reset();
   }
 
@@ -228,19 +244,18 @@ public final class DocFieldsTermsEnum {
    */
   private void updateCurrentEnum() throws IOException {
     this.hasEnum = false;
+    Terms terms;
 
     // try all fields. If there are no term vectors stored for the current
     // field, then try the next, until all fields are exhausted
     while (!this.hasEnum && this.currentFieldIdx < this.fields.length) {
-      try {
-        this.currentEnum = this.docFields.terms(
-                this.fields[this.currentFieldIdx]).iterator(this.currentEnum);
+      terms = this.docFields.terms(this.fields[this.currentFieldIdx]);
+      if (terms == null) {
+        LOG.warn("No terms in field. docId={} field={}",
+                this.docId, this.fields[this.currentFieldIdx]);
+      } else {
+        this.currentEnum = terms.iterator(this.currentEnum);
         this.hasEnum = true;
-      } catch (NullPointerException ex) {
-        LOG.error("Caught NullPointerException for field={} doc={}. "
-                + "Either the field does not exist or "
-                + "there were no term-vectors stored.",
-                this.fields[this.currentFieldIdx], this.docId);
       }
       this.currentFieldIdx++;
     }

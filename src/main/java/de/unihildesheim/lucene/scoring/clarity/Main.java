@@ -21,7 +21,7 @@ import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModelException;
-import de.unihildesheim.lucene.index.DirectIndexDataProvider;
+import de.unihildesheim.lucene.index.CachedIndexDataProvider;
 import java.io.IOException;
 import org.apache.lucene.search.Query;
 import org.slf4j.Logger;
@@ -73,18 +73,25 @@ public final class Main {
       Runtime.getRuntime().exit(1);
     }
 
-    // index field to operate on
-    final String[] fields = new String[]{"text"};
-//    final String[] fields = new String[]{"text", "text_de"};
-
-    final DirectIndexDataProvider dataProv = new DirectIndexDataProvider();
-    new Environment.Builder(indexDir, dataDir)
-            .fields(fields)
-            .dataProvider(dataProv)
-            .loadOrCreateCache("testRun")
+    final CachedIndexDataProvider cIdp = new CachedIndexDataProvider();
+//    new Environment.Builder(indexDir, dataDir)
+    new Environment.Builder(dataDir)
+            .dataProvider(cIdp)
+            .loadCache("testCache")
             .autoWarmUp()
             .build();
+//    cIdp.cacheBuilder("testCache");
 
+    // index field to operate on
+//    final String[] fields = new String[]{"text"};
+//    final String[] fields = new String[]{"text", "text_de"};
+//    final DirectIndexDataProvider dataProv = new DirectIndexDataProvider();
+//    new Environment.Builder(indexDir, dataDir)
+//            .fields(fields)
+//            .dataProvider(dataProv)
+//            .loadOrCreateCache("testRun")
+//            .autoWarmUp()
+//            .build();
 //    LOG.info("\n--- Default Clarity Score");
 //    final DefaultClarityScore dcs = new DefaultClarityScore();
 //    dcs.loadOrCreateCache("testRun");

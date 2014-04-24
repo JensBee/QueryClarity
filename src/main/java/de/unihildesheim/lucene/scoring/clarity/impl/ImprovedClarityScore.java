@@ -172,22 +172,35 @@ public final class ImprovedClarityScore implements ClarityScoreCalculation,
   }
 
   @Override
-  public void loadOrCreateCache(final String name) throws IOException {
+  public void loadOrCreateCache(final String name) throws IOException,
+          Environment.NoIndexException {
     initCache(name, false, true);
   }
 
   @Override
-  public void createCache(final String name) throws IOException {
+  public void createCache(final String name) throws IOException,
+          Environment.NoIndexException {
     initCache(name, true, true);
   }
 
   @Override
-  public void loadCache(final String name) throws IOException {
+  public void loadCache(final String name) throws IOException,
+          Environment.NoIndexException {
     initCache(name, false, false);
   }
 
+  /**
+   *
+   * @param name
+   * @param createNew
+   * @param createIfNeeded
+   * @throws IOException
+   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+   * no index is provided in the {@link Environment}
+   */
   private void initCache(final String name, boolean createNew,
-          final boolean createIfNeeded) throws IOException {
+          final boolean createIfNeeded) throws IOException,
+          Environment.NoIndexException {
     final Persistence.Builder psb;
     if (Environment.isTestRun() || this.cacheTemporary) {
       psb = new Persistence.Builder(IDENTIFIER
@@ -474,10 +487,18 @@ public final class ImprovedClarityScore implements ClarityScoreCalculation,
     return model;
   }
 
+  /**
+   *
+   * @param query
+   * @return
+   * @throws ParseException
+   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+   * no index is provided in the {@link Environment}
+   */
   @Override
   @SuppressWarnings("AccessingNonPublicFieldOfAnotherObject")
   public final Result calculateClarity(final String query) throws
-          ParseException {
+          ParseException, Environment.NoIndexException {
     if (query == null || query.isEmpty()) {
       throw new IllegalArgumentException("Query was empty.");
     }
@@ -563,7 +584,7 @@ public final class ImprovedClarityScore implements ClarityScoreCalculation,
               new Target.TargetFuncCall<>(
                       new CollectionSource<>(fbTerms),
                       new FbTermReducerTarget(minDf, reducedFbTerms)
-              )).process();
+              )).process(fbTerms.size());
       LOG.debug("Reduced term set size {}", reducedFbTerms.size());
 
       // do the final calculation for all remaining feedback terms
@@ -575,7 +596,7 @@ public final class ImprovedClarityScore implements ClarityScoreCalculation,
                               feedbackDocIds,
                               QueryUtils.getAllQueryTerms(query),
                               score)
-              )).process();
+              )).process(reducedFbTerms.size());
 
       result.setScore(score.get());
       result.setFeedbackDocIds(feedbackDocIds);
@@ -614,7 +635,7 @@ public final class ImprovedClarityScore implements ClarityScoreCalculation,
               new Target.TargetFuncCall<>(
                       Environment.getDataProvider().getDocumentIdSource(),
                       new DocumentModelCalculatorTarget()
-              )).process();
+              )).process(CollectionMetrics.numberOfDocuments().intValue());
       hasData.set(true);
     }
   }

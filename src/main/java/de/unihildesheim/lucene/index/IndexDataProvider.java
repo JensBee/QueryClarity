@@ -49,8 +49,10 @@ public interface IndexDataProvider extends SupportsPersistence {
   /**
    * Instructs the data provider to pre-fill caches, etc. Should be called,
    * after the {@link Environment} is set.
+   *
+   * @throws Exception Thrown, if any warmup method fails
    */
-  void warmUp();
+  void warmUp() throws Exception;
 
   /**
    * Get the term frequency of a single term in the index.
@@ -118,62 +120,6 @@ public interface IndexDataProvider extends SupportsPersistence {
    */
   long getUniqueTermsCount();
 
-//  /**
-//   * Tell the data provider, we want to access custom data specified by the
-//   * given prefix.
-//   * <p>
-//   * A prefix must be registered before any call to
-//   * <tt>setTermData()</tt> or <tt>getTermData()</tt> can be made.
-//   *
-//   * @param prefix Prefix name to register
-//   */
-//  void registerPrefix(final String prefix);
-//
-//  /**
-//   * Store enhanced data for a document & term combination with a custom
-//   * prefix.
-//   * <tt>Null</tt> is not allowed for any parameter value.
-//   *
-//   * @param prefix Custom prefix, to identify where the data belongs to. Must
-//   * not start with an underscore.
-//   * @param documentId Document identifier
-//   * @param term Term to which the data is associated.
-//   * @param key Storage key.
-//   * @param value Storage value
-//   * @return Any previously set value or null, if there was none
-//   */
-//  Object setTermData(final String prefix, final int documentId,
-//          final ByteArray term, final String key, final Object value);
-//
-//  /**
-//   * Get enhanced data stored with a prefix (to distinguish data types) for a
-//   * document-id and a term. The data is accessed via a key.
-//   *
-//   * @param prefix Prefix to stored data
-//   * @param documentId Document-id the data is attached to
-//   * @param term Term the data is attached to
-//   * @param key Key to identify the data
-//   * @return Data stored at the given location or <tt>null</tt> if there was
-//   * none
-//   */
-//  Object getTermData(final String prefix, final int documentId,
-//          final ByteArray term, final String key);
-//
-//  /**
-//   * Get all term-data stored under a given prefix, document-id and key.
-//   *
-//   * @param prefix Prefix to stored data
-//   * @param documentId Document-id the data is attached to
-//   * @param key Key to identify the data
-//   * @return Mapping of all stored data
-//   */
-//  Map<ByteArray, Object> getTermData(final String prefix,
-//          final int documentId, final String key);
-//
-//  /**
-//   * Removes all stored term-data.
-//   */
-//  void clearTermData();
   /**
    * Get a {@link DocumentModel} instance for the document with the given id.
    *
@@ -213,18 +159,4 @@ public interface IndexDataProvider extends SupportsPersistence {
    * @return True, if it contains the term, false otherwise
    */
   boolean documentContains(final int documentId, final ByteArray term);
-
-  /**
-   * Test accessor: get stopwords.
-   *
-   * @return List of stopwords currently set
-   */
-  Collection<String> testGetStopwords();
-
-  /**
-   * Test accessor: get fields.
-   *
-   * @return List of fields currently set
-   */
-  Collection<String> testGetFieldNames();
 }

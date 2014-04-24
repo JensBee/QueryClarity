@@ -28,7 +28,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Utilities for working with byte arrays.
  *
- *
+ * @author Jens Bertram
  */
 public final class ByteArrayUtil {
 

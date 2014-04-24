@@ -28,7 +28,7 @@ import org.apache.lucene.queryparser.classic.QueryParser;
  * {@link Environment} to validate some data. Further the {@link Environment}
  * may be used to get default values for some query parameters.
  *
- 
+ * @author Jens Bertram
  */
 public final class TermsQueryBuilder {
 
@@ -62,8 +62,11 @@ public final class TermsQueryBuilder {
    *
    * @param newFields List of fields to query
    * @return Self reference
+   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+   * no index is provided in the {@link Environment}
    */
-  public TermsQueryBuilder setFields(final String[] newFields) {
+  public TermsQueryBuilder setFields(final String[] newFields) throws
+          Environment.NoIndexException {
     IndexUtils.checkFields(newFields);
     this.fields = newFields.clone();
     return this;

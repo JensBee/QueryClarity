@@ -17,6 +17,7 @@
 package de.unihildesheim.lucene.util;
 
 import de.unihildesheim.ByteArray;
+import java.util.Arrays;
 import org.apache.lucene.util.BytesRef;
 
 /**
@@ -24,7 +25,7 @@ import org.apache.lucene.util.BytesRef;
  *
  * @author Jens Bertram
  */
-public class BytesRefUtil {
+public final class BytesRefUtil {
 
   /**
    * Private empty constructor for utility class.
@@ -43,5 +44,18 @@ public class BytesRefUtil {
    */
   public static ByteArray toByteArray(final BytesRef br) {
     return new ByteArray(br.bytes, br.offset, br.length);
+  }
+
+  /**
+   * Compares the bytes contained in the {@link BytesRef} to those stored in
+   * the {@link ByteArray}.
+   *
+   * @param br {@link BytesRef} to compare
+   * @param ba {@link ByteArray} to compare
+   * @return True, if both byte arrays are equal
+   */
+  public static boolean bytesEquals(final BytesRef br, final ByteArray ba) {
+    return ba.compareBytes(Arrays.copyOfRange(br.bytes, br.offset,
+            br.length)) == 0;
   }
 }
