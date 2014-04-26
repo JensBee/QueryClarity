@@ -570,8 +570,6 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   /**
    * Clear all dynamic caches. This must be called, if the fields or
    * stop-words have changed.
-   *
-   * @param db Database reference
    */
   protected void clearCache() {
     LOG.info("Clearing temporary caches.");

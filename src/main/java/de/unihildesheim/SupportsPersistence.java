@@ -22,9 +22,28 @@ package de.unihildesheim;
  */
 public interface SupportsPersistence {
 
+  /**
+   * Load a persistent cache with the given name.
+   *
+   * @param name Name of the cache to create
+   * @throws Exception Thrown, if cache loading fails
+   */
   public void loadCache(final String name) throws Exception;
 
+  /**
+   * Tries to load a persistent cache with the given name. If none is found a
+   * new one with the given name is created.
+   *
+   * @param name Name of the cache to create
+   * @throws Exception Thrown, if cache loading/creation fails
+   */
   public void loadOrCreateCache(final String name) throws Exception;
 
+  /**
+   * Creates a new persistent cache with the given name.
+   *
+   * @param name Name of the cache to create
+   * @throws Exception Thrown, if cache creation fails
+   */
   public void createCache(final String name) throws Exception;
 }

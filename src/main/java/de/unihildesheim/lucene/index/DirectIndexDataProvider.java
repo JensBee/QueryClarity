@@ -133,7 +133,7 @@ public final class DirectIndexDataProvider extends AbstractIndexDataProvider {
    * the {@link Environment}
    */
   @SuppressWarnings("CollectionWithoutInitialCapacity")
-  protected final void initCache(final String name, final boolean createNew,
+  private void initCache(final String name, final boolean createNew,
           final boolean createIfNotFound) throws
           IOException, Environment.NoIndexException {
 

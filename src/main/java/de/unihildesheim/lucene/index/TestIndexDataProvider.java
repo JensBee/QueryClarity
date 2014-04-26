@@ -56,7 +56,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Temporary index of random generated documents for testing purposes.
  *
- *
+ * @author Jens Bertram
  */
 public final class TestIndexDataProvider implements IndexDataProvider {
 
@@ -75,7 +75,7 @@ public final class TestIndexDataProvider implements IndexDataProvider {
    * Bit-mask storing active fields state. 0 means off 1 on. Index is related
    * to {@link #fields}.
    */
-  private final int[] activeFieldState;
+  private static int[] activeFieldState;
 
   /**
    * Flag indicating, if all static fields have been initialized.
@@ -95,17 +95,17 @@ public final class TestIndexDataProvider implements IndexDataProvider {
 
   @Override
   public void loadCache(String name) throws Exception {
-    throw new UnsupportedOperationException("Not supported yet.");
+    // NOP
   }
 
   @Override
   public void loadOrCreateCache(String name) throws Exception {
-    throw new UnsupportedOperationException("Not supported yet.");
+    // NOP
   }
 
   @Override
   public void createCache(String name) throws Exception {
-    throw new UnsupportedOperationException("Not supported yet.");
+    // NOP
   }
 
   /**
@@ -199,7 +199,7 @@ public final class TestIndexDataProvider implements IndexDataProvider {
   /**
    * Size of the index actually used.
    */
-  protected IndexSize idxConf;
+  protected static IndexSize idxConf;
 
   /**
    * Number of documents in index.
@@ -211,6 +211,21 @@ public final class TestIndexDataProvider implements IndexDataProvider {
    */
   private static ConcurrentNavigableMap<
           Fun.Tuple3<Integer, Integer, ByteArray>, Long> idx;
+
+  /**
+   * Plain constructor. Meant for unit testing only. This makes the
+   * {@link TestindexDataProvider} behave like a normal
+   * {@link IndexDataProvider}. Another full instance must already exist,
+   * before this constructor is called. Otherwise the behavior is undefined.
+   */
+  public TestIndexDataProvider() {
+//    this.activeFieldState = new int[TestIndexDataProvider.fields.size()];
+//    Arrays.fill(this.activeFieldState, 0);
+//    // activate single fields
+//    for (String field : Environment.getFields()) {
+//      setFieldState(field, true);
+//    }
+  }
 
   /**
    * Create a new test index with a specific size constraint.
@@ -244,16 +259,15 @@ public final class TestIndexDataProvider implements IndexDataProvider {
     return freq;
   }
 
-  /**
-   * Initialize the testing index with default values.
-   *
-   * @throws IOException Thrown on low-level I/O errors
-   */
-  @SuppressWarnings("CollectionWithoutInitialCapacity")
-  public TestIndexDataProvider() throws IOException {
-    this(IndexSize.MEDIUM);
-  }
-
+//  /**
+//   * Initialize the testing index with default values.
+//   *
+//   * @throws IOException Thrown on low-level I/O errors
+//   */
+//  @SuppressWarnings("CollectionWithoutInitialCapacity")
+//  public TestIndexDataProvider() throws IOException {
+//    this(IndexSize.MEDIUM);
+//  }
   /**
    * Create a simple test index and initialize the {@link TempDiskIndex}.
    *
@@ -1022,7 +1036,6 @@ public final class TestIndexDataProvider implements IndexDataProvider {
         }
         // store document field
         docContent[field] = content.toString().trim();
-        LOG.debug("DOC doc={} f={} c={}", docId, field, docContent[field]);
 
         // store document field term frequency value
         for (Entry<ByteArray, AtomicInteger> ftfEntry : fieldTermFreq.

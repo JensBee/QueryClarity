@@ -16,11 +16,11 @@
  */
 package de.unihildesheim.lucene.index;
 
-import static org.junit.Assert.assertTrue;
-import org.junit.BeforeClass;
-
 /**
  * Test for {@link DirectIndexDataProvider}.
+ * <p>
+ * Some test methods are kept here (being empty) to satisfy Netbeans automatic
+ * test creation routine.
  *
  * @author Jens Bertram
  */
@@ -28,27 +28,109 @@ public final class DirectIndexDataProviderTest
         extends IndexDataProviderTestMethods {
 
   /**
-   * Temporary Lucene memory index.
+   * {@link IndexDataProvider} class being tested.
    */
-  private static TestIndexDataProvider index;
-
   private static final Class<? extends IndexDataProvider> DATAPROV_CLASS
           = DirectIndexDataProvider.class;
 
-  public DirectIndexDataProviderTest() {
-    super(index, DATAPROV_CLASS);
+  /**
+   * Initialize the test.
+   *
+   * @throws Exception Any exception indicates an error
+   */
+  public DirectIndexDataProviderTest() throws Exception {
+    super(new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL),
+            DATAPROV_CLASS);
   }
 
   /**
-   * Static initializer run before all tests.
+   * Test of createCache method, of class DirectIndexDataProvider.
    *
-   * @throws Exception Any exception thrown indicates an error
+   * @see #testCreateCache__plain()
    */
-  @BeforeClass
-  public static void setUpClass() throws Exception {
-    // create the test index
-    index = new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL);
-    assertTrue("TestIndex is not initialized.", TestIndexDataProvider.
-            isInitialized());
+  public void testCreateCache() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of loadOrCreateCache method, of class DirectIndexDataProvider.
+   *
+   * @see #testLoadOrCreateCache__plain()
+   */
+  public void testLoadOrCreateCache() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of loadCache method, of class DirectIndexDataProvider.
+   *
+   * @see #testLoadCache__plain()
+   */
+  public void testLoadCache() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of warmUp method, of class DirectIndexDataProvider.
+   *
+   * @see #testWarmUp__plain()
+   */
+  public void testWarmUp() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of warmUpDocumentFrequencies method, of class
+   * DirectIndexDataProvider.
+   *
+   * @see #testWarmUpDocumentFrequencies__plain()
+   */
+  public void testWarmUpDocumentFrequencies() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of getDocumentIds method, of class DirectIndexDataProvider.
+   *
+   * @see #testGetDocumentIds__plain()
+   */
+  public void testGetDocumentIds() {
+    // implemented by super class
+  }
+
+  /**
+   * Test of getDocumentModel method, of class DirectIndexDataProvider.
+   *
+   * @see #testGetDocumentModel__plain()
+   */
+  public void testGetDocumentModel() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of getDocumentsTermSet method, of class DirectIndexDataProvider.
+   *
+   * @see #testGetDocumentsTermSet__plain()
+   */
+  public void testGetDocumentsTermSet() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of documentContains method, of class DirectIndexDataProvider.
+   *
+   * @see #testDocumentContains__plain()
+   */
+  public void testDocumentContains() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of getDocumentFrequency method, of class DirectIndexDataProvider.
+   *
+   * @see #testGetDocumentFrequency__plain()
+   */
+  public void testGetDocumentFrequency() {
+    // implemented in super class
   }
 }

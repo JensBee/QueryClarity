@@ -17,12 +17,15 @@
 package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.ByteArray;
+import de.unihildesheim.SerializableByte;
 import de.unihildesheim.TestMethodInfo;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModel;
+import de.unihildesheim.lucene.index.AbstractIndexDataProviderTest.AbstractIndexDataProviderTestImpl;
 import de.unihildesheim.util.ByteArrayUtil;
 import de.unihildesheim.util.RandomValue;
 import de.unihildesheim.util.concurrent.processing.Processing;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -32,6 +35,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import org.junit.Rule;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -69,13 +73,36 @@ public abstract class IndexDataProviderTestMethods {
    * Private empty constructor for utility class.
    *
    * @param newIndex TestIndex to check against
-   * @param newDataProvider DataProvider to test
+   * @param newDataProv DataProvider to test
    */
   public IndexDataProviderTestMethods(
           final TestIndexDataProvider newIndex,
           final Class<? extends IndexDataProvider> newDataProv) {
+    assertTrue("TestIndex is not initialized.", TestIndexDataProvider.
+            isInitialized());
     this.index = newIndex;
     this.dataProv = newDataProv;
+  }
+
+  private boolean isImplementingAbstractIdp() {
+    // skip test, if not implementing AbstractIndexDataProvider
+    if (!AbstractIndexDataProvider.class.isAssignableFrom(dataProv)) {
+      LOG.warn("Skip test for " + AbstractIndexDataProviderTestImpl.class.
+              getCanonicalName()
+              + ". No sub-class of AbstractIndexDataProvider.");
+      return false;
+    }
+    return true;
+  }
+
+  private boolean isAbstractIdpTestInstance() {
+    // skip test for plain testing instance
+    if (dataProv.equals(AbstractIndexDataProviderTestImpl.class)) {
+      LOG.warn("Skip test for " + AbstractIndexDataProviderTestImpl.class.
+              getCanonicalName());
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -85,7 +112,11 @@ public abstract class IndexDataProviderTestMethods {
    */
   @After
   public void tearDown() throws Exception {
-    Environment.getDataProvider().dispose();
+    if (Environment.isInitialized()) {
+      Environment.getDataProvider().dispose();
+    }
+    Environment.clear();
+    Environment.clearAllProperties();
   }
 
   /**
@@ -95,7 +126,7 @@ public abstract class IndexDataProviderTestMethods {
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
-  private static void _testGetTermFrequency_0args(
+  protected static void _testGetTermFrequency_0args(
           final TestIndexDataProvider index,
           final IndexDataProvider instance) throws Exception {
     assertEquals("Term frequency differs.", index.getTermFrequency(),
@@ -108,7 +139,10 @@ public abstract class IndexDataProviderTestMethods {
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  public final void testGetTermFrequency_0args() throws Exception {
+  public final void testGetTermFrequency_0args__plain() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv, null, null);
     _testGetTermFrequency_0args(index, instance);
@@ -121,8 +155,11 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testGetTermFrequency_0args__stopped() throws Exception {
-    final long unfilteredTf = index.getTermFrequency();
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
 
+    final long unfilteredTf = index.getTermFrequency();
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             null, IndexTestUtil.getRandomStopWords(index));
@@ -147,6 +184,10 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testGetTermFrequency_0args__randField() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
+
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index), null);
@@ -161,6 +202,10 @@ public abstract class IndexDataProviderTestMethods {
   @Test
   public final void testGetTermFrequency_0args__randField_stopped() throws
           Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
+
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index),
@@ -203,7 +248,10 @@ public abstract class IndexDataProviderTestMethods {
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  public final void testGetTermFrequency_ByteArray() throws Exception {
+  public final void testGetTermFrequency_ByteArray__plain() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     _testGetTermFrequency_ByteArray(index, IndexTestUtil.createInstance(index,
             dataProv, null, null));
   }
@@ -215,6 +263,9 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testGetTermFrequency_ByteArray__stopped() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             null, IndexTestUtil.getRandomStopWords(index));
@@ -229,6 +280,9 @@ public abstract class IndexDataProviderTestMethods {
   @Test
   public final void testGetTermFrequency_ByteArray__randField() throws
           Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index), null);
@@ -243,6 +297,9 @@ public abstract class IndexDataProviderTestMethods {
   @Test
   public final void testGetTermFrequency_ByteArray__randField_stopped()
           throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index),
@@ -286,7 +343,10 @@ public abstract class IndexDataProviderTestMethods {
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  public final void testGetRelativeTermFrequency() throws Exception {
+  public final void testGetRelativeTermFrequency__plain() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     _testGetRelativeTermFrequency(index, IndexTestUtil.createInstance(index,
             dataProv, null, null));
   }
@@ -298,6 +358,9 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testGetRelativeTermFrequency__stopped() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             null, IndexTestUtil.getRandomStopWords(index));
@@ -312,6 +375,9 @@ public abstract class IndexDataProviderTestMethods {
   @Test
   public final void testGetRelativeTermFrequency__randField() throws
           Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index), null);
@@ -326,6 +392,9 @@ public abstract class IndexDataProviderTestMethods {
   @Test
   public final void testGetRelativeTermFrequency__randField_stopped() throws
           Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index),
@@ -373,7 +442,10 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   @edu.umd.cs.findbugs.annotations.SuppressWarnings("DM_DEFAULT_ENCODING")
-  public final void testGetTermsIterator() throws Exception {
+  public final void testGetTermsIterator__plain() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             null, null);
@@ -388,6 +460,9 @@ public abstract class IndexDataProviderTestMethods {
   @Test
   @edu.umd.cs.findbugs.annotations.SuppressWarnings("DM_DEFAULT_ENCODING")
   public final void testGetTermsIterator__stopped() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             null, IndexTestUtil.getRandomStopWords(index));
@@ -402,6 +477,9 @@ public abstract class IndexDataProviderTestMethods {
   @Test
   @edu.umd.cs.findbugs.annotations.SuppressWarnings("DM_DEFAULT_ENCODING")
   public final void testGetTermsIterator__randField() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index), null);
@@ -416,6 +494,9 @@ public abstract class IndexDataProviderTestMethods {
   @Test
   @edu.umd.cs.findbugs.annotations.SuppressWarnings("DM_DEFAULT_ENCODING")
   public final void testGetTermsIterator__randField_stopped() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index),
@@ -444,7 +525,10 @@ public abstract class IndexDataProviderTestMethods {
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  public final void testGetDocumentCount() throws Exception {
+  public final void testGetDocumentCount__plain() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             null, null);
@@ -458,6 +542,9 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testGetDocumentCount__randField() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index), null);
@@ -471,6 +558,9 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testGetDocumentCount__stopped() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             null, IndexTestUtil.getRandomStopWords(index));
@@ -484,6 +574,9 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testGetDocumentCount__randField_stopped() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index),
@@ -545,7 +638,10 @@ public abstract class IndexDataProviderTestMethods {
    *
    * @throws Exception Any exception thrown indicates an error
    */
-  public final void testGetDocumentModel() throws Exception {
+  public final void testGetDocumentModel__plain() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             null, null);
@@ -559,6 +655,9 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testGetDocumentModel__stopped() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             null, IndexTestUtil.getRandomStopWords(index));
@@ -583,6 +682,9 @@ public abstract class IndexDataProviderTestMethods {
    * @throws Exception Any exception thrown indicates an error
    */
   public final void testGetDocumentModel__randField_stopped() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index),
@@ -616,7 +718,10 @@ public abstract class IndexDataProviderTestMethods {
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  public final void testGetDocumentIdIterator() throws Exception {
+  public final void testGetDocumentIdIterator__plain() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv, null, null);
     _testGetDocumentIdIterator(index, instance);
@@ -629,6 +734,9 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testGetDocumentIdIterator_stopped() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             null, IndexTestUtil.getRandomStopWords(index));
@@ -642,6 +750,9 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testGetDocumentIdIterator_randField() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index), null);
@@ -656,6 +767,9 @@ public abstract class IndexDataProviderTestMethods {
   @Test
   public final void testGetDocumentIdIterator_randField_stopped() throws
           Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index), null);
@@ -669,6 +783,7 @@ public abstract class IndexDataProviderTestMethods {
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
+  @SuppressWarnings("UnnecessaryUnboxing")
   private static void _testGetDocumentIdSource(
           final TestIndexDataProvider index,
           final IndexDataProvider instance) throws Exception {
@@ -685,7 +800,10 @@ public abstract class IndexDataProviderTestMethods {
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  public final void testGetDocumentIdSource() throws Exception {
+  public final void testGetDocumentIdSource__plain() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv, null, null);
     _testGetDocumentIdSource(index, instance);
@@ -698,6 +816,9 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testGetDocumentIdSource_stopped() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             null, IndexTestUtil.getRandomStopWords(index));
@@ -711,6 +832,9 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testGetDocumentIdSource_randField() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index), null);
@@ -725,6 +849,9 @@ public abstract class IndexDataProviderTestMethods {
   @Test
   public final void testGetDocumentIdSource_randField_stopped() throws
           Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index),
@@ -752,7 +879,10 @@ public abstract class IndexDataProviderTestMethods {
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  public final void testGetUniqueTermsCount() throws Exception {
+  public final void testGetUniqueTermsCount__plain() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv, null, null);
     _testGetUniqueTermsCount(index, instance);
@@ -765,6 +895,9 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testGetUniqueTermsCount__stopped() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             null, IndexTestUtil.getRandomStopWords(index));
@@ -778,6 +911,9 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testGetUniqueTermsCount__randField() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index), null);
@@ -792,6 +928,9 @@ public abstract class IndexDataProviderTestMethods {
   @Test
   public final void testGetUniqueTermsCount__randField_stopped() throws
           Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index), IndexTestUtil.
@@ -805,7 +944,11 @@ public abstract class IndexDataProviderTestMethods {
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  public final void testHasDocument() throws Exception {
+  public final void testHasDocument__plain() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
+
     final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
@@ -853,7 +996,10 @@ public abstract class IndexDataProviderTestMethods {
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  public final void testDocumentContains() throws Exception {
+  public final void testDocumentContains__plain() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv, null, null);
     _testDocumentContains(instance);
@@ -866,6 +1012,9 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testDocumentContains__stopped() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             null, IndexTestUtil.getRandomStopWords(index));
@@ -879,6 +1028,9 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testDocumentContains__randField() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index), null);
@@ -892,6 +1044,9 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testDocumentContains__randField_stopped() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index),
@@ -906,6 +1061,7 @@ public abstract class IndexDataProviderTestMethods {
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
+  @SuppressWarnings("UnnecessaryUnboxing")
   private static void _testGetTermsSource(
           final TestIndexDataProvider index,
           final IndexDataProvider instance) throws Exception {
@@ -922,7 +1078,10 @@ public abstract class IndexDataProviderTestMethods {
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  public final void testGetTermsSource() throws Exception {
+  public final void testGetTermsSource__plain() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv, null, null);
     _testGetTermsSource(index, instance);
@@ -935,6 +1094,9 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testGetTermsSource__stopped() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             null, IndexTestUtil.getRandomStopWords(index));
@@ -948,6 +1110,9 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testGetTermsSource__randField() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index), null);
@@ -961,6 +1126,9 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testGetTermsSource__randField_stopped() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index),
@@ -1009,12 +1177,15 @@ public abstract class IndexDataProviderTestMethods {
   }
 
   /**
-   * Test of getDocumentsTermSet method.
+   * Test of getDocumentsTermSet method. Plain.
    *
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  public final void testGetDocumentsTermSet() throws Exception {
+  public final void testGetDocumentsTermSet__plain() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv, null, null);
     _testGetDocumentsTermSet(index, instance);
@@ -1023,12 +1194,13 @@ public abstract class IndexDataProviderTestMethods {
   /**
    * Test of getDocumentsTermSet method. Using stopwords.
    *
-   * @param index Test index to get base data from
-   * @param dataProv {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
   public final void testGetDocumentsTermSet__stopped() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             null, IndexTestUtil.getRandomStopWords(index));
@@ -1042,6 +1214,9 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testGetDocumentsTermSet__randField() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index), null);
@@ -1056,6 +1231,9 @@ public abstract class IndexDataProviderTestMethods {
   @Test
   public final void testGetDocumentsTermSet__randField_stopped() throws
           Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index),
@@ -1095,7 +1273,10 @@ public abstract class IndexDataProviderTestMethods {
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  public final void testGetDocumentFrequency() throws Exception {
+  public final void testGetDocumentFrequency__plain() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv, null, null);
     _testGetDocumentFrequency(index, instance);
@@ -1108,6 +1289,9 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testGetDocumentFrequency__stopped() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             null, IndexTestUtil.getRandomStopWords(index));
@@ -1121,6 +1305,9 @@ public abstract class IndexDataProviderTestMethods {
    */
   @Test
   public final void testGetDocumentFrequency__randField() throws Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index), null);
@@ -1135,6 +1322,9 @@ public abstract class IndexDataProviderTestMethods {
   @Test
   public final void testGetDocumentFrequency__randField_stopped() throws
           Exception {
+    if (isAbstractIdpTestInstance()) {
+      return;
+    }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
             index, dataProv,
             IndexTestUtil.getRandomFields(index),
@@ -1145,12 +1335,10 @@ public abstract class IndexDataProviderTestMethods {
   /**
    * Test of warmUp method.
    *
-   * @param index Test index to get base data from
-   * @param dataProv {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  public final void testWarmUp() throws Exception {
+  public final void testWarmUp__plain() throws Exception {
     IndexTestUtil.createInstance(index, dataProv, null, null).warmUp();
   }
 
@@ -1160,7 +1348,437 @@ public abstract class IndexDataProviderTestMethods {
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
-  public void testDispose() throws Exception {
+  public final void testDispose__plain() throws Exception {
     IndexTestUtil.createInstance(index, dataProv, null, null).dispose();
+  }
+
+  /**
+   * Test of createCache method.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  public final void testCreateCache__plain() throws Exception {
+    IndexTestUtil.createInstance(index, dataProv, null, null).createCache(
+            RandomValue.getString(10));
+  }
+
+  /**
+   * Test of loadOrCreateCache method.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  public final void testLoadOrCreateCache__plain() throws Exception {
+    IndexTestUtil.createInstance(index, dataProv, null, null).
+            loadOrCreateCache(RandomValue.getString(10));
+  }
+
+  /**
+   * Test of loadCache method.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  public final void testLoadCache__plain() throws Exception {
+    boolean thrown = false;
+    try {
+      IndexTestUtil.createInstance(index, dataProv, null, null).
+              loadCache(RandomValue.getString(10));
+    } catch (Exception ex) {
+      thrown = true;
+    }
+    if (!thrown) {
+      fail("Expected to catch an exception.");
+    }
+  }
+
+  /**
+   * Test of warmUpDocumentFrequencies method (from
+   * {@link AbstractIndexDataProvider}).
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public final void testWarmUpDocumentFrequencies__plain() throws Exception {
+    if (!isImplementingAbstractIdp()) {
+      return;
+    }
+
+    final AbstractIndexDataProvider instance
+            = (AbstractIndexDataProvider) IndexTestUtil.
+            createInstance(index, dataProv, null, null);
+    instance.warmUpDocumentFrequencies();
+  }
+
+  /**
+   * Test of getDocumentIds method (from {@link AbstractIndexDataProvider}).
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public final void testGetDocumentIds__plain() throws Exception {
+    if (!isImplementingAbstractIdp() || isAbstractIdpTestInstance()) {
+      return;
+    }
+
+    final AbstractIndexDataProvider instance
+            = (AbstractIndexDataProvider) IndexTestUtil.
+            createInstance(index, dataProv, null, null);
+    final Collection<Integer> docIds = new ArrayList<>(instance.
+            getDocumentIds());
+    final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+    while (docIdIt.hasNext()) {
+      final Integer docId = docIdIt.next();
+      assertTrue("Doc-id was missing. docId=" + docId, docIds.remove(docId));
+    }
+    assertTrue("Too much document ids provided by instance.", docIds.
+            isEmpty());
+  }
+
+  /**
+   * Test of testSetStopwordsFromEnvironment method (from
+   * {@link AbstractIndexDataProvider}). Plain.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public final void testSetStopwordsFromEnvironment__plain() throws Exception {
+    if (!isImplementingAbstractIdp()) {
+      return;
+    }
+    AbstractIndexDataProvider instance
+            = (AbstractIndexDataProvider) IndexTestUtil.
+            createInstance(index, dataProv, null, null);
+    instance.setStopwordsFromEnvironment();
+  }
+
+  /**
+   * Test of testSetStopwordsFromEnvironment method (from
+   * {@link AbstractIndexDataProvider}). Using stopwords.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public final void testSetStopwordsFromEnvironment__stopped() throws
+          Exception {
+    if (!isImplementingAbstractIdp()) {
+      return;
+    }
+    AbstractIndexDataProvider instance
+            = (AbstractIndexDataProvider) IndexTestUtil.createInstance(
+                    index, dataProv,
+                    null, IndexTestUtil.getRandomStopWords(index));
+    instance.setStopwordsFromEnvironment();
+  }
+
+  /**
+   * Test of warmUpTerms method (from {@link AbstractIndexDataProvider}).
+   * Using stopwords.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public final void testWarmUpTerms__plain() throws Exception {
+    if (!isImplementingAbstractIdp()) {
+      return;
+    }
+    AbstractIndexDataProvider instance
+            = (AbstractIndexDataProvider) IndexTestUtil.createInstance(
+                    index, dataProv, null, null);
+    instance.warmUpTerms();
+  }
+
+  /**
+   * Test of warmUpIndexTermFrequencies method (from
+   * {@link AbstractIndexDataProvider}). Using stopwords.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public void testWarmUpIndexTermFrequencies() throws Exception {
+    if (!isImplementingAbstractIdp()) {
+      return;
+    }
+    AbstractIndexDataProvider instance
+            = (AbstractIndexDataProvider) IndexTestUtil.createInstance(
+                    index, dataProv,
+                    null, IndexTestUtil.getRandomStopWords(index));
+    instance.warmUpIndexTermFrequencies();
+  }
+
+  /**
+   * Test of warmUpDocumentIds method (from
+   * {@link AbstractIndexDataProvider}). Using stopwords.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public final void testWarmUpDocumentIds__plain() throws Exception {
+    if (!isImplementingAbstractIdp()) {
+      return;
+    }
+    AbstractIndexDataProvider instance
+            = (AbstractIndexDataProvider) IndexTestUtil.createInstance(
+                    index, dataProv,
+                    null, IndexTestUtil.getRandomStopWords(index));
+    instance.warmUpDocumentIds();
+  }
+
+  /**
+   * Test method for getFieldId method, of class AbstractIndexDataProvider.
+   *
+   * @param instance Prepared instance to test
+   * @throws Exception
+   */
+  private static void _testGetFieldId(
+          final AbstractIndexDataProvider instance) {
+    for (String fieldName : Environment.getFields()) {
+      SerializableByte result = instance.getFieldId(fieldName);
+      assertFalse("Field id was null.", result == null);
+    }
+  }
+
+  /**
+   * Test of getFieldId method, of class AbstractIndexDataProvider. Plain.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public void testGetFieldId__plain() throws Exception {
+    if (!isImplementingAbstractIdp()) {
+      return;
+    }
+    final AbstractIndexDataProvider instance
+            = (AbstractIndexDataProvider) IndexTestUtil.
+            createInstance(index, dataProv, null, null);
+    _testGetFieldId(instance);
+  }
+
+  /**
+   * Test of getFieldId method, of class AbstractIndexDataProvider. Using
+   * random fields.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public void testGetFieldId__randField() throws Exception {
+    if (!isImplementingAbstractIdp()) {
+      return;
+    }
+    final AbstractIndexDataProvider instance
+            = (AbstractIndexDataProvider) IndexTestUtil.
+            createInstance(
+                    index, dataProv,
+                    IndexTestUtil.getRandomFields(index), null);
+    _testGetFieldId(instance);
+  }
+
+  /**
+   * Test method for _getTermFrequency method, of class
+   * AbstractIndexDataProvider.
+   *
+   * @param index Index to test against
+   * @param instance Prepared instance to test
+   */
+  private static void _test_getTermFrequency(
+          final TestIndexDataProvider index,
+          final AbstractIndexDataProvider instance) {
+    final Iterator<ByteArray> termsIt = index.getTermsIterator();
+    ByteArray term;
+    while (termsIt.hasNext()) {
+      term = termsIt.next();
+      long result = instance._getTermFrequency(term);
+      // stopwords should be included.
+      assertFalse("Term frequency was zero. term=" + ByteArrayUtil.
+              utf8ToString(term), result <= 0L);
+    }
+  }
+
+  /**
+   * Test for _getTermFrequency method, of class AbstractIndexDataProvider.
+   * Plain.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public final void test_getTermFrequency__plain() throws Exception {
+    if (!isImplementingAbstractIdp() || isAbstractIdpTestInstance()) {
+      return;
+    }
+    final AbstractIndexDataProvider instance
+            = (AbstractIndexDataProvider) IndexTestUtil.
+            createInstance(
+                    index, dataProv,
+                    IndexTestUtil.getRandomFields(index), null);
+    _test_getTermFrequency(index, instance);
+  }
+
+  /**
+   * Test for _getTermFrequency method, of class AbstractIndexDataProvider.
+   * Using stopwords.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public final void test_getTermFrequency__stopped() throws Exception {
+    if (!isImplementingAbstractIdp() || isAbstractIdpTestInstance()) {
+      return;
+    }
+    final AbstractIndexDataProvider instance
+            = (AbstractIndexDataProvider) IndexTestUtil.
+            createInstance(
+                    index, dataProv,
+                    null, IndexTestUtil.getRandomStopWords(index));
+    _test_getTermFrequency(index, instance);
+  }
+
+  /**
+   * Test for _getTermFrequency method, of class AbstractIndexDataProvider.
+   * Using random fields.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public final void test_getTermFrequency__randField() throws Exception {
+    if (!isImplementingAbstractIdp() || isAbstractIdpTestInstance()) {
+      return;
+    }
+    final AbstractIndexDataProvider instance
+            = (AbstractIndexDataProvider) IndexTestUtil.
+            createInstance(
+                    index, dataProv,
+                    IndexTestUtil.getRandomFields(index), null);
+    _test_getTermFrequency(index, instance);
+  }
+
+  /**
+   * Test for _getTermFrequency method, of class AbstractIndexDataProvider.
+   * Using random fields & stopwords.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public final void test_getTermFrequency__randField_stopped() throws
+          Exception {
+    if (!isImplementingAbstractIdp() || isAbstractIdpTestInstance()) {
+      return;
+    }
+    final AbstractIndexDataProvider instance
+            = (AbstractIndexDataProvider) IndexTestUtil.
+            createInstance(
+                    index, dataProv,
+                    IndexTestUtil.getRandomFields(index),
+                    IndexTestUtil.getRandomStopWords(index));
+    _test_getTermFrequency(index, instance);
+  }
+
+  /**
+   * Test of getPersistence method, of class AbstractIndexDataProvider.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public void testGetPersistence__plain() throws Exception {
+    if (!isImplementingAbstractIdp()) {
+      return;
+    }
+    // NOP: no suitable test for plain instance
+  }
+
+  /**
+   * Test method for getTerms method, of class AbstractIndexDataProvider.
+   */
+  private static void _testGetTerms(
+          final TestIndexDataProvider index,
+          final AbstractIndexDataProvider instance) {
+    final Collection<ByteArray> iTerms = instance.idxTerms;
+    final Collection<ByteArray> eTerms = index.getTermSet();
+
+    assertEquals("Term list size differs.", eTerms.size(), iTerms.size());
+    assertTrue("Term list content differs.", iTerms.containsAll(eTerms));
+  }
+
+  /**
+   * Test of getTerms method, of class AbstractIndexDataProvider. Plain.
+   */
+  @Test
+  public void testGetTerms__plain() throws Exception {
+    if (!isImplementingAbstractIdp() || isAbstractIdpTestInstance()) {
+      return;
+    }
+    final AbstractIndexDataProvider instance
+            = (AbstractIndexDataProvider) IndexTestUtil.
+            createInstance(index, dataProv, null, null);
+    _testGetTerms(index, instance);
+  }
+
+  /**
+   * Test of getTerms method, of class AbstractIndexDataProvider. Using
+   * stopwords.
+   */
+  @Test
+  public void testGetTerms__stopped() throws Exception {
+    if (!isImplementingAbstractIdp() || isAbstractIdpTestInstance()) {
+      return;
+    }
+    final AbstractIndexDataProvider instance
+            = (AbstractIndexDataProvider) IndexTestUtil.
+            createInstance(
+                    index, dataProv,
+                    null, IndexTestUtil.getRandomStopWords(index));
+    _testGetTerms(index, instance);
+  }
+
+  /**
+   * Test of getTerms method, of class AbstractIndexDataProvider. Using random
+   * fields.
+   */
+  @Test
+  public void testGetTerms__randField() throws Exception {
+    if (!isImplementingAbstractIdp() || isAbstractIdpTestInstance()) {
+      return;
+    }
+    final AbstractIndexDataProvider instance
+            = (AbstractIndexDataProvider) IndexTestUtil.
+            createInstance(
+                    index, dataProv,
+                    IndexTestUtil.getRandomFields(index), null);
+    _testGetTerms(index, instance);
+  }
+
+  /**
+   * Test of getTerms method, of class AbstractIndexDataProvider. Using random
+   * fields & stopwords.
+   */
+  @Test
+  public void testGetTerms__randField_stopped() throws Exception {
+    if (!isImplementingAbstractIdp() || isAbstractIdpTestInstance()) {
+      return;
+    }
+    final AbstractIndexDataProvider instance
+            = (AbstractIndexDataProvider) IndexTestUtil.
+            createInstance(
+                    index, dataProv,
+                    IndexTestUtil.getRandomFields(index),
+                    IndexTestUtil.getRandomStopWords(index));
+    _testGetTerms(index, instance);
+  }
+
+  /**
+   * Test of clearCache method, of class AbstractIndexDataProvider.
+   *
+   * @throws Exception Any exception indicates an error
+   */
+  @Test
+  public void testClearCache__plain() throws Exception {
+    if (!isImplementingAbstractIdp()) {
+      return;
+    }
+    final AbstractIndexDataProvider instance
+            = (AbstractIndexDataProvider) IndexTestUtil.
+            createInstance(index, dataProv, null, null);
+    instance.clearCache();
+    assertTrue("Index terms cache not empty.", instance.idxTerms.isEmpty());
+    assertTrue("Index document frequency cache not empty.", instance.idxDfMap.
+            isEmpty());
+    assertEquals("Index term frequency cache not empty.", null, instance.idxTf);
   }
 }
