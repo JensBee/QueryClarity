@@ -275,10 +275,17 @@ public final class Processing {
       executor.runTask(aTarget);
     }
 
-    // wait until source has finished
     Long processedItems = null;
     try {
-      processedItems = (Long) sourceThread.get();
+      // wait until targets have finished
+      this.threadTrackingLatch.await();
+      try {
+        // retrieve result from source
+        processedItems = (Long) sourceThread.get(3, TimeUnit.SECONDS);
+      } catch (TimeoutException ex) {
+        LOG.warn("Source finished without result. "
+                + "There may be processing errors.");
+      }
     } catch (InterruptedException | ExecutionException ex) {
       if (!(ex.getCause() instanceof ProcessingException.SourceHasFinishedException)) {
         LOG.error("Caught exception while tracking source state.", ex);

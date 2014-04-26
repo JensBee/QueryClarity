@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * modified while being used as source, the behavior is undefined.
  *
  * @param <T> Type of the collections elements
- 
+ *
  */
 public final class CollectionSource<T> extends Source<T> {
 
@@ -55,7 +55,11 @@ public final class CollectionSource<T> extends Source<T> {
   }
 
   @Override
-  public synchronized T next() throws ProcessingException, InterruptedException {
+  public synchronized T next() throws ProcessingException,
+          InterruptedException {
+    if (isFinished()) {
+      throw new ProcessingException.SourceHasFinishedException();
+    }
     if (this.itemsIt != null && this.itemsIt.hasNext()) {
       this.sourcedItemCount.incrementAndGet();
       return this.itemsIt.next();

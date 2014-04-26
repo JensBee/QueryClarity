@@ -137,7 +137,7 @@ public abstract class Target<T> implements Runnable {
               getName(), ex, ex);
     } finally {
       this.terminate = true;
-      LOG.trace("({}) Terminating.", getName());
+      LOG.debug("({}) Terminating.", getName());
       this.latch.countDown();
     }
   }
