@@ -17,17 +17,20 @@
 package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.ByteArray;
+import de.unihildesheim.TestMethodInfo;
 import de.unihildesheim.Tuple;
 import de.unihildesheim.util.RandomValue;
-import de.unihildesheim.util.concurrent.processing.Source;
+import de.unihildesheim.util.concurrent.processing.CollectionSource;
+import de.unihildesheim.util.concurrent.processing.Processing;
 import de.unihildesheim.util.concurrent.processing.Target;
+import java.util.Collection;
+import java.util.Map;
+import static org.junit.Assert.assertEquals;
 import org.junit.Before;
-import org.junit.Ignore;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Test for {@link ExternalDocTermDataManager}.
@@ -37,10 +40,11 @@ import org.slf4j.LoggerFactory;
 public final class ExternalDocTermDataManagerTest {
 
   /**
-   * Logger instance for this class.
+   * Log test methods.
    */
-  private static final Logger LOG = LoggerFactory.getLogger(
-          ExternalDocTermDataManagerTest.class);
+  @Rule
+  public final TestMethodInfo watcher = new TestMethodInfo();
+
   /**
    * Database used for storing values.
    */
@@ -77,26 +81,23 @@ public final class ExternalDocTermDataManagerTest {
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
-  @Ignore
   public void testClear() throws Exception {
-//    LOG.info("Test clear");
-//    instance.clear();
-//
-//    String prefix = RandomValue.getString(1, 10);
-//    final String key = RandomValue.getString(1, 10);
-//    final Integer docId = RandomValue.getInteger(0, 100);
-//    instance.loadPrefix(prefix);
-//    Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>> testData;
-//    testData = IndexTestUtil.generateTermData(null, docId, key, 100);
-//
-//    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> data : testData) {
-//      instance.setData(prefix, data.a, data.b, data.c, data.d);
-//    }
-//
-//    instance.getData(prefix, docId, key);
-//
-//    instance.clear();
-//    instance.getData(prefix, docId, key);
+    instance.clear();
+
+    final String key = RandomValue.getString(1, 10);
+    final Integer docId = RandomValue.getInteger(0, 100);
+
+    Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>> testData;
+    testData = IndexTestUtil.generateTermData(null, docId, key, 100);
+
+    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> data : testData) {
+      instance.setData(data.a, data.b, data.c, data.d);
+    }
+
+    instance.getData(docId, key);
+
+    instance.clear();
+    instance.getData(docId, key);
   }
 
   /**
@@ -105,41 +106,25 @@ public final class ExternalDocTermDataManagerTest {
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
-  @Ignore
   public void testSetData() throws Exception {
-    LOG.info("Test setData");
+    Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>> testData;
+    testData = IndexTestUtil.generateTermData(null, 10000);
 
-//    DBMaker dbMkr = DBMaker.newTempFileDB();
-//    this.db = dbMkr.transactionDisable()
-//            .asyncWriteEnable()
-//            .checksumEnable()
-//            .asyncWriteFlushDelay(100)
-//            .mmapFileEnableIfSupported()
-//            .closeOnJvmShutdown()
-//            .make();
-//    final String gPrefix = RandomValue.getString(1, 10);
-//    instance = new ExternalDocTermDataManager(db, gPrefix);
-//    final String prefix = RandomValue.getString(1, 10);
-//    instance.loadPrefix(prefix);
-//
-//    Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>> testData;
-//    testData = IndexTestUtil.generateTermData(null, 1000000);
-//
-//    Processing p;
-//    LOG.debug("Concurrent put..");
-//    p = new Processing(new TermDataTarget(
-//            new CollectionSource<>(testData), instance, prefix));
-//    p.process();
-//
-//    LOG.debug("Single update..");
-//    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> data : testData) {
-//      instance.setData(prefix, data.a, data.b, data.c, data.d);
-//    }
-//
-//    LOG.debug("Concurrent update..");
-//    p = new Processing(new TermDataTarget(
-//            new CollectionSource<>(testData), instance, prefix));
-//    p.process();
+    new Processing(
+            new Target.TargetFuncCall<>(
+                    new CollectionSource<>(testData),
+                    new TermDataTarget(instance)
+            )).process(testData.size());
+
+    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> data : testData) {
+      instance.setData(data.a, data.b, data.c, data.d);
+    }
+
+    new Processing(
+            new Target.TargetFuncCall<>(
+                    new CollectionSource<>(testData),
+                    new TermDataTarget(instance)
+            )).process(testData.size());
   }
 
   /**
@@ -148,50 +133,43 @@ public final class ExternalDocTermDataManagerTest {
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
-  @Ignore
+  public void testGetData_int_String() throws Exception {
+    final String key = RandomValue.getString(1, 10);
+    final Integer docId = RandomValue.getInteger(0, 100);
+
+    Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>> testData;
+    testData = IndexTestUtil.generateTermData(null, docId, key, 100);
+
+    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> data : testData) {
+      instance.setData(data.a, data.b, data.c, data.d);
+    }
+
+    Map<ByteArray, Object> result = instance.getData(docId, key);
+    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> data : testData) {
+      assertEquals("Value not restored.", data.d, result.get(data.b));
+    }
+  }
+
+  /**
+   * Test of getData method, of class ExternalDocTermDataManager.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
   public void testGetData_3args() throws Exception {
-//    LOG.info("Test getData 3args");
-//    String prefix = RandomValue.getString(1, 10);
-//    final String key = RandomValue.getString(1, 10);
-//    final Integer docId = RandomValue.getInteger(0, 100);
-//    instance.loadPrefix(prefix);
-//    Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>> testData;
-//    testData = IndexTestUtil.generateTermData(null, docId, key, 100);
-//
-//    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> data : testData) {
-//      instance.setData(prefix, data.a, data.b, data.c, data.d);
-//    }
-//
-//    Map<ByteArray, Object> result = instance.getData(prefix, docId, key);
-//    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> data : testData) {
-//      assertEquals("Value not restored.", data.d, result.get(data.b));
-//    }
-  }
+    final String key = RandomValue.getString(1, 10);
+    final Integer docId = RandomValue.getInteger(0, 100);
+    Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>> testData;
+    testData = IndexTestUtil.generateTermData(null, docId, key, 100);
 
-  /**
-   * Test of getData method, of class ExternalDocTermDataManager.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Test
-  @Ignore
-  public void testGetData_4args() throws Exception {
-//    LOG.info("Test getData 4args");
-//    String prefix = RandomValue.getString(1, 10);
-//    final String key = RandomValue.getString(1, 10);
-//    final Integer docId = RandomValue.getInteger(0, 100);
-//    instance.loadPrefix(prefix);
-//    Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>> testData;
-//    testData = IndexTestUtil.generateTermData(null, docId, key, 100);
-//
-//    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> data : testData) {
-//      instance.setData(prefix, data.a, data.b, data.c, data.d);
-//    }
-//
-//    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> data : testData) {
-//      assertEquals("Value not restored.", data.d, instance.getData(prefix,
-//              docId, data.b, key));
-//    }
+    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> data : testData) {
+      instance.setData(data.a, data.b, data.c, data.d);
+    }
+
+    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> data : testData) {
+      assertEquals("Value not restored.", data.d, instance.getData(docId,
+              data.b, key));
+    }
   }
 
   /**
@@ -199,69 +177,28 @@ public final class ExternalDocTermDataManagerTest {
    * test-termData.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static final class TermDataTarget extends Target<Tuple.Tuple4<
-        Integer, ByteArray, String, Integer>> {
+  public static final class TermDataTarget
+          extends Target.TargetFunc<
+          Tuple.Tuple4<Integer, ByteArray, String, Integer>> {
 
-    /**
-     * Prefix to use for storing values.
-     */
-    private static String prefix;
-    private static ExternalDocTermDataManager dtMan;
+    private final ExternalDocTermDataManager dtMan;
 
     /**
      * Initialize the target.
      *
-     * @param newSource Source to use
-     * @param newDataTarget Target {@link IndexDataProvider}
-     * @param newPrefix Prefix to use for adding data
+     * @param dtm DocTerm data manager
      */
-    public TermDataTarget(
-            final Source<Tuple.Tuple4<
-                    Integer, ByteArray, String, Integer>> newSource,
-            final ExternalDocTermDataManager dtm,
-            final String newPrefix) {
-      super(newSource);
-      prefix = newPrefix;
-      dtMan = dtm;
-    }
-
-    /**
-     * Factory instance creator
-     *
-     * @param newSource Source to use
-     */
-    private TermDataTarget(
-            final Source<Tuple.Tuple4<
-                    Integer, ByteArray, String, Integer>> newSource) {
-      super(newSource);
+    public TermDataTarget(final ExternalDocTermDataManager dtm) {
+      this.dtMan = dtm;
     }
 
     @Override
-    public Target<Tuple.Tuple4<
-        Integer, ByteArray, String, Integer>> newInstance() {
-      return new TermDataTarget(this.getSource());
-    }
-
-    @Override
-    public void runProcess() throws Exception {
-//      while (!isTerminating()) {
-//        Tuple.Tuple4<Integer, ByteArray, String, Integer> t4;
-//        try {
-//          t4 = getSource().next();
-//        } catch (ProcessingException.SourceHasFinishedException ex) {
-//          break;
-//        }
-//        if (t4 != null) {
-//          try {
-//            if (dtMan.setData(prefix, t4.a, t4.b, t4.c, t4.d) != null) {
-//              LOG.warn("A termData value was already set.");
-//            }
-//          } catch (Exception ex) {
-//            LOG.error("EX p={} a={} b={} c={} d={}", prefix, t4.a, t4.b, t4.c,
-//                    t4.d);
-//          }
-//        }
-//      }
+    public void call(
+            Tuple.Tuple4<Integer, ByteArray, String, Integer> data) {
+      if (data == null) {
+        return;
+      }
+      dtMan.setData(data.a, data.b, data.c, data.d);
     }
 
   }

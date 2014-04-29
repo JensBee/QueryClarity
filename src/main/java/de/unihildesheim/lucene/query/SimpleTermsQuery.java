@@ -48,7 +48,7 @@ import org.slf4j.LoggerFactory;
  * the {@link Analyzer} and {@link QueryParser} static and listens to changes
  * to the {@link Environment}.
  *
- 
+ * @author Jens Bertram
  */
 public final class SimpleTermsQuery extends Query {
 
@@ -135,6 +135,7 @@ public final class SimpleTermsQuery extends Query {
 
   /**
    * Get the Query object.
+   *
    * @return Query object
    */
   protected Query getQueryObj() {

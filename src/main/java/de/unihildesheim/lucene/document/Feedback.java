@@ -35,7 +35,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Utility class to get feedback documents needed for calculations.
  *
- *
+ * @author Jens Bertram
  */
 public final class Feedback {
 

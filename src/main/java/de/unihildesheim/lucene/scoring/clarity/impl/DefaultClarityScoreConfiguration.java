@@ -23,7 +23,7 @@ import java.util.Map;
 /**
  * Configuration for {@link DefaultClarityScore}.
  *
- 
+ * @author Jens Bertram
  */
 public final class DefaultClarityScoreConfiguration extends Configuration {
 

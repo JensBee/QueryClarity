@@ -96,7 +96,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
    * Keys to store calculation results in document models and access
    * properties stored in the {@link DataProvider}.
    */
-  private enum DataKeys {
+  protected enum DataKeys {
 
     /**
      * Stores the document model for a specific term in a
@@ -121,7 +121,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
    */
   private Map<Integer, Map<ByteArray, Object>> docModelDataCache;
 
-  private Map<ByteArray, Double> defaultDocModels;
+  private Map<ByteArray, Double> defaultDocModels = null;
 
   /**
    * Configuration object used for all parameters of the calculation.
@@ -193,6 +193,10 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
   public void loadCache(final String name) throws IOException,
           Environment.NoIndexException {
     initCache(name, false, false);
+  }
+
+  protected ExternalDocTermDataManager testGetExtDocMan() {
+    return this.extDocMan;
   }
 
   /**
@@ -280,14 +284,12 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
    * @return The calculated default model value
    */
   private double calcDefaultDocumentModel(final ByteArray term) {
+    assert (this.defaultDocModels != null); // must be initialized
     Double model = this.defaultDocModels.get(term);
     if (model == null) {
-      LOG.debug("Cache miss!");
       model = ((1 - this.conf.getLangModelWeight()) * CollectionMetrics.relTf(
               term));
       this.defaultDocModels.put(term.clone(), model);
-    } else {
-      LOG.debug("Cache hit!");
     }
     return model;
   }
@@ -326,7 +328,6 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
       Map<ByteArray, Object> td = this.extDocMan.getData(docId, DataKeys.DM.
               name());
       if (td == null || td.isEmpty()) {
-        LOG.debug("Cache miss!");
         calcDocumentModel(DocumentMetrics.getModel(docId));
         td = this.extDocMan.getData(docId, DataKeys.DM.name());
       }
@@ -351,6 +352,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
   public void preCalcDocumentModels() {
     if (!this.hasCache) {
       LOG.warn("Won't pre-calculate any values. Cache not set.");
+      return;
     }
     final Atomic.Boolean hasData = this.db.getAtomicBoolean(
             Caches.HAS_PRECALC_DATA.name());
@@ -372,11 +374,11 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
    * @param feedbackDocuments Document ids of feedback documents
    * @return Result of the calculation
    */
-  @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
   private Result calculateClarity(final Collection<Integer> feedbackDocuments,
           final Collection<ByteArray> queryTerms) {
     // check if models are pre-calculated
     final Result result = new Result(this.getClass());
+    result.setConf(this.conf);
     result.setFeedbackDocIds(feedbackDocuments);
     result.setQueryTerms(queryTerms);
 

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # memory setting
 JVM_MEM="-Xms128m -Xmx2G"
@@ -7,9 +7,15 @@ JVM_DEFAULT="-server -d64" # -d64 -ea
 JVM="$JVM_DEFAULT $JVM_MEM"
 MAVEN_OPTS="$MAVEN_OPTS $JVM"
 
+HOST=$(hostname)
+
+if [ "$HOST" == "bigBhoerdzn" ]; then
+	MAVEN_OPTS="$MAVEN_OPTS -Djava.io.tmpdir=/media/Brain2/tmp"
+fi
+
 if [ $# -eq 0 ]; then
-  	mvn -Djava.io.tmpdir=/media/Brain2/tmp test
+  	mvn test
 else
-	mvn -Djava.io.tmpdir=/media/Brain2/tmp -Dtest="$*" test
+	mvn -Dtest="$*" test
 fi
 

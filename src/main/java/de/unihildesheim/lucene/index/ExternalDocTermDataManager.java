@@ -61,7 +61,6 @@ public final class ExternalDocTermDataManager {
    * @param newDb Database
    * @param newPrefix Prefix
    */
-  @SuppressWarnings("CollectionWithoutInitialCapacity")
   public ExternalDocTermDataManager(final DB newDb, final String newPrefix) {
     this.db = newDb;
     this.prefix = newPrefix;
@@ -142,12 +141,12 @@ public final class ExternalDocTermDataManager {
    * @return Map with stored data for the given combination or null if there
    * is no data
    */
-  @SuppressWarnings("CollectionWithoutInitialCapacity")
   public Map<ByteArray, Object> getData(final int documentId, final String key) {
     if (key == null || key.isEmpty()) {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
-    Map<ByteArray, Object> retMap = new HashMap<>();
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
+    final Map<ByteArray, Object> retMap = new HashMap<>();
     for (ByteArray term : Fun.filter(this.map.keySet(), key, documentId)) {
       retMap.put(term.clone(), this.map.get(Fun.t3(key, documentId, term)));
     }

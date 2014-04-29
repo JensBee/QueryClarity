@@ -17,50 +17,39 @@
 package de.unihildesheim.lucene.query;
 
 import de.unihildesheim.ByteArray;
-import de.unihildesheim.lucene.index.TestIndexDataProvider;
+import de.unihildesheim.lucene.Environment;
+import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
+import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.util.ByteArrayUtil;
 import de.unihildesheim.util.RandomValue;
 import edu.umd.cs.findbugs.annotations.SuppressWarnings;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import org.junit.BeforeClass;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 /**
  * Test for {@link QueryUtils}.
  *
- *
+ * @author Jens Bertram
  */
-public class QueryUtilsTest {
+@RunWith(Parameterized.class)
+public final class QueryUtilsTest extends MultiIndexDataProviderTestCase {
 
   /**
-   * Logger instance for this class.
-   */
-  private static final Logger LOG = LoggerFactory.getLogger(
-          QueryUtilsTest.class);
-
-  /**
-   * Temporary Lucene memory index.
-   */
-  private static TestIndexDataProvider index;
-
-  /**
-   * Static initializer run before all tests.
+   * Initialize test with the current parameter.
    *
-   * @throws Exception Any exception thrown indicates an error
+   * @param dataProv {@link IndexDataProvider} to use
+   * @param rType Data provider configuration
    */
-  @BeforeClass
-  public static void setUpClass() throws Exception {
-
-    // create the test index
-    index = new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL);
-    assertTrue("TestIndex is not initialized.",
-            TestIndexDataProvider.isInitialized());
-    index.setupEnvironment(null, null);
+  public QueryUtilsTest(
+          final Class<? extends IndexDataProvider> dataProv,
+          final MultiIndexDataProviderTestCase.RunType rType) {
+    super(dataProv, rType);
   }
 
   /**
@@ -69,46 +58,28 @@ public class QueryUtilsTest {
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
-  @SuppressWarnings("DM_DEFAULT_ENCODING")
   public void testGetUniqueQueryTerms() throws Exception {
-    LOG.info("Test getUniqueQueryTerms");
     final int termsCount = RandomValue.getInteger(3, 100);
-    final Collection<ByteArray> termsBw = new ArrayList<>(termsCount);
-    final Collection<String> terms = new ArrayList<>(termsCount);
+    final Collection<ByteArray> termsBw = new HashSet<>(termsCount);
+    final Collection<String> terms = new HashSet<>(termsCount);
+    final Collection<String> stopwords = Environment.getStopwords();
 
     for (int i = 0; i < termsCount; i++) {
       final String term = RandomValue.getString(1, 15);
 
-      termsBw.add(new ByteArray(term.getBytes()));
+      if (!stopwords.contains(term)) {
+        termsBw.add(new ByteArray(term.getBytes("UTF-8")));
+      }
       terms.add(term);
     }
 
     final String queryString = index.getQueryString(terms.toArray(
-            new String[termsCount]));
+            new String[terms.size()]));
     final Collection<ByteArray> result = QueryUtils.getUniqueQueryTerms(
             queryString);
 
-    assertTrue("Not all terms returned.", result.containsAll(termsBw));
-
-    if (termsBw.size() != result.size()) {
-      @java.lang.SuppressWarnings("StringBufferWithoutInitialCapacity")
-      StringBuilder sbInitial = new StringBuilder();
-
-      for (ByteArray bw : termsBw) {
-        sbInitial.append(new String(bw.bytes)).append(' ');
-      }
-
-      @java.lang.SuppressWarnings("StringBufferWithoutInitialCapacity")
-      StringBuilder sbResult = new StringBuilder();
-
-      for (ByteArray bw : result) {
-        sbResult.append(ByteArrayUtil.utf8ToString(bw)).append(
-                ' ');
-      }
-    }
-
-    assertEquals("Initial term list and returned list differ in size.",
-            termsBw.size(), result.size());
+    assertEquals(msg("Terms amount mismatch."), termsBw.size(), result.size());
+    assertTrue(msg("Term list content differs."), result.containsAll(termsBw));
   }
 
   /**
@@ -119,15 +90,17 @@ public class QueryUtilsTest {
   @Test
   @SuppressWarnings("DM_DEFAULT_ENCODING")
   public void testGetAllQueryTerms() throws Exception {
-    LOG.info("Test getAllQueryTerms");
     final int termsCount = RandomValue.getInteger(3, 100);
     final Collection<ByteArray> termsBw = new ArrayList<>(termsCount);
     final Collection<String> terms = new ArrayList<>(termsCount);
+    final Collection<String> stopwords = Environment.getStopwords();
 
     for (int i = 0; i < termsCount; i++) {
       final String term = RandomValue.getString(1, 15);
 
-      termsBw.add(new ByteArray(term.getBytes()));
+      if (!stopwords.contains(term)) {
+        termsBw.add(new ByteArray(term.getBytes("UTF-8")));
+      }
       terms.add(term);
     }
 
@@ -140,7 +113,7 @@ public class QueryUtilsTest {
     final Collection<ByteArray> result = QueryUtils.getAllQueryTerms(
             queryString);
 
-    assertTrue("Not all terms returned.", result.containsAll(termsBw));
+    assertTrue(msg("Not all terms returned."), result.containsAll(termsBw));
 
     if (termsBw.size() != result.size()) {
       @java.lang.SuppressWarnings("StringBufferWithoutInitialCapacity")
@@ -154,12 +127,11 @@ public class QueryUtilsTest {
       StringBuilder sbResult = new StringBuilder();
 
       for (ByteArray bw : result) {
-        sbResult.append(ByteArrayUtil.utf8ToString(bw)).append(
-                ' ');
+        sbResult.append(ByteArrayUtil.utf8ToString(bw)).append(' ');
       }
     }
 
-    assertEquals("Initial term list and returned list differ in size.",
+    assertEquals(msg("Initial term list and returned list differ in size."),
             termsBw.size(), result.size());
   }
 }

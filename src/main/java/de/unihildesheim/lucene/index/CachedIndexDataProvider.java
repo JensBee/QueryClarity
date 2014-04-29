@@ -197,16 +197,18 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   }
 
   @Override
-  @SuppressWarnings("CollectionWithoutInitialCapacity")
   protected Collection<Integer> getDocumentIds() {
     if (super.idxDocumentIds.isEmpty()) {
       LOG.info("Building document-id list.");
       final NavigableSet<Fun.Tuple3<Integer, SerializableByte, ByteArray>> keys
               = this.idxDocTermsMap.keySet();
 
+      @SuppressWarnings("BoxingBoxedValue")
       Fun.Tuple3<Integer, SerializableByte, ByteArray> current = keys.higher(
-              Fun.
-              t3((Integer) null, (SerializableByte) null, (ByteArray) null));
+              Fun.t3(
+                      (Integer) null, (SerializableByte) null,
+                      (ByteArray) null)
+      );
 
       while (current != null) {
         super.idxDocumentIds.add(current.a);

@@ -68,7 +68,7 @@ import org.slf4j.LoggerFactory;
  * Conference on Information and Knowledge Management, 439–448. CIKM ’08. New
  * York, NY, USA: ACM, 2008. doi:10.1145/1458082.1458142.
  *
- *
+ * @author Jens Bertram
  */
 public final class ImprovedClarityScore implements ClarityScoreCalculation,
         SupportsPersistence {
@@ -187,6 +187,10 @@ public final class ImprovedClarityScore implements ClarityScoreCalculation,
   public void loadCache(final String name) throws IOException,
           Environment.NoIndexException {
     initCache(name, false, false);
+  }
+
+  protected ExternalDocTermDataManager testGetExtDocMan() {
+    return this.extDocMan;
   }
 
   /**
@@ -442,7 +446,6 @@ public final class ImprovedClarityScore implements ClarityScoreCalculation,
       Map<ByteArray, Object> td = this.extDocMan.getData(dm.id, DataKeys.DM.
               name());
       if (td == null || td.isEmpty()) {
-        LOG.debug("Cache miss!");
         calcDocumentModel(DocumentMetrics.getModel(dm.id));
         td = this.extDocMan.getData(dm.id, DataKeys.DM.name());
       }
@@ -496,7 +499,6 @@ public final class ImprovedClarityScore implements ClarityScoreCalculation,
    * no index is provided in the {@link Environment}
    */
   @Override
-  @SuppressWarnings("AccessingNonPublicFieldOfAnotherObject")
   public final Result calculateClarity(final String query) throws
           ParseException, Environment.NoIndexException {
     if (query == null || query.isEmpty()) {
@@ -561,7 +563,6 @@ public final class ImprovedClarityScore implements ClarityScoreCalculation,
       }
 
       // collect all unique terms from feedback documents
-      @SuppressWarnings("CollectionWithoutInitialCapacity")
       final List<ByteArray> fbTerms = new ArrayList<>(Environment.
               getDataProvider().getDocumentsTermSet(feedbackDocIds));
       // get document frequency threshold

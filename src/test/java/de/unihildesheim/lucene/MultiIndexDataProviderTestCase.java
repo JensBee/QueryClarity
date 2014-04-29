@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.lucene;
 
+import de.unihildesheim.TestMethodInfo;
 import de.unihildesheim.lucene.index.DirectIndexDataProvider;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.index.IndexTestUtil;
@@ -23,13 +24,27 @@ import de.unihildesheim.lucene.index.TestIndexDataProvider;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import org.junit.AfterClass;
+import static org.junit.Assert.assertTrue;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Rule;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Test case utils for testing with multiple {@link IndexDataProvider}s.
+ * Test case utilities for testing with multiple {@link IndexDataProvider}s.
  */
+@RunWith(Parameterized.class)
 public class MultiIndexDataProviderTestCase {
+
+  /**
+   * Log test methods.
+   */
+  @Rule
+  public final TestMethodInfo watcher = new TestMethodInfo();
 
   /**
    * Logger instance for this class.
@@ -95,6 +110,59 @@ public class MultiIndexDataProviderTestCase {
           final Class<? extends IndexDataProvider> dataProv) {
     this.dataProvType = dataProv;
     this.runType = RunType.PLAIN;
+  }
+
+  /**
+   * Static initializer run before all tests.
+   *
+   * @throws Exception Any exception thrown indicates an error
+   */
+  @BeforeClass
+  public static final void setUpClass() throws Exception {
+    index = new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL);
+    assertTrue("TestIndex is not initialized.", TestIndexDataProvider.
+            isInitialized());
+  }
+
+  /**
+   * Run after all tests have finished.
+   */
+  @AfterClass
+  public static final void tearDownClass() {
+    // close the test index
+    index.dispose();
+  }
+
+  /**
+   * Run before each test starts.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Before
+  public final void setUp() throws Exception {
+    caseSetUp();
+  }
+
+  /**
+   * Get parameters for parameterized test.
+   *
+   * @return Test parameters
+   */
+  @Parameterized.Parameters
+  public static final Collection<Object[]> data() {
+    return getCaseParameters();
+  }
+
+  /**
+   * Prepend a message string with the current {@link IndexDataProvider} name
+   * and the testing type.
+   *
+   * @param msg Message to prepend
+   * @return Message prepended with testing informations
+   */
+  protected final String msg(final String msg) {
+    return "(" + Environment.getDataProvider().getClass().getSimpleName()
+            + ", " + this.runType.name() + ") " + msg;
   }
 
   /**

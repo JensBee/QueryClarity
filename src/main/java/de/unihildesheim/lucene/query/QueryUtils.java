@@ -27,7 +27,7 @@ import org.apache.lucene.queryparser.classic.ParseException;
  * Utilities to handle queries. Currently only simple term queries are
  * supported.
  *
- 
+ * @author Jens Bertram
  */
 public final class QueryUtils {
 

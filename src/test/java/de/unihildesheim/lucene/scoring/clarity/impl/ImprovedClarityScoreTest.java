@@ -17,27 +17,29 @@
 package de.unihildesheim.lucene.scoring.clarity.impl;
 
 import de.unihildesheim.ByteArray;
+import de.unihildesheim.SupportsPersistenceTestMethods;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.Feedback;
 import de.unihildesheim.lucene.index.IndexDataProvider;
-import de.unihildesheim.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.lucene.metrics.CollectionMetrics;
 import de.unihildesheim.lucene.metrics.DocumentMetrics;
 import de.unihildesheim.lucene.query.QueryUtils;
 import de.unihildesheim.lucene.query.TermsQueryBuilder;
+import de.unihildesheim.util.ByteArrayUtil;
 import de.unihildesheim.util.MathUtils;
+import de.unihildesheim.util.RandomValue;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.Query;
-import org.junit.AfterClass;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import org.junit.Before;
-import org.junit.BeforeClass;
+import static org.junit.Assert.fail;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -46,6 +48,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Test for {@link ImprovedClarityScore}.
+ *
+ * @author Jens Bertram
  */
 @RunWith(Parameterized.class)
 public final class ImprovedClarityScoreTest
@@ -60,48 +64,7 @@ public final class ImprovedClarityScoreTest
   /**
    * Delta allowed in clarity score calculation.
    */
-  private static final double ALLOWED_SCORE_DELTA = 0.00009;
-
-  /**
-   * Static initializer run before all tests.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @BeforeClass
-  public static void setUpClass() throws Exception {
-    index = new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL);
-    assertTrue("TestIndex is not initialized.", TestIndexDataProvider.
-            isInitialized());
-  }
-
-  /**
-   * Run after all tests have finished.
-   */
-  @AfterClass
-  public static void tearDownClass() {
-    // close the test index
-    index.dispose();
-  }
-
-  /**
-   * Run before each test starts.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Before
-  public void setUp() throws Exception {
-    caseSetUp();
-  }
-
-  /**
-   * Use all {@link IndexDataProvider}s for testing.
-   *
-   * @return Parameter collection
-   */
-  @Parameterized.Parameters
-  public static Collection<Object[]> data() {
-    return getCaseParameters();
-  }
+  private static final double ALLOWED_SCORE_DELTA = 0.005;
 
   /**
    * Setup test using a defined {@link IndexDataProvider}.
@@ -187,11 +150,11 @@ public final class ImprovedClarityScoreTest
     LOG.info("Calculating reference score.");
 
     // check configuration
-    assertEquals("Configuration object mismatch.", conf, result.
+    assertEquals(msg("Configuration object mismatch."), conf, result.
             getConfiguration());
 
     // check initial query
-    assertEquals("Query mismatch.", query, result.getQueries().get(0));
+    assertEquals(msg("Query mismatch."), query, result.getQueries().get(0));
 
     // build query
     TermsQueryBuilder qBuilder = new TermsQueryBuilder().setBoolOperator(
@@ -205,7 +168,7 @@ public final class ImprovedClarityScoreTest
             getMaxFeedbackDocumentsCount()));
 
     if (feedbackDocIds.size() < conf.getMinFeedbackDocumentsCount()) {
-      assertTrue("Expecting query to be simplified.", result.
+      assertTrue(msg("Expecting query to be simplified."), result.
               wasQuerySimplified());
     }
 
@@ -226,9 +189,9 @@ public final class ImprovedClarityScoreTest
       }
     }
 
-    assertEquals("Feedback term count mismatch.", fbTerms.size(), result.
+    assertEquals(msg("Feedback term count mismatch."), fbTerms.size(), result.
             getFeedbackTerms().size());
-    assertTrue("Feedback terms mismatch.", fbTerms.containsAll(result.
+    assertTrue(msg("Feedback terms mismatch."), fbTerms.containsAll(result.
             getFeedbackTerms()));
 
     double score = 0;
@@ -239,6 +202,167 @@ public final class ImprovedClarityScoreTest
     }
 
     LOG.debug("Scores test={} ics={}", score, result.getScore());
-    assertEquals(score, result.getScore(), ALLOWED_SCORE_DELTA);
+    assertEquals(msg("Score mismatch."), score, result.getScore(),
+            ALLOWED_SCORE_DELTA);
+  }
+
+  /**
+   * Test of loadOrCreateCache method, of class ImprovedClarityScore.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public void testLoadOrCreateCache() throws Exception {
+    SupportsPersistenceTestMethods.testLoadOrCreateCache(
+            new ImprovedClarityScore());
+  }
+
+  /**
+   * Test of createCache method, of class ImprovedClarityScore.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public void testCreateCache() throws Exception {
+    SupportsPersistenceTestMethods.testCreateCache(new ImprovedClarityScore());
+  }
+
+  /**
+   * Test of loadCache method, of class ImprovedClarityScore.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public void testLoadCache() throws Exception {
+    boolean thrown = false;
+    try {
+      SupportsPersistenceTestMethods.testLoadCache(new ImprovedClarityScore());
+    } catch (Exception ex) {
+      thrown = true;
+    }
+    if (!thrown) {
+      fail(msg("Expected to catch an exception."));
+    }
+  }
+
+  /**
+   * Test of setConfiguration method, of class ImprovedClarityScore.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public void testSetConfiguration() throws Exception {
+    final int maxFbParam = RandomValue.getInteger(1, 1000);
+    final int minFbParam = 1;
+    final double betaParam = RandomValue.getDouble(0.1, 0.9);
+    final double lambdaParam = RandomValue.getDouble(0.1, 0.9);
+    final double smoothingParam = RandomValue.getDouble(0.1, 0.9);
+    final double termTsParam = RandomValue.getDouble(0.1, 0.9);
+    final ImprovedClarityScore.QuerySimplifyPolicy qspParam
+            = ImprovedClarityScore.QuerySimplifyPolicy.FIRST;
+
+    final String queryString = index.getQueryString();
+    ImprovedClarityScoreConfiguration newConf
+            = new ImprovedClarityScoreConfiguration();
+
+    newConf.setDocumentModelParamBeta(betaParam);
+    newConf.setDocumentModelParamLambda(lambdaParam);
+    newConf.setDocumentModelSmoothingParameter(smoothingParam);
+    newConf.setFeedbackTermSelectionThreshold(termTsParam);
+    newConf.setMaxFeedbackDocumentsCount(maxFbParam);
+    newConf.setMinFeedbackDocumentsCount(minFbParam);
+    newConf.setQuerySimplifyingPolicy(qspParam);
+
+    ImprovedClarityScore instance = new ImprovedClarityScore();
+    instance.setConfiguration(newConf);
+    final ImprovedClarityScore.Result result
+            = instance.calculateClarity(queryString);
+
+    ImprovedClarityScoreConfiguration resConf = result.getConfiguration();
+    assertEquals("Beta param value mismatch.", newConf.
+            getDocumentModelParamBeta(), resConf.getDocumentModelParamBeta());
+    assertEquals("Lambda param value mismatch.", newConf.
+            getDocumentModelParamLambda(), resConf.
+            getDocumentModelParamLambda());
+    assertEquals("Smoothing param value mismatch.", newConf.
+            getDocumentModelSmoothingParameter(), resConf.
+            getDocumentModelSmoothingParameter());
+    assertEquals("Term selection threshold value mismatch.", newConf.
+            getFeedbackTermSelectionThreshold(), resConf.
+            getFeedbackTermSelectionThreshold());
+    assertEquals("Max feedback doc count value mismatch.", newConf.
+            getMaxFeedbackDocumentsCount(), resConf.
+            getMaxFeedbackDocumentsCount());
+    assertEquals("Min feedback doc count value mismatch.", newConf.
+            getMinFeedbackDocumentsCount(), resConf.
+            getMinFeedbackDocumentsCount());
+    assertEquals("Query simplifying policy mismatch.", newConf.
+            getQuerySimplifyingPolicy(), resConf.getQuerySimplifyingPolicy());
+  }
+
+  /**
+   * Test of calcQueryModel method, of class ImprovedClarityScore.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public void testCalcQueryModel() throws Exception {
+    Collection<ByteArray> qTerms = QueryUtils.getAllQueryTerms(index.
+            getQueryString());
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
+    Collection<Integer> fbDocIds = new ArrayList<>();
+    Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+    while (docIdIt.hasNext()) {
+      final int docId = docIdIt.next();
+      if (RandomValue.getBoolean()) {
+        fbDocIds.add(docId);
+      }
+    }
+    ImprovedClarityScoreConfiguration icc
+            = new ImprovedClarityScoreConfiguration();
+    ImprovedClarityScore instance = new ImprovedClarityScore(icc);
+    // a cache is needed for calculation
+    instance.createCache(RandomValue.getString(50));
+
+    Collection<ByteArray> fbTerms = index.getDocumentsTermSet(fbDocIds);
+
+    for (ByteArray fbTerm : fbTerms) {
+      final double result = instance.calcQueryModel(fbTerm, qTerms, fbDocIds);
+      final double expected = calc_pqt(icc, fbTerm, fbDocIds, qTerms);
+      assertEquals("Query model value differs.", expected, result,
+              ALLOWED_SCORE_DELTA);
+    }
+  }
+
+  /**
+   * Test of preCalcDocumentModels method, of class ImprovedClarityScore.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public void testPreCalcDocumentModels() throws Exception {
+    ImprovedClarityScoreConfiguration icc
+            = new ImprovedClarityScoreConfiguration();
+    ImprovedClarityScore instance = new ImprovedClarityScore(icc);
+    // a cache is needed for pre-calculation
+    instance.createCache(RandomValue.getString(50));
+    instance.preCalcDocumentModels();
+
+    final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+    while (docIdIt.hasNext()) {
+      final int docId = docIdIt.next();
+      final DocumentModel docModel = DocumentMetrics.getModel(docId);
+
+      Map<ByteArray, Object> valueMap = instance.testGetExtDocMan().getData(
+              docId, DefaultClarityScore.DataKeys.DM.name());
+
+      for (ByteArray term : docModel.termFreqMap.keySet()) {
+        final double expResult = calc_pdt(icc, docModel.id, term);
+        assertEquals(msg("Calculated document model value differs. docId="
+                + docId + " term=" + ByteArrayUtil.utf8ToString(term) + " b="
+                + term + " v=" + valueMap.get(term)), expResult,
+                (Double) valueMap.get(term), 0d);
+      }
+    }
   }
 }

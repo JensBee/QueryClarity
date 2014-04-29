@@ -19,26 +19,20 @@ package de.unihildesheim.lucene.scoring.clarity.impl;
 import de.unihildesheim.ByteArray;
 import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.index.IndexDataProvider;
-import de.unihildesheim.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.util.MathUtils;
 import java.util.ArrayList;
 import java.util.Collection;
-import org.junit.AfterClass;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Test for {@link SimplifiedClarityScore}.
  *
- 
+ *
  */
 @RunWith(Parameterized.class)
 public final class SimplifiedClarityScoreTest
@@ -54,47 +48,6 @@ public final class SimplifiedClarityScoreTest
    * Delta allowed in clarity score calculation.
    */
   private static final double ALLOWED_SCORE_DELTA = 0.0000000001;
-
-  /**
-   * Static initializer run before all tests.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @BeforeClass
-  public static void setUpClass() throws Exception {
-    index = new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL);
-    assertTrue("TestIndex is not initialized.", TestIndexDataProvider.
-            isInitialized());
-  }
-
-  /**
-   * Run after all tests have finished.
-   */
-  @AfterClass
-  public static void tearDownClass() {
-    // close the test index
-    index.dispose();
-  }
-
-  /**
-   * Run before each test starts.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Before
-  public void setUp() throws Exception {
-    caseSetUp();
-  }
-
-  /**
-   * Use all {@link IndexDataProvider}s for testing.
-   *
-   * @return Parameter collection
-   */
-  @Parameters
-  public static Collection<Object[]> data() {
-    return getCaseParameters();
-  }
 
   /**
    * Setup test using a defined {@link IndexDataProvider}.
@@ -145,7 +98,8 @@ public final class SimplifiedClarityScoreTest
     final ClarityScoreResult result = instance.calculateClarity(query);
 
     LOG.debug("Scores test={} scs={}", score, result.getScore());
-    assertEquals(score, result.getScore(), ALLOWED_SCORE_DELTA);
+    assertEquals(msg("Score mismatch."), score, result.getScore(),
+            ALLOWED_SCORE_DELTA);
   }
 
 }

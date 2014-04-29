@@ -26,8 +26,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * Meta-data model for document related informations.
  *
- *
+ * @author Jens Bertram
  */
 public final class DocumentModel {
 

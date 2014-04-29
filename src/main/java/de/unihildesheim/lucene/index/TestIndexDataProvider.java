@@ -215,16 +215,18 @@ public final class TestIndexDataProvider implements IndexDataProvider {
   /**
    * Plain constructor. Meant for unit testing only. This makes the
    * {@link TestindexDataProvider} behave like a normal
-   * {@link IndexDataProvider}. Another full instance must already exist,
-   * before this constructor is called. Otherwise the behavior is undefined.
+   * {@link IndexDataProvider}.
+   *
+   * @throws IOException Thrown on low-level I/O errors
    */
-  public TestIndexDataProvider() {
-//    this.activeFieldState = new int[TestIndexDataProvider.fields.size()];
-//    Arrays.fill(this.activeFieldState, 0);
-//    // activate single fields
-//    for (String field : Environment.getFields()) {
-//      setFieldState(field, true);
-//    }
+  public TestIndexDataProvider() throws IOException {
+    if (!initialized) {
+      idxConf = IndexSize.MEDIUM;
+      createIndex();
+      TestIndexDataProvider.activeFieldState = new int[fields.size()];
+      // set all fields active
+      Arrays.fill(TestIndexDataProvider.activeFieldState, 1);
+    }
   }
 
   /**
@@ -233,16 +235,14 @@ public final class TestIndexDataProvider implements IndexDataProvider {
    * @param indexSize Size
    * @throws IOException Thrown on low-level I/O errors
    */
-  @SuppressWarnings({"LeakingThisInConstructor",
-    "CollectionWithoutInitialCapacity"})
   public TestIndexDataProvider(final IndexSize indexSize) throws IOException {
     if (!initialized) {
       idxConf = indexSize;
       createIndex();
     }
-    this.activeFieldState = new int[fields.size()];
+    TestIndexDataProvider.activeFieldState = new int[fields.size()];
     // set all fields active
-    Arrays.fill(this.activeFieldState, 1);
+    Arrays.fill(TestIndexDataProvider.activeFieldState, 1);
   }
 
   @Override
@@ -259,15 +259,6 @@ public final class TestIndexDataProvider implements IndexDataProvider {
     return freq;
   }
 
-//  /**
-//   * Initialize the testing index with default values.
-//   *
-//   * @throws IOException Thrown on low-level I/O errors
-//   */
-//  @SuppressWarnings("CollectionWithoutInitialCapacity")
-//  public TestIndexDataProvider() throws IOException {
-//    this(IndexSize.MEDIUM);
-//  }
   /**
    * Create a simple test index and initialize the {@link TempDiskIndex}.
    *

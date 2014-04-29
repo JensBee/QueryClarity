@@ -66,7 +66,7 @@ public final class IndexTestUtil {
   public static Collection<String> getRandomStopWords(
           final TestIndexDataProvider dataProv) {
     Iterator<ByteArray> termsIt = dataProv.getTermsIterator();
-    @SuppressWarnings(value = "CollectionWithoutInitialCapacity")
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
     final Collection<String> stopWords = new ArrayList<>();
     while (termsIt.hasNext()) {
       if (RandomValue.getBoolean()) {

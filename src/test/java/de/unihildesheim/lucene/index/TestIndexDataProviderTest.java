@@ -21,9 +21,9 @@ import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.query.QueryUtils;
 import de.unihildesheim.util.ByteArrayUtil;
-import de.unihildesheim.util.concurrent.processing.Source;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -31,19 +31,17 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import org.apache.lucene.index.MultiFields;
-import org.junit.AfterClass;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
-import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Test for {@link TestIndexDataProvider}.
+ * <p>
+ * Some test methods are kept here (being empty) to satisfy Netbeans automatic
+ * test creation routine.
  *
  * @author Jens Bertram
  */
@@ -51,50 +49,19 @@ public final class TestIndexDataProviderTest
         extends IndexDataProviderTestMethods {
 
   /**
-   * Logger instance for this class.
+   * {@link IndexDataProvider} class being tested.
    */
-  private static final Logger LOG = LoggerFactory.getLogger(
-          TestIndexDataProviderTest.class);
-
-  /**
-   * Temporary Lucene memory index.
-   */
-  private static TestIndexDataProvider index;
-
   private static final Class<? extends IndexDataProvider> DATAPROV_CLASS
           = TestIndexDataProvider.class;
 
-  public TestIndexDataProviderTest() {
-    super(index, DATAPROV_CLASS);
-  }
-
   /**
-   * Static initializer run before all tests.
+   * Initialize the test.
    *
    * @throws Exception Any exception indicates an error
    */
-  @BeforeClass
-  public static void setUpClass() throws Exception {
-    index = new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL);
-    assertTrue("TestIndex is not initialized.", TestIndexDataProvider.
-            isInitialized());
-  }
-
-  /**
-   * Run after all tests have finished.
-   */
-  @AfterClass
-  public static void tearDownClass() {
-    index.dispose();
-  }
-
-  /**
-   * Run before each test.
-   */
-  @Before
-  public void setUp() {
-    Environment.clear();
-    Environment.clearAllProperties();
+  public TestIndexDataProviderTest() throws Exception {
+    super(new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL),
+            DATAPROV_CLASS);
   }
 
   /**
@@ -128,7 +95,6 @@ public final class TestIndexDataProviderTest
    * @throws Exception Any exception indicates an error
    */
   @Test
-  @SuppressWarnings("UnnecessaryUnboxing")
   public void testGetQueryString_0args() throws Exception {
     initEnvironment(null, null);
     final String qString = index.getQueryString();
@@ -137,12 +103,15 @@ public final class TestIndexDataProviderTest
     final Collection<ByteArray> sWords = IndexTestUtil.
             getStopwordBytesFromEnvironment();
 
-    for (ByteArray qTerm : qTerms) {
-      if (sWords.contains(qTerm)) {
-        assertEquals("Stopword has term frequency >0.", 0L, index.
-                getTermFrequency(qTerm).longValue());
-      } else {
-        assertNotEquals(this, index.getTermFrequency(qTerm));
+    if (sWords != null) { // test only, if stopwords are set
+      for (ByteArray qTerm : qTerms) {
+        if (sWords.contains(qTerm)) {
+          @SuppressWarnings("UnnecessaryUnboxing")
+          final long result = index.getTermFrequency(qTerm).longValue();
+          assertEquals("Stopword has term frequency >0.", 0L, result);
+        } else {
+          assertNotEquals(this, index.getTermFrequency(qTerm));
+        }
       }
     }
   }
@@ -153,15 +122,15 @@ public final class TestIndexDataProviderTest
    * @throws Exception Any exception indicates an error
    */
   @Test
-  @SuppressWarnings("UnnecessaryUnboxing")
   public void testGetQueryObj_0args() throws Exception {
     initEnvironment(null, null);
     // stopwords are already removed
     final Collection<String> qTerms = index.getQueryObj().getQueryTerms();
     for (String term : qTerms) {
-      assertNotEquals("Term frequency was 0 for search term.", 0L,
-              index.getTermFrequency(new ByteArray(term.getBytes("UTF-8"))).
-              longValue());
+      @SuppressWarnings("UnnecessaryUnboxing")
+      final long result = index.getTermFrequency(new ByteArray(term.getBytes(
+              "UTF-8"))).longValue();
+      assertNotEquals("Term frequency was 0 for search term.", 0L, result);
     }
   }
 
@@ -188,18 +157,17 @@ public final class TestIndexDataProviderTest
   @Test
   public void testGetQueryString_StringArr() throws Exception {
     initEnvironment(null, null);
-    final String oQueryStr = index.getQueryString();
-    final Collection<ByteArray> oQueryTerms = QueryUtils.getAllQueryTerms(
-            oQueryStr);
-    final Collection<String> oQueryTermsStr = new ArrayList<>(oQueryTerms.
-            size());
-    for (ByteArray qTerm : oQueryTerms) {
-      oQueryTermsStr.add(ByteArrayUtil.utf8ToString(qTerm));
-    }
+    final String exStr = index.getQueryString();
+    final String[] exArr = exStr.split(" ");
+    final Collection<String> exColl = Arrays.asList(exArr);
 
-    String result = index.getQueryString(oQueryTermsStr.toArray(
-            new String[oQueryTermsStr.size()]));
-    assertEquals(oQueryStr, result);
+    final String resStr = index.getQueryString(exArr);
+    final String[] resArr = resStr.split(" ");
+    final Collection<String> resColl = Arrays.asList(resArr);
+
+    assertEquals("Query terms size differs.", exArr.length, resArr.length);
+    assertEquals("Query terms size differs.", exColl.size(), resColl.size());
+    assertTrue("Query terms content differs.", resColl.containsAll(exColl));
   }
 
   /**
@@ -208,12 +176,11 @@ public final class TestIndexDataProviderTest
    * @throws Exception Any exception indicates an error
    */
   @Test
-  @SuppressWarnings("UnnecessaryUnboxing")
   public void testGetQueryObj_StringArr() throws Exception {
     initEnvironment(null, null);
-    final String oQueryStr = index.getQueryString();
+    final String exStr = index.getQueryString();
     final Collection<ByteArray> oQueryTerms = QueryUtils.getAllQueryTerms(
-            oQueryStr);
+            exStr);
     final Collection<String> oQueryTermsStr = new ArrayList<>(oQueryTerms.
             size());
     for (ByteArray qTerm : oQueryTerms) {
@@ -223,9 +190,10 @@ public final class TestIndexDataProviderTest
     final Collection<String> qTerms = index.getQueryObj(oQueryTermsStr.
             toArray(new String[oQueryTermsStr.size()])).getQueryTerms();
     for (String term : qTerms) {
-      assertNotEquals("Term frequency was 0 for search term.", 0L,
-              index.getTermFrequency(new ByteArray(term.getBytes("UTF-8"))).
-              longValue());
+      @SuppressWarnings("UnnecessaryUnboxing")
+      final long result = index.getTermFrequency(new ByteArray(term.getBytes(
+              "UTF-8"))).longValue();
+      assertNotEquals("Term frequency was 0 for search term.", 0L, result);
       assertTrue("Unknown term found.", oQueryTermsStr.contains(term));
     }
 
@@ -398,115 +366,228 @@ public final class TestIndexDataProviderTest
   }
 
   /**
-   * No-Operation data-provider for testing purposes.
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public static final class FakeIndexDataProvider implements IndexDataProvider {
-
-    @Override
-    public long getTermFrequency() {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public void warmUp() {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public Long getTermFrequency(ByteArray term) {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public int getDocumentFrequency(ByteArray term) {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public double getRelativeTermFrequency(ByteArray term) {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public void dispose() {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public Iterator<ByteArray> getTermsIterator() {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public Source<ByteArray> getTermsSource() {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public Iterator<Integer> getDocumentIdIterator() {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public Source<Integer> getDocumentIdSource() {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public long getUniqueTermsCount() {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public DocumentModel getDocumentModel(int docId) {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public boolean hasDocument(Integer docId) {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public Collection<ByteArray> getDocumentsTermSet(
-            Collection<Integer> docIds) {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public long getDocumentCount() {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public boolean documentContains(int documentId, ByteArray term) {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public void loadCache(String name) throws Exception {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public void loadOrCreateCache(String name) throws Exception {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public void createCache(String name) throws Exception {
-      throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-  }
-
-  /**
    * Test of getIndex method, of class TestIndexDataProvider.
    */
   @Test
   public void testGetIndex() {
-    LOG.info("Test getIndex");
     index.getIndex();
   }
+
+  /**
+   * Test of setupEnvironment method, of class TestIndexDataProvider.
+   *
+   * @throws Exception Any exception indicates an error
+   */
+  @Test
+  public void testSetupEnvironment_3args_1() throws Exception {
+    index.setupEnvironment(FakeIndexDataProvider.class, null, null);
+  }
+
+  /**
+   * Test of setupEnvironment method, of class TestIndexDataProvider.
+   *
+   * @throws Exception Any exception indicates an error
+   */
+  @Test
+  public void testSetupEnvironment_3args_2() throws Exception {
+    index.setupEnvironment(new FakeIndexDataProvider(), null, null);
+  }
+
+  /**
+   * Test of setupEnvironment method, of class TestIndexDataProvider.
+   *
+   * @throws Exception Any exception indicates an error
+   */
+  @Test
+  public void testSetupEnvironment_Collection_Collection() throws Exception {
+    index.setupEnvironment(null, null);
+  }
+
+  /**
+   * Test of getDocumentTermSet method, of class TestIndexDataProvider.
+   */
+  @Test
+  public void testGetDocumentTermSet() {
+    final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+    while (docIdIt.hasNext()) {
+      final int docId = docIdIt.next();
+      final Collection<ByteArray> result = index.getDocumentTermSet(docId);
+      final Collection<ByteArray> exp = index.getDocumentTermFrequencyMap(
+              docId).keySet();
+      assertEquals("Term count mismatch.", exp.size(), result.size());
+      assertTrue("Term list content mismatch.", result.containsAll(exp));
+    }
+  }
+
+  /**
+   * Test of loadCache method, of class TestIndexDataProvider.
+   *
+   * @see #testLoadCache__plain()
+   */
+  public void testLoadCache() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of loadOrCreateCache method, of class TestIndexDataProvider.
+   *
+   * @see #testLoadOrCreateCache__plain()
+   */
+  public void testLoadOrCreateCache() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of createCache method, of class TestIndexDataProvider.
+   *
+   * @see #testCreateCache__plain()
+   */
+  public void testCreateCache() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of getDocumentFrequency method, of class TestIndexDataProvider.
+   *
+   * @see #testGetDocumentFrequency__plain()
+   */
+  public void testGetDocumentFrequency() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of getTermFrequency method, of class TestIndexDataProvider.
+   *
+   * @see #testGetTermFrequency_0args__plain()
+   */
+  public void testGetTermFrequency_0args() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of getTermFrequency method, of class TestIndexDataProvider.
+   *
+   * @see #testGetTermFrequency_ByteArray__plain()
+   */
+  public void testGetTermFrequency_ByteArray() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of getRelativeTermFrequency method, of class TestIndexDataProvider.
+   *
+   * @see #testGetRelativeTermFrequency__plain()
+   */
+  public void testGetRelativeTermFrequency() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of getTermsIterator method, of class TestIndexDataProvider.
+   *
+   * @see #testGetTermsIterator__plain()
+   */
+  public void testGetTermsIterator() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of getTermsSource method, of class TestIndexDataProvider.
+   *
+   * @see #testGetTermsSource__plain()
+   */
+  public void testGetTermsSource() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of getDocumentIdIterator method, of class TestIndexDataProvider.
+   *
+   * @see #testGetDocumentIdIterator__plain()
+   */
+  public void testGetDocumentIdIterator() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of getDocumentIdSource method, of class TestIndexDataProvider.
+   *
+   * @see #testGetDocumentIdSource__plain()
+   */
+  public void testGetDocumentIdSource() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of getUniqueTermsCount method, of class TestIndexDataProvider.
+   *
+   * @see #testGetUniqueTermsCount__plain()
+   */
+  public void testGetUniqueTermsCount() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of getDocumentModel method, of class TestIndexDataProvider.
+   *
+   * @see #testGetDocumentModel__plain()
+   */
+  public void testGetDocumentModel() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of hasDocument method, of class TestIndexDataProvider.
+   *
+   * @see #testHasDocument__plain()
+   */
+  public void testHasDocument() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of getDocumentCount method, of class TestIndexDataProvider.
+   *
+   * @see #testGetDocumentCount__plain()
+   */
+  public void testGetDocumentCount() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of documentContains method, of class TestIndexDataProvider.
+   *
+   * @see #testDocumentContains__plain()
+   */
+  public void testDocumentContains() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of dispose method, of class TestIndexDataProvider.
+   *
+   * @see #testDispose__plain()
+   */
+  public void testDispose() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of getDocumentsTermSet method, of class TestIndexDataProvider.
+   *
+   * @see #testGetDocumentsTermSet__plain()
+   */
+  public void testGetDocumentsTermSet() {
+    // implemented in super class
+  }
+
+  /**
+   * Test of warmUp method, of class TestIndexDataProvider.
+   *
+   * @see #testWarmUp__plain()
+   */
+  public void testWarmUp() {
+    // implemented in super class
+  }
+
 }

@@ -25,7 +25,6 @@ import java.util.Iterator;
 /**
  * No-Operation data-provider for testing purposes.
  */
-@SuppressWarnings(value = "PublicInnerClass")
 public final class FakeIndexDataProvider implements IndexDataProvider {
 
   @Override
@@ -111,17 +110,17 @@ public final class FakeIndexDataProvider implements IndexDataProvider {
 
   @Override
   public void loadCache(final String name) throws Exception {
-    throw new UnsupportedOperationException("Not supported yet.");
+    // NOP
   }
 
   @Override
   public void loadOrCreateCache(final String name) throws Exception {
-    throw new UnsupportedOperationException("Not supported yet.");
+    // NOP
   }
 
   @Override
   public void createCache(final String name) throws Exception {
-    throw new UnsupportedOperationException("Not supported yet.");
+    // NOP
   }
 
 }

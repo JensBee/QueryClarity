@@ -20,71 +20,29 @@ import de.unihildesheim.ByteArray;
 import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.index.IndexTestUtil;
-import de.unihildesheim.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.lucene.metrics.CollectionMetrics;
 import de.unihildesheim.lucene.metrics.DocumentMetrics;
 import de.unihildesheim.util.RandomValue;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
-import org.junit.AfterClass;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Test for {@link DocumentModel}.
  *
- *
+ * @author Jens Bertram
  */
 @RunWith(Parameterized.class)
 public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
-
-  /**
-   * Logger instance for this class.
-   */
-  private static final Logger LOG = LoggerFactory.getLogger(
-          DocumentModelTest.class);
-
-  /**
-   * Static initializer run before all tests.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @BeforeClass
-  public static void setUpClass() throws Exception {
-    index = new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL);
-    assertTrue("TestIndex is not initialized.", TestIndexDataProvider.
-            isInitialized());
-  }
-
-  /**
-   * Run after all tests have finished.
-   */
-  @AfterClass
-  public static void tearDownClass() {
-    // close the test index
-    index.dispose();
-  }
-
-  /**
-   * Get parameters for parameterized test.
-   *
-   * @return Test parameters
-   */
-  @Parameterized.Parameters
-  public static Collection<Object[]> data() {
-    return getCaseParameters();
-  }
 
   /**
    * Initialize test with the current parameter.
@@ -98,38 +56,29 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
   }
 
   /**
-   * Run before each test starts.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Before
-  public void setUp() throws Exception {
-    caseSetUp();
-  }
-
-  /**
    * Test of contains method, of class DocumentModel.
    *
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
   public void testContains() throws Exception {
+    @SuppressWarnings("null")
     final Collection<ByteArray> stopwords = IndexTestUtil.
             getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;
 
-    for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
-      final DocumentModel docModel = DocumentMetrics.getModel(i);
-      final DocumentModel docModelExp = index.getDocumentModel(i);
+    final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+    while (docIdIt.hasNext()) {
+      final int docId = docIdIt.next();
+      final DocumentModel docModel = DocumentMetrics.getModel(docId);
+      final DocumentModel docModelExp = index.getDocumentModel(docId);
       for (ByteArray bw : docModel.termFreqMap.keySet()) {
-        assertEquals(getDataProviderName()
-                + ": Document contains term mismatch (stopped: "
-                + excludeStopwords + ").", docModelExp.contains(bw), docModel.
-                contains(bw));
+        assertEquals(msg("Document contains term mismatch (stopped: "
+                + excludeStopwords + ")."), docModelExp.contains(bw),
+                docModel.contains(bw));
         if (excludeStopwords) {
-          assertFalse(getDataProviderName()
-                  + ": Document contains stopword (stopped: "
-                  + excludeStopwords + ").", stopwords.contains(bw));
+          assertFalse(msg("Document contains stopword (stopped: "
+                  + excludeStopwords + ")."), stopwords.contains(bw));
         }
       }
     }
@@ -142,31 +91,31 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
    */
   @Test
   public void testTermFreqMap() throws Exception {
+    @SuppressWarnings("null")
     final Collection<ByteArray> stopwords = IndexTestUtil.
             getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;
 
-    for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
+    final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+    while (docIdIt.hasNext()) {
+      final int docId = docIdIt.next();
       final Map<ByteArray, Long> tfMap
-              = DocumentMetrics.getModel(i).termFreqMap;
+              = DocumentMetrics.getModel(docId).termFreqMap;
       final Map<ByteArray, Long> tfMapExp = index.getDocumentTermFrequencyMap(
-              i);
+              docId);
 
-      assertEquals(getDataProviderName()
-              + ": Term count mismatch between index and model.", tfMapExp.
-              size(), tfMap.size());
-      assertTrue(getDataProviderName()
-              + ": Term mismatch between index and model.", tfMapExp.keySet().
-              containsAll(tfMap.keySet()));
+      assertEquals(msg("Term count mismatch between index and model."),
+              tfMapExp.size(), tfMap.size());
+      assertTrue(msg("Term mismatch between index and model."), tfMapExp.
+              keySet().containsAll(tfMap.keySet()));
 
       for (Entry<ByteArray, Long> tfEntry : tfMap.entrySet()) {
-        assertEquals(getDataProviderName()
-                + ": Document term frequency mismatch "
-                + "between index and model.", tfMapExp.get(tfEntry.getKey()),
+        assertEquals(msg("Document term frequency mismatch "
+                + "between index and model."), tfMapExp.get(tfEntry.getKey()),
                 tfEntry.getValue());
         if (excludeStopwords) {
-          assertFalse("Stopword found in model.", stopwords.contains(tfEntry.
-                  getKey()));
+          assertFalse(msg("Stopword found in model."), stopwords.contains(
+                  tfEntry.getKey()));
         }
       }
     }
@@ -189,17 +138,17 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
     final DocumentModel firstDocModel = DocumentMetrics.getModel(firstDocId);
     final DocumentModel secondDocModel = DocumentMetrics.getModel(secondDocId);
 
-    assertFalse(getDataProviderName() + ": DocModels should not be the same.",
+    assertFalse(msg("DocModels should not be the same."),
             firstDocModel.equals(secondDocModel));
 
     final DocumentModel.DocumentModelBuilder derivedDocModel
             = new DocumentModel.DocumentModelBuilder(firstDocModel);
     // add a new term with it's frequency value, to make this model different
-    derivedDocModel.setTermFrequency(
-            new ByteArray("foo#Bar#Value".getBytes()), 10);
-    assertFalse(getDataProviderName()
-            + ": Derived DocumentModel should not be the same "
-            + "as the original one.", firstDocModel.equals(
+    @edu.umd.cs.findbugs.annotations.SuppressWarnings("DM_DEFAULT_ENCODING")
+    final byte[] termBytes = "foo#Bar#Value".getBytes();
+    derivedDocModel.setTermFrequency(new ByteArray(termBytes), 10);
+    assertFalse(msg("Derived DocumentModel should not be the same "
+            + "as the original one."), firstDocModel.equals(
                     derivedDocModel.getModel()));
   }
 
@@ -207,44 +156,40 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
    * Test of hashCode method, of class DocumentModel.
    */
   @Test
-  @edu.umd.cs.findbugs.annotations.SuppressWarnings("DM_DEFAULT_ENCODING")
   public void testHashCode() {
-    LOG.info("Test hashCode");
     final int firstDocId = RandomValue.getInteger(0, CollectionMetrics.
-            numberOfDocuments().intValue());
+            numberOfDocuments().intValue() - 1);
     int secondDocId = RandomValue.getInteger(0, CollectionMetrics.
-            numberOfDocuments().intValue());
+            numberOfDocuments().intValue() - 1);
     while (secondDocId == firstDocId) {
       secondDocId = RandomValue.getInteger(0, CollectionMetrics.
-              numberOfDocuments().intValue());
+              numberOfDocuments().intValue() - 1);
     }
 
     final DocumentModel firstDocModel = DocumentMetrics.getModel(firstDocId);
     final DocumentModel secondDocModel = DocumentMetrics.getModel(secondDocId);
 
     // test two different models
-    assertNotEquals(getDataProviderName()
-            + ": DocModels hashCode should not be the same. ("
-            + firstDocModel.id + ", " + secondDocModel.id + ")",
+    assertNotEquals(msg("DocModels hashCode should not be the same. ("
+            + firstDocModel.id + ", " + secondDocModel.id + ")"),
             firstDocModel.hashCode(), secondDocModel.hashCode());
 
     // get the same model again an test
-    assertEquals(getDataProviderName()
-            + ": DocModels hashCode should be the same "
-            + "for the same document.", firstDocModel.hashCode(),
+    assertEquals(msg("DocModels hashCode should be the same "
+            + "for the same document."), firstDocModel.hashCode(),
             DocumentMetrics.getModel(firstDocId).hashCode());
 
     // change a model
     final DocumentModel.DocumentModelBuilder derivedDocModel
             = new DocumentModel.DocumentModelBuilder(firstDocModel);
     // add a new term with it's frequency value, to make this model different
-    derivedDocModel.
-            setTermFrequency(new ByteArray("foo#Bar#Value".getBytes()), 10);
+    @edu.umd.cs.findbugs.annotations.SuppressWarnings("DM_DEFAULT_ENCODING")
+    final byte[] termBytes = "foo#Bar#Value".getBytes();
+    derivedDocModel.setTermFrequency(new ByteArray(termBytes), 10);
 
-    assertNotEquals(
-            getDataProviderName()
-            + ": HashCode of derived DocumentModel should "
-            + "not be the same as the original one.", firstDocModel.hashCode(),
+    assertNotEquals(msg("HashCode of derived DocumentModel should "
+            + "not be the same as the original one."), firstDocModel.
+            hashCode(),
             derivedDocModel.getModel().hashCode());
   }
 
@@ -253,15 +198,15 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
    */
   @Test
   public void testGetSmoothedRelativeTermFrequency() {
-    LOG.info("Test getSmoothedRelativeTermFrequency");
     final int smoothingAmount = 100;
-    for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
-      final DocumentModel docModel = DocumentMetrics.getModel(i);
+    final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+    while (docIdIt.hasNext()) {
+      final int docId = docIdIt.next();
+      final DocumentModel docModel = DocumentMetrics.getModel(docId);
       final DocumentMetrics dm = docModel.metrics();
       for (ByteArray bw : docModel.termFreqMap.keySet()) {
-        assertNotEquals(getDataProviderName()
-                + ": Smoothed and absolute relative term frequency "
-                + "should not be the same.", dm.relTf(bw), dm.
+        assertNotEquals(msg("Smoothed and absolute relative term frequency "
+                + "should not be the same."), dm.relTf(bw), dm.
                 smoothedRelativeTermFrequency(bw, smoothingAmount));
       }
     }
@@ -274,19 +219,23 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
    */
   @Test
   public void testTf() throws Exception {
+    @SuppressWarnings("null")
     final Collection<ByteArray> stopwords = IndexTestUtil.
             getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;
 
-    for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
-      final DocumentModel docModel = DocumentMetrics.getModel(i);
-      final Map<ByteArray, Long> tfMap = index.getDocumentTermFrequencyMap(i);
+    final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+    while (docIdIt.hasNext()) {
+      final int docId = docIdIt.next();
+      final DocumentModel docModel = DocumentMetrics.getModel(docId);
+      final Map<ByteArray, Long> tfMap = index.getDocumentTermFrequencyMap(
+              docId);
       for (Entry<ByteArray, Long> tfEntry : tfMap.entrySet()) {
-        assertEquals("Term frequency mismatch.", docModel.tf(tfEntry.getKey()),
-                tfEntry.getValue());
+        assertEquals(msg("Term frequency mismatch."), docModel.tf(tfEntry.
+                getKey()), tfEntry.getValue());
         if (excludeStopwords) {
-          assertFalse("Stopword found in model.", stopwords.contains(tfEntry.
-                  getKey()));
+          assertFalse(msg("Stopword found in model."), stopwords.contains(
+                  tfEntry.getKey()));
         }
       }
     }
@@ -299,18 +248,23 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
    */
   @Test
   public void testTermCount() throws Exception {
+    @SuppressWarnings("null")
     final Collection<ByteArray> stopwords = IndexTestUtil.
             getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;
 
-    for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
-      final DocumentModel docModel = DocumentMetrics.getModel(i);
-      final Map<ByteArray, Long> tfMap = index.getDocumentTermFrequencyMap(i);
-      assertEquals("Unique term count mismatch.", docModel.termCount(),
+    final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+    while (docIdIt.hasNext()) {
+      final int docId = docIdIt.next();
+      final DocumentModel docModel = DocumentMetrics.getModel(docId);
+      final Map<ByteArray, Long> tfMap = index.getDocumentTermFrequencyMap(
+              docId);
+      assertEquals(msg("Unique term count mismatch."), docModel.termCount(),
               tfMap.size());
       if (excludeStopwords) {
         for (ByteArray term : tfMap.keySet()) {
-          assertFalse("Stopword found in model.", stopwords.contains(term));
+          assertFalse(msg("Stopword found in model."), stopwords.
+                  contains(term));
         }
       }
     }
@@ -321,9 +275,11 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
    */
   @Test
   public void testMetrics() {
-    for (int i = 0; i < CollectionMetrics.numberOfDocuments(); i++) {
-      final DocumentModel docModel = DocumentMetrics.getModel(i);
-      assertNotNull("Metrics not found.", docModel.metrics());
+    final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+    while (docIdIt.hasNext()) {
+      final int docId = docIdIt.next();
+      final DocumentModel docModel = DocumentMetrics.getModel(docId);
+      assertNotNull(msg("Metrics not found."), docModel.metrics());
     }
   }
 

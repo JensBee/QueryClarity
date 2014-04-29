@@ -18,6 +18,7 @@ package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.ByteArray;
 import de.unihildesheim.SerializableByte;
+import de.unihildesheim.SupportsPersistenceTestMethods;
 import de.unihildesheim.TestMethodInfo;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModel;
@@ -84,12 +85,23 @@ public abstract class IndexDataProviderTestMethods {
     this.dataProv = newDataProv;
   }
 
+  /**
+   * Prepend a message string with the current {@link IndexDataProvider} name
+   * and the testing type.
+   *
+   * @param msg Message to prepend
+   * @return Message prepended with testing informations
+   */
+  private static final String msg(final String msg) {
+    return "(" + Environment.getDataProvider().getClass().getSimpleName()
+            + ") " + msg;
+  }
+
   private boolean isImplementingAbstractIdp() {
     // skip test, if not implementing AbstractIndexDataProvider
     if (!AbstractIndexDataProvider.class.isAssignableFrom(dataProv)) {
-      LOG.warn("Skip test for " + AbstractIndexDataProviderTestImpl.class.
-              getCanonicalName()
-              + ". No sub-class of AbstractIndexDataProvider.");
+      LOG.warn(msg("Skipping test. "
+              + "No sub-class of AbstractIndexDataProvider."));
       return false;
     }
     return true;
@@ -98,8 +110,7 @@ public abstract class IndexDataProviderTestMethods {
   private boolean isAbstractIdpTestInstance() {
     // skip test for plain testing instance
     if (dataProv.equals(AbstractIndexDataProviderTestImpl.class)) {
-      LOG.warn("Skip test for " + AbstractIndexDataProviderTestImpl.class.
-              getCanonicalName());
+      LOG.warn(msg("Skipping test. Plain instance."));
       return true;
     }
     return false;
@@ -129,7 +140,7 @@ public abstract class IndexDataProviderTestMethods {
   protected static void _testGetTermFrequency_0args(
           final TestIndexDataProvider index,
           final IndexDataProvider instance) throws Exception {
-    assertEquals("Term frequency differs.", index.getTermFrequency(),
+    assertEquals(msg("Term frequency differs."), index.getTermFrequency(),
             instance.getTermFrequency());
   }
 
@@ -167,13 +178,13 @@ public abstract class IndexDataProviderTestMethods {
 
     // check with stopwords
     final long filteredTf = index.getTermFrequency();
-    assertEquals("Term frequency differs. plain=" + unfilteredTf + " filter="
-            + filteredTf + ".", index.getTermFrequency(),
+    assertEquals(msg("Term frequency differs. plain=" + unfilteredTf
+            + " filter=" + filteredTf + "."), index.getTermFrequency(),
             instance.getTermFrequency());
 
-    assertNotEquals(
+    assertNotEquals(msg(
             "TF using stop-words should be lower than without. filter="
-            + filteredTf + " plain=" + unfilteredTf + ".",
+            + filteredTf + " plain=" + unfilteredTf + "."),
             filteredTf, unfilteredTf);
   }
 
@@ -220,10 +231,10 @@ public abstract class IndexDataProviderTestMethods {
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
-  @SuppressWarnings("null")
   private static void _testGetTermFrequency_ByteArray(
           final TestIndexDataProvider index,
           final IndexDataProvider instance) throws Exception {
+    @SuppressWarnings("null")
     final Collection<ByteArray> stopwords = IndexTestUtil.
             getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = !(stopwords == null || stopwords.
@@ -232,11 +243,11 @@ public abstract class IndexDataProviderTestMethods {
     final Iterator<ByteArray> idxTermsIt = index.getTermsIterator();
     while (idxTermsIt.hasNext()) {
       final ByteArray idxTerm = idxTermsIt.next();
-      assertEquals("Term frequency differs (stopped: " + excludeStopwords
-              + "). term=" + idxTerm, index.getTermFrequency(idxTerm),
+      assertEquals(msg("Term frequency differs (stopped: " + excludeStopwords
+              + "). term=" + idxTerm), index.getTermFrequency(idxTerm),
               instance.getTermFrequency(idxTerm));
       if (excludeStopwords) {
-        assertFalse("Stopword found in term list.", stopwords.contains(
+        assertFalse(msg("Stopword found in term list."), stopwords.contains(
                 idxTerm));
       }
     }
@@ -314,10 +325,10 @@ public abstract class IndexDataProviderTestMethods {
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
-  @SuppressWarnings("null")
   private static void _testGetRelativeTermFrequency(
           final TestIndexDataProvider index,
           final IndexDataProvider instance) throws Exception {
+    @SuppressWarnings("null")
     final Collection<ByteArray> stopwords = IndexTestUtil.
             getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;
@@ -326,12 +337,12 @@ public abstract class IndexDataProviderTestMethods {
 
     while (idxTermsIt.hasNext()) {
       final ByteArray idxTerm = idxTermsIt.next();
-      assertEquals("Relative term frequency differs (stopped: "
-              + excludeStopwords + "). term=" + idxTerm, index.
+      assertEquals(msg("Relative term frequency differs (stopped: "
+              + excludeStopwords + "). term=" + idxTerm), index.
               getRelativeTermFrequency(idxTerm), instance.
               getRelativeTermFrequency(idxTerm), 0);
       if (excludeStopwords) {
-        assertFalse("Stopword found in term list.", stopwords.contains(
+        assertFalse(msg("Stopword found in term list."), stopwords.contains(
                 idxTerm));
       }
     }
@@ -409,10 +420,10 @@ public abstract class IndexDataProviderTestMethods {
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
-  @SuppressWarnings("null")
   private static void _testGetTermsIterator(
           final TestIndexDataProvider index,
           final IndexDataProvider instance) throws Exception {
+    @SuppressWarnings("null")
     final Collection<ByteArray> stopwords = IndexTestUtil.
             getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;
@@ -423,15 +434,15 @@ public abstract class IndexDataProviderTestMethods {
     while (result.hasNext()) {
       iterations++;
       if (excludeStopwords) {
-        assertFalse("Found stopword.", stopwords.contains(result.next()));
+        assertFalse(msg("Found stopword."), stopwords.contains(result.next()));
       } else {
         result.next();
       }
     }
 
-    assertEquals("Not all terms found while iterating.", instance.
+    assertEquals(msg("Not all terms found while iterating."), instance.
             getUniqueTermsCount(), iterations);
-    assertEquals("Different values for unique terms reported.", index.
+    assertEquals(msg("Different values for unique terms reported."), index.
             getUniqueTermsCount(), instance.getUniqueTermsCount());
   }
 
@@ -441,14 +452,12 @@ public abstract class IndexDataProviderTestMethods {
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  @edu.umd.cs.findbugs.annotations.SuppressWarnings("DM_DEFAULT_ENCODING")
   public final void testGetTermsIterator__plain() throws Exception {
     if (isAbstractIdpTestInstance()) {
       return;
     }
     final IndexDataProvider instance = IndexTestUtil.createInstance(
-            index, dataProv,
-            null, null);
+            index, dataProv, null, null);
     _testGetTermsIterator(index, instance);
   }
 
@@ -458,7 +467,6 @@ public abstract class IndexDataProviderTestMethods {
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  @edu.umd.cs.findbugs.annotations.SuppressWarnings("DM_DEFAULT_ENCODING")
   public final void testGetTermsIterator__stopped() throws Exception {
     if (isAbstractIdpTestInstance()) {
       return;
@@ -475,7 +483,6 @@ public abstract class IndexDataProviderTestMethods {
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  @edu.umd.cs.findbugs.annotations.SuppressWarnings("DM_DEFAULT_ENCODING")
   public final void testGetTermsIterator__randField() throws Exception {
     if (isAbstractIdpTestInstance()) {
       return;
@@ -492,7 +499,6 @@ public abstract class IndexDataProviderTestMethods {
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  @edu.umd.cs.findbugs.annotations.SuppressWarnings("DM_DEFAULT_ENCODING")
   public final void testGetTermsIterator__randField_stopped() throws Exception {
     if (isAbstractIdpTestInstance()) {
       return;
@@ -516,7 +522,8 @@ public abstract class IndexDataProviderTestMethods {
           final IndexDataProvider instance) throws Exception {
     final long expResult = index.getDocumentCount();
     final long result = instance.getDocumentCount();
-    assertEquals("Different number of documents reported.", expResult, result);
+    assertEquals(msg("Different number of documents reported."), expResult,
+            result);
   }
 
   /**
@@ -592,10 +599,10 @@ public abstract class IndexDataProviderTestMethods {
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
-  @SuppressWarnings("null")
   private static void _testGetDocumentModel(
           final TestIndexDataProvider index,
           final IndexDataProvider instance) throws Exception {
+    @SuppressWarnings("null")
     final Collection<ByteArray> stopwords = IndexTestUtil.
             getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;
@@ -622,12 +629,13 @@ public abstract class IndexDataProviderTestMethods {
         }
       }
 
-      assertTrue("Equals failed (stopped: " + excludeStopwords
-              + ") for docId=" + docId, eDocModel.equals(iDocModel));
+      assertTrue(msg("Equals failed (stopped: " + excludeStopwords
+              + ") for docId=" + docId), eDocModel.equals(iDocModel));
 
       if (excludeStopwords) {
         for (ByteArray term : iDocModel.termFreqMap.keySet()) {
-          assertFalse("Found stopword in model.", stopwords.contains(term));
+          assertFalse(msg("Found stopword in model."), stopwords.
+                  contains(term));
         }
       }
     }
@@ -783,15 +791,17 @@ public abstract class IndexDataProviderTestMethods {
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
-  @SuppressWarnings("UnnecessaryUnboxing")
   private static void _testGetDocumentIdSource(
           final TestIndexDataProvider index,
           final IndexDataProvider instance) throws Exception {
     final long docCount = index.getDocumentCount();
     Processing p = new Processing();
     p.setSource(instance.getDocumentIdSource());
-    assertEquals("Not all items provided by source or processed by target.",
-            docCount, p.debugTestSource().longValue());
+    @SuppressWarnings("UnnecessaryUnboxing")
+    final long result = p.debugTestSource().longValue();
+    assertEquals(msg(
+            "Not all items provided by source or processed by target."),
+            docCount, result);
   }
 
   /**
@@ -869,7 +879,7 @@ public abstract class IndexDataProviderTestMethods {
   private static void _testGetUniqueTermsCount(
           final TestIndexDataProvider index,
           final IndexDataProvider instance) throws Exception {
-    assertEquals("Unique term count values are different.",
+    assertEquals(msg("Unique term count values are different."),
             index.getTermSet().size(), instance.getUniqueTermsCount());
   }
 
@@ -954,11 +964,12 @@ public abstract class IndexDataProviderTestMethods {
             index, dataProv,
             null, null);
     while (docIdIt.hasNext()) {
-      assertTrue("Document not found.", instance.hasDocument(docIdIt.next()));
+      assertTrue(msg("Document not found."), instance.hasDocument(docIdIt.
+              next()));
     }
 
-    assertFalse("Document should not be found.", instance.hasDocument(-1));
-    assertFalse("Document should not be found.", instance.hasDocument(
+    assertFalse(msg("Document should not be found."), instance.hasDocument(-1));
+    assertFalse(msg("Document should not be found."), instance.hasDocument(
             (int) index.getDocumentCount()));
   }
 
@@ -968,9 +979,9 @@ public abstract class IndexDataProviderTestMethods {
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
-  @SuppressWarnings("null")
   private static void _testDocumentContains(final IndexDataProvider instance)
           throws Exception {
+    @SuppressWarnings("null")
     final Collection<ByteArray> stopwords = IndexTestUtil.
             getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;
@@ -980,11 +991,11 @@ public abstract class IndexDataProviderTestMethods {
       final int docId = docIdIt.next();
       final DocumentModel docModel = instance.getDocumentModel(docId);
       for (ByteArray byteArray : docModel.termFreqMap.keySet()) {
-        assertTrue("Document contains term mismatch (stopped: "
-                + excludeStopwords + ").", instance.documentContains(
+        assertTrue(msg("Document contains term mismatch (stopped: "
+                + excludeStopwords + ")."), instance.documentContains(
                         docId, byteArray));
         if (excludeStopwords) {
-          assertFalse("Found stopword.", stopwords.contains(byteArray));
+          assertFalse(msg("Found stopword."), stopwords.contains(byteArray));
         }
       }
     }
@@ -1061,15 +1072,17 @@ public abstract class IndexDataProviderTestMethods {
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
-  @SuppressWarnings("UnnecessaryUnboxing")
   private static void _testGetTermsSource(
           final TestIndexDataProvider index,
           final IndexDataProvider instance) throws Exception {
     final int termsCount = new HashSet<>(index.getTermList()).size();
     Processing p = new Processing();
     p.setSource(instance.getTermsSource());
-    assertEquals("Not all items provided by source or processed by target.",
-            termsCount, p.debugTestSource().longValue());
+    @SuppressWarnings("UnnecessaryUnboxing")
+    final long result = p.debugTestSource().longValue();
+    assertEquals(msg(
+            "Not all items provided by source or processed by target."),
+            termsCount, result);
   }
 
   /**
@@ -1143,10 +1156,10 @@ public abstract class IndexDataProviderTestMethods {
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
-  @SuppressWarnings("null")
   private static void _testGetDocumentsTermSet(
           final TestIndexDataProvider index,
           final IndexDataProvider instance) throws Exception {
+    @SuppressWarnings("null")
     final Collection<ByteArray> stopwords = IndexTestUtil.
             getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;
@@ -1163,15 +1176,16 @@ public abstract class IndexDataProviderTestMethods {
     Collection<ByteArray> expResult = index.getDocumentsTermSet(docIds);
     Collection<ByteArray> result = instance.getDocumentsTermSet(docIds);
 
-    assertEquals("Not the same amount of terms retrieved (stopped: "
-            + excludeStopwords + ").", expResult.size(),
+    assertEquals(msg("Not the same amount of terms retrieved (stopped: "
+            + excludeStopwords + ")."), expResult.size(),
             result.size());
-    assertTrue("Not all terms retrieved (stopped: "
-            + excludeStopwords + ").", expResult.containsAll(result));
+    assertTrue(msg("Not all terms retrieved (stopped: "
+            + excludeStopwords + ")."), expResult.containsAll(result));
 
     if (excludeStopwords) {
       for (ByteArray term : result) {
-        assertFalse("Stopword found in term list.", stopwords.contains(term));
+        assertFalse(msg("Stopword found in term list."), stopwords.contains(
+                term));
       }
     }
   }
@@ -1248,21 +1262,22 @@ public abstract class IndexDataProviderTestMethods {
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
-  @SuppressWarnings("null")
   private static void _testGetDocumentFrequency(
           final TestIndexDataProvider index,
           final IndexDataProvider instance) throws Exception {
+    @SuppressWarnings("null")
     final Collection<ByteArray> stopwords = IndexTestUtil.
             getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;
 
     for (ByteArray term : index.getTermSet()) {
-      assertEquals("Document frequency mismatch (stopped: "
+      assertEquals(msg("Document frequency mismatch (stopped: "
               + excludeStopwords + ") (" + ByteArrayUtil.
-              utf8ToString(term) + ").", index.getDocumentFrequency(term),
+              utf8ToString(term) + ")."), index.getDocumentFrequency(term),
               instance.getDocumentFrequency(term));
       if (excludeStopwords) {
-        assertFalse("Found stopword in term list.", stopwords.contains(term));
+        assertFalse(msg("Found stopword in term list."), stopwords.contains(
+                term));
       }
     }
   }
@@ -1358,8 +1373,8 @@ public abstract class IndexDataProviderTestMethods {
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
   public final void testCreateCache__plain() throws Exception {
-    IndexTestUtil.createInstance(index, dataProv, null, null).createCache(
-            RandomValue.getString(10));
+    SupportsPersistenceTestMethods.testCreateCache(IndexTestUtil.
+            createInstance(index, dataProv, null, null));
   }
 
   /**
@@ -1368,8 +1383,8 @@ public abstract class IndexDataProviderTestMethods {
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
   public final void testLoadOrCreateCache__plain() throws Exception {
-    IndexTestUtil.createInstance(index, dataProv, null, null).
-            loadOrCreateCache(RandomValue.getString(10));
+    SupportsPersistenceTestMethods.testLoadOrCreateCache(IndexTestUtil.
+            createInstance(index, dataProv, null, null));
   }
 
   /**
@@ -1380,13 +1395,13 @@ public abstract class IndexDataProviderTestMethods {
   public final void testLoadCache__plain() throws Exception {
     boolean thrown = false;
     try {
-      IndexTestUtil.createInstance(index, dataProv, null, null).
-              loadCache(RandomValue.getString(10));
+      SupportsPersistenceTestMethods.testLoadCache(IndexTestUtil.
+              createInstance(index, dataProv, null, null));
     } catch (Exception ex) {
       thrown = true;
     }
     if (!thrown) {
-      fail("Expected to catch an exception.");
+      fail(msg("Expected to catch an exception."));
     }
   }
 
@@ -1427,9 +1442,10 @@ public abstract class IndexDataProviderTestMethods {
     final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final Integer docId = docIdIt.next();
-      assertTrue("Doc-id was missing. docId=" + docId, docIds.remove(docId));
+      assertTrue(msg("Doc-id was missing. docId=" + docId), docIds.remove(
+              docId));
     }
-    assertTrue("Too much document ids provided by instance.", docIds.
+    assertTrue(msg("Too much document ids provided by instance."), docIds.
             isEmpty());
   }
 
@@ -1532,7 +1548,7 @@ public abstract class IndexDataProviderTestMethods {
           final AbstractIndexDataProvider instance) {
     for (String fieldName : Environment.getFields()) {
       SerializableByte result = instance.getFieldId(fieldName);
-      assertFalse("Field id was null.", result == null);
+      assertFalse(msg("Field id was null."), result == null);
     }
   }
 
@@ -1587,8 +1603,8 @@ public abstract class IndexDataProviderTestMethods {
       term = termsIt.next();
       long result = instance._getTermFrequency(term);
       // stopwords should be included.
-      assertFalse("Term frequency was zero. term=" + ByteArrayUtil.
-              utf8ToString(term), result <= 0L);
+      assertFalse(msg("Term frequency was zero. term=" + ByteArrayUtil.
+              utf8ToString(term)), result <= 0L);
     }
   }
 
@@ -1692,8 +1708,8 @@ public abstract class IndexDataProviderTestMethods {
     final Collection<ByteArray> iTerms = instance.idxTerms;
     final Collection<ByteArray> eTerms = index.getTermSet();
 
-    assertEquals("Term list size differs.", eTerms.size(), iTerms.size());
-    assertTrue("Term list content differs.", iTerms.containsAll(eTerms));
+    assertEquals(msg("Term list size differs."), eTerms.size(), iTerms.size());
+    assertTrue(msg("Term list content differs."), iTerms.containsAll(eTerms));
   }
 
   /**
@@ -1776,9 +1792,11 @@ public abstract class IndexDataProviderTestMethods {
             = (AbstractIndexDataProvider) IndexTestUtil.
             createInstance(index, dataProv, null, null);
     instance.clearCache();
-    assertTrue("Index terms cache not empty.", instance.idxTerms.isEmpty());
-    assertTrue("Index document frequency cache not empty.", instance.idxDfMap.
+    assertTrue(msg("Index terms cache not empty."), instance.idxTerms.
             isEmpty());
-    assertEquals("Index term frequency cache not empty.", null, instance.idxTf);
+    assertTrue(msg("Index document frequency cache not empty."),
+            instance.idxDfMap.isEmpty());
+    assertEquals(msg("Index term frequency cache not empty."), null,
+            instance.idxTf);
   }
 }

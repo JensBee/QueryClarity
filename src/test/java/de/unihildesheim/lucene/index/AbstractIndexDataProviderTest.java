@@ -309,8 +309,6 @@ public class AbstractIndexDataProviderTest
 
     public AbstractIndexDataProviderTestImpl() {
       super("", false);
-      super.db = DBMaker.newTempFileDB().make();
-      super.idxDocumentIds = docIds;
     }
 
     public Collection<Integer> getDocumentIds() {
@@ -351,6 +349,8 @@ public class AbstractIndexDataProviderTest
      * Create needed data structures.
      */
     private void initCache() {
+      super.db = DBMaker.newTempFileDB().make();
+      super.idxDocumentIds = docIds;
       super.cachedFieldsMap = DbMakers.cachedFieldsMapMaker(super.db).make();
       byte fieldByte = 0;
       for (String field : Environment.getFields()) {

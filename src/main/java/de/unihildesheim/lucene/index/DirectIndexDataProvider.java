@@ -132,11 +132,9 @@ public final class DirectIndexDataProvider extends AbstractIndexDataProvider {
    * @throws Environment.NoIndexException Thrown, if no index is provided in
    * the {@link Environment}
    */
-  @SuppressWarnings("CollectionWithoutInitialCapacity")
   private void initCache(final String name, final boolean createNew,
           final boolean createIfNotFound) throws
           IOException, Environment.NoIndexException {
-
     boolean clearCache = false;
 
     final Tuple.Tuple2<Persistence, Boolean> pSetup = super.getPersistence(
@@ -165,7 +163,7 @@ public final class DirectIndexDataProvider extends AbstractIndexDataProvider {
     }
 
     if (super.isTemporary()) {
-      super.cachedFieldsMap = new HashMap<>();
+      super.cachedFieldsMap = new HashMap<>(Environment.getFields().length);
     } else {
       super.cachedFieldsMap = DbMakers.cachedFieldsMapMaker(super.db).
               makeOrGet();

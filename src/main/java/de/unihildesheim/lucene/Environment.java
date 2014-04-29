@@ -948,7 +948,7 @@ public final class Environment {
           this.dpInstance.loadCache(this.cacheName);
         } else if (this.loadOrCreateCache) {
           this.dpInstance.loadOrCreateCache(this.cacheName);
-        } else if (this.createCache) {
+        } else {
           this.dpInstance.createCache(this.cacheName);
         }
       }
