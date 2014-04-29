@@ -11,12 +11,10 @@
   <url>http://maven.apache.org</url>
 
   <repositories>
-    <!-- Currently build locally
     <repository>
       <id>sonatype-nexus-snapshots</id>
       <url>https://oss.sonatype.org/content/repositories/snapshots</url>
     </repository>
-    -->
   </repositories>
 
   <properties>
@@ -131,7 +129,7 @@
     <dependency>
       <groupId>org.mapdb</groupId>
       <artifactId>mapdb</artifactId>
-      <version>1.0.0-SNAPSHOT</version>
+      <version>1.0.0</version>
     </dependency>
     <dependency>
       <groupId>org.ini4j</groupId>
