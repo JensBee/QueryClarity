@@ -40,14 +40,17 @@ public final class DocumentModel {
   /**
    * Referenced Lucene document id.
    */
+  @SuppressWarnings("checkstyle:visibilitymodifier")
   public final int id;
   /**
    * Overall frequency of all terms in the document.
    */
+  @SuppressWarnings("checkstyle:visibilitymodifier")
   public final long termFrequency;
   /**
    * Term->document-frequency mapping for every known term in the document.
    */
+  @SuppressWarnings("checkstyle:visibilitymodifier")
   public final Map<ByteArray, Long> termFreqMap;
 
   /**
@@ -101,7 +104,10 @@ public final class DocumentModel {
       return 0L;
     }
     final Long tFreq = this.termFreqMap.get(term);
-    return tFreq == null ? 0 : tFreq;
+    if (tFreq == null) {
+      return 0L;
+    }
+    return tFreq;
   }
 
   /**
@@ -175,6 +181,7 @@ public final class DocumentModel {
   /**
    * Calculate the hash value for this object.
    */
+  @SuppressWarnings("checkstyle:magicnumber")
   private void calcHash() {
     this.hashCode = 7;
     this.hashCode = 19 * this.hashCode + this.id;

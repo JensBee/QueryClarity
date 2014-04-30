@@ -20,6 +20,7 @@ import de.unihildesheim.ByteArray;
 import de.unihildesheim.SerializableByte;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModel;
+import de.unihildesheim.util.RandomValue;
 import java.util.Arrays;
 import java.util.Collection;
 import static org.junit.Assert.assertEquals;
@@ -34,7 +35,8 @@ import org.mapdb.DBMaker;
  *
  * @author Jens Bertram
  */
-public class AbstractIndexDataProviderTest
+@SuppressWarnings("checkstyle:methodname")
+public final class AbstractIndexDataProviderTest
         extends IndexDataProviderTestCase {
 
   /**
@@ -64,11 +66,16 @@ public class AbstractIndexDataProviderTest
 
   /**
    * Test of isTemporary method, of class AbstractIndexDataProvider.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
-  public void testIsTemporary() {
-    AbstractIndexDataProvider instance
-            = new AbstractIndexDataProviderTestImpl();
+  public void testIsTemporary() throws Exception {
+    final AbstractIndexDataProviderTestImpl instance
+            = (AbstractIndexDataProviderTestImpl) IndexTestUtil.
+            createInstance(
+                    index, AbstractIndexDataProviderTestImpl.class,
+                    null, null);
     boolean expResult = Environment.isTestRun();
     boolean result = instance.isTemporary();
     assertEquals("Temporary flag not set.", expResult, result);
@@ -93,6 +100,7 @@ public class AbstractIndexDataProviderTest
   /**
    * Test of warmUpTerms method, of class AbstractIndexDataProvider.
    *
+   * @throws java.lang.Exception Any exception thrown indicates an error
    * @see #testWarmupTerms__plain()
    */
   public void testWarmUpTerms() throws Exception {
@@ -106,6 +114,7 @@ public class AbstractIndexDataProviderTest
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
+  @Override
   public void testWarmUpIndexTermFrequencies() throws Exception {
     final AbstractIndexDataProviderTestImpl instance
             = (AbstractIndexDataProviderTestImpl) IndexTestUtil.
@@ -185,7 +194,7 @@ public class AbstractIndexDataProviderTest
    *
    * @see #testGetTermFrequency_0args__plain()
    */
-  public final void testGetTermFrequency_0args() {
+  public void testGetTermFrequency_0args() {
     // implemented by super class
   }
 
@@ -293,47 +302,56 @@ public class AbstractIndexDataProviderTest
    * Simple testing implementation of {@link AbstractIndexDataProvider}.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static class AbstractIndexDataProviderTestImpl
+  public static final class AbstractIndexDataProviderTestImpl
           extends AbstractIndexDataProvider {
 
-    static final Collection<Integer> docIds = Arrays.asList(new Integer[]{1,
-      2, 3});
+    /**
+     * Fake collection of document ids.
+     */
+    static final Collection<Integer> DOC_IDS = Arrays.asList(new Integer[]{ 1,
+      2, 3 });
 
+    /**
+     * Create a random named temporary {@link IndexDataProvider} instance.
+     */
+    @SuppressWarnings("checkstyle:magicnumber")
     public AbstractIndexDataProviderTestImpl() {
-      super("", false);
+      super(RandomValue.getString(1, 15), true);
     }
 
+    @Override
     public Collection<Integer> getDocumentIds() {
-      return docIds;
+      return DOC_IDS;
     }
 
+    @Override
     public void warmUpDocumentFrequencies() throws Exception {
       // NOP
     }
 
     @Override
-    public int getDocumentFrequency(ByteArray term) {
+    public int getDocumentFrequency(final ByteArray term) {
       throw new UnsupportedOperationException("Not supported yet.");
     }
 
     @Override
-    public DocumentModel getDocumentModel(int docId) {
+    public DocumentModel getDocumentModel(final int docId) {
       throw new UnsupportedOperationException("Not supported yet.");
     }
 
     @Override
     public Collection<ByteArray> getDocumentsTermSet(
-            Collection<Integer> docIds) {
+            final Collection<Integer> docIds) {
       throw new UnsupportedOperationException("Not supported yet.");
     }
 
     @Override
-    public boolean documentContains(int documentId, ByteArray term) {
+    public boolean documentContains(final int documentId, final ByteArray term) {
       throw new UnsupportedOperationException("Not supported yet.");
     }
 
     @Override
-    public void loadCache(String name) throws Exception {
+    public void loadCache(final String name) throws Exception {
       // NOP
     }
 
@@ -342,7 +360,7 @@ public class AbstractIndexDataProviderTest
      */
     private void initCache() {
       super.db = DBMaker.newTempFileDB().make();
-      super.idxDocumentIds = docIds;
+      super.idxDocumentIds = DOC_IDS;
       super.cachedFieldsMap = DbMakers.cachedFieldsMapMaker(super.db).make();
       byte fieldByte = 0;
       for (String field : Environment.getFields()) {
@@ -355,12 +373,12 @@ public class AbstractIndexDataProviderTest
     }
 
     @Override
-    public void loadOrCreateCache(String name) throws Exception {
+    public void loadOrCreateCache(final String name) throws Exception {
       initCache();
     }
 
     @Override
-    public void createCache(String name) throws Exception {
+    public void createCache(final String name) throws Exception {
       initCache();
     }
   }

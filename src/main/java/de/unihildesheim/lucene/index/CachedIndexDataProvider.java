@@ -19,7 +19,6 @@ package de.unihildesheim.lucene.index;
 import de.unihildesheim.ByteArray;
 import de.unihildesheim.Persistence;
 import de.unihildesheim.SerializableByte;
-import de.unihildesheim.Tuple;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocFieldsTermsEnum;
 import de.unihildesheim.lucene.document.DocumentModel;
@@ -47,6 +46,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * INCOMPLETE!
  *
  * @author Jens Bertram
  */
@@ -64,11 +64,23 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   private ConcurrentNavigableMap<Fun.Tuple3<
           Integer, SerializableByte, ByteArray>, Long> idxDocTermsMap;
 
+  /**
+   * Named cache to use.
+   */
   private String cacheName = null;
 
+  /**
+   * Names of objects stored in persistent database.
+   */
   private enum Stores {
 
+    /**
+     * Document-> terms mapping.
+     */
     IDX_DOC_TERMS_MAP,
+    /**
+     * List of document ids.
+     */
     DOC_IDS
   }
 
@@ -77,20 +89,25 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
    */
   public static final String IDENTIFIER = "CachedIDP";
 
-  private final DirectIndexDataProvider dIdp;
-
+  /**
+   * Object handling persistence data storage.
+   */
   private Persistence persistence;
 
   /**
-   * Flag indicating, if the caches are loaded.
+   * Create a new instance with default settings.
+   *
+   * @throws IOException Thrown on low-level I/O errors
    */
-  private boolean cacheLoaded = false;
-
   public CachedIndexDataProvider() throws IOException {
     super(IDENTIFIER, false);
-    this.dIdp = new DirectIndexDataProvider();
   }
 
+  /**
+   * Get a builder instance to create persistent data storage.
+   *
+   * @return Builder instance
+   */
   private Persistence.Builder getPersistenceBuilder() {
     if (this.cacheName == null) {
       throw new IllegalStateException("Cache name not set.");
@@ -107,6 +124,14 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     return psb;
   }
 
+  /**
+   * Get a {@link Persistence} instance to handle persistent data storage.
+   *
+   * @return {@link Persistence} instance
+   * @throws FileNotFoundException Thrown, if cache file was not found
+   * @throws Environment.NoIndexException Thrown, if no index is set in the
+   * {@link Environment}
+   */
   private Persistence getPersistence() throws FileNotFoundException,
           Environment.NoIndexException {
     if (this.cacheName == null) {
@@ -118,6 +143,11 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     return this.persistence;
   }
 
+  /**
+   * Create the data configuration for persistent storing of document ids.
+   *
+   * @param db Database reference
+   */
   private void createDocIdsSet(final DB db) {
     super.idxDocumentIds = db.createTreeSet(Stores.DOC_IDS.name())
             .serializer(BTreeKeySerializer.ZERO_OR_POSITIVE_INT)
@@ -126,11 +156,12 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   }
 
   /**
+   * Creates the persistent cache.
    *
-   * @param name
-   * @throws IOException
-   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
-   * no index is provided in the {@link Environment}
+   * @param name Name of the cache
+   * @throws IOException Thrown on low-level I/O errors
+   * @throws Environment.NoIndexException Thrown, if no index is provided in
+   * the {@link Environment}
    */
   public void cacheBuilder(final String name) throws IOException,
           Environment.NoIndexException {
@@ -185,6 +216,12 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     super.warmUp();
   }
 
+  /**
+   * Calls processing methods to create the cache.
+   *
+   * @throws Environment.NoIndexException Thrown, if no index is set in the
+   * {@link Environment}
+   */
   private void buildCache() throws Environment.NoIndexException {
     final List<AtomicReaderContext> arContexts = Environment.getIndexReader().
             getContext().leaves();
@@ -225,30 +262,31 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
   }
 
   @Override
-  public int getDocumentFrequency(ByteArray term) {
+  public int getDocumentFrequency(final ByteArray term) {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
-  public DocumentModel getDocumentModel(int docId) {
+  public DocumentModel getDocumentModel(final int docId) {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
-  public Collection<ByteArray> getDocumentsTermSet(Collection<Integer> docIds) {
+  public Collection<ByteArray> getDocumentsTermSet(
+          final Collection<Integer> docIds) {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
-  public boolean documentContains(int documentId, ByteArray term) {
+  public boolean documentContains(final int documentId, final ByteArray term) {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
-  public void loadCache(String name) throws Exception {
-    final Tuple.Tuple2<Persistence, Boolean> pSetup = super.getPersistence(
-            DirectIndexDataProvider.IDENTIFIER + "_" + IDENTIFIER + "_" + name,
-            false, false);
+  public void loadCache(final String name) throws Exception {
+    // load the data from the wrapped instance
+    super.getPersistence(DirectIndexDataProvider.IDENTIFIER + "_" + IDENTIFIER
+            + "_" + name, false, false);
     boolean fail = false;
 
     if (!DbMakers.checkCaches(super.db).isEmpty()) {
@@ -305,6 +343,10 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     }
   }
 
+  /**
+   * {@link Processing} {@link Target} collecting document ids and creating a
+   * document -> term mapping.
+   */
   private final class DocTermsMapBuilderTarget extends
           Target.TargetFunc<AtomicReaderContext> {
 
@@ -313,8 +355,17 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
      */
     private final Map<
             Fun.Tuple3<Integer, SerializableByte, ByteArray>, Long> map;
+    /**
+     * Collected document ids.
+     */
     private final Set<Integer> docSet;
 
+    /**
+     * Create a new {@link Processing} {@link Target}.
+     *
+     * @param targetMap Target map for collected term results
+     * @param targetSet Target for collected document ids
+     */
     DocTermsMapBuilderTarget(
             final Map<Fun.Tuple3<
                     Integer, SerializableByte, ByteArray>, Long> targetMap,
@@ -324,7 +375,7 @@ public final class CachedIndexDataProvider extends AbstractIndexDataProvider {
     }
 
     @Override
-    public void call(AtomicReaderContext rContext) {
+    public void call(final AtomicReaderContext rContext) {
       if (rContext == null) {
         return;
       }

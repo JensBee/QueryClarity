@@ -62,6 +62,7 @@
         </configuration>
       </plugin>
     </plugins>
+    <finalName>clefClarity</finalName>
   </build>
 
   <reporting>

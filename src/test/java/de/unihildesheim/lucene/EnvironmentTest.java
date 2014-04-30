@@ -38,7 +38,7 @@ import org.junit.Test;
  *
  * @author Jens Bertram
  */
-public class EnvironmentTest extends MultiIndexDataProviderTestCase {
+public final class EnvironmentTest extends MultiIndexDataProviderTestCase {
 
   /**
    * Initialize test with the current parameter.
@@ -98,12 +98,12 @@ public class EnvironmentTest extends MultiIndexDataProviderTestCase {
    */
   @Test
   public void testIsInitialized() {
-    assertEquals(msg("Environment shoud be initialized."), true, Environment.
+    assertTrue(msg("Environment shoud be initialized."), Environment.
             isInitialized());
 
     Environment.clear();
-    assertEquals(msg("Environment shoud not be initialized after clear()."),
-            false, Environment.isInitialized());
+    assertFalse(msg("Environment shoud not be initialized after clear()."),
+            Environment.isInitialized());
   }
 
   /**
@@ -126,8 +126,6 @@ public class EnvironmentTest extends MultiIndexDataProviderTestCase {
 
   /**
    * Test of getDataProvider method, of class Environment.
-   *
-   * @throws Exception Any exception indicates an error
    */
   @Test
   public void testGetDataProvider() {
@@ -179,6 +177,7 @@ public class EnvironmentTest extends MultiIndexDataProviderTestCase {
    *
    * @throws Exception Any exception indicates an error
    */
+  @SuppressWarnings({ "checkstyle:emptyblock", "checkstyle:magicnumber" })
   private void testUninitialized() throws Exception {
     try {
       Environment.getDataPath();
@@ -286,6 +285,7 @@ public class EnvironmentTest extends MultiIndexDataProviderTestCase {
    * Test of getProperty method, of class Environment.
    */
   @Test
+  @SuppressWarnings("checkstyle:methodname")
   public void testGetProperty_String_String() {
     final String prefix = RandomValue.getString(1, 100);
     final String key = RandomValue.getString(1, 100);
@@ -321,6 +321,7 @@ public class EnvironmentTest extends MultiIndexDataProviderTestCase {
    * Test of getProperties method, of class Environment.
    */
   @Test
+  @SuppressWarnings("checkstyle:magicnumber")
   public void testGetProperties() {
     final String prefix = RandomValue.getString(1, 100);
     final int amount = RandomValue.getInteger(10, 1000);
@@ -328,8 +329,7 @@ public class EnvironmentTest extends MultiIndexDataProviderTestCase {
 
     for (int i = 0; i < amount;) {
       if (expResult.put(RandomValue.getString(1, 100), RandomValue.
-              getString(1,
-                      100)) == null) {
+              getString(1, 100)) == null) {
         i++;
       }
     }
@@ -346,6 +346,7 @@ public class EnvironmentTest extends MultiIndexDataProviderTestCase {
    * Test of clearProperties method, of class Environment.
    */
   @Test
+  @SuppressWarnings("checkstyle:magicnumber")
   public void testClearProperties() {
     final String firstPrefix = RandomValue.getString(1, 100);
     String secondPrefix = RandomValue.getString(1, 100);
@@ -400,6 +401,7 @@ public class EnvironmentTest extends MultiIndexDataProviderTestCase {
    * Test of clearAllProperties method, of class Environment.
    */
   @Test
+  @SuppressWarnings("checkstyle:magicnumber")
   public void testClearAllProperties() {
     final String firstPrefix = RandomValue.getString(1, 100);
     String secondPrefix = RandomValue.getString(1, 100);
@@ -455,6 +457,7 @@ public class EnvironmentTest extends MultiIndexDataProviderTestCase {
    * Test of getProperty method, of class Environment.
    */
   @Test
+  @SuppressWarnings({ "checkstyle:magicnumber", "checkstyle:methodname" })
   public void testGetProperty_3args() {
     final String firstPrefix = RandomValue.getString(1, 100);
     String secondPrefix = RandomValue.getString(1, 100);

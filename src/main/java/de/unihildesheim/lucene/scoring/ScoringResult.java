@@ -16,11 +16,10 @@
  */
 package de.unihildesheim.lucene.scoring;
 
-import java.util.Map;
-
 /**
+ * Wrapper to store scoring results.
  *
- 
+ * @author Jens Bertram
  */
 public abstract class ScoringResult {
 
@@ -28,11 +27,6 @@ public abstract class ScoringResult {
    * Calculated result score.
    */
   private Double score = 0d;
-
-  /**
-   * Map storing any data from the scoring implementation.
-   */
-  private Map<String, Object> data;
 
   /**
    * Get the calculated score.
@@ -45,8 +39,10 @@ public abstract class ScoringResult {
 
   /**
    * Set the value of the calculated score.
+   *
    * @param newScore new score value
    */
+  @SuppressWarnings("checkstyle:methodname")
   protected final void _setScore(final double newScore) {
     this.score = newScore;
   }
@@ -57,22 +53,4 @@ public abstract class ScoringResult {
    * @return Class creating a scoring result
    */
   public abstract Class getType();
-
-  /**
-   * Set meta information.
-   * @param key Key
-   * @param value Value
-   */
-  public final void setData(final String key, final Object value) {
-    this.data.put(key, value);
-  }
-
-  /**
-   * Get stored meta information.
-   * @param key Key
-   * @return Value stored, or <tt>null</tt> if there was none
-   */
-  public final Object getData(final String key) {
-    return this.data.get(key);
-  }
 }

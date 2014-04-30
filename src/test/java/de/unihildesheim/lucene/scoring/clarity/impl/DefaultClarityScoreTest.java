@@ -44,6 +44,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram
  */
+@SuppressWarnings("checkstyle:methodname")
 public final class DefaultClarityScoreTest
         extends MultiIndexDataProviderTestCase {
 
@@ -118,7 +119,7 @@ public final class DefaultClarityScoreTest
   /**
    * Calculate pd(t) - document model for a term.
    *
-   * @param langmodelWeight Weight modifier to use
+   * @param langModelWeight Weight modifier to use
    * @param docModel Document model
    * @param term Term to calculate for
    * @return document model for the given term
@@ -202,9 +203,10 @@ public final class DefaultClarityScoreTest
   /**
    * Test of calcDocumentModels method, of class DefaultClarityScore.
    *
-   * @throws Exception
+   * @throws Exception Any exception thrown indicates an error
    */
   @Test
+  @SuppressWarnings("checkstyle:magicnumber")
   public void testCalcDocumentModel() throws Exception {
     final DefaultClarityScoreConfiguration dcc
             = new DefaultClarityScoreConfiguration();
@@ -235,6 +237,7 @@ public final class DefaultClarityScoreTest
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
+  @SuppressWarnings("checkstyle:magicnumber")
   public void testPreCalcDocumentModels() throws Exception {
     final DefaultClarityScoreConfiguration dcc
             = new DefaultClarityScoreConfiguration();
@@ -369,6 +372,7 @@ public final class DefaultClarityScoreTest
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
+  @SuppressWarnings("checkstyle:magicnumber")
   public void testTestGetExtDocMan() throws Exception {
     DefaultClarityScore instance = new DefaultClarityScore();
     instance.createCache(RandomValue.getString(50));

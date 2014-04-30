@@ -22,6 +22,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Set;
 import org.mapdb.Atomic;
 import org.mapdb.DB;
@@ -48,40 +49,95 @@ public final class Persistence {
    * Object storing meta information about the Lucene index and
    * {@link Environment} configuration.
    */
-  private StorageMeta meta = new StorageMeta();
+  private final StorageMeta meta;
 
   /**
    * Keys to stored values in database.
    */
   private enum Storage {
 
+    /**
+     * Path to the Lucene index.
+     */
     PERSISTENCE_IDX_PATH,
+    /**
+     * Latest commit generation of the Lucene index.
+     */
     PERSISTENCE_IDX_COMMIT_GEN,
+    /**
+     * List of stopwords used.
+     */
     PERSISTENCE_STOPWORDS,
+    /**
+     * List of document fields used.
+     */
     PERSISTENCE_FIELDS
   }
 
   /**
    * Object wrapping storage meta-information.
    */
+  @SuppressWarnings("PublicInnerClass")
   public static final class StorageMeta {
 
     /**
      * Index path used, when creating this store.
      */
+    @SuppressWarnings({ "ProtectedField", "checkstyle:visibilitymodifier" })
     protected Atomic.String indexPath;
     /**
      * Latest index commit generation visible when creating this store.
      */
+    @SuppressWarnings({ "ProtectedField", "checkstyle:visibilitymodifier" })
     protected Atomic.Long indexCommitGen;
     /**
      * Fields active in the {@link Environment} when creating this store.
      */
+    @SuppressWarnings({ "ProtectedField", "checkstyle:visibilitymodifier" })
     protected Set<String> fields;
     /**
      * Stopwords active in the {@link Environment} when creating this store.
      */
+    @SuppressWarnings({ "ProtectedField", "checkstyle:visibilitymodifier" })
     protected Set<String> stopWords;
+
+    /**
+     * Set the index path.
+     *
+     * @param newIndexPath Current path to Lucene index
+     */
+    protected void setIndexPath(final String newIndexPath) {
+      this.indexPath.set(newIndexPath);
+    }
+
+    /**
+     * Set the Lucene index commit generation.
+     *
+     * @param newIndexCommitGen Generation
+     */
+    protected void setIndexCommitGen(final Long newIndexCommitGen) {
+      this.indexCommitGen.set(newIndexCommitGen);
+    }
+
+    /**
+     * Set the current active Lucene document fields.
+     *
+     * @param newFields Fields list
+     */
+    protected void setFields(final Collection<String> newFields) {
+      this.fields.clear();
+      this.fields.addAll(new HashSet<>(newFields));
+    }
+
+    /**
+     * Set the current active stopwords.
+     *
+     * @param newStopWords List of stopwords
+     */
+    protected void setStopWords(final Collection<String> newStopWords) {
+      this.stopWords.clear();
+      this.stopWords.addAll(new HashSet<>(newStopWords));
+    }
 
     /**
      * Checks the index fields currently set in the {@link Environment}
@@ -92,7 +148,9 @@ public final class Persistence {
     public boolean fieldsCurrent() {
       final Collection<String> eFields = Arrays.
               asList(Environment.getFields());
-      LOG.debug("FIELDS: eF={} cF={}", eFields, this.fields);
+      if (this.fields == null) {
+        throw new IllegalStateException("Fields meta information not set.");
+      }
       return this.fields.size() == eFields.size() && this.fields.containsAll(
               eFields);
     }
@@ -104,6 +162,9 @@ public final class Persistence {
      * @return True, if both contain the same list of stopwords.
      */
     public boolean stopWordsCurrent() {
+      if (this.stopWords == null) {
+        throw new IllegalStateException("Stopword meta information not set.");
+      }
       return this.stopWords.size() == Environment.getStopwords().size()
               && this.stopWords.containsAll(Environment.getStopwords());
     }
@@ -113,10 +174,14 @@ public final class Persistence {
      * in the meta-information.
      *
      * @return True, if both generation numbers are the same.
-     * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
-     * no index is provided in the {@link Environment}
+     * @throws Environment.NoIndexException Thrown, if no index is provided in
+     * the {@link Environment}
      */
     public boolean generationCurrent() throws Environment.NoIndexException {
+      if (this.indexCommitGen == null) {
+        throw new IllegalStateException("Commit generation "
+                + "meta information not set.");
+      }
       return Environment.getIndexGeneration().
               equals(this.indexCommitGen.get());
     }
@@ -127,12 +192,15 @@ public final class Persistence {
    *
    * @param newDb Database reference
    * @param empty True if the store should be treated as being empty
-   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
-   * no index is provided in the {@link Environment}
+   * @throws Environment.NoIndexException Thrown, if no index is provided in
+   * the {@link Environment}
    */
   public Persistence(final DB newDb, final boolean empty) throws
           Environment.NoIndexException {
     this.db = newDb;
+
+    this.meta = new StorageMeta();
+
     if (empty) {
       getMetaData(true);
       updateMetaData();
@@ -152,34 +220,31 @@ public final class Persistence {
             name());
     meta.indexCommitGen = this.db.getAtomicLong(
             Storage.PERSISTENCE_IDX_COMMIT_GEN.name());
-
     if (create && this.db.exists(Storage.PERSISTENCE_FIELDS.name())) {
       this.db.delete(Storage.PERSISTENCE_FIELDS.name());
     }
     meta.fields = this.db.createHashSet(Storage.PERSISTENCE_FIELDS.name()).
-            serializer(Serializer.STRING).makeOrGet();
+            serializer(Serializer.STRING).<String>makeOrGet();
 
     if (create && this.db.exists(Storage.PERSISTENCE_STOPWORDS.name())) {
       this.db.delete(Storage.PERSISTENCE_STOPWORDS.name());
     }
     meta.stopWords = this.db.createHashSet(Storage.PERSISTENCE_STOPWORDS.
-            name()).serializer(Serializer.STRING).makeOrGet();
+            name()).serializer(Serializer.STRING).<String>makeOrGet();
   }
 
   /**
    * Update the meta-data records. This does not commit data to the database.
    *
-   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
-   * no index is provided in the {@link Environment}
+   * @throws Environment.NoIndexException Thrown, if no index is provided in
+   * the {@link Environment}
    */
   public void updateMetaData() throws Environment.NoIndexException {
     LOG.debug("Updating meta-data.");
-    meta.indexPath.set(Environment.getIndexPath());
-    meta.indexCommitGen.set(Environment.getIndexGeneration());
-    meta.fields.clear();
-    meta.fields.addAll(Arrays.asList(Environment.getFields()));
-    meta.stopWords.clear();
-    meta.stopWords.addAll(Environment.getStopwords());
+    meta.setIndexPath(Environment.getIndexPath());
+    meta.setIndexCommitGen(Environment.getIndexGeneration());
+    meta.setFields(Arrays.asList(Environment.getFields()));
+    meta.setStopWords(Environment.getStopwords());
   }
 
   /**
@@ -197,6 +262,10 @@ public final class Persistence {
   @SuppressWarnings("PublicInnerClass")
   public static final class Builder {
 
+    /**
+     * Database async write flush delay.
+     */
+    private static final int DB_ASYNC_WRITEFLUSH_DELAY = 100;
     /**
      * Database file prefix.
      */
@@ -235,35 +304,59 @@ public final class Persistence {
       return this.dbFile.toString();
     }
 
+    /**
+     * Check, if a database with the given name already exists.
+     *
+     * @return True, if exists.
+     */
     public boolean exists() {
       return this.dbFile.exists();
     }
 
+    /**
+     * Return a {@link DBMaker} with the current configuration.
+     *
+     * @return Maker instance
+     */
     public DBMaker getMaker() {
       return this.dbMkr;
     }
 
+    /**
+     * Set flag, indicating that this instance is temporary and may be deleted
+     * after closing the JVM.
+     *
+     * @return Self reference
+     */
     public Builder temporary() {
       this.dbMkr.deleteFilesAfterClose();
       return this;
     }
 
+    /**
+     * Initializes the internal {@link DBMaker} with default settings.
+     *
+     * @return Self reference
+     */
     public Builder setDbDefaults() {
       this.dbMkr
               .transactionDisable()
               .commitFileSyncDisable()
               .asyncWriteEnable()
-              .asyncWriteFlushDelay(100)
+              .asyncWriteFlushDelay(DB_ASYNC_WRITEFLUSH_DELAY)
               .mmapFileEnableIfSupported()
               .closeOnJvmShutdown();
       return this;
     }
 
     /**
+     * Creates a database with the current configuration.
      *
-     * @return @throws IOException
-     * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
-     * no index is provided in the {@link Environment}
+     * @return {@link} Persistence} with a database created using the current
+     * configuration
+     * @throws IOException Thrown on low-level I/O errors
+     * @throws Environment.NoIndexException Thrown, if no index is provided in
+     * the {@link Environment}
      */
     public Persistence make() throws IOException, Environment.NoIndexException {
       if (exists()) {
@@ -274,10 +367,14 @@ public final class Persistence {
     }
 
     /**
+     * Loads a database with the current configuration.
      *
-     * @return @throws FileNotFoundException
-     * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
-     * no index is provided in the {@link Environment}
+     * @throws FileNotFoundException Thrown, if the database could not be
+     * found
+     * @throws Environment.NoIndexException Thrown, if no index is provided in
+     * the {@link Environment}
+     * @return {@link} Persistence} with a database created using the current
+     * configuration
      */
     public Persistence get() throws FileNotFoundException,
             Environment.NoIndexException {
@@ -288,10 +385,14 @@ public final class Persistence {
     }
 
     /**
+     * Loads or creates a database with the current configuration.
      *
-     * @return @throws FileNotFoundException
-     * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
-     * no index is provided in the {@link Environment}
+     * @throws FileNotFoundException Thrown, if the database could not be
+     * found (this should not happen)
+     * @throws Environment.NoIndexException Thrown, if no index is provided in
+     * the {@link Environment}
+     * @return {@link} Persistence} with a database created using the current
+     * configuration
      */
     public Persistence makeOrGet() throws FileNotFoundException,
             Environment.NoIndexException {

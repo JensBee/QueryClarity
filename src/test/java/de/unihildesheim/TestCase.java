@@ -28,6 +28,7 @@ public class TestCase {
   /**
    * Log test methods.
    */
+  @SuppressWarnings("checkstyle:visibilitymodifier")
   @Rule
   public final TestMethodInfo watcher = new TestMethodInfo();
 }

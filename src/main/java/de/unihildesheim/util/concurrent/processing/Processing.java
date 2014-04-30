@@ -22,7 +22,6 @@ import java.util.Collection;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -327,13 +326,13 @@ public final class Processing {
     /**
      * Thread pool manager.
      */
-    private ExecutorService threadPool = null;
+    private ThreadPoolExecutor threadPool = null;
 
     /**
      * Maximum seconds a thread may be idle in the pool, before it gets
      * removed.
      */
-    private static final long KEEPALIVE_TIME = 60L;
+    private static final long KEEPALIVE_TIME = 5L;
 
     /**
      * Create a new processing thread pool manager. The maximum number of

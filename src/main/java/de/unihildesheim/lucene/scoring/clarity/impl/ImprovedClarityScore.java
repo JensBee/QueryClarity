@@ -93,10 +93,25 @@ public final class ImprovedClarityScore implements ClarityScoreCalculation,
    * Wrapper for persistent data storage.
    */
   private Persistence pData;
+  /**
+   * Database instance.
+   */
   private DB db;
+  /**
+   * Manager for extended document meta-data.
+   */
   private ExternalDocTermDataManager extDocMan;
+  /**
+   * Flag indicating, if a cache is available.
+   */
   private boolean hasCache = false;
+  /**
+   * Flag indicating, if caches are temporary.
+   */
   private boolean cacheTemporary = false;
+  /**
+   * Cache of default document models.
+   */
   private Map<Fun.Tuple2<Integer, ByteArray>, Double> defaultDocModels;
 
   /**
@@ -136,15 +151,33 @@ public final class ImprovedClarityScore implements ClarityScoreCalculation,
    */
   private enum Caches {
 
+    /**
+     * Smoothing parameter value.
+     */
     SMOOTHING,
+    /**
+     * Lambda parameter.
+     */
     LAMBDA,
+    /**
+     * Beta parameter.
+     */
     BETA,
+    /**
+     * Flag indicating, if pre-calculated models are available.
+     */
     HAS_PRECALC_DATA,
+    /**
+     * Default document models.
+     */
     DEFAULT_DOC_MODELS
   }
 
   private enum DataKeys {
 
+    /**
+     * Document models.
+     */
     DM
   }
 
@@ -189,19 +222,29 @@ public final class ImprovedClarityScore implements ClarityScoreCalculation,
     initCache(name, false, false);
   }
 
+  /**
+   * Debug access to the internal store for extended document meta
+   * information.
+   *
+   * @return Internal document information manager
+   */
   protected ExternalDocTermDataManager testGetExtDocMan() {
     return this.extDocMan;
   }
 
   /**
+   * Initializes a cache.
    *
-   * @param name
-   * @param createNew
-   * @param createIfNeeded
-   * @throws IOException
-   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
-   * no index is provided in the {@link Environment}
+   * @param name Cache name
+   * @param createNew True, if a new cache should be created. Throws an
+   * exception if a cache with the given name already exists.
+   * @param createIfNeeded Creates a new cache, if one with the given name
+   * does not exist.
+   * @throws IOException Thrown on low-level I/O errors
+   * @throws Environment.NoIndexException Thrown, if no index is provided in
+   * the {@link Environment}
    */
+  @SuppressWarnings("checkstyle:magicnumber")
   private void initCache(final String name, boolean createNew,
           final boolean createIfNeeded) throws IOException,
           Environment.NoIndexException {
@@ -278,7 +321,7 @@ public final class ImprovedClarityScore implements ClarityScoreCalculation,
   }
 
   @Override
-  public final ImprovedClarityScore setConfiguration(
+  public ImprovedClarityScore setConfiguration(
           final Configuration newConf) {
     if (!(newConf instanceof ImprovedClarityScoreConfiguration)) {
       throw new IllegalArgumentException("Wrong configuration type.");
@@ -317,6 +360,7 @@ public final class ImprovedClarityScore implements ClarityScoreCalculation,
    * @throws IOException Thrown on low-level i/O errors or if a term could not
    * be parsed to UTF-8
    */
+  @SuppressWarnings("checkstyle:missingswitchdefault")
   private String simplifyQuery(final String query,
           final QuerySimplifyPolicy policy) throws IOException, ParseException {
     Collection<ByteArray> qTerms = new ArrayList<>(QueryUtils.
@@ -381,6 +425,14 @@ public final class ImprovedClarityScore implements ClarityScoreCalculation,
     return sb.toString().trim();
   }
 
+  /**
+   * Calculates the default document model, if a term is not found in the
+   * document.
+   *
+   * @param docModel Document model
+   * @param term Term
+   * @return Default model value
+   */
   private double calcDefaultDocumentModel(final DocumentModel docModel,
           final ByteArray term) {
     Double model;
@@ -405,6 +457,11 @@ public final class ImprovedClarityScore implements ClarityScoreCalculation,
     return model;
   }
 
+  /**
+   * Calculates the document model.
+   *
+   * @param docModel Document data model
+   */
   private void calcDocumentModel(final DocumentModel docModel) {
     final double smoothing = this.conf.getDocumentModelSmoothingParameter();
     final double lambda = this.conf.getDocumentModelParamLambda();
@@ -469,7 +526,7 @@ public final class ImprovedClarityScore implements ClarityScoreCalculation,
    * @throws UnsupportedEncodingException Thrown, if a query term could not be
    * parsed
    */
-  protected final double calcQueryModel(final ByteArray fbTerm,
+  protected double calcQueryModel(final ByteArray fbTerm,
           final Collection<ByteArray> qTerms,
           final Collection<Integer> fbDocIds) throws
           UnsupportedEncodingException {
@@ -491,15 +548,16 @@ public final class ImprovedClarityScore implements ClarityScoreCalculation,
   }
 
   /**
+   * Calculates the improved clarity score for a given query.
    *
-   * @param query
-   * @return
-   * @throws ParseException
-   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
-   * no index is provided in the {@link Environment}
+   * @param query Query to calculate for
+   * @return Clarity score result object
+   * @throws ParseException Thrown on query parsing errors
+   * @throws Environment.NoIndexException Thrown, if no index is provided in
+   * the {@link Environment}
    */
   @Override
-  public final Result calculateClarity(final String query) throws
+  public Result calculateClarity(final String query) throws
           ParseException, Environment.NoIndexException {
     if (query == null || query.isEmpty()) {
       throw new IllegalArgumentException("Query was empty.");
@@ -656,6 +714,13 @@ public final class ImprovedClarityScore implements ClarityScoreCalculation,
      */
     private final int minDf;
 
+    /**
+     * Creates a new {@link Processing} {@link Target} for reducing query
+     * terms.
+     *
+     * @param minDocFreq Minimum document frequency
+     * @param reducedFbTerms Target for reduced terms
+     */
     FbTermReducerTarget(final int minDocFreq,
             final ConcurrentLinkedQueue<ByteArray> reducedFbTerms) {
       super();

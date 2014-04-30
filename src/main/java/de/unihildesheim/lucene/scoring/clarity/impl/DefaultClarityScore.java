@@ -87,8 +87,17 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
    */
   private enum Caches {
 
+    /**
+     * Language model weighting factor.
+     */
     LANGMODEL_WEIGHT,
+    /**
+     * Flag indicating, if pre-calculated models are available.
+     */
     HAS_PRECALC_DATA,
+    /**
+     * Pre-calculated default document models.
+     */
     DEFAULT_DOC_MODELS
   }
 
@@ -96,7 +105,8 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
    * Keys to store calculation results in document models and access
    * properties stored in the {@link DataProvider}.
    */
-  protected enum DataKeys {
+  @SuppressWarnings("PublicInnerClass")
+  public enum DataKeys {
 
     /**
      * Stores the document model for a specific term in a
@@ -121,6 +131,9 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
    */
   private Map<Integer, Map<ByteArray, Object>> docModelDataCache;
 
+  /**
+   * Cached mapping of document model values.
+   */
   private Map<ByteArray, Double> defaultDocModels = null;
 
   /**
@@ -128,14 +141,26 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
    */
   private DefaultClarityScoreConfiguration conf;
 
+  /**
+   * Flag indicating, if caches are temporary.
+   */
   private boolean cacheTemporary = false;
+  /**
+   * Flag indicating, if a cache is set.
+   */
   private boolean hasCache = false;
 
   /**
    * Wrapper for persistent data storage.
    */
   private Persistence pData;
+  /**
+   * Database to use.
+   */
   private DB db;
+  /**
+   * Manager object for extended document data.
+   */
   private ExternalDocTermDataManager extDocMan;
 
   /**
@@ -157,11 +182,12 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
   }
 
   /**
+   * Tries to load a persistent cache and creates a new one, if none found.
    *
-   * @param name
-   * @throws IOException
-   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
-   * no index is provided in the {@link Environment}
+   * @param name Cache name
+   * @throws IOException Thrown on low-level I/O errors
+   * @throws Environment.NoIndexException Thrown, if no index is provided in
+   * the {@link Environment}
    */
   @Override
   public void loadOrCreateCache(final String name) throws IOException,
@@ -170,11 +196,13 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
   }
 
   /**
+   * Creates a new persistent cache. Throws an exception if one with the given
+   * name already exist.
    *
-   * @param name
-   * @throws IOException
-   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
-   * no index is provided in the {@link Environment}
+   * @param name Cache name
+   * @throws IOException Thrown on low-level I/O errors
+   * @throws Environment.NoIndexException Thrown, if no index is provided in
+   * the {@link Environment}
    */
   @Override
   public void createCache(final String name) throws IOException,
@@ -183,11 +211,13 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
   }
 
   /**
+   * Tries to load a persistent cache. Throws an exception if none with the
+   * given name exist.
    *
-   * @param name
-   * @throws IOException
-   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
-   * no index is provided in the {@link Environment}
+   * @param name Cache name
+   * @throws IOException Thrown on low-level I/O errors
+   * @throws Environment.NoIndexException Thrown, if no index is provided in
+   * the {@link Environment}
    */
   @Override
   public void loadCache(final String name) throws IOException,
@@ -195,19 +225,27 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
     initCache(name, false, false);
   }
 
+  /**
+   * Debug method. Get the local manager for external document data.
+   *
+   * @return Document data manager
+   */
   protected ExternalDocTermDataManager testGetExtDocMan() {
     return this.extDocMan;
   }
 
   /**
+   * Initializes a cache.
    *
-   * @param name
-   * @param createNew
-   * @param createIfNeeded
-   * @throws IOException
-   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
-   * no index is provided in the {@link Environment}
+   * @param name Cache name
+   * @param createNew If true, a new cache will be created. Throws an
+   * exception if one with the given name already exist.
+   * @param createIfNeeded If true, creates a new cache if none found
+   * @throws IOException Thrown on low-level I/O errors
+   * @throws Environment.NoIndexException Thrown, if no index is provided in
+   * the {@link Environment}
    */
+  @SuppressWarnings("checkstyle:magicnumber")
   private void initCache(final String name, boolean createNew,
           final boolean createIfNeeded) throws IOException,
           Environment.NoIndexException {
@@ -372,6 +410,7 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
    * Calculate the clarity score.
    *
    * @param feedbackDocuments Document ids of feedback documents
+   * @param queryTerms Query terms
    * @return Result of the calculation
    */
   private Result calculateClarity(final Collection<Integer> feedbackDocuments,
@@ -461,42 +500,6 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
     return result;
   }
 
-//  /**
-//   * Proxy method to add feedback documents and prepare the query. Also allows
-//   * testing of the calculation.
-//   *
-//   * @param query Original query
-//   * @param feedbackDocuments Documents to use for feedback calculations
-//   * @return Calculated clarity score
-//   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
-//   * no index is provided in the {@link Environment}
-//   */
-//  protected Result calculateClarity(final String query,
-//          final Collection<Integer> feedbackDocuments) throws
-//          Environment.NoIndexException {
-//    if (!this.hasCache) {
-//      this.cacheTemporary = true;
-//      try {
-//        initCache("temp", true, true);
-//      } catch (IOException ex) {
-//        throw new IllegalStateException("Error creating cache.", ex);
-//      }
-//    }
-//    final Collection<ByteArray> queryTerms;
-//    try {
-//      // Get unique query terms
-//      queryTerms = QueryUtils.getUniqueQueryTerms(query);
-//    } catch (UnsupportedEncodingException | ParseException ex) {
-//      LOG.error("Caught exception parsing query.", ex);
-//      return null;
-//    }
-//
-//    if (queryTerms == null || queryTerms.isEmpty()) {
-//      throw new IllegalStateException("No query terms.");
-//    }
-//
-//    return calculateClarity(feedbackDocuments, queryTerms);
-//  }
   @Override
   public Result calculateClarity(final String query) throws
           ParseException, Environment.NoIndexException {
@@ -551,7 +554,13 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
   private final class QueryModelCalulatorTarget extends
           Target.TargetFunc<Integer> {
 
+    /**
+     * List of query terms used.
+     */
     private final Collection<ByteArray> queryTerms;
+    /**
+     * Map to gather calculation results. (Document-id -> model)
+     */
     private final Map<Integer, Double> map;
 
     QueryModelCalulatorTarget(final Collection<ByteArray> qTerms,
@@ -590,9 +599,14 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
      * Weighting factor.
      */
     private final double weightFactor;
+    /**
+     * Pre-calculated query models.
+     */
     private final Map<Integer, Double> queryModels;
 
     /**
+     * @param langModelWeight Language model weighting factor to use
+     * @param qModelsMap Map with pre-calculated query models
      * @param feedbackDocuments Feedback documents to use for calculation
      * @param newResult Shared value of calculation results
      */

@@ -101,9 +101,9 @@ public final class DocFieldsTermsEnumTest
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
+  @SuppressWarnings("null")
   public void testNext() throws Exception {
     final DocFieldsTermsEnum instance = new DocFieldsTermsEnum();
-
     final Collection<ByteArray> stopwords = IndexTestUtil.
             getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;
@@ -152,9 +152,9 @@ public final class DocFieldsTermsEnumTest
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
+  @SuppressWarnings("null")
   public void testGetTotalTermFreq() throws Exception {
     final DocFieldsTermsEnum instance = new DocFieldsTermsEnum();
-
     final Collection<ByteArray> stopwords = IndexTestUtil.
             getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;

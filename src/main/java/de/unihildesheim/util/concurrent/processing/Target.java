@@ -133,8 +133,7 @@ public abstract class Target<T> implements Runnable {
     } catch (ProcessingException.SourceHasFinishedException ex) {
       LOG.error("({}) Source has finished unexpectedly.", getName(), ex);
     } catch (Exception ex) { // make sure we catch everything
-      LOG.error("({}) Caught exception. cause={}",
-              getName(), ex, ex);
+      LOG.error("({}) Caught exception. cause={}", getName(), ex, ex);
     } finally {
       this.terminate = true;
       LOG.debug("({}) Terminating.", getName());

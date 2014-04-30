@@ -59,40 +59,45 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
           AbstractIndexDataProvider.class);
 
   /**
+   * Write flush delay for async writes of database data.
+   */
+  private static final int DB_ANSYNC_WRITEFLUSH_DELAY = 100;
+
+  /**
    * Flag indicating, if caches are filled (warmed).
    */
-  @SuppressWarnings("ProtectedField")
+  @SuppressWarnings({ "ProtectedField", "checkstyle:visibilitymodifier" })
   protected boolean warmed = false;
 
   /**
    * Transient cached overall term frequency of the index.
    */
-  @SuppressWarnings("ProtectedField")
+  @SuppressWarnings({ "ProtectedField", "checkstyle:visibilitymodifier" })
   protected Long idxTf = null;
 
   /**
    * Transient cached collection of all (non deleted) document-ids.
    */
-  @SuppressWarnings("ProtectedField")
+  @SuppressWarnings({ "ProtectedField", "checkstyle:visibilitymodifier" })
   protected Collection<Integer> idxDocumentIds = null;
 
   /**
    * Transient cached document-frequency map for all terms in index.
    */
-  @SuppressWarnings("ProtectedField")
+  @SuppressWarnings({ "ProtectedField", "checkstyle:visibilitymodifier" })
   protected ConcurrentNavigableMap<ByteArray, Integer> idxDfMap = null;
 
   /**
    * List of stop-words to exclude from term frequency calculations.
    */
-  @SuppressWarnings("ProtectedField")
+  @SuppressWarnings({ "ProtectedField", "checkstyle:visibilitymodifier" })
   protected Collection<ByteArray> stopWords = Collections.
           <ByteArray>emptySet();
 
   /**
    * Transient cached collection of all index terms.
    */
-  @SuppressWarnings("ProtectedField")
+  @SuppressWarnings({ "ProtectedField", "checkstyle:visibilitymodifier" })
   protected Set<ByteArray> idxTerms = null;
 
   /**
@@ -106,7 +111,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * Mapping is <tt>(Field, Term)</tt> to <tt>Frequency</tt>. Fields are
    * indexed by {@link #cachedFieldsMap}.
    */
-  @SuppressWarnings("ProtectedField")
+  @SuppressWarnings({ "ProtectedField", "checkstyle:visibilitymodifier" })
   protected ConcurrentNavigableMap<Fun.Tuple2<
           SerializableByte, ByteArray>, Long> idxTermsMap
           = null;
@@ -115,13 +120,13 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * List of fields cached by this instance. Mapping of field name to id
    * value.
    */
-  @SuppressWarnings("ProtectedField")
+  @SuppressWarnings({ "ProtectedField", "checkstyle:visibilitymodifier" })
   protected Map<String, SerializableByte> cachedFieldsMap;
 
   /**
    * Persistent disk backed storage backend.
    */
-  @SuppressWarnings("ProtectedField")
+  @SuppressWarnings({ "ProtectedField", "checkstyle:visibilitymodifier" })
   protected DB db = null;
 
   /**
@@ -133,7 +138,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     /**
      * Ids of persistent data held in the database.
      */
-    enum Stores {
+    public enum Stores {
 
       /**
        * Mapping of all index terms.
@@ -144,7 +149,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     /**
      * Ids of temporary data caches held in the database.
      */
-    enum Caches {
+    public enum Caches {
 
       /**
        * Set of all terms.
@@ -173,7 +178,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
     /**
      * Serializer to use for {@link #idxTermsMap}.
      */
-    static final BTreeKeySerializer idxTermsMapKeySerializer
+    static final BTreeKeySerializer IDX_TERMSMAP_KEYSERIALIZER
             = new BTreeKeySerializer.Tuple2KeySerializer<>(
                     SerializableByte.COMPARATOR, SerializableByte.SERIALIZER,
                     ByteArray.SERIALIZER);
@@ -210,9 +215,10 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
      * @param db Database reference
      * @return Maker for {@link #idxTermsMap}
      */
+    @SuppressWarnings("checkstyle:magicnumber")
     static DB.BTreeMapMaker idxTermsMapMkr(final DB db) {
       return db.createTreeMap(Stores.IDX_TERMS_MAP.name())
-              .keySerializer(DbMakers.idxTermsMapKeySerializer)
+              .keySerializer(DbMakers.IDX_TERMSMAP_KEYSERIALIZER)
               .valueSerializer(Serializer.LONG)
               .nodeSize(100);
     }
@@ -359,8 +365,10 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
       tStep.start();
       LOG.info("Cache warming: documents..");
       getDocumentIds(); // caches this.idxDocumentIds
-      LOG.info("Cache warming: collecting {} documents took {}.",
-              this.idxDocumentIds.size(), tStep.stop().getTimeString());
+      if (this.idxDocumentIds != null) {
+        LOG.info("Cache warming: collecting {} documents took {}.",
+                this.idxDocumentIds.size(), tStep.stop().getTimeString());
+      }
     } else {
       LOG.info("Cache warming: {} documents already collected.",
               this.idxDocumentIds.size());
@@ -369,14 +377,19 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
 
   /**
    * Pre-cache term-document frequencies.
+   *
+   * @throws Exception Overriding implementation may thrown an exception
    */
   protected abstract void warmUpDocumentFrequencies() throws Exception;
 
   /**
    * Default warmup method calling all warmUp* methods an tracks their running
    * time.
+   *
+   * @throws Exception Forwarded from dedicated warmUp methods
    */
   @Override
+  @SuppressWarnings("checkstyle:designforextension")
   public void warmUp() throws Exception {
     if (this.warmed) {
       LOG.info("Caches are up to date.");
@@ -407,9 +420,10 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * @return Tuple with Persistence object and flag indicating, if a new
    * database is created
    * @throws IOException Thrown on low-level I/O errors
-   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
-   * no index is provided in the {@link Environment}
+   * @throws Environment.NoIndexException Thrown, if no index is provided in
+   * the {@link Environment}
    */
+  @SuppressWarnings("checkstyle:magicnumber")
   protected final Tuple.Tuple2<Persistence, Boolean> getPersistence(
           final String name,
           final boolean createNew,
@@ -428,7 +442,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
             .transactionDisable()
             .commitFileSyncDisable()
             .asyncWriteEnable()
-            .asyncWriteFlushDelay(100)
+            .asyncWriteFlushDelay(DB_ANSYNC_WRITEFLUSH_DELAY)
             .mmapFileEnableIfSupported()
             .closeOnJvmShutdown();
     if (createNew) {
@@ -467,6 +481,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * @param term Term to lookup
    * @return Term frequency
    */
+  @SuppressWarnings("checkstyle:methodname")
   protected final Long _getTermFrequency(final ByteArray term) {
     Long tf = 0L;
     for (String field : Environment.getFields()) {
@@ -571,6 +586,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
    * Clear all dynamic caches. This must be called, if the fields or
    * stop-words have changed.
    */
+  @SuppressWarnings("checkstyle:designforextension")
   protected void clearCache() {
     LOG.info("Clearing temporary caches.");
     // index terms cache (content depends on current fields & stopwords)
@@ -610,6 +626,7 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
   }
 
   @Override
+  @SuppressWarnings("checkstyle:designforextension")
   public void dispose() {
     if (this.db != null && !this.db.isClosed()) {
       LOG.info("Closing database.");
@@ -669,6 +686,13 @@ public abstract class AbstractIndexDataProvider implements IndexDataProvider {
      */
     private final Set<ByteArray> target;
 
+    /**
+     * Create a new {@link Processing} {@link Target} for collecting index
+     * terms.
+     *
+     * @param newTerms Set of all index terms
+     * @param newTarget Target set to collect currently visible terms
+     */
     private TermCollectorTarget(
             final NavigableSet<Fun.Tuple2<
           SerializableByte, ByteArray>> newTerms,

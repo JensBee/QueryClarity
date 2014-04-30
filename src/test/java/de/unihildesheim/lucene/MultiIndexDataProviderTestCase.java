@@ -57,8 +57,13 @@ public class MultiIndexDataProviderTestCase extends TestCase {
   /**
    * Test documents index.
    */
+  @SuppressWarnings("ProtectedField")
   protected static TestIndexDataProvider index;
 
+  /**
+   * Types of configurations ran.
+   */
+  @SuppressWarnings("ProtectedInnerClass")
   protected enum RunType {
 
     /**
@@ -184,11 +189,11 @@ public class MultiIndexDataProviderTestCase extends TestCase {
 
     for (Class<? extends IndexDataProvider> prov : getDataProvider()) {
       for (RunType r : RunType.values()) {
-        params.add(new Object[]{prov, r});
+        params.add(new Object[]{ prov, r });
       }
     }
     for (RunType r : RunType.values()) {
-      params.add(new Object[]{null, r});
+      params.add(new Object[]{ null, r });
     }
     return params;
   }

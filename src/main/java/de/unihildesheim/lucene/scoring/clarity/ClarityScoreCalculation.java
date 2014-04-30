@@ -32,6 +32,7 @@ public interface ClarityScoreCalculation {
    * @param query Query used for term extraction
    * @return Calculated clarity score for the given terms, or <tt>null</tt>
    * on errors.
+   * @throws Exception May be thrown by implementing class
    */
   ClarityScoreResult calculateClarity(final String query) throws Exception;
 

@@ -291,6 +291,8 @@ public final class Environment {
    * the last commit to the index.
    *
    * @return Generation number of the index
+   * @throws Environment.NoIndexException Thrown, if no index is set in the
+   * {@link Environment}
    */
   public static Long getIndexGeneration() throws NoIndexException {
     if (Environment.noIndex) {
@@ -442,6 +444,8 @@ public final class Environment {
    * Get the reader used to access the Lucene index.
    *
    * @return Lucene index reader
+   * @throws Environment.NoIndexException Thrown, if no index is set in the
+   * {@link Environment}
    */
   public static IndexReader getIndexReader() throws NoIndexException {
     if (Environment.noIndex) {
@@ -458,6 +462,8 @@ public final class Environment {
    * Get the directory location of the Lucene index.
    *
    * @return directory location of the Lucene index
+   * @throws Environment.NoIndexException Thrown, if no index is set in the
+   * {@link Environment}
    */
   public static String getIndexPath() throws NoIndexException {
     if (Environment.noIndex) {
@@ -697,9 +703,21 @@ public final class Environment {
     clear();
   }
 
+  /**
+   * Exception to indicate that there's no index set in the
+   * {@link Environment}.
+   */
+  @SuppressWarnings("PublicInnerClass")
   public static final class NoIndexException extends Exception {
 
+    /**
+     * Static exception to indicate that no index is set.
+     */
     private static final NoIndexException EXCEPTION = new NoIndexException();
+    /**
+     * Serialization id.
+     */
+    private static final long serialVersionUID = -2233836956269660319L;
 
     private NoIndexException() {
       super("Environment is running without index.");

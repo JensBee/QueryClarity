@@ -619,7 +619,7 @@ public final class DirectIndexDataProvider extends AbstractIndexDataProvider {
       final ConcurrentNavigableMap<
               Fun.Tuple2<SerializableByte, ByteArray>, Long> localIdxTermsMap
               = localDb.createTreeMap(name)
-              .keySerializer(DbMakers.idxTermsMapKeySerializer)
+              .keySerializer(DbMakers.IDX_TERMSMAP_KEYSERIALIZER)
               .valueSerializer(Serializer.LONG)
               .make();
 

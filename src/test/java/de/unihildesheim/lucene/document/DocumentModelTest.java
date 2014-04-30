@@ -58,8 +58,8 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
+  @SuppressWarnings("null")
   public void testContains() throws Exception {
-    @SuppressWarnings("null")
     final Collection<ByteArray> stopwords = IndexTestUtil.
             getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;
@@ -87,8 +87,8 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
    * @throws Exception Any exception indicates an error
    */
   @Test
+  @SuppressWarnings("null")
   public void testTermFreqMap() throws Exception {
-    @SuppressWarnings("null")
     final Collection<ByteArray> stopwords = IndexTestUtil.
             getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;
@@ -122,6 +122,7 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
    * Test of equals method, of class DocumentModel.
    */
   @Test
+  @SuppressWarnings({ "DM_DEFAULT_ENCODING", "checkstyle:magicnumber" })
   public void testEquals() {
     final int firstDocId = RandomValue.getInteger(0, CollectionMetrics.
             numberOfDocuments().intValue() - 1);
@@ -141,7 +142,6 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
     final DocumentModel.DocumentModelBuilder derivedDocModel
             = new DocumentModel.DocumentModelBuilder(firstDocModel);
     // add a new term with it's frequency value, to make this model different
-    @edu.umd.cs.findbugs.annotations.SuppressWarnings("DM_DEFAULT_ENCODING")
     final byte[] termBytes = "foo#Bar#Value".getBytes();
     derivedDocModel.setTermFrequency(new ByteArray(termBytes), 10);
     assertFalse(msg("Derived DocumentModel should not be the same "
@@ -153,6 +153,7 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
    * Test of hashCode method, of class DocumentModel.
    */
   @Test
+  @SuppressWarnings("DM_DEFAULT_ENCODING")
   public void testHashCode() {
     final int firstDocId = RandomValue.getInteger(0, CollectionMetrics.
             numberOfDocuments().intValue() - 1);
@@ -180,7 +181,6 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
     final DocumentModel.DocumentModelBuilder derivedDocModel
             = new DocumentModel.DocumentModelBuilder(firstDocModel);
     // add a new term with it's frequency value, to make this model different
-    @edu.umd.cs.findbugs.annotations.SuppressWarnings("DM_DEFAULT_ENCODING")
     final byte[] termBytes = "foo#Bar#Value".getBytes();
     derivedDocModel.setTermFrequency(new ByteArray(termBytes), 10);
 
@@ -215,8 +215,8 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
    * @throws Exception Any exception indicates an error
    */
   @Test
+  @SuppressWarnings("null")
   public void testTf() throws Exception {
-    @SuppressWarnings("null")
     final Collection<ByteArray> stopwords = IndexTestUtil.
             getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;
@@ -244,8 +244,8 @@ public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
    * @throws java.lang.Exception Any exception indicates an error
    */
   @Test
+  @SuppressWarnings("null")
   public void testTermCount() throws Exception {
-    @SuppressWarnings("null")
     final Collection<ByteArray> stopwords = IndexTestUtil.
             getStopwordBytesFromEnvironment();
     final boolean excludeStopwords = stopwords != null;

@@ -22,7 +22,6 @@ import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.util.ByteArrayUtil;
 import de.unihildesheim.util.RandomValue;
-import edu.umd.cs.findbugs.annotations.SuppressWarnings;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;

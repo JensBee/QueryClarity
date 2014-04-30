@@ -34,6 +34,7 @@ public class TestMethodInfo extends TestWatcher {
   private static final Logger LOG = LoggerFactory.getLogger(
           TestMethodInfo.class);
 
+  @Override
   protected void starting(Description description) {
     LOG.info("*** Starting test: " + description.getMethodName() + " @ "
             + description.getClassName());

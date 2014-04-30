@@ -22,7 +22,6 @@ import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.Feedback;
-import de.unihildesheim.lucene.index.ExternalDocTermDataManager;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.metrics.CollectionMetrics;
 import de.unihildesheim.lucene.metrics.DocumentMetrics;
@@ -38,6 +37,7 @@ import java.util.Iterator;
 import java.util.Map;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.Query;
+import org.junit.Assert;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -84,6 +84,7 @@ public final class ImprovedClarityScoreTest
    * @param term Term
    * @return Document model value
    */
+  @SuppressWarnings("checkstyle:methodname")
   private double calc_pdt(final ImprovedClarityScoreConfiguration conf,
           final int docId, final ByteArray term) {
     final double smoothing = conf.getDocumentModelSmoothingParameter();
@@ -115,6 +116,7 @@ public final class ImprovedClarityScoreTest
    * @param queryTerms Query terms
    * @return Query model value
    */
+  @SuppressWarnings("checkstyle:methodname")
   private double calc_pqt(final ImprovedClarityScoreConfiguration conf,
           final ByteArray term, final Collection<Integer> fbDocIds,
           final Collection<ByteArray> queryTerms) {
@@ -305,6 +307,7 @@ public final class ImprovedClarityScoreTest
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
+  @SuppressWarnings("checkstyle:magicnumber")
   public void testCalcQueryModel() throws Exception {
     Collection<ByteArray> qTerms = QueryUtils.getAllQueryTerms(index.
             getQueryString());
@@ -339,6 +342,7 @@ public final class ImprovedClarityScoreTest
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
+  @SuppressWarnings("checkstyle:magicnumber")
   public void testPreCalcDocumentModels() throws Exception {
     ImprovedClarityScoreConfiguration icc
             = new ImprovedClarityScoreConfiguration();
@@ -367,15 +371,14 @@ public final class ImprovedClarityScoreTest
 
   /**
    * Test of testGetExtDocMan method, of class ImprovedClarityScore.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
-  public void testTestGetExtDocMan() {
-    System.out.println("testGetExtDocMan");
+  @SuppressWarnings("checkstyle:magicnumber")
+  public void testTestGetExtDocMan() throws Exception {
     ImprovedClarityScore instance = new ImprovedClarityScore();
-    ExternalDocTermDataManager expResult = null;
-    ExternalDocTermDataManager result = instance.testGetExtDocMan();
-    assertEquals(expResult, result);
-    // TODO review the generated test code and remove the default call to fail.
-    fail("The test case is a prototype.");
+    instance.createCache(RandomValue.getString(50));
+    Assert.assertNotNull(instance.testGetExtDocMan());
   }
 }
