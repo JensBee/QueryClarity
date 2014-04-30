@@ -19,6 +19,8 @@ package de.unihildesheim.lucene.index;
 import de.unihildesheim.ByteArray;
 import de.unihildesheim.Tuple;
 import de.unihildesheim.lucene.Environment;
+import de.unihildesheim.lucene.index.IndexDataProvider;
+import de.unihildesheim.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.util.ByteArrayUtil;
 import de.unihildesheim.util.RandomValue;
 import de.unihildesheim.util.concurrent.processing.Source;
@@ -34,7 +36,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Utility class for testing index related functions.
  *
- *
+ * @author Jens Bertram
  */
 public final class IndexTestUtil {
 
