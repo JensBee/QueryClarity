@@ -39,6 +39,8 @@ import org.slf4j.LoggerFactory;
  * Alberto Apostolico and Massimo Melucci, 43–54. Lecture Notes in Computer
  * Science 3246. Springer Berlin Heidelberg, 2004.
  * http://link.springer.com/chapter/10.1007/978-3-540-30213-1_5.
+ *
+ * @author Jens Bertram
  */
 public final class SimplifiedClarityScore implements ClarityScoreCalculation {
 

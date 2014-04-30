@@ -25,7 +25,7 @@ package de.unihildesheim.lucene.index;
  * @author Jens Bertram
  */
 public final class DirectIndexDataProviderTest
-        extends IndexDataProviderTestMethods {
+        extends IndexDataProviderTestCase {
 
   /**
    * {@link IndexDataProvider} class being tested.

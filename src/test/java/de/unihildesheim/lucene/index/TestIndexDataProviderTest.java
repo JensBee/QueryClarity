@@ -46,7 +46,7 @@ import org.junit.Test;
  * @author Jens Bertram
  */
 public final class TestIndexDataProviderTest
-        extends IndexDataProviderTestMethods {
+        extends IndexDataProviderTestCase {
 
   /**
    * {@link IndexDataProvider} class being tested.

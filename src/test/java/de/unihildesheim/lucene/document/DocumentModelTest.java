@@ -33,15 +33,12 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
 /**
  * Test for {@link DocumentModel}.
  *
  * @author Jens Bertram
  */
-@RunWith(Parameterized.class)
 public final class DocumentModelTest extends MultiIndexDataProviderTestCase {
 
   /**

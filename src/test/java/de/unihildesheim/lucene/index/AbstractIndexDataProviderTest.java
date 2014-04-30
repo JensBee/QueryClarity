@@ -18,13 +18,11 @@ package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.ByteArray;
 import de.unihildesheim.SerializableByte;
-import de.unihildesheim.TestMethodInfo;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModel;
 import java.util.Arrays;
 import java.util.Collection;
 import static org.junit.Assert.assertEquals;
-import org.junit.Rule;
 import org.junit.Test;
 import org.mapdb.DBMaker;
 
@@ -37,13 +35,7 @@ import org.mapdb.DBMaker;
  * @author Jens Bertram
  */
 public class AbstractIndexDataProviderTest
-        extends IndexDataProviderTestMethods {
-
-  /**
-   * Log test methods.
-   */
-  @Rule
-  public final TestMethodInfo watcher = new TestMethodInfo();
+        extends IndexDataProviderTestCase {
 
   /**
    * {@link IndexDataProvider} class being tested.

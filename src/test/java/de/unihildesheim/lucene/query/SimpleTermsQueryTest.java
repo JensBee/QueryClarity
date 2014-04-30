@@ -32,16 +32,14 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
 /**
  * Test for {@link SimpleTermsQuery}.
  *
  * @author Jens Bertram
  */
-@RunWith(Parameterized.class)
-public final class SimpleTermsQueryTest extends MultiIndexDataProviderTestCase {
+public final class SimpleTermsQueryTest
+        extends MultiIndexDataProviderTestCase {
 
   /**
    * Setup test using a defined {@link IndexDataProvider}.

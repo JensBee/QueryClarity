@@ -31,7 +31,8 @@ import java.util.concurrent.TimeoutException;
 import org.slf4j.LoggerFactory;
 
 /**
- * One source, one or more targets.
+ * Utility class to simplify concurrent processing of large data-sets. One
+ * source, one or more targets.
  *
  * @author Jens Bertram
  */

@@ -16,638 +16,532 @@
  */
 package de.unihildesheim.lucene;
 
-import de.unihildesheim.lucene.index.TestIndexDataProvider;
-import org.junit.After;
-import org.junit.BeforeClass;
-import static org.junit.Assert.*;
-import org.junit.Rule;
-import org.junit.rules.ExpectedException;
-import org.junit.rules.TemporaryFolder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import de.unihildesheim.lucene.index.IndexDataProvider;
+import de.unihildesheim.lucene.index.IndexTestUtil;
+import de.unihildesheim.util.RandomValue;
+import java.io.File;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Map.Entry;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import org.junit.Test;
 
 /**
- * Setup a working environment.
+ * Test for {@link Environment}.
  *
- *
+ * @author Jens Bertram
  */
-public class EnvironmentTest {
+public class EnvironmentTest extends MultiIndexDataProviderTestCase {
 
   /**
-   * Logger instance for this class.
-   */
-  private static final Logger LOG = LoggerFactory.getLogger(
-          EnvironmentTest.class);
-
-  /**
-   * Temporary Lucene memory index.
-   */
-  private static TestIndexDataProvider index;
-
-  /**
-   * General rule to catch expected exceptions.
-   */
-  @Rule
-  @java.lang.SuppressWarnings("PublicField")
-  public ExpectedException exception = ExpectedException.none();
-
-  /**
-   * Temporary directory to store test data.
-   */
-  @Rule
-  private final TemporaryFolder tmpDir = new TemporaryFolder();
-
-  /**
-   * Static initializer run before all tests.
+   * Initialize test with the current parameter.
    *
-   * @throws Exception Any exception thrown indicates an error
+   * @param dataProv {@link IndexDataProvider} to use
+   * @param rType Data provider configuration
    */
-  @BeforeClass
-  public static void setUpClass() throws Exception {
-    // create the test index
-    index = new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL);
-    assertTrue("TestIndex is not initialized.", TestIndexDataProvider.
+  public EnvironmentTest(
+          final Class<? extends IndexDataProvider> dataProv,
+          final MultiIndexDataProviderTestCase.RunType rType) {
+    super(dataProv, rType);
+  }
+
+  /**
+   * Test of getIndexGeneration method, of class Environment.
+   *
+   * @throws Exception Any exception indicates an error
+   */
+  @Test
+  public void testGetIndexGeneration() throws Exception {
+    final Long gen = Environment.getIndexGeneration();
+    assertNotNull(msg("Generation was null."), gen);
+    assertTrue(msg("Generation < 0."), gen >= 0);
+  }
+
+  /**
+   * Test of isTestRun method, of class Environment.
+   */
+  @Test
+  public void testIsTestRun() {
+    final boolean expResult = true;
+    final boolean result = Environment.isTestRun();
+    assertEquals(msg("Test run should be true."), expResult, result);
+  }
+
+  /**
+   * Test of getStopwords method, of class Environment.
+   *
+   * @throws Exception Any exception indicates an error
+   */
+  @Test
+  public void testGetStopwords() throws Exception {
+    final Collection<String> expResult = IndexTestUtil.getRandomStopWords(
+            index);
+    IndexTestUtil.createInstance(index, getDataProviderClass(), null,
+            expResult);
+
+    final Collection<String> result = Environment.getStopwords();
+    assertEquals(msg("Stopword count mismatch."), expResult.size(), result.
+            size());
+    assertTrue(msg("Stopword list content mismatch."), result.
+            containsAll(expResult));
+  }
+
+  /**
+   * Test of isInitialized method, of class Environment.
+   */
+  @Test
+  public void testIsInitialized() {
+    assertEquals(msg("Environment shoud be initialized."), true, Environment.
             isInitialized());
+
+    Environment.clear();
+    assertEquals(msg("Environment shoud not be initialized after clear()."),
+            false, Environment.isInitialized());
   }
 
   /**
-   * Run after each test
+   * Test of getFields method, of class Environment.
    *
-   * @throws Exception Any exception thrown indicates an error
+   * @throws Exception Any exception indicates an error
    */
-  @After
-  public void tearDown() throws Exception {
-    Environment.clear();
+  @Test
+  public void testGetFields() throws Exception {
+    final Collection<String> expResult = IndexTestUtil.getRandomFields(index);
+    IndexTestUtil.createInstance(index, getDataProviderClass(), expResult,
+            null);
+
+    final Collection<String> result = Arrays.asList(Environment.getFields());
+    assertEquals(msg("Fields count mismatch."), expResult.size(), result.
+            size());
+    assertTrue(msg("Fields list content mismatch."), result.containsAll(
+            expResult));
   }
 
-//  /**
-//   * Create an instance using the 0 argument parameter.
-//   *
-//   * @return A new instance
-//   * @throws Exception Any exception thrown indicates an error
-//   */
-//  private Environment getInstance0Arg() throws Exception {
-//    final String tmpDataDir = tmpDir.newFolder().getPath();
-//    Environment instance = new Environment(index.getIndexDir(), tmpDataDir);
-//    instance.create();
-//    return instance;
-//  }
-//
-//  /**
-//   * Create an instance using the 1 argument parameter.
-//   *
-//   * @return A new instance
-//   * @throws Exception Any exception thrown indicates an error
-//   */
-//  private Environment getInstance1Arg() throws Exception {
-//    final String tmpDataDir = tmpDir.newFolder().getPath();
-//    Environment instance = new Environment(index.getIndexDir(), tmpDataDir);
-//    instance.create(index);
-//    return instance;
-//  }
-//
-//  /**
-//   * Test instantiation of class Environment.
-//   *
-//   * @throws java.lang.Exception Any exception thrown indicates an error
-//   */
-//  @Test
-//  @SuppressWarnings("UnusedAssignment")
-//  @edu.umd.cs.findbugs.annotations.SuppressWarnings("DLS_DEAD_LOCAL_STORE")
-//  public void testInstantiation() throws Exception {
-//    LOG.info("Test instantiation");
-//    Environment instance;
-//    final String tmpDataDir = tmpDir.newFolder().getPath();
-//    instance = new Environment(index.getIndexDir(), tmpDataDir);
-//
-//    // illegal directory which contains no index data
-//    try {
-//      instance = new Environment(tmpDataDir + File.separatorChar
-//              + RandomValue.getString(5), tmpDataDir);
-//      instance.create();
-//      fail("Expected an exception to be thrown.");
-//    } catch (IndexNotFoundException ex) {
-//    }
-//
-//    // test illegal parameter sets
-//    final Collection<Tuple.Tuple2<String, String>> testParams
-//            = new ArrayList<>(4);
-//    testParams.add(Tuple.tuple2("", tmpDataDir));
-//    testParams.add(Tuple.tuple2((String) null, tmpDataDir));
-//    testParams.add(Tuple.tuple2(index.getIndexDir(), ""));
-//    testParams.add(Tuple.tuple2(index.getIndexDir(), (String) null));
-//    for (Tuple.Tuple2<String, String> params : testParams) {
-//      try {
-//        instance = new Environment(params.a, params.b);
-//        fail("Expected an exception to be thrown.");
-//      } catch (IllegalArgumentException ex) {
-//      }
-//    }
-//  }
-//
-//  /**
-//   * Test of create method, of class Environment.
-//   *
-//   * @throws java.lang.Exception Any exception thrown indicates an error
-//   */
-//  @Test
-//  public void testCreate_0args() throws Exception {
-//    LOG.info("Test create 0args");
-//    getInstance0Arg();
-//  }
-//
-//  /**
-//   * Test of create method, of class Environment.
-//   *
-//   * @throws java.lang.Exception Any exception thrown indicates an error
-//   */
-//  @Test
-//  public void testCreate_IndexDataProvider() throws Exception {
-//    LOG.info("Test create 1arg");
-//    getInstance1Arg();
-//  }
-//
-//  /**
-//   * Test of initialized method, of class Environment.
-//   *
-//   * @throws java.lang.Exception Any exception thrown indicates an error
-//   */
-//  @Test
-//  public void testInitialized() throws Exception {
-//    LOG.info("Test initialized");
-//
-//    // should not be initialized
-//    assertFalse("Environment should not be initialized.", Environment.
-//            isInitialized());
-//
-//    // initialize it
-//    getInstance1Arg();
-//    // should succeed
-//    assertTrue("Environment should be initialized.", Environment.
-//            isInitialized());
-//
-//    // clear instance
-//    Environment.clear();
-//    // should fail now
-//    assertFalse("Environment should not be initialized.", Environment.
-//            isInitialized());
-//
-//    // initialize again
-//    getInstance0Arg();
-//    // should succeed
-//    assertTrue("Environment should be initialized.", Environment.
-//            isInitialized());
-//  }
-//
-//  /**
-//   * Test of getFields method, of class Environment.
-//   *
-//   * @throws java.lang.Exception Any exception thrown indicates an error
-//   */
-//  @Test
-//  public void testGetFields() throws Exception {
-//    LOG.info("Test getFields");
-//    @SuppressWarnings("MismatchedReadAndWriteOfArray")
-//    final Collection<String> expResult = index.getActiveFieldNames();
-//    Collection<String> resultColl;
-//
-//    // not initialized
-//    try {
-//      Environment.getFields();
-//      fail("Expected an exception to be thrown.");
-//    } catch (IllegalStateException ex) {
-//    }
-//
-//    // initialize it
-//    getInstance1Arg();
-//    resultColl = Arrays.asList(Environment.getFields());
-//    assertEquals("Index fields mismatch.", expResult.size(), resultColl.size());
-//    assertTrue("Index fields mismatch.", resultColl.containsAll(expResult));
-//
-//    Environment.clear();
-//
-//    // not initialized
-//    try {
-//      Environment.getFields();
-//      fail("Expected an exception to be thrown.");
-//    } catch (IllegalStateException ex) {
-//    }
-//
-//    // initialize it
-//    getInstance0Arg();
-//    resultColl = Arrays.asList(Environment.getFields());
-//    assertEquals("Index fields mismatch.", expResult.size(), resultColl.size());
-//    assertTrue("Index fields mismatch.", resultColl.containsAll(expResult));
-//  }
-//
-//  /**
-//   * Test of getDataProvider method, of class Environment.
-//   *
-//   * @throws java.lang.Exception Any exception thrown indicates an error
-//   */
-//  @Test
-//  public void testGetDataProvider() throws Exception {
-//    LOG.info("Test getDataProvider");
-//
-//    // not initialized
-//    try {
-//      Environment.getDataProvider();
-//      fail("Expected an exception to be thrown.");
-//    } catch (IllegalStateException ex) {
-//    }
-//
-//    // initialize it
-//    getInstance1Arg();
-//    Environment.getDataProvider();
-//
-//    Environment.clear();
-//
-//    // not initialized
-//    try {
-//      Environment.getDataProvider();
-//      fail("Expected an exception to be thrown.");
-//    } catch (IllegalStateException ex) {
-//    }
-//
-//    // initialize it
-//    getInstance0Arg();
-//    Environment.getDataProvider();
-//  }
-//
-//  /**
-//   * Test of getIndexReader method, of class Environment.
-//   *
-//   * @throws java.lang.Exception Any exception thrown indicates an error
-//   */
-//  @Test
-//  public void testGetIndexReader() throws Exception {
-//    LOG.info("Test getIndexReader");
-//
-//    // not initialized
-//    try {
-//      Environment.getIndexReader();
-//      fail("Expected an exception to be thrown.");
-//    } catch (IllegalStateException ex) {
-//    }
-//
-//    // initialize it
-//    getInstance1Arg();
-//    Environment.getIndexReader();
-//
-//    Environment.clear();
-//
-//    // not initialized
-//    try {
-//      Environment.getIndexReader();
-//      fail("Expected an exception to be thrown.");
-//    } catch (IllegalStateException ex) {
-//    }
-//
-//    // initialize it
-//    getInstance0Arg();
-//    Environment.getIndexReader();
-//  }
-//
-//  /**
-//   * Test of getIndexPath method, of class Environment.
-//   *
-//   * @throws java.lang.Exception Any exception thrown indicates an error
-//   */
-//  @Test
-//  public void testGetIndexPath() throws Exception {
-//    LOG.info("Test getIndexPath");
-//    String result;
-//
-//    // not initialized
-//    try {
-//      Environment.getIndexPath();
-//      fail("Expected an exception to be thrown.");
-//    } catch (IllegalStateException ex) {
-//    }
-//
-//    // initialize it
-//    getInstance1Arg();
-//    result = Environment.getIndexPath();
-//    assertEquals("Index path differs.", index.getIndexDir(), result);
-//
-//    Environment.clear();
-//
-//    // not initialized
-//    try {
-//      Environment.getIndexPath();
-//      fail("Expected an exception to be thrown.");
-//    } catch (IllegalStateException ex) {
-//    }
-//
-//    // initialize it
-//    getInstance0Arg();
-//    result = Environment.getIndexPath();
-//    assertEquals("Index path differs.", index.getIndexDir(), result);
-//  }
-//
-//  /**
-//   * Test of getDataPath method, of class Environment.
-//   *
-//   * @throws java.lang.Exception Any exception thrown indicates an error
-//   */
-//  @Test
-//  public void testGetDataPath() throws Exception {
-//    LOG.info("Test getDataPath");
-//    String result;
-//    Environment instance;
-//
-//    final String tmpDataDir = tmpDir.newFolder().getPath();
-//
-//    // not initialized
-//    try {
-//      Environment.getDataPath();
-//      fail("Expected an exception to be thrown.");
-//    } catch (IllegalStateException ex) {
-//    }
-//
-//    // initialize it
-//    instance = new Environment(index.getIndexDir(), tmpDataDir);
-//    instance.create(index);
-//    result = Environment.getDataPath();
-//    assertEquals("Index path differs.", tmpDataDir, result);
-//
-//    Environment.clear();
-//
-//    // not initialized
-//    try {
-//      Environment.getDataPath();
-//      fail("Expected an exception to be thrown.");
-//    } catch (IllegalStateException ex) {
-//    }
-//
-//    // initialize it
-//    instance = new Environment(index.getIndexDir(), tmpDataDir);
-//    instance.create();
-//    result = Environment.getDataPath();
-//    assertEquals("Index path differs.", tmpDataDir, result);
-//  }
-//
-//  /**
-//   * Test of clear method, of class Environment.
-//   *
-//   * @throws java.lang.Exception Any exception thrown indicates an error
-//   */
-//  @Test
-//  public void testClear() throws Exception {
-//    LOG.info("Test clear");
-//
-//    // not initialized
-//    assertFalse("Environment should not be initialized.", Environment.
-//            isInitialized());
-//
-//    // initialize it
-//    getInstance1Arg();
-//    assertTrue("Environment should be initialized.", Environment.
-//            isInitialized());
-//
-//    Environment.clear();
-//
-//    // not initialized
-//    assertFalse("Environment should not be initialized.", Environment.
-//            isInitialized());
-//
-//    // initialize it
-//    getInstance0Arg();
-//    assertTrue("Environment should be initialized.", Environment.
-//            isInitialized());
-//  }
-//
-//  /**
-//   * Test of saveProperties method, of class Environment.
-//   *
-//   * @throws java.lang.Exception Any exception thrown indicates an error
-//   */
-//  @Test
-//  public void testSaveProperties() throws Exception {
-//    LOG.info("Test saveProperties");
-//    getInstance0Arg();
-//    Environment.saveProperties();
-//  }
-//
-//  /**
-//   * Test of setProperty method, of class Environment.
-//   *
-//   * @throws java.lang.Exception Any exception thrown indicates an error
-//   */
-//  @Test
-//  public void testSetProperty() throws Exception {
-//    LOG.info("Test setProperty");
-//
-//    // not initialized
-//    try {
-//      Environment.setProperty("test", RandomValue.getString(1, 10),
-//              RandomValue.
-//              getString(1, 10));
-//      fail("Expected an exception to be thrown.");
-//    } catch (IllegalStateException ex) {
-//    }
-//
-//    getInstance0Arg();
-//
-//    final int propCount = RandomValue.getInteger(1, 100);
-//    for (int i = 0; i < propCount; i++) {
-//      Environment.setProperty("test", RandomValue.getString(1, 10),
-//              RandomValue.getString(1, 10));
-//    }
-//  }
-//
-//  /**
-//   * Test of getProperty method, of class Environment.
-//   *
-//   * @throws java.lang.Exception Any exception thrown indicates an error
-//   */
-//  @Test
-//  public void testGetProperty_String_String() throws Exception {
-//    LOG.info("Test getProperty 2args");
-//    final String prefix = "test";
-//    final int propCount = RandomValue.getInteger(1, 100);
-//    final Map<String, String> props = new HashMap<>(propCount);
-//
-//    // not initialized
-//    try {
-//      Environment.getProperty("foo", "bar");
-//      fail("Expected an exception to be thrown.");
-//    } catch (IllegalStateException ex) {
-//    }
-//
-//    getInstance0Arg();
-//
-//    for (int i = 0; i < propCount; i++) {
-//      props.put(RandomValue.getString(1, 10), RandomValue.getString(1, 10));
-//    }
-//
-//    // add properties
-//    for (Map.Entry<String, String> propEntry : props.entrySet()) {
-//      Environment.setProperty(
-//              prefix, propEntry.getKey(), propEntry.getValue());
-//    }
-//
-//    // read properties
-//    for (Map.Entry<String, String> propEntry : props.entrySet()) {
-//      assertEquals("Property not restored.", propEntry.getValue(),
-//              Environment.getProperty(prefix, propEntry.getKey()));
-//    }
-//
-//    // test illegal parameter sets
-//    final Collection<Tuple.Tuple2<String, String>> testParams
-//            = new ArrayList<>(4);
-//    testParams.add(Tuple.tuple2("", (String) null));
-//    testParams.add(Tuple.tuple2((String) null, ""));
-//    testParams.add(Tuple.tuple2("foo", (String) null));
-//    testParams.add(Tuple.tuple2("foo", ""));
-//    testParams.add(Tuple.tuple2("", "foo"));
-//    testParams.add(Tuple.tuple2((String) null, (String) null));
-//    for (Tuple.Tuple2<String, String> params : testParams) {
-//      try {
-//        Environment.getProperty(params.a, params.b);
-//        fail("Expected an exception to be thrown.");
-//      } catch (IllegalArgumentException ex) {
-//      }
-//    }
-//  }
-//
-//  /**
-//   * Test of clearProperties method, of class Environment.
-//   *
-//   * @throws java.lang.Exception Any exception thrown indicates an error
-//   */
-//  @Test
-//  public void testClearProperties() throws Exception {
-//    LOG.info("Test clearProperties");
-//    final String prefix = "test";
-//    final int propCount = RandomValue.getInteger(1, 100);
-//    final Map<String, String> props = new HashMap<>(propCount);
-//
-//    // not initialized
-//    try {
-//      Environment.clearProperties(prefix);
-//      fail("Expected an exception to be thrown.");
-//    } catch (IllegalStateException ex) {
-//    }
-//
-//    getInstance0Arg();
-//
-//    for (int i = 0; i < propCount; i++) {
-//      props.put(RandomValue.getString(1, 10), RandomValue.getString(1, 10));
-//    }
-//
-//    // add properties
-//    for (Map.Entry<String, String> propEntry : props.entrySet()) {
-//      Environment.setProperty(
-//              prefix, propEntry.getKey(), propEntry.getValue());
-//    }
-//
-//    // read properties
-//    for (Map.Entry<String, String> propEntry : props.entrySet()) {
-//      assertEquals("Property not restored.", propEntry.getValue(),
-//              Environment.getProperty(prefix, propEntry.getKey()));
-//    }
-//
-//    // this should not be deleted
-//    final String intPrefix = "solid";
-//    final String intKey = "i should";
-//    final String intVal = "survive";
-//    Environment.setProperty(intPrefix, intKey, intVal);
-//
-//    Environment.clearProperties(prefix);
-//
-//    // read properties
-//    for (String propKey : props.keySet()) {
-//      assertEquals("Property restored, but should be deleted.", null,
-//              Environment.getProperty(prefix, propKey));
-//    }
-//
-//    assertEquals("Internal value not restored.", intVal, Environment.
-//            getProperty(intPrefix, intKey));
-//  }
-//
-//  /**
-//   * Test of getProperty method, of class Environment.
-//   *
-//   * @throws java.lang.Exception Any exception thrown indicates an error
-//   */
-//  @Test
-//  public void testGetProperty_3args() throws Exception {
-//    LOG.info("Test getProperty 3args");
-//
-//    final String prefix = "test";
-//    final int propCount = RandomValue.getInteger(1, 100);
-//    final Map<String, Tuple.Tuple2<String, String>> props = new HashMap<>(
-//            propCount);
-//
-//    // not initialized
-//    try {
-//      Environment.getProperty(prefix, "foo", "bar");
-//      fail("Expected an exception to be thrown.");
-//    } catch (IllegalStateException ex) {
-//    }
-//
-//    getInstance0Arg();
-//
-//    for (int i = 0; i < propCount; i++) {
-//      props.put(RandomValue.getString(1, 10), Tuple.tuple2(RandomValue.
-//              getString(1, 10), RandomValue.getString(1, 10)));
-//    }
-//
-//    // add properties
-//    for (Map.Entry<String, Tuple.Tuple2<String, String>> propEntry : props.
-//            entrySet()) {
-//      Environment.setProperty(prefix, propEntry.getKey(),
-//              propEntry.getValue().a);
-//    }
-//
-//    // read properties
-//    for (Map.Entry<String, Tuple.Tuple2<String, String>> propEntry : props.
-//            entrySet()) {
-//      assertEquals("Property not restored.", propEntry.getValue().a,
-//              Environment.
-//              getProperty(prefix, propEntry.getKey(), propEntry.getValue().b));
-//      assertEquals("Property not restored (default).", propEntry.getValue().b,
-//              Environment.getProperty(prefix, propEntry.getKey() + "fuzz",
-//                      propEntry.getValue().b));
-//    }
-//  }
-//
-//  /**
-//   * Test of clearAllProperties method, of class Environment.
-//   *
-//   * @throws java.lang.Exception Any exception thrown indicates an error
-//   */
-//  @Test
-//  public void testClearAllProperties() throws Exception {
-//    LOG.info("Test clearAllProperties");
-//    final String prefix = "test";
-//    final int propCount = RandomValue.getInteger(1, 100);
-//    final Map<String, String> props = new HashMap<>(propCount);
-//
-//    // not initialized
-//    try {
-//      Environment.clearAllProperties();
-//      fail("Expected an exception to be thrown.");
-//    } catch (IllegalStateException ex) {
-//    }
-//
-//    getInstance0Arg();
-//
-//    for (int i = 0; i < propCount; i++) {
-//      props.put(RandomValue.getString(1, 10), RandomValue.getString(1, 10));
-//    }
-//
-//    // add properties
-//    for (Map.Entry<String, String> propEntry : props.entrySet()) {
-//      Environment.setProperty(
-//              prefix, propEntry.getKey(), propEntry.getValue());
-//    }
-//
-//    // read properties
-//    for (Map.Entry<String, String> propEntry : props.entrySet()) {
-//      assertEquals("Property not restored.", propEntry.getValue(),
-//              Environment.getProperty(prefix, propEntry.getKey()));
-//    }
-//  }
+  /**
+   * Test of getDataProvider method, of class Environment.
+   *
+   * @throws Exception Any exception indicates an error
+   */
+  @Test
+  public void testGetDataProvider() {
+    assertEquals(msg("DataProvider class differs."), Environment.
+            getDataProvider().getClass(), getDataProviderClass());
+  }
+
+  /**
+   * Test of getIndexReader method, of class Environment.
+   *
+   * @throws Exception Any exception indicates an error
+   */
+  @Test
+  public void testGetIndexReader() throws Exception {
+    assertNotNull(msg("IndexReader was null."), Environment.getIndexReader());
+  }
+
+  /**
+   * Test of getIndexPath method, of class Environment.
+   *
+   * @throws Exception Any exception indicates an error
+   */
+  @Test
+  public void testGetIndexPath() throws Exception {
+    final String result = Environment.getIndexPath();
+
+    assertFalse(msg("IndexPath was empty."), result.isEmpty());
+    final File f = new File(result);
+    assertTrue(msg("IndexPath does not exist."), f.exists());
+  }
+
+  /**
+   * Test of getDataPath method, of class Environment.
+   *
+   * @throws Exception Any exception indicates an error
+   */
+  @Test
+  public void testGetDataPath() throws Exception {
+    final String result = Environment.getDataPath();
+
+    assertFalse(msg("DataPath was empty."), result.isEmpty());
+    final File f = new File(result);
+    assertTrue(msg("DataPath does not exist."), f.exists());
+  }
+
+  /**
+   * Test functions that should fail, if the {@link Environment} is not
+   * initialized.
+   *
+   * @throws Exception Any exception indicates an error
+   */
+  private void testUninitialized() throws Exception {
+    try {
+      Environment.getDataPath();
+      fail(msg("Expected an Exception."));
+    } catch (IllegalStateException ex) {
+    }
+
+    try {
+      Environment.getDataProvider();
+      fail(msg("Expected an Exception."));
+    } catch (IllegalStateException ex) {
+    }
+
+    try {
+      Environment.getFields();
+      fail(msg("Expected an Exception."));
+    } catch (IllegalStateException ex) {
+    }
+
+    try {
+      Environment.getIndexGeneration();
+      fail(msg("Expected an Exception."));
+    } catch (IllegalStateException ex) {
+    }
+
+    try {
+      Environment.getIndexPath();
+      fail(msg("Expected an Exception."));
+    } catch (IllegalStateException ex) {
+    }
+
+    try {
+      Environment.getProperties(RandomValue.getString(10));
+      fail(msg("Expected an Exception."));
+    } catch (IllegalStateException ex) {
+    }
+
+    try {
+      Environment.getProperty(RandomValue.getString(10), RandomValue.
+              getString(10));
+      fail(msg("Expected an Exception."));
+    } catch (IllegalStateException ex) {
+    }
+
+    try {
+      Environment.getProperty(RandomValue.getString(10), RandomValue.
+              getString(10), RandomValue.getString(10));
+      fail(msg("Expected an Exception."));
+    } catch (IllegalStateException ex) {
+    }
+
+    assertTrue(msg("Expected empty stopwords."), Environment.getStopwords().
+            isEmpty());
+  }
+
+  /**
+   * Test of clear method, of class Environment.
+   *
+   * @throws Exception Any exception indicates an error
+   */
+  @Test
+  public void testClear() throws Exception {
+    assertTrue(msg("Environment not initialized."), Environment.
+            isInitialized());
+    Environment.clear();
+    testUninitialized();
+  }
+
+  /**
+   * Test of saveProperties method, of class Environment.
+   *
+   * @throws Exception Any exception indicates an error
+   */
+  @Test
+  public void testSaveProperties() throws Exception {
+    Environment.saveProperties();
+  }
+
+  /**
+   * Test of setProperty method, of class Environment.
+   */
+  @Test
+  public void testSetProperty() {
+    final String prefix = RandomValue.getString(1, 100);
+    final String key = RandomValue.getString(1, 100);
+    final String value = RandomValue.getString(1, 100);
+    Environment.setProperty(prefix, key, value);
+  }
+
+  /**
+   * Test of removeProperty method, of class Environment.
+   */
+  @Test
+  public void testRemoveProperty() {
+    final String prefix = RandomValue.getString(1, 100);
+    final String key = RandomValue.getString(1, 100);
+    final String value = RandomValue.getString(1, 100);
+
+    Environment.setProperty(prefix, key, value);
+    final String result = (String) Environment.removeProperty(prefix, key);
+    assertEquals(msg("Removed property value differs."), value, result);
+  }
+
+  /**
+   * Test of getProperty method, of class Environment.
+   */
+  @Test
+  public void testGetProperty_String_String() {
+    final String prefix = RandomValue.getString(1, 100);
+    final String key = RandomValue.getString(1, 100);
+    final String value = RandomValue.getString(1, 100);
+    Environment.setProperty(prefix, key, value);
+    final String result = Environment.getProperty(prefix, key);
+    assertEquals(msg("Retrieved property value differs."), value, result);
+  }
+
+  /**
+   * Compare two data maps.
+   *
+   * @param expResult Map with expected data
+   * @param result Map with result data
+   */
+  private void compareDataMap(final Map<String, String> expResult,
+          final Map<String, ?> result) {
+    assertEquals(msg("Value map size differs."), expResult.size(), result.
+            size());
+    assertTrue(msg("Value map key list differs."), result.keySet().
+            containsAll(
+                    expResult.keySet()));
+
+    for (Entry<String, String> entry : expResult.entrySet()) {
+      final String key = entry.getKey();
+      assertEquals(msg("Value differs. key=" + key), result.get(key), result.
+              get(
+                      key));
+    }
+  }
+
+  /**
+   * Test of getProperties method, of class Environment.
+   */
+  @Test
+  public void testGetProperties() {
+    final String prefix = RandomValue.getString(1, 100);
+    final int amount = RandomValue.getInteger(10, 1000);
+    final Map<String, String> expResult = new HashMap<>(amount);
+
+    for (int i = 0; i < amount;) {
+      if (expResult.put(RandomValue.getString(1, 100), RandomValue.
+              getString(1,
+                      100)) == null) {
+        i++;
+      }
+    }
+
+    for (Entry<String, String> entry : expResult.entrySet()) {
+      Environment.setProperty(prefix, entry.getKey(), entry.getValue());
+    }
+
+    final Map<String, Object> result = Environment.getProperties(prefix);
+    compareDataMap(expResult, result);
+  }
+
+  /**
+   * Test of clearProperties method, of class Environment.
+   */
+  @Test
+  public void testClearProperties() {
+    final String firstPrefix = RandomValue.getString(1, 100);
+    String secondPrefix = RandomValue.getString(1, 100);
+    final int amount = RandomValue.getInteger(10, 1000);
+    final Map<String, String> firstExpResult = new HashMap<>(amount);
+    final Map<String, String> secondExpResult = new HashMap<>(amount);
+
+    // ensure unique names
+    while (firstPrefix.equals(secondPrefix)) {
+      secondPrefix = RandomValue.getString(1, 100);
+    }
+
+    // fill first map
+    for (int i = 0; i < amount;) {
+      if (firstExpResult.put(RandomValue.getString(1, 100), RandomValue.
+              getString(1, 100)) == null) {
+        i++;
+      }
+    }
+    for (Entry<String, String> entry : firstExpResult.entrySet()) {
+      Environment.setProperty(firstPrefix, entry.getKey(), entry.getValue());
+    }
+
+    // fill second map
+    for (int i = 0; i < amount;) {
+      if (secondExpResult.put(RandomValue.getString(1, 100), RandomValue.
+              getString(1, 100)) == null) {
+        i++;
+      }
+    }
+    for (Entry<String, String> entry : secondExpResult.entrySet()) {
+      Environment.setProperty(secondPrefix, entry.getKey(), entry.getValue());
+    }
+
+    // check first data
+    compareDataMap(firstExpResult, Environment.getProperties(firstPrefix));
+
+    // check second data
+    compareDataMap(secondExpResult, Environment.getProperties(secondPrefix));
+
+    Environment.clearProperties(firstPrefix);
+
+    // check first data (deleted)
+    assertTrue(msg("Data map should be empty."), Environment.getProperties(
+            firstPrefix).isEmpty());
+
+    // check second data (should be still there)
+    compareDataMap(secondExpResult, Environment.getProperties(secondPrefix));
+  }
+
+  /**
+   * Test of clearAllProperties method, of class Environment.
+   */
+  @Test
+  public void testClearAllProperties() {
+    final String firstPrefix = RandomValue.getString(1, 100);
+    String secondPrefix = RandomValue.getString(1, 100);
+    final int amount = RandomValue.getInteger(10, 1000);
+    final Map<String, String> firstExpResult = new HashMap<>(amount);
+    final Map<String, String> secondExpResult = new HashMap<>(amount);
+
+    // ensure unique names
+    while (firstPrefix.equals(secondPrefix)) {
+      secondPrefix = RandomValue.getString(1, 100);
+    }
+
+    // fill first map
+    for (int i = 0; i < amount;) {
+      if (firstExpResult.put(RandomValue.getString(1, 100), RandomValue.
+              getString(1, 100)) == null) {
+        i++;
+      }
+    }
+    for (Entry<String, String> entry : firstExpResult.entrySet()) {
+      Environment.setProperty(firstPrefix, entry.getKey(), entry.getValue());
+    }
+
+    // fill second map
+    for (int i = 0; i < amount;) {
+      if (secondExpResult.put(RandomValue.getString(1, 100), RandomValue.
+              getString(1, 100)) == null) {
+        i++;
+      }
+    }
+    for (Entry<String, String> entry : secondExpResult.entrySet()) {
+      Environment.setProperty(secondPrefix, entry.getKey(), entry.getValue());
+    }
+
+    // check first data
+    compareDataMap(firstExpResult, Environment.getProperties(firstPrefix));
+
+    // check second data
+    compareDataMap(secondExpResult, Environment.getProperties(secondPrefix));
+
+    Environment.clearAllProperties();
+
+    // check first data (deleted)
+    assertTrue(msg("Data map should be empty."), Environment.getProperties(
+            firstPrefix).isEmpty());
+
+    // check second data (deleted)
+    assertTrue(msg("Data map should be empty."), Environment.getProperties(
+            secondPrefix).isEmpty());
+  }
+
+  /**
+   * Test of getProperty method, of class Environment.
+   */
+  @Test
+  public void testGetProperty_3args() {
+    final String firstPrefix = RandomValue.getString(1, 100);
+    String secondPrefix = RandomValue.getString(1, 100);
+    final int amount = RandomValue.getInteger(10, 1000);
+    final Collection<String> firstKeys = new HashSet<>(amount);
+    final Collection<String> secondKeys = new HashSet<>(amount);
+    final Map<String, String> firstExpResult = new HashMap<>(amount);
+    final Map<String, String> secondExpResult = new HashMap<>(amount);
+
+    // ensure unique names
+    while (firstPrefix.equals(secondPrefix)) {
+      secondPrefix = RandomValue.getString(1, 100);
+    }
+
+    // fill first map
+    for (int i = 0; i < amount;) {
+      final String key = RandomValue.getString(1, 100);
+      if (RandomValue.getBoolean()) {
+        firstExpResult.put(key, RandomValue.getString(1, 100));
+      }
+      if (firstKeys.add(key)) {
+        i++;
+      }
+    }
+    for (Entry<String, String> entry : firstExpResult.entrySet()) {
+      Environment.setProperty(firstPrefix, entry.getKey(), entry.getValue());
+    }
+
+    // fill second map
+    for (int i = 0; i < amount;) {
+      final String key = RandomValue.getString(1, 100);
+      if (RandomValue.getBoolean()) {
+        secondExpResult.put(key, RandomValue.getString(1, 100));
+      }
+      if (secondKeys.add(key)) {
+        i++;
+      }
+    }
+    for (Entry<String, String> entry : secondExpResult.entrySet()) {
+      Environment.setProperty(secondPrefix, entry.getKey(), entry.getValue());
+    }
+
+    // check first data
+    compareDataMap(firstExpResult, Environment.getProperties(firstPrefix));
+
+    // check second data
+    compareDataMap(secondExpResult, Environment.getProperties(secondPrefix));
+
+    // check first map entries
+    final Map<String, Object> firstResult = Environment.getProperties(
+            firstPrefix);
+    for (String key : firstKeys) {
+      final String value = (String) firstResult.get(key);
+      final String dValue = RandomValue.getString(1, 100);
+      if (value == null) {
+        assertEquals(msg("Expected default value."), dValue, Environment.
+                getProperty(firstPrefix, key, dValue));
+      } else {
+        assertEquals(msg("Expected defined value."), value, Environment.
+                getProperty(firstPrefix, key, dValue));
+      }
+    }
+
+    // check second map entries
+    final Map<String, Object> secondResult = Environment.getProperties(
+            secondPrefix);
+    for (String key : secondKeys) {
+      final String value = (String) secondResult.get(key);
+      final String dValue = RandomValue.getString(1, 100);
+      if (value == null) {
+        assertEquals(msg("Expected default value."), dValue, Environment.
+                getProperty(secondPrefix, key, dValue));
+      } else {
+        assertEquals(msg("Expected defined value."), value, Environment.
+                getProperty(secondPrefix, key, dValue));
+      }
+    }
+  }
+
+  /**
+   * Test of shutdown method, of class Environment.
+   *
+   * @throws Exception Any exception indicates an error
+   */
+  @Test
+  public void testShutdown() throws Exception {
+    Environment.shutdown();
+    testUninitialized();
+  }
 }

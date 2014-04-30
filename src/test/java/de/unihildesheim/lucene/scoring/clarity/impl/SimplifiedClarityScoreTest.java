@@ -24,17 +24,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import static org.junit.Assert.assertEquals;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Test for {@link SimplifiedClarityScore}.
  *
- *
+ * @author Jens Bertram
  */
-@RunWith(Parameterized.class)
 public final class SimplifiedClarityScoreTest
         extends MultiIndexDataProviderTestCase {
 
@@ -68,7 +65,6 @@ public final class SimplifiedClarityScoreTest
    */
   @Test
   public void testCalculateClarity() throws Exception {
-    LOG.info("Test calculateClarity");
     final String query = index.getQueryString();
     final SimplifiedClarityScore instance = new SimplifiedClarityScore();
 
@@ -97,9 +93,21 @@ public final class SimplifiedClarityScoreTest
 
     final ClarityScoreResult result = instance.calculateClarity(query);
 
-    LOG.debug("Scores test={} scs={}", score, result.getScore());
+    final double maxResult = Math.max(score, result.getScore());
+    final double minResult = Math.min(score, result.getScore());
+    LOG.debug(msg("SCORE test={} scs={} deltaAllow={} delta={}"), score,
+            result.getScore(), ALLOWED_SCORE_DELTA, maxResult - minResult);
+
     assertEquals(msg("Score mismatch."), score, result.getScore(),
             ALLOWED_SCORE_DELTA);
+  }
+
+  /**
+   * Test of setConfiguration method, of class SimplifiedClarityScore.
+   */
+  @Test
+  public void testSetConfiguration() {
+    // not implemented
   }
 
 }

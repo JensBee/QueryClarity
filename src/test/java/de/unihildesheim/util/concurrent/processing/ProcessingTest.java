@@ -14,30 +14,23 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 package de.unihildesheim.util.concurrent.processing;
 
+import de.unihildesheim.TestCase;
 import de.unihildesheim.util.RandomValue;
 import java.util.ArrayList;
 import java.util.Collection;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Test for {@link Processing}.
- 
+ *
+ * @author Jens Bertram
  */
-public class ProcessingTest {
-
-  /**
-   * Logger instance for this class.
-   */
-  private static final Logger LOG = LoggerFactory.getLogger(
-          ProcessingTest.class);
+public class ProcessingTest extends TestCase {
 
   /**
    * General rule to catch expected exceptions.
@@ -51,7 +44,6 @@ public class ProcessingTest {
    */
   @Test
   public void testSetSource() {
-    LOG.info("Test setSource");
     final Collection<Object> coll = new ArrayList<>(1);
     final Source newSource = new CollectionSource<>(coll);
     final Processing instance = new Processing();
@@ -70,7 +62,6 @@ public class ProcessingTest {
    */
   @Test
   public void testSetSourceAndTarget() {
-    LOG.info("Test setSourceAndTarget");
     final Collection<Object> coll = new ArrayList<>(1);
     final Source newSource = new CollectionSource<>(coll);
     @SuppressWarnings("unchecked")
@@ -89,7 +80,6 @@ public class ProcessingTest {
    */
   @Test
   public void testSetTarget() {
-    LOG.info("Test setTarget");
     final Collection<String> coll = new ArrayList<>(1);
     final Source newSource = new CollectionSource<>(coll);
     @SuppressWarnings("unchecked")
@@ -112,7 +102,6 @@ public class ProcessingTest {
   @Test
   @SuppressWarnings("unchecked")
   public void testShutDown() {
-    LOG.info("Test shutDown");
     Collection<String> coll = new ArrayList<>(1);
     Source newSource = new CollectionSource<>(coll);
     Target newTarget = new Target.TargetTest<>(newSource);
@@ -125,7 +114,7 @@ public class ProcessingTest {
 
     int collSize = RandomValue.getInteger(100, 10000);
     coll = new ArrayList<>(collSize);
-    for (int i=0; i<collSize; i++) {
+    for (int i = 0; i < collSize; i++) {
       coll.add(RandomValue.getString(1, 10));
     }
     newSource = new CollectionSource<>(coll);
@@ -140,10 +129,9 @@ public class ProcessingTest {
    */
   @Test
   public void testDebugTestSource() {
-    LOG.info("Test debugTestSource");
     int collSize = RandomValue.getInteger(100, 10000);
     Collection<String> coll = new ArrayList<>(collSize);
-    for (int i=0; i<collSize; i++) {
+    for (int i = 0; i < collSize; i++) {
       coll.add(RandomValue.getString(1, 10));
     }
     final Source newSource = new CollectionSource<>(coll);
@@ -161,7 +149,6 @@ public class ProcessingTest {
    */
   @Test
   public void testProcess_0args() {
-    LOG.info("Test process 0args");
     Collection<String> coll = new ArrayList<>(1);
     Source newSource = new CollectionSource<>(coll);
     @SuppressWarnings("unchecked")
@@ -171,7 +158,7 @@ public class ProcessingTest {
 
     final int collSize = RandomValue.getInteger(100, 10000);
     coll = new ArrayList<>(collSize);
-    for (int i=0; i<collSize; i++) {
+    for (int i = 0; i < collSize; i++) {
       coll.add(RandomValue.getString(1, 10));
     }
     instance.process();
@@ -182,7 +169,6 @@ public class ProcessingTest {
    */
   @Test
   public void testProcess_int() {
-    LOG.info("Test process 1args");
     Collection<String> coll = new ArrayList<>(1);
     Source newSource = new CollectionSource<>(coll);
     @SuppressWarnings("unchecked")
@@ -192,10 +178,11 @@ public class ProcessingTest {
 
     final int collSize = RandomValue.getInteger(100, 10000);
     coll = new ArrayList<>(collSize);
-    for (int i=0; i<collSize; i++) {
+    for (int i = 0; i < collSize; i++) {
       coll.add(RandomValue.getString(1, 10));
     }
-    instance.process(4);
+    instance.process(RandomValue.getInteger(1, Runtime.getRuntime().
+            availableProcessors()));
   }
 
 }

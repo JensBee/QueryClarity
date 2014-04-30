@@ -44,6 +44,18 @@ public final class IndexTestUtil {
   private static final Logger LOG = LoggerFactory.getLogger(
           IndexTestUtil.class);
 
+  /**
+   * Creates an {@link IndexDataProvider} instance and sets it active in the
+   * {@link Environment} using the {@link TestIndexDataProvider}.
+   *
+   * @param index {
+   * @TestIndexDataProvider} to access utility functions
+   * @param dataProv {@link IndexDataProvider} class to create
+   * @param fields Document fields to use (may be null, to use all)
+   * @param stopwords Stopwords to use (may be null, to use none)
+   * @return {@link IndexDataProvider} instance
+   * @throws Exception Thrown on lower level errors
+   */
   public static IndexDataProvider createInstance(
           final TestIndexDataProvider index,
           final Class<? extends IndexDataProvider> dataProv,

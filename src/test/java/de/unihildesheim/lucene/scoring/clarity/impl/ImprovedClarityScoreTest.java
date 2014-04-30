@@ -22,6 +22,7 @@ import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.document.Feedback;
+import de.unihildesheim.lucene.index.ExternalDocTermDataManager;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.metrics.CollectionMetrics;
 import de.unihildesheim.lucene.metrics.DocumentMetrics;
@@ -41,8 +42,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,7 +50,6 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram
  */
-@RunWith(Parameterized.class)
 public final class ImprovedClarityScoreTest
         extends MultiIndexDataProviderTestCase {
 
@@ -138,7 +136,6 @@ public final class ImprovedClarityScoreTest
    */
   @Test
   public void testCalculateClarity() throws Exception {
-    LOG.info("Test calculateClarity");
     final String query = index.getQueryString();
     final ImprovedClarityScoreConfiguration conf
             = new ImprovedClarityScoreConfiguration();
@@ -146,8 +143,6 @@ public final class ImprovedClarityScoreTest
 
     // calculate
     ImprovedClarityScore.Result result = instance.calculateClarity(query);
-
-    LOG.info("Calculating reference score.");
 
     // check configuration
     assertEquals(msg("Configuration object mismatch."), conf, result.
@@ -201,7 +196,11 @@ public final class ImprovedClarityScoreTest
       score += pqt * MathUtils.log2(pqt / CollectionMetrics.relTf(fbTerm));
     }
 
-    LOG.debug("Scores test={} ics={}", score, result.getScore());
+    final double maxResult = Math.max(score, result.getScore());
+    final double minResult = Math.min(score, result.getScore());
+    LOG.debug(msg("SCORE test={} ics={} deltaAllow={} delta={}"), score,
+            result.getScore(), ALLOWED_SCORE_DELTA, maxResult - minResult);
+
     assertEquals(msg("Score mismatch."), score, result.getScore(),
             ALLOWED_SCORE_DELTA);
   }
@@ -364,5 +363,19 @@ public final class ImprovedClarityScoreTest
                 (Double) valueMap.get(term), 0d);
       }
     }
+  }
+
+  /**
+   * Test of testGetExtDocMan method, of class ImprovedClarityScore.
+   */
+  @Test
+  public void testTestGetExtDocMan() {
+    System.out.println("testGetExtDocMan");
+    ImprovedClarityScore instance = new ImprovedClarityScore();
+    ExternalDocTermDataManager expResult = null;
+    ExternalDocTermDataManager result = instance.testGetExtDocMan();
+    assertEquals(expResult, result);
+    // TODO review the generated test code and remove the default call to fail.
+    fail("The test case is a prototype.");
   }
 }

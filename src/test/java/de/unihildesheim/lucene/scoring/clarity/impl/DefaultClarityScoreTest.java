@@ -21,11 +21,9 @@ import de.unihildesheim.SupportsPersistenceTestMethods;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.lucene.document.DocumentModel;
-import de.unihildesheim.lucene.document.Feedback;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.metrics.CollectionMetrics;
 import de.unihildesheim.lucene.metrics.DocumentMetrics;
-import de.unihildesheim.lucene.query.TermsQueryBuilder;
 import de.unihildesheim.util.ByteArrayUtil;
 import de.unihildesheim.util.MathUtils;
 import de.unihildesheim.util.RandomValue;
@@ -34,13 +32,10 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import org.apache.lucene.search.Query;
 import org.junit.Assert;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,7 +44,6 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram
  */
-@RunWith(Parameterized.class)
 public final class DefaultClarityScoreTest
         extends MultiIndexDataProviderTestCase {
 
@@ -274,45 +268,7 @@ public final class DefaultClarityScoreTest
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
-  public void testCalculateClarity_String_Collection() throws Exception {
-    final String queryString = index.getQueryString();
-    final Query query = TermsQueryBuilder.buildFromEnvironment(queryString);
-    final DefaultClarityScoreConfiguration dcc
-            = new DefaultClarityScoreConfiguration();
-    final DefaultClarityScore instance = new DefaultClarityScore(dcc);
-
-    final Collection<Integer> feedbackDocs = Feedback.getFixed(query,
-            dcc.getFeedbackDocCount());
-    final Collection<DocumentModel> fbDocModels = new ArrayList<>(
-            feedbackDocs.size());
-    for (Integer docId : feedbackDocs) {
-      fbDocModels.add(DocumentMetrics.getModel(docId));
-    }
-
-    final DefaultClarityScore.Result result = instance.calculateClarity(
-            queryString, feedbackDocs);
-
-    LOG.debug("RES: lmw={} fbSize={} qtSize={}", result.getConfiguration().
-            getLangModelWeight(), fbDocModels.size(), result.getQueryTerms().
-            size());
-    final double score = calc_score(result.getConfiguration().
-            getLangModelWeight(),
-            fbDocModels, result.getQueryTerms());
-
-    LOG.debug(msg("Scores test={} dcs={} delta={}"), score, result.getScore(),
-            ALLOWED_SCORE_DELTA);
-
-    assertEquals(msg("Clarity score mismatch."), score,
-            result.getScore(), ALLOWED_SCORE_DELTA);
-  }
-
-  /**
-   * Test of calculateClarity method, of class DefaultClarityScore.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testCalculateClarity_String() throws Exception {
+  public void testCalculateClarity() throws Exception {
     final String queryString = index.getQueryString();
     final DefaultClarityScoreConfiguration dcc
             = new DefaultClarityScoreConfiguration();
@@ -330,8 +286,10 @@ public final class DefaultClarityScoreTest
     final double score = calc_score(dcc.getLangModelWeight(),
             fbDocModels, result.getQueryTerms());
 
-    LOG.debug(msg("Scores test={} dcs={} delta={}"), getDataProviderName(),
-            score, result.getScore(), ALLOWED_SCORE_DELTA);
+    final double maxResult = Math.max(score, result.getScore());
+    final double minResult = Math.min(score, result.getScore());
+    LOG.debug(msg("SCORE test={} dcs={} deltaAllow={} delta={}"), score,
+            result.getScore(), ALLOWED_SCORE_DELTA, maxResult - minResult);
 
     assertEquals(msg("Clarity score mismatch."), score,
             result.getScore(), ALLOWED_SCORE_DELTA);

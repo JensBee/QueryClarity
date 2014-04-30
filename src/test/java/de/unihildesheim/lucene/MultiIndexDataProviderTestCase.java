@@ -16,19 +16,17 @@
  */
 package de.unihildesheim.lucene;
 
-import de.unihildesheim.TestMethodInfo;
+import de.unihildesheim.TestCase;
 import de.unihildesheim.lucene.index.DirectIndexDataProvider;
 import de.unihildesheim.lucene.index.IndexDataProvider;
 import de.unihildesheim.lucene.index.IndexTestUtil;
 import de.unihildesheim.lucene.index.TestIndexDataProvider;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import org.junit.AfterClass;
 import static org.junit.Assert.assertTrue;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Rule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
@@ -38,13 +36,7 @@ import org.slf4j.LoggerFactory;
  * Test case utilities for testing with multiple {@link IndexDataProvider}s.
  */
 @RunWith(Parameterized.class)
-public class MultiIndexDataProviderTestCase {
-
-  /**
-   * Log test methods.
-   */
-  @Rule
-  public final TestMethodInfo watcher = new TestMethodInfo();
+public class MultiIndexDataProviderTestCase extends TestCase {
 
   /**
    * Logger instance for this class.
@@ -140,6 +132,8 @@ public class MultiIndexDataProviderTestCase {
    */
   @Before
   public final void setUp() throws Exception {
+    Environment.clear();
+    Environment.clearAllProperties();
     caseSetUp();
   }
 
@@ -161,8 +155,8 @@ public class MultiIndexDataProviderTestCase {
    * @return Message prepended with testing informations
    */
   protected final String msg(final String msg) {
-    return "(" + Environment.getDataProvider().getClass().getSimpleName()
-            + ", " + this.runType.name() + ") " + msg;
+    return "(" + getDataProviderName() + ", " + this.runType.name() + ") "
+            + msg;
   }
 
   /**
@@ -202,11 +196,9 @@ public class MultiIndexDataProviderTestCase {
   /**
    * Setup the {@link IndexDataProvider} for a test.
    *
-   * @throws IOException Any exception indicates an error
+   * @throws Exception Any exception indicates an error
    */
   protected final void caseSetUp() throws Exception {
-    Environment.clear();
-    Environment.clearAllProperties();
     LOG.info("MutilindexDataProviderTestCase SetUp "
             + "dataProvider={} configuration={}",
             this.dataProvType == null ? "TestIndexDataProvider"
@@ -242,12 +234,29 @@ public class MultiIndexDataProviderTestCase {
   }
 
   /**
+   * Get the class of the {@link IndexDataProvider} currently in use.
+   *
+   * @return DataProvider class
+   */
+  protected final Class<? extends IndexDataProvider> getDataProviderClass() {
+    if (this.dataProvType == null) {
+      return TestIndexDataProvider.class;
+    }
+    return this.dataProvType;
+  }
+
+  /**
    * Get the name of the {@link IndexDataProvider} currently in use.
    *
    * @return DataProvider name
    */
   protected final String getDataProviderName() {
-    return Environment.getDataProvider().getClass().getCanonicalName() + " "
-            + runType.name();
+    final Class clazz;
+    if (this.dataProvType == null) {
+      clazz = TestIndexDataProvider.class;
+    } else {
+      clazz = this.dataProvType;
+    }
+    return clazz.getCanonicalName() + " " + runType.name();
   }
 }

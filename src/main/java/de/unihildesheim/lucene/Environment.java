@@ -190,6 +190,13 @@ public final class Environment {
   }
 
   /**
+   * Empty private constructor. Use the {@link Environment.Builder} to create.
+   */
+  private Environment() {
+    // empty
+  }
+
+  /**
    * Create the {@link Environment}.
    *
    * @param iPath Index path. May be null, if no index should be used. If so
@@ -338,7 +345,8 @@ public final class Environment {
   /**
    * Get the list of stop-words.
    *
-   * @return List of stop-words
+   * @return List of stop-words. An empty list is returned, if the environment
+   * is not initialized.
    */
   public static Collection<String> getStopwords() {
     return Collections.unmodifiableCollection(Environment.STOPWORDS);

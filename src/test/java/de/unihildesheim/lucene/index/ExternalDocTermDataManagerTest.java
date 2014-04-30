@@ -17,7 +17,7 @@
 package de.unihildesheim.lucene.index;
 
 import de.unihildesheim.ByteArray;
-import de.unihildesheim.TestMethodInfo;
+import de.unihildesheim.TestCase;
 import de.unihildesheim.Tuple;
 import de.unihildesheim.util.RandomValue;
 import de.unihildesheim.util.concurrent.processing.CollectionSource;
@@ -27,7 +27,6 @@ import java.util.Collection;
 import java.util.Map;
 import static org.junit.Assert.assertEquals;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
@@ -37,13 +36,7 @@ import org.mapdb.DBMaker;
  *
  * @author Jens Bertram
  */
-public final class ExternalDocTermDataManagerTest {
-
-  /**
-   * Log test methods.
-   */
-  @Rule
-  public final TestMethodInfo watcher = new TestMethodInfo();
+public final class ExternalDocTermDataManagerTest extends TestCase {
 
   /**
    * Database used for storing values.

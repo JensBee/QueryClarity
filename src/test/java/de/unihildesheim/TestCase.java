@@ -14,33 +14,20 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package org.mapdb;
+package de.unihildesheim;
 
-import java.io.File;
-import java.util.Map;
-import org.junit.Test;
+import org.junit.Rule;
 
-public class Issue312Test {
+/**
+ * Generic test case template.
+ *
+ * @author Jens Bertram
+ */
+public class TestCase {
 
-  @Test
-  public void test() {
-    DB db = DBMaker.newFileDB(new File("rotest"))
-            .mmapFileEnableIfSupported()
-            .transactionDisable()
-            .make();
-
-    Map<Long, String> map = db.createTreeMap("data").make();
-    for (long i = 0; i < 100000; i++) {
-      map.put(i, i + "hi my friend " + i);
-    }
-    db.commit();
-    db.close();
-
-    db = DBMaker.newFileDB(new File("rotest"))
-            .mmapFileEnableIfSupported()
-            .transactionDisable()
-            .readOnly()
-            .make();
-
-  }
+  /**
+   * Log test methods.
+   */
+  @Rule
+  public final TestMethodInfo watcher = new TestMethodInfo();
 }

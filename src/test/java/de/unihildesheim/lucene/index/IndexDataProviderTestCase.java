@@ -19,7 +19,7 @@ package de.unihildesheim.lucene.index;
 import de.unihildesheim.ByteArray;
 import de.unihildesheim.SerializableByte;
 import de.unihildesheim.SupportsPersistenceTestMethods;
-import de.unihildesheim.TestMethodInfo;
+import de.unihildesheim.TestCase;
 import de.unihildesheim.lucene.Environment;
 import de.unihildesheim.lucene.document.DocumentModel;
 import de.unihildesheim.lucene.index.AbstractIndexDataProviderTest.AbstractIndexDataProviderTestImpl;
@@ -37,7 +37,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import org.junit.Rule;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,28 +46,23 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram
  */
-public abstract class IndexDataProviderTestMethods {
+public abstract class IndexDataProviderTestCase extends TestCase {
 
   /**
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(
-          IndexDataProviderTestMethods.class);
+          IndexDataProviderTestCase.class);
 
   /**
    * Test-Index to check results against.
    */
   protected final TestIndexDataProvider index;
+
   /**
    * Current {@link IndexDataProvider} class to test.
    */
   protected final Class<? extends IndexDataProvider> dataProv;
-
-  /**
-   * Log test methods.
-   */
-  @Rule
-  public final TestMethodInfo watcher = new TestMethodInfo();
 
   /**
    * Private empty constructor for utility class.
@@ -76,7 +70,7 @@ public abstract class IndexDataProviderTestMethods {
    * @param newIndex TestIndex to check against
    * @param newDataProv DataProvider to test
    */
-  public IndexDataProviderTestMethods(
+  public IndexDataProviderTestCase(
           final TestIndexDataProvider newIndex,
           final Class<? extends IndexDataProvider> newDataProv) {
     assertTrue("TestIndex is not initialized.", TestIndexDataProvider.

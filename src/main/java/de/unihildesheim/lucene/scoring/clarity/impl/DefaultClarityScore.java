@@ -461,43 +461,42 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
     return result;
   }
 
-  /**
-   * Proxy method to add feedback documents and prepare the query. Also allows
-   * testing of the calculation.
-   *
-   * @param query Original query
-   * @param feedbackDocuments Documents to use for feedback calculations
-   * @return Calculated clarity score
-   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
-   * no index is provided in the {@link Environment}
-   */
-  protected Result calculateClarity(final String query,
-          final Collection<Integer> feedbackDocuments) throws
-          Environment.NoIndexException {
-    if (!this.hasCache) {
-      this.cacheTemporary = true;
-      try {
-        initCache("temp", true, true);
-      } catch (IOException ex) {
-        throw new IllegalStateException("Error creating cache.", ex);
-      }
-    }
-    final Collection<ByteArray> queryTerms;
-    try {
-      // Get unique query terms
-      queryTerms = QueryUtils.getUniqueQueryTerms(query);
-    } catch (UnsupportedEncodingException | ParseException ex) {
-      LOG.error("Caught exception parsing query.", ex);
-      return null;
-    }
-
-    if (queryTerms == null || queryTerms.isEmpty()) {
-      throw new IllegalStateException("No query terms.");
-    }
-
-    return calculateClarity(feedbackDocuments, queryTerms);
-  }
-
+//  /**
+//   * Proxy method to add feedback documents and prepare the query. Also allows
+//   * testing of the calculation.
+//   *
+//   * @param query Original query
+//   * @param feedbackDocuments Documents to use for feedback calculations
+//   * @return Calculated clarity score
+//   * @throws de.unihildesheim.lucene.Environment.NoIndexException Thrown, if
+//   * no index is provided in the {@link Environment}
+//   */
+//  protected Result calculateClarity(final String query,
+//          final Collection<Integer> feedbackDocuments) throws
+//          Environment.NoIndexException {
+//    if (!this.hasCache) {
+//      this.cacheTemporary = true;
+//      try {
+//        initCache("temp", true, true);
+//      } catch (IOException ex) {
+//        throw new IllegalStateException("Error creating cache.", ex);
+//      }
+//    }
+//    final Collection<ByteArray> queryTerms;
+//    try {
+//      // Get unique query terms
+//      queryTerms = QueryUtils.getUniqueQueryTerms(query);
+//    } catch (UnsupportedEncodingException | ParseException ex) {
+//      LOG.error("Caught exception parsing query.", ex);
+//      return null;
+//    }
+//
+//    if (queryTerms == null || queryTerms.isEmpty()) {
+//      throw new IllegalStateException("No query terms.");
+//    }
+//
+//    return calculateClarity(feedbackDocuments, queryTerms);
+//  }
   @Override
   public Result calculateClarity(final String query) throws
           ParseException, Environment.NoIndexException {
@@ -521,7 +520,29 @@ public final class DefaultClarityScore implements ClarityScoreCalculation,
       throw new IllegalStateException("No feedback documents.");
     }
 
-    return calculateClarity(query, feedbackDocuments);
+    if (!this.hasCache) {
+      this.cacheTemporary = true;
+      try {
+        initCache("temp", true, true);
+      } catch (IOException ex) {
+        throw new IllegalStateException("Error creating cache.", ex);
+      }
+    }
+
+    final Collection<ByteArray> queryTerms;
+    try {
+      // Get unique query terms
+      queryTerms = QueryUtils.getUniqueQueryTerms(query);
+    } catch (UnsupportedEncodingException | ParseException ex) {
+      LOG.error("Caught exception parsing query.", ex);
+      return null;
+    }
+
+    if (queryTerms == null || queryTerms.isEmpty()) {
+      throw new IllegalStateException("No query terms.");
+    }
+
+    return calculateClarity(feedbackDocuments, queryTerms);
   }
 
   /**
