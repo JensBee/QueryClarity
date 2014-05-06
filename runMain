@@ -42,4 +42,4 @@ MAVEN_OPTS="$MAVEN_OPTS $JVM"
 #java $JVM -XX:+PrintCommandLineFlags -XX:+PrintGCDetails
 #echo --JAVA-INFO--
 #echo
-mvn exec:java -Dexec.mainClass="de.unihildesheim.lucene.scoring.clarity.Main" -Dexec.args="-index ./data/index -data ./data/data -query '$1'"
+mvn exec:java -Dexec.mainClass="de.unihildesheim.iw.lucene.scoring.clarity.Main" -Dexec.args="-index ./data/index -data ./data/data -query '$1'"

@@ -6,4 +6,4 @@ MAVEN_OPTS="$MAVEN_OPTS $JVM"
 CLASS=$1
 shift
 
-mvn exec:java -Dexec.mainClass="de.unihildesheim.lucene.cli.${CLASS}" -Dexec.args="$*"
+mvn exec:java -Dexec.mainClass="de.unihildesheim.iw.lucene.cli.${CLASS}" -Dexec.args="$*"

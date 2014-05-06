@@ -3,6 +3,7 @@
 /clarity.properties
 /*.log
 /*.unison.*
+/*.iml
 /target/
 /data/
 /luke/
