@@ -16,7 +16,6 @@
  */
 package de.unihildesheim.iw.lucene.document;
 
-import de.unihildesheim.iw.lucene.Environment;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
@@ -26,6 +25,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Enumerator iterating over the terms of multiple document fields in lucene
@@ -81,47 +83,27 @@ public final class DocFieldsTermsEnum {
    * @param indexReader {@link IndexReader} instance to use
    * @param targetFields Lucene index fields to operate on
    * @throws java.io.IOException Thrown on low-level I/O errors
+   * @deprecated
    */
   public DocFieldsTermsEnum(final IndexReader indexReader,
       final String[] targetFields)
       throws IOException {
-    this(indexReader, targetFields, null);
-  }
-
-  /**
-   * Generic reusable {@link DocFieldsTermsEnum} instance. To actually reuse
-   * this instance the {@link #setDocument(int)} function must be called before
-   * {@link #next()} can be used, to set the document to operate on. * <p> The
-   * {@link IndexReader} and list of fields will be retrieved from the {@link
-   * Environment}.
-   *
-   * @throws java.io.IOException Thrown on low-level I/O errors
-   * @throws de.unihildesheim.iw.lucene.Environment.NoIndexException Thrown, if
-   * no index is provided in the {@link Environment}
-   */
-  public DocFieldsTermsEnum()
-      throws IOException, Environment.NoIndexException {
-    this(Environment.getIndexReader(), Environment.getFields(), null);
+    this(indexReader, new HashSet<>(Arrays.asList(targetFields)), null);
   }
 
   /**
    * Generic reusable {@link DocFieldsTermsEnum} instance. To actually reuse
    * this instance the {@link #setDocument(int)} function must be called before
    * {@link #next()} can be used, to set the document to operate on.
-   * <p>
-   * The {@link IndexReader} and list of fields will be retrieved from the
-   * {@link Environment}.
    *
-   * @param documentId Lucene document-id for which the enumeration should be
-   * done
+   * @param indexReader {@link IndexReader} instance to use
+   * @param targetFields Lucene index fields to operate on
    * @throws java.io.IOException Thrown on low-level I/O errors
-   * @throws de.unihildesheim.iw.lucene.Environment.NoIndexException Thrown, if
-   * no index is provided in the {@link Environment}
    */
-  public DocFieldsTermsEnum(final int documentId)
-      throws IOException,
-             Environment.NoIndexException {
-    this(Environment.getIndexReader(), Environment.getFields(), documentId);
+  public DocFieldsTermsEnum(final IndexReader indexReader,
+      final Set<String> targetFields)
+      throws IOException {
+    this(indexReader, targetFields, null);
   }
 
   /**
@@ -130,22 +112,20 @@ public final class DocFieldsTermsEnum {
    * @param documentId Lucene document-id for which the enumeration should be
    * done
    * @param indexReader {@link IndexReader} instance to use
-   * @param targetFields Lucene index fields to operate on (list must be unique)
-   * and not modified any more, since passed in.
+   * @param targetFields Lucene index fields to operate on
    * @throws java.io.IOException Thrown on low-level I/O errors
    */
   private DocFieldsTermsEnum(final IndexReader indexReader,
-      final String[] targetFields, final Integer documentId)
-      throws
-      IOException {
+      final Set<String> targetFields, final Integer documentId)
+      throws IOException {
     if (indexReader == null || targetFields == null) {
       throw new IllegalArgumentException(
-          "IndexReader or TargetFields were null");
+          "IndexReader was null");
     }
-    if (targetFields.length == 0) {
+    if (targetFields == null || targetFields.isEmpty()) {
       throw new IllegalArgumentException("No target fields were specified.");
     }
-    this.fields = targetFields.clone();
+    this.fields = targetFields.toArray(new String[targetFields.size()]);
     this.reader = indexReader;
     if (documentId != null) {
       setDocument(documentId);
@@ -157,8 +137,9 @@ public final class DocFieldsTermsEnum {
    *
    * @param documentId Lucene document id
    * @throws java.io.IOException Thrown on low-level I/O errors
+   * @return Self reference
    */
-  public void setDocument(final int documentId)
+  public DocFieldsTermsEnum setDocument(final int documentId)
       throws IOException {
     this.docId = documentId;
     this.docFields = this.reader.getTermVectors(documentId);
@@ -167,6 +148,7 @@ public final class DocFieldsTermsEnum {
                                       + this.docId);
     }
     reset();
+    return this;
   }
 
   /**

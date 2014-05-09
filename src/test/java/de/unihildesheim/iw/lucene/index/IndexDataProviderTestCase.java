@@ -18,16 +18,12 @@ package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.SerializableByte;
-import de.unihildesheim.iw.SupportsPersistenceTestMethods;
 import de.unihildesheim.iw.TestCase;
-import de.unihildesheim.iw.lucene.Environment;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
-import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderTest
-    .AbstractIndexDataProviderTestImpl;
-import de.unihildesheim.iw.util.ByteArrayUtil;
+import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderTest.AbstractIndexDataProviderTestImpl;
+import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
-import org.junit.After;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,11 +33,20 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map.Entry;
+import java.util.Set;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Shared test functions for {@link IndexDataProvider} implementing classes.
+ * <p/>
+ * TODO: final boolean excludeStopwords = stopwords != null; must check against
+ * empty
  *
  * @author Jens Bertram
  */
@@ -59,27 +64,39 @@ public abstract class IndexDataProviderTestCase
    * Test-Index to check results against.
    */
   @SuppressWarnings("checkstyle:visibilitymodifier")
-  protected final TestIndexDataProvider index;
-
-  /**
-   * Current {@link IndexDataProvider} class to test.
-   */
-  @SuppressWarnings("checkstyle:visibilitymodifier")
-  protected final Class<? extends IndexDataProvider> dataProv;
+  protected final TestIndexDataProvider referenceIndex;
 
   /**
    * Private empty constructor for utility class.
    *
-   * @param newIndex TestIndex to check against
-   * @param newDataProv DataProvider to test
+   * @param referenceIndex TestIndex to check against
    */
-  public IndexDataProviderTestCase(
-      final TestIndexDataProvider newIndex,
-      final Class<? extends IndexDataProvider> newDataProv) {
+  public IndexDataProviderTestCase(final TestIndexDataProvider referenceIndex) {
     assertTrue("TestIndex is not initialized.", TestIndexDataProvider.
         isInitialized());
-    this.index = newIndex;
-    this.dataProv = newDataProv;
+    this.referenceIndex = referenceIndex;
+  }
+
+  protected abstract Class<? extends IndexDataProvider> getInstanceClass();
+
+  protected abstract IndexDataProvider createInstance(final Set<String>
+      fields, final Set<String> stopwords)
+      throws Exception;
+
+  private IndexDataProvider setupInstanceForTesting(final boolean randFields,
+      final boolean randStopwords)
+      throws Exception {
+    Set<String> fields = null;
+    Set<String> stopwords = null;
+    if (randFields) {
+      fields = IndexTestUtil.getRandomFields(this.referenceIndex);
+    }
+    if (randStopwords) {
+      stopwords = IndexTestUtil.getRandomStopWords(this.referenceIndex);
+    }
+    this.referenceIndex.prepareTestEnvironment(fields, stopwords);
+    return createInstance(this.referenceIndex.getDocumentFields(),
+        this.referenceIndex.getStopwords());
   }
 
   /**
@@ -88,58 +105,67 @@ public abstract class IndexDataProviderTestCase
    *
    * @param instance Data-provider instance
    * @param msg Message to prepend
-   * @return Message prepended with testing informations
+   * @return Message prepended with testing information
    */
   private static String msg(final IndexDataProvider instance,
       final String msg) {
-    return "(" + instance.getClass().getSimpleName() + ") " + msg;
+    return msg(instance.getClass(), msg);
+  }
+
+  /**
+   * Prepend a message string with the current {@link IndexDataProvider} name
+   * and the testing type.
+   *
+   * @param instance Data-provider instance class
+   * @param msg Message to prepend
+   * @return Message prepended with testing information
+   */
+  private static String msg(final Class<? extends IndexDataProvider> instance,
+      final String msg) {
+    return "(" + instance.getSimpleName() + ") " + msg;
   }
 
   /**
    * Test method for getTermFrequency method.
    *
-   * @param index Test index to get base data from
    * @param instance {@link IndexDataProvider} implementation to test
    */
-  protected static void _testGetTermFrequency_0args(
-      final TestIndexDataProvider index,
-      final IndexDataProvider instance) {
-    assertEquals(msg(instance, "Term frequency differs."), index.
-            getTermFrequency(),
-        instance.getTermFrequency()
-    );
+  private void _testGetTermFrequency_0args(final IndexDataProvider instance) {
+    assertEquals(
+        msg(instance, "Term frequency differs."),
+        this.referenceIndex.getTermFrequency(),
+        instance.getTermFrequency());
   }
 
   /**
    * Test method for getTermFrequency method.
    *
-   * @param index Test index to get base data from
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
   @SuppressWarnings("null")
-  private static void _testGetTermFrequency_ByteArray(
-      final TestIndexDataProvider index,
-      final IndexDataProvider instance)
+  private void _testGetTermFrequency_ByteArray(final IndexDataProvider instance)
       throws Exception {
-    final Collection<ByteArray> stopwords = IndexTestUtil.
-        getStopwordBytesFromEnvironment();
-    final boolean excludeStopwords = !(stopwords == null || stopwords.
-        isEmpty());
+    final boolean excludeStopwords = this.referenceIndex.reference
+        .hasStopwords();
+    final Iterator<ByteArray> idxTermsIt = this.referenceIndex
+        .getTermsIterator();
 
-    final Iterator<ByteArray> idxTermsIt = index.getTermsIterator();
     while (idxTermsIt.hasNext()) {
       final ByteArray idxTerm = idxTermsIt.next();
-      assertEquals(msg(instance, "Term frequency differs (stopped: "
-                                 + excludeStopwords
-                                 + "). term=" + idxTerm),
-          index.getTermFrequency(idxTerm),
+      assertEquals(
+          msg(instance, "Term frequency differs (stopped: "
+              + excludeStopwords + "). term=" + idxTerm),
+          this.referenceIndex.getTermFrequency(idxTerm),
           instance.getTermFrequency(idxTerm)
       );
+
       if (excludeStopwords) {
-        assertFalse(msg(instance, "Stopword found in term list."), stopwords.
-            contains(
-                idxTerm));
+        final Collection<ByteArray> stopwords = this.referenceIndex.reference
+            .getStopwords();
+        assertFalse(
+            msg(instance, "Stopword found in term list."),
+            stopwords.contains(idxTerm));
       }
     }
   }
@@ -147,33 +173,33 @@ public abstract class IndexDataProviderTestCase
   /**
    * Test method for getRelativeTermFrequency method.
    *
-   * @param index Test index to get base data from
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
   @SuppressWarnings("null")
-  private static void _testGetRelativeTermFrequency(
-      final TestIndexDataProvider index,
-      final IndexDataProvider instance)
+  private void _testGetRelativeTermFrequency(final IndexDataProvider instance)
       throws Exception {
-    final Collection<ByteArray> stopwords = IndexTestUtil.
-        getStopwordBytesFromEnvironment();
-    final boolean excludeStopwords = stopwords != null;
-
-    Iterator<ByteArray> idxTermsIt = index.getTermsIterator();
+    final boolean excludeStopwords = this.referenceIndex.reference
+        .hasStopwords();
+    final Iterator<ByteArray> idxTermsIt = this.referenceIndex
+        .getTermsIterator();
 
     while (idxTermsIt.hasNext()) {
       final ByteArray idxTerm = idxTermsIt.next();
-      assertEquals(msg(instance, "Relative term frequency differs (stopped: "
-                                 + excludeStopwords + "). term=" + idxTerm),
-          index.
-              getRelativeTermFrequency(idxTerm), instance.
-              getRelativeTermFrequency(idxTerm), 0
+      assertEquals(
+          msg(instance, "Relative term frequency differs (stopped: "
+              + excludeStopwords + "). term=" + idxTerm),
+          this.referenceIndex.getRelativeTermFrequency(idxTerm),
+          instance.getRelativeTermFrequency(idxTerm),
+          0
       );
+
       if (excludeStopwords) {
-        assertFalse(msg(instance, "Stopword found in term list."), stopwords.
-            contains(
-                idxTerm));
+        final Collection<ByteArray> stopwords =
+            this.referenceIndex.reference.getStopwords();
+        assertFalse(
+            msg(instance, "Stopword found in term list."),
+            stopwords.contains(idxTerm));
       }
     }
   }
@@ -181,105 +207,101 @@ public abstract class IndexDataProviderTestCase
   /**
    * Test method for getTermsIterator method.
    *
-   * @param index Test index to get base data from
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
   @SuppressWarnings("null")
-  private static void _testGetTermsIterator(
-      final TestIndexDataProvider index,
-      final IndexDataProvider instance)
+  private void _testGetTermsIterator(final IndexDataProvider instance)
       throws Exception {
-    final Collection<ByteArray> stopwords = IndexTestUtil.
-        getStopwordBytesFromEnvironment();
-    final boolean excludeStopwords = stopwords != null;
-
-    Iterator<ByteArray> result = instance.getTermsIterator();
+    final boolean excludeStopwords = this.referenceIndex.reference
+        .hasStopwords();
+    final Iterator<ByteArray> result = instance.getTermsIterator();
 
     int iterations = 0;
     while (result.hasNext()) {
       iterations++;
       if (excludeStopwords) {
-        assertFalse(msg(instance, "Found stopword."), stopwords.contains(
-            result.next()));
+        final Collection<ByteArray> stopwords = this.referenceIndex.reference
+            .getStopwords();
+        assertFalse(
+            msg(instance, "Found stopword."),
+            stopwords.contains(result.next()));
       } else {
         result.next();
       }
     }
 
-    assertEquals(msg(instance, "Not all terms found while iterating."),
-        instance.
-            getUniqueTermsCount(), iterations
-    );
-    assertEquals(msg(instance, "Different values for unique terms reported."),
-        index.
-            getUniqueTermsCount(), instance.getUniqueTermsCount()
-    );
+    assertEquals(
+        msg(instance, "Not all terms found while iterating."),
+        instance.getUniqueTermsCount(),
+        iterations);
+    assertEquals(
+        msg(instance, "Different values for unique terms reported."),
+        this.referenceIndex.getUniqueTermsCount(),
+        instance.getUniqueTermsCount());
   }
 
   /**
    * Test of getDocumentCount method.
    *
-   * @param index Test index to get base data from
    * @param instance {@link IndexDataProvider} implementation to test
    */
-  private static void _testGetDocumentCount(
-      final TestIndexDataProvider index,
-      final IndexDataProvider instance) {
-    final long expResult = index.getDocumentCount();
-    final long result = instance.getDocumentCount();
-    assertEquals(msg(instance, "Different number of documents reported."),
-        expResult,
-        result);
+  private void _testGetDocumentCount(final IndexDataProvider instance) {
+    assertEquals(
+        msg(instance, "Different number of documents reported."),
+        this.referenceIndex.getDocumentCount(),
+        instance.getDocumentCount());
   }
 
   /**
-   * Test method for getDocumentModel method, of class CachedIndexDataProvider.
+   * Test method for getDocumentModel method.
    *
-   * @param index Test index to get base data from
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
   @SuppressWarnings("null")
-  private static void _testGetDocumentModel(
-      final TestIndexDataProvider index,
-      final IndexDataProvider instance)
+  private void _testGetDocumentModel(final IndexDataProvider instance)
       throws Exception {
-    final Collection<ByteArray> stopwords = IndexTestUtil.
-        getStopwordBytesFromEnvironment();
-    final boolean excludeStopwords = stopwords != null;
+    final boolean excludeStopwords = this.referenceIndex.reference
+        .hasStopwords();
+    final Iterator<Integer> docIdIt = this.referenceIndex
+        .getDocumentIdIterator();
 
-    Iterator<Integer> docIdIt = index.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final Integer docId = docIdIt.next();
       final DocumentModel iDocModel = instance.getDocumentModel(docId);
-      final DocumentModel eDocModel = index.getDocumentModel(docId);
+      final DocumentModel eDocModel = this.referenceIndex.getDocumentModel
+          (docId);
 
       if (!eDocModel.equals(iDocModel)) {
         for (Entry<ByteArray, Long> e : eDocModel.termFreqMap.entrySet()) {
-          LOG.debug("e: {}={}", ByteArrayUtil.utf8ToString(e.getKey()), e.
+          LOG.debug("e: {}={}", ByteArrayUtils.utf8ToString(e.getKey()), e.
               getValue());
         }
         for (Entry<ByteArray, Long> e : iDocModel.termFreqMap.entrySet()) {
-          LOG.debug("i: {}={}", ByteArrayUtil.utf8ToString(e.getKey()), e.
+          LOG.debug("i: {}={}", ByteArrayUtils.utf8ToString(e.getKey()), e.
               getValue());
         }
-        for (Entry<ByteArray, Long> e : index.getDocumentTermFrequencyMap(
-            docId).entrySet()) {
-          LOG.debug("m: {}={}", ByteArrayUtil.utf8ToString(e.getKey()), e.
+        for (Entry<ByteArray, Long> e : this.referenceIndex.reference
+            .getDocumentTermFrequencyMap(docId).entrySet()) {
+          LOG.debug("m: {}={}", ByteArrayUtils.utf8ToString(e.getKey()), e.
               getValue());
         }
       }
 
-      assertTrue(msg(instance, "Equals failed (stopped: " + excludeStopwords
-                               + ") for docId=" + docId),
+      assertTrue(
+          msg(instance, "Equals failed (stopped: " + excludeStopwords + ") " +
+              "for docId=" + docId),
           eDocModel.equals(iDocModel)
       );
 
       if (excludeStopwords) {
+        final Collection<ByteArray> stopwords =
+            this.referenceIndex.reference.getStopwords();
         for (ByteArray term : iDocModel.termFreqMap.keySet()) {
-          assertFalse(msg(instance, "Found stopword in model."), stopwords.
-              contains(term));
+          assertFalse(
+              msg(instance, "Found stopword in model."),
+              stopwords.contains(term));
         }
       }
     }
@@ -288,53 +310,51 @@ public abstract class IndexDataProviderTestCase
   /**
    * Test of getDocumentIdIterator method. Plain.
    *
-   * @param index Test index to get base data from
    * @param instance {@link IndexDataProvider} implementation to test
    */
-  private static void _testGetDocumentIdIterator(
-      final TestIndexDataProvider index,
-      final IndexDataProvider instance) {
-    final long docCount = index.getDocumentCount();
+  private void _testGetDocumentIdIterator(final IndexDataProvider instance) {
+    final long docCount = this.referenceIndex.getDocumentCount();
     long docCountIt = 0;
     final Iterator<Integer> result = instance.getDocumentIdIterator();
+
     while (result.hasNext()) {
       docCountIt++;
       result.next();
     }
-    assertEquals(docCount, docCountIt);
+    assertEquals(
+        msg(instance, "Number of document ids differ."),
+        docCount,
+        docCountIt);
   }
 
   /**
    * Test of getDocumentIdSource method.
    *
-   * @param index Test index to get base data from
    * @param instance {@link IndexDataProvider} implementation to test
    */
-  private static void _testGetDocumentIdSource(
-      final TestIndexDataProvider index,
-      final IndexDataProvider instance) {
-    final long docCount = index.getDocumentCount();
-    Processing p = new Processing();
+  private void _testGetDocumentIdSource(final IndexDataProvider instance) {
+    final Processing p = new Processing();
+
     p.setSource(instance.getDocumentIdSource());
-    @SuppressWarnings("UnnecessaryUnboxing")
-    final long result = p.debugTestSource().longValue();
-    assertEquals(msg(instance,
-            "Not all items provided by source or processed by target."),
-        docCount, result
+
+    assertEquals(
+        msg(instance, "Not all items provided by source or processed by " +
+            "target."),
+        this.referenceIndex.getDocumentCount(),
+        p.debugTestSource().longValue()
     );
   }
 
   /**
    * Test of getUniqueTermsCount method.
    *
-   * @param index Test index to get base data from
    * @param instance {@link IndexDataProvider} implementation to test
    */
-  private static void _testGetUniqueTermsCount(
-      final TestIndexDataProvider index,
-      final IndexDataProvider instance) {
-    assertEquals(msg(instance, "Unique term count values are different."),
-        index.getTermSet().size(), instance.getUniqueTermsCount());
+  private void _testGetUniqueTermsCount(final IndexDataProvider instance) {
+    assertEquals(
+        msg(instance, "Unique term count values are different."),
+        this.referenceIndex.reference.getTermSet().size(),
+        instance.getUniqueTermsCount());
   }
 
   /**
@@ -344,25 +364,27 @@ public abstract class IndexDataProviderTestCase
    * @throws Exception Any exception thrown indicates an error
    */
   @SuppressWarnings("null")
-  private static void _testDocumentContains(final IndexDataProvider instance)
+  private void _testDocumentContains(final IndexDataProvider instance)
       throws Exception {
-    final Collection<ByteArray> stopwords = IndexTestUtil.
-        getStopwordBytesFromEnvironment();
-    final boolean excludeStopwords = stopwords != null;
+    final boolean excludeStopwords = this.referenceIndex.reference
+        .hasStopwords();
+    final Iterator<Integer> docIdIt = instance.getDocumentIdIterator();
 
-    Iterator<Integer> docIdIt = instance.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
       final DocumentModel docModel = instance.getDocumentModel(docId);
       for (ByteArray byteArray : docModel.termFreqMap.keySet()) {
-        assertTrue(msg(instance, "Document contains term mismatch (stopped: "
-                                 + excludeStopwords + ")."),
-            instance.documentContains(
-                docId, byteArray)
+        assertTrue(
+            msg(instance, "Document contains term mismatch (stopped: " +
+                excludeStopwords + ")."),
+            instance.documentContains(docId, byteArray)
         );
         if (excludeStopwords) {
-          assertFalse(msg(instance, "Found stopword."), stopwords.contains(
-              byteArray));
+          final Collection<ByteArray> stopwords = this.referenceIndex.reference
+              .getStopwords();
+          assertFalse(
+              msg(instance, "Found stopword."),
+              stopwords.contains(byteArray));
         }
       }
     }
@@ -371,67 +393,64 @@ public abstract class IndexDataProviderTestCase
   /**
    * Test of getTermsSource method.
    *
-   * @param index Test index to get base data from
    * @param instance {@link IndexDataProvider} implementation to test
    */
-  private static void _testGetTermsSource(
-      final TestIndexDataProvider index,
-      final IndexDataProvider instance) {
-    final int termsCount = new HashSet<>(index.getTermList()).size();
-    Processing p = new Processing();
+  private void _testGetTermsSource(final IndexDataProvider instance) {
+    final Processing p = new Processing();
     p.setSource(instance.getTermsSource());
-    @SuppressWarnings("UnnecessaryUnboxing")
-    final long result = p.debugTestSource().longValue();
-    assertEquals(msg(instance,
-            "Not all items provided by source or processed by target."),
-        termsCount, result
+
+    assertEquals(
+        msg(instance, "Not all items provided by source or processed by " +
+            "target."),
+        new HashSet<>(this.referenceIndex.reference.getTermList()).size(),
+        p.debugTestSource().longValue()
     );
   }
 
   /**
    * Test method for getDocumentsTermSet method.
    *
-   * @param index Test index to get base data from
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
-  @SuppressWarnings("null")
-  private static void _testGetDocumentsTermSet(
-      final TestIndexDataProvider index,
-      final IndexDataProvider instance)
+  private void _testGetDocumentsTermSet(final IndexDataProvider instance)
       throws Exception {
-    final Collection<ByteArray> stopwords = IndexTestUtil.
-        getStopwordBytesFromEnvironment();
-    final boolean excludeStopwords = stopwords != null;
-
-    final int docAmount = RandomValue.getInteger(2, (int) index.
+    final boolean excludeStopwords = this.referenceIndex.reference
+        .hasStopwords();
+    final int docAmount = RandomValue.getInteger(2, (int) referenceIndex.
         getDocumentCount() - 1);
-    Collection<Integer> docIds = new HashSet<>(docAmount);
+    final Collection<Integer> docIds = new HashSet<>(docAmount);
+
     for (int i = 0; i < docAmount; ) {
       if (docIds.add(RandomValue.getInteger(0, RandomValue.getInteger(2,
-          (int) index.getDocumentCount() - 1)))) {
+          (int) referenceIndex.getDocumentCount() - 1)))) {
         i++;
       }
     }
-    Collection<ByteArray> expResult = index.getDocumentsTermSet(docIds);
-    Collection<ByteArray> result = instance.getDocumentsTermSet(docIds);
 
-    assertEquals(msg(instance,
-            "Not the same amount of terms retrieved (stopped: "
-            + excludeStopwords + ")."
-        ), expResult.size(),
+    final Collection<ByteArray> expResult =
+        this.referenceIndex.getDocumentsTermSet(docIds);
+    final Collection<ByteArray> result = instance.getDocumentsTermSet(docIds);
+
+    assertEquals(
+        msg(instance, "Not the same amount of terms retrieved (stopped: " +
+            excludeStopwords + ")."),
+        expResult.size(),
         result.size()
     );
-    assertTrue(msg(instance, "Not all terms retrieved (stopped: "
-                             + excludeStopwords + ")."),
+    assertTrue(
+        msg(instance, "Not all terms retrieved (stopped: " + excludeStopwords
+            + ")."),
         expResult.containsAll(result)
     );
 
     if (excludeStopwords) {
+      final Collection<ByteArray> stopwords =
+          this.referenceIndex.reference.getStopwords();
       for (ByteArray term : result) {
-        assertFalse(msg(instance, "Stopword found in term list."), stopwords.
-            contains(
-                term));
+        assertFalse(
+            msg(instance, "Stopword found in term list."),
+            stopwords.contains(term));
       }
     }
   }
@@ -439,29 +458,29 @@ public abstract class IndexDataProviderTestCase
   /**
    * Test method for getDocumentFrequency method.
    *
-   * @param index Test index to get base data from
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
-  @SuppressWarnings("null")
-  private static void _testGetDocumentFrequency(
-      final TestIndexDataProvider index,
-      final IndexDataProvider instance)
+  private void _testGetDocumentFrequency(final IndexDataProvider instance)
       throws Exception {
-    final Collection<ByteArray> stopwords = IndexTestUtil.
-        getStopwordBytesFromEnvironment();
-    final boolean excludeStopwords = stopwords != null;
+    final boolean excludeStopwords = this.referenceIndex.reference
+        .hasStopwords();
 
-    for (ByteArray term : index.getTermSet()) {
-      assertEquals(msg(instance, "Document frequency mismatch (stopped: "
-                                 + excludeStopwords + ") (" + ByteArrayUtil.
-              utf8ToString(term) + ")."), index.getDocumentFrequency(term),
+    for (ByteArray term : this.referenceIndex.reference.getTermSet()) {
+      assertEquals(
+          msg(instance, "Document frequency mismatch (stopped: " +
+              excludeStopwords + ") (" + ByteArrayUtils.utf8ToString(term) +
+              ")."),
+          this.referenceIndex.getDocumentFrequency(term),
           instance.getDocumentFrequency(term)
       );
+
       if (excludeStopwords) {
-        assertFalse(msg(instance, "Found stopword in term list."), stopwords.
-            contains(
-                term));
+        final Collection<ByteArray> stopwords =
+            this.referenceIndex.reference.getStopwords();
+        assertFalse(
+            msg(instance, "Found stopword in term list."),
+            stopwords.contains(term));
       }
     }
   }
@@ -471,11 +490,12 @@ public abstract class IndexDataProviderTestCase
    *
    * @param instance Prepared instance to test
    */
-  private static void _testGetFieldId(
-      final AbstractIndexDataProvider instance) {
-    for (String fieldName : Environment.getFields()) {
+  private void _testGetFieldId(final AbstractIndexDataProvider instance) {
+    for (String fieldName : this.referenceIndex.getDocumentFields()) {
       SerializableByte result = instance.getFieldId(fieldName);
-      assertFalse(msg(instance, "Field id was null."), result == null);
+      assertNotNull(
+          msg(instance, "Field id was null."),
+          result);
     }
   }
 
@@ -483,51 +503,41 @@ public abstract class IndexDataProviderTestCase
    * Test method for _getTermFrequency method,
    * of class AbstractIndexDataProvider.
    *
-   * @param index Index to test against
    * @param instance Prepared instance to test
    */
-  private static void _test_getTermFrequency(
-      final TestIndexDataProvider index,
+  private void _test_getTermFrequency(
       final AbstractIndexDataProvider instance) {
-    final Iterator<ByteArray> termsIt = index.getTermsIterator();
+    final Iterator<ByteArray> termsIt = this.referenceIndex.getTermsIterator();
     ByteArray term;
     while (termsIt.hasNext()) {
       term = termsIt.next();
-      long result = instance._getTermFrequency(term);
+      final long result = instance._getTermFrequency(term);
       // stopwords should be included.
-      assertFalse(msg(instance, "Term frequency was zero. term="
-                                + ByteArrayUtil.
-          utf8ToString(term)), result <= 0L);
+      assertFalse(
+          msg(instance, "Term frequency was zero. term=" + ByteArrayUtils.
+              utf8ToString(term)),
+          result <= 0L
+      );
     }
   }
 
   /**
    * Test method for getTerms method, of class AbstractIndexDataProvider.
    *
-   * @param index Index to test against
    * @param instance Prepared instance to test
    */
-  private static void _testGetTerms(
-      final TestIndexDataProvider index,
-      final AbstractIndexDataProvider instance) {
-    final Collection<ByteArray> iTerms = instance.idxTerms;
-    final Collection<ByteArray> eTerms = index.getTermSet();
+  private void _testGetTerms(final AbstractIndexDataProvider instance) {
+    final Collection<ByteArray> iTerms = instance.getIdxTerms();
+    final Collection<ByteArray> eTerms = TestIndexDataProvider.reference
+        .getTermSet();
 
-    assertEquals(msg(instance, "Term list size differs."), eTerms.size(),
+    assertEquals(
+        msg(instance, "Term list size differs."),
+        eTerms.size(),
         iTerms.size());
-    assertTrue(msg(instance, "Term list content differs."), iTerms.
-        containsAll(eTerms));
-  }
-
-  /**
-   * Prepend a message string with the current {@link IndexDataProvider} name
-   * and the testing type.
-   *
-   * @param msg Message to prepend
-   * @return Message prepended with testing informations
-   */
-  private String msg(final String msg) {
-    return "(" + this.dataProv.getClass().getSimpleName() + ") " + msg;
+    assertTrue(
+        msg(instance, "Term list content differs."),
+        iTerms.containsAll(eTerms));
   }
 
   /**
@@ -538,9 +548,10 @@ public abstract class IndexDataProviderTestCase
    */
   private boolean isImplementingAbstractIdp() {
     // skip test, if not implementing AbstractIndexDataProvider
-    if (!AbstractIndexDataProvider.class.isAssignableFrom(dataProv)) {
-      LOG.warn(msg("Skipping test. "
-                   + "No sub-class of AbstractIndexDataProvider."));
+    final Class<? extends IndexDataProvider> instance = getInstanceClass();
+    if (!AbstractIndexDataProvider.class.isAssignableFrom(instance)) {
+      LOG.warn(msg(instance, "Skipping test. "
+          + "No sub-class of AbstractIndexDataProvider."));
       return false;
     }
     return true;
@@ -554,25 +565,12 @@ public abstract class IndexDataProviderTestCase
    */
   private boolean isAbstractIdpTestInstance() {
     // skip test for plain testing instance
-    if (dataProv.equals(AbstractIndexDataProviderTestImpl.class)) {
-      LOG.warn(msg("Skipping test. Plain instance."));
+    final Class<? extends IndexDataProvider> instance = getInstanceClass();
+    if (instance.equals(AbstractIndexDataProviderTestImpl.class)) {
+      LOG.warn(msg(instance, "Skipping test. Plain instance."));
       return true;
     }
     return false;
-  }
-
-  /**
-   * Run after each test has finished.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @After
-  public void tearDown()
-      throws Exception {
-    if (Environment.isInitialized()) {
-      Environment.getDataProvider().dispose();
-    }
-    Environment.clear();
   }
 
   /**
@@ -586,9 +584,7 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv, null, null);
-    _testGetTermFrequency_0args(index, instance);
+    _testGetTermFrequency_0args(setupInstanceForTesting(false, false));
   }
 
   /**
@@ -603,24 +599,26 @@ public abstract class IndexDataProviderTestCase
       return;
     }
 
-    final long unfilteredTf = index.getTermFrequency();
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        null, IndexTestUtil.getRandomStopWords(index));
-    _testGetTermFrequency_0args(index, instance);
+    final long unfilteredTf = this.referenceIndex.getTermFrequency();
+    final IndexDataProvider instance = setupInstanceForTesting(false, true);
+    _testGetTermFrequency_0args(instance);
 
     // check with stopwords
-    final long filteredTf = index.getTermFrequency();
-    assertEquals(msg("Term frequency differs. plain=" + unfilteredTf
-                     + " filter=" + filteredTf + "."), index.getTermFrequency(),
+    final long filteredTf = this.referenceIndex.getTermFrequency();
+    assertEquals(
+        msg(instance, "Term frequency differs. plain=" + unfilteredTf
+            + " filter=" + filteredTf + "."),
+        this.referenceIndex.getTermFrequency(),
         instance.getTermFrequency()
     );
 
-    assertNotEquals(msg(
+    assertNotEquals(
+        msg(instance,
             "TF using stop-words should be lower than without. filter="
-            + filteredTf + " plain=" + unfilteredTf + "."
+                + filteredTf + " plain=" + unfilteredTf + "."
         ),
-        filteredTf, unfilteredTf
+        filteredTf,
+        unfilteredTf
     );
   }
 
@@ -636,10 +634,8 @@ public abstract class IndexDataProviderTestCase
       return;
     }
 
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index), null);
-    _testGetTermFrequency_0args(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, false);
+    _testGetTermFrequency_0args(instance);
   }
 
   /**
@@ -649,17 +645,13 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetTermFrequency_0args__randField_stopped()
-      throws
-      Exception {
+      throws Exception {
     if (isAbstractIdpTestInstance()) {
       return;
     }
 
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index),
-        IndexTestUtil.getRandomStopWords(index));
-    _testGetTermFrequency_0args(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, true);
+    _testGetTermFrequency_0args(instance);
   }
 
   /**
@@ -673,8 +665,7 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    _testGetTermFrequency_ByteArray(index, IndexTestUtil.createInstance(index,
-        dataProv, null, null));
+    _testGetTermFrequency_ByteArray(setupInstanceForTesting(false, false));
   }
 
   /**
@@ -688,10 +679,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        null, IndexTestUtil.getRandomStopWords(index));
-    _testGetTermFrequency_ByteArray(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(false, true);
+    _testGetTermFrequency_ByteArray(instance);
   }
 
   /**
@@ -701,15 +690,12 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetTermFrequency_ByteArray__randField()
-      throws
-      Exception {
+      throws Exception {
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index), null);
-    _testGetTermFrequency_ByteArray(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, false);
+    _testGetTermFrequency_ByteArray(instance);
   }
 
   /**
@@ -723,11 +709,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index),
-        IndexTestUtil.getRandomStopWords(index));
-    _testGetTermFrequency_ByteArray(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, true);
+    _testGetTermFrequency_ByteArray(instance);
   }
 
   /**
@@ -741,8 +724,7 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    _testGetRelativeTermFrequency(index, IndexTestUtil.createInstance(index,
-        dataProv, null, null));
+    _testGetRelativeTermFrequency(setupInstanceForTesting(false, false));
   }
 
   /**
@@ -756,10 +738,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        null, IndexTestUtil.getRandomStopWords(index));
-    _testGetRelativeTermFrequency(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(false, true);
+    _testGetRelativeTermFrequency(instance);
   }
 
   /**
@@ -774,10 +754,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index), null);
-    _testGetRelativeTermFrequency(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, false);
+    _testGetRelativeTermFrequency(instance);
   }
 
   /**
@@ -792,11 +770,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index),
-        IndexTestUtil.getRandomStopWords(index));
-    _testGetRelativeTermFrequency(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, true);
+    _testGetRelativeTermFrequency(instance);
   }
 
   /**
@@ -810,9 +785,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv, null, null);
-    _testGetTermsIterator(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(false, false);
+    _testGetTermsIterator(instance);
   }
 
   /**
@@ -826,10 +800,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        null, IndexTestUtil.getRandomStopWords(index));
-    _testGetTermsIterator(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(false, true);
+    _testGetTermsIterator(instance);
   }
 
   /**
@@ -843,10 +815,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index), null);
-    _testGetTermsIterator(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, false);
+    _testGetTermsIterator(instance);
   }
 
   /**
@@ -860,11 +830,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index),
-        IndexTestUtil.getRandomStopWords(index));
-    _testGetTermsIterator(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, true);
+    _testGetTermsIterator(instance);
   }
 
   /**
@@ -878,10 +845,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        null, null);
-    _testGetDocumentCount(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(false, false);
+    _testGetDocumentCount(instance);
   }
 
   /**
@@ -895,10 +860,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index), null);
-    _testGetDocumentCount(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, false);
+    _testGetDocumentCount(instance);
   }
 
   /**
@@ -912,10 +875,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        null, IndexTestUtil.getRandomStopWords(index));
-    _testGetDocumentCount(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(false, true);
+    _testGetDocumentCount(instance);
   }
 
   /**
@@ -929,11 +890,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index),
-        IndexTestUtil.getRandomStopWords(index));
-    _testGetDocumentCount(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, true);
+    _testGetDocumentCount(instance);
   }
 
   /**
@@ -946,10 +904,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        null, null);
-    _testGetDocumentModel(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(false, false);
+    _testGetDocumentModel(instance);
   }
 
   /**
@@ -963,10 +919,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        null, IndexTestUtil.getRandomStopWords(index));
-    _testGetDocumentModel(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(false, true);
+    _testGetDocumentModel(instance);
   }
 
   /**
@@ -976,10 +930,8 @@ public abstract class IndexDataProviderTestCase
    */
   public final void testGetDocumentModel__randField()
       throws Exception {
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index), null);
-    _testGetDocumentModel(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, false);
+    _testGetDocumentModel(instance);
   }
 
   /**
@@ -992,11 +944,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index),
-        IndexTestUtil.getRandomStopWords(index));
-    _testGetDocumentModel(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, true);
+    _testGetDocumentModel(instance);
   }
 
   /**
@@ -1010,9 +959,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv, null, null);
-    _testGetDocumentIdIterator(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(false, false);
+    _testGetDocumentIdIterator(instance);
   }
 
   /**
@@ -1026,10 +974,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        null, IndexTestUtil.getRandomStopWords(index));
-    _testGetDocumentIdIterator(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(false, true);
+    _testGetDocumentIdIterator(instance);
   }
 
   /**
@@ -1043,10 +989,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index), null);
-    _testGetDocumentIdIterator(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, false);
+    _testGetDocumentIdIterator(instance);
   }
 
   /**
@@ -1061,10 +1005,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index), null);
-    _testGetDocumentIdIterator(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, false);
+    _testGetDocumentIdIterator(instance);
   }
 
   /**
@@ -1078,9 +1020,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv, null, null);
-    _testGetDocumentIdSource(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(false, false);
+    _testGetDocumentIdSource(instance);
   }
 
   /**
@@ -1094,10 +1035,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        null, IndexTestUtil.getRandomStopWords(index));
-    _testGetDocumentIdSource(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(false, true);
+    _testGetDocumentIdSource(instance);
   }
 
   /**
@@ -1111,10 +1050,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index), null);
-    _testGetDocumentIdSource(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, false);
+    _testGetDocumentIdSource(instance);
   }
 
   /**
@@ -1129,11 +1066,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index),
-        IndexTestUtil.getRandomStopWords(index));
-    _testGetDocumentIdSource(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, true);
+    _testGetDocumentIdSource(instance);
   }
 
   /**
@@ -1147,9 +1081,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv, null, null);
-    _testGetUniqueTermsCount(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(false, false);
+    _testGetUniqueTermsCount(instance);
   }
 
   /**
@@ -1163,10 +1096,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        null, IndexTestUtil.getRandomStopWords(index));
-    _testGetUniqueTermsCount(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(false, true);
+    _testGetUniqueTermsCount(instance);
   }
 
   /**
@@ -1180,10 +1111,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index), null);
-    _testGetUniqueTermsCount(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, false);
+    _testGetUniqueTermsCount(instance);
   }
 
   /**
@@ -1198,12 +1127,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index), IndexTestUtil.
-            getRandomStopWords(index)
-    );
-    _testGetUniqueTermsCount(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, true);
+    _testGetUniqueTermsCount(instance);
   }
 
   /**
@@ -1218,18 +1143,20 @@ public abstract class IndexDataProviderTestCase
       return;
     }
 
-    final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        null, null);
+    final Iterator<Integer> docIdIt = referenceIndex.getDocumentIdIterator();
+    final IndexDataProvider instance = setupInstanceForTesting(false, false);
     while (docIdIt.hasNext()) {
-      assertTrue(msg("Document not found."), instance.hasDocument(docIdIt.
-          next()));
+      assertTrue(
+          msg(instance, "Document not found."),
+          instance.hasDocument(docIdIt.next()));
     }
 
-    assertFalse(msg("Document should not be found."), instance.hasDocument(-1));
-    assertFalse(msg("Document should not be found."), instance.hasDocument(
-        (int) index.getDocumentCount()));
+    assertFalse(
+        msg(instance, "Document should not be found."),
+        instance.hasDocument(-1));
+    assertFalse(
+        msg(instance, "Document should not be found."),
+        instance.hasDocument((int) referenceIndex.getDocumentCount()));
   }
 
   /**
@@ -1243,8 +1170,7 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv, null, null);
+    final IndexDataProvider instance = setupInstanceForTesting(false, false);
     _testDocumentContains(instance);
   }
 
@@ -1259,9 +1185,7 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        null, IndexTestUtil.getRandomStopWords(index));
+    final IndexDataProvider instance = setupInstanceForTesting(false, true);
     _testDocumentContains(instance);
   }
 
@@ -1276,9 +1200,7 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index), null);
+    final IndexDataProvider instance = setupInstanceForTesting(true, false);
     _testDocumentContains(instance);
   }
 
@@ -1293,10 +1215,7 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index),
-        IndexTestUtil.getRandomStopWords(index));
+    final IndexDataProvider instance = setupInstanceForTesting(true, true);
     _testDocumentContains(instance);
   }
 
@@ -1311,9 +1230,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv, null, null);
-    _testGetTermsSource(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(false, false);
+    _testGetTermsSource(instance);
   }
 
   /**
@@ -1327,10 +1245,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        null, IndexTestUtil.getRandomStopWords(index));
-    _testGetTermsSource(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(false, true);
+    _testGetTermsSource(instance);
   }
 
   /**
@@ -1344,10 +1260,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index), null);
-    _testGetTermsSource(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, false);
+    _testGetTermsSource(instance);
   }
 
   /**
@@ -1361,11 +1275,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index),
-        IndexTestUtil.getRandomStopWords(index));
-    _testGetTermsSource(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, true);
+    _testGetTermsSource(instance);
   }
 
   /**
@@ -1379,9 +1290,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv, null, null);
-    _testGetDocumentsTermSet(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(false, false);
+    _testGetDocumentsTermSet(instance);
   }
 
   /**
@@ -1395,10 +1305,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        null, IndexTestUtil.getRandomStopWords(index));
-    _testGetDocumentsTermSet(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(false, true);
+    _testGetDocumentsTermSet(instance);
   }
 
   /**
@@ -1412,10 +1320,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index), null);
-    _testGetDocumentsTermSet(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, false);
+    _testGetDocumentsTermSet(instance);
   }
 
   /**
@@ -1430,11 +1336,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index),
-        IndexTestUtil.getRandomStopWords(index));
-    _testGetDocumentsTermSet(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, true);
+    _testGetDocumentsTermSet(instance);
   }
 
   /**
@@ -1448,9 +1351,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv, null, null);
-    _testGetDocumentFrequency(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(false, false);
+    _testGetDocumentFrequency(instance);
   }
 
   /**
@@ -1464,10 +1366,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        null, IndexTestUtil.getRandomStopWords(index));
-    _testGetDocumentFrequency(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(false, true);
+    _testGetDocumentFrequency(instance);
   }
 
   /**
@@ -1481,10 +1381,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index), null);
-    _testGetDocumentFrequency(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, false);
+    _testGetDocumentFrequency(instance);
   }
 
   /**
@@ -1499,11 +1397,8 @@ public abstract class IndexDataProviderTestCase
     if (isAbstractIdpTestInstance()) {
       return;
     }
-    final IndexDataProvider instance = IndexTestUtil.createInstance(
-        index, dataProv,
-        IndexTestUtil.getRandomFields(index),
-        IndexTestUtil.getRandomStopWords(index));
-    _testGetDocumentFrequency(index, instance);
+    final IndexDataProvider instance = setupInstanceForTesting(true, true);
+    _testGetDocumentFrequency(instance);
   }
 
   /**
@@ -1514,7 +1409,7 @@ public abstract class IndexDataProviderTestCase
   @Test
   public final void testWarmUp__plain()
       throws Exception {
-    IndexTestUtil.createInstance(index, dataProv, null, null).warmUp();
+    setupInstanceForTesting(false, false).warmUp();
   }
 
   /**
@@ -1525,45 +1420,7 @@ public abstract class IndexDataProviderTestCase
   @Test
   public final void testDispose__plain()
       throws Exception {
-    IndexTestUtil.createInstance(index, dataProv, null, null).dispose();
-  }
-
-  /**
-   * Test of createCache method.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  public final void testCreateCache__plain()
-      throws Exception {
-    SupportsPersistenceTestMethods.testCreateCache(IndexTestUtil.
-        createInstance(index, dataProv, null, null));
-  }
-
-  /**
-   * Test of loadOrCreateCache method.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  public final void testLoadOrCreateCache__plain()
-      throws Exception {
-    SupportsPersistenceTestMethods.testLoadOrCreateCache(IndexTestUtil.
-        createInstance(index, dataProv, null, null));
-  }
-
-  /**
-   * Test of loadCache method.
-   */
-  public final void testLoadCache__plain() {
-    boolean thrown = false;
-    try {
-      SupportsPersistenceTestMethods.testLoadCache(IndexTestUtil.
-          createInstance(index, dataProv, null, null));
-    } catch (Exception ex) {
-      thrown = true;
-    }
-    if (!thrown) {
-      fail(msg("Expected to catch an exception."));
-    }
+    setupInstanceForTesting(false, false).dispose();
   }
 
   /**
@@ -1579,9 +1436,8 @@ public abstract class IndexDataProviderTestCase
       return;
     }
 
-    final AbstractIndexDataProvider instance
-        = (AbstractIndexDataProvider) IndexTestUtil.
-        createInstance(index, dataProv, null, null);
+    final AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
+        setupInstanceForTesting(false, false);
     instance.warmUpDocumentFrequencies();
   }
 
@@ -1597,57 +1453,21 @@ public abstract class IndexDataProviderTestCase
       return;
     }
 
-    final AbstractIndexDataProvider instance
-        = (AbstractIndexDataProvider) IndexTestUtil.
-        createInstance(index, dataProv, null, null);
+    final AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
+        setupInstanceForTesting(false, false);
     final Collection<Integer> docIds = new ArrayList<>(instance.
         getDocumentIds());
-    final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+    final Iterator<Integer> docIdIt =
+        this.referenceIndex.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final Integer docId = docIdIt.next();
-      assertTrue(msg("Doc-id was missing. docId=" + docId), docIds.remove(
-          docId));
+      assertTrue(
+          msg(instance, "Doc-id was missing. docId=" + docId),
+          docIds.remove(docId));
     }
-    assertTrue(msg("Too much document ids provided by instance."), docIds.
-        isEmpty());
-  }
-
-  /**
-   * Test of testSetStopwordsFromEnvironment method (from {@link
-   * AbstractIndexDataProvider}). Plain.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Test
-  public final void testSetStopwordsFromEnvironment__plain()
-      throws Exception {
-    if (!isImplementingAbstractIdp()) {
-      return;
-    }
-    AbstractIndexDataProvider instance
-        = (AbstractIndexDataProvider) IndexTestUtil.
-        createInstance(index, dataProv, null, null);
-    instance.setStopwordsFromEnvironment();
-  }
-
-  /**
-   * Test of testSetStopwordsFromEnvironment method (from {@link
-   * AbstractIndexDataProvider}). Using stopwords.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Test
-  public final void testSetStopwordsFromEnvironment__stopped()
-      throws
-      Exception {
-    if (!isImplementingAbstractIdp()) {
-      return;
-    }
-    AbstractIndexDataProvider instance
-        = (AbstractIndexDataProvider) IndexTestUtil.createInstance(
-        index, dataProv,
-        null, IndexTestUtil.getRandomStopWords(index));
-    instance.setStopwordsFromEnvironment();
+    assertTrue(
+        msg(instance, "Too much document ids provided by instance."),
+        docIds.isEmpty());
   }
 
   /**
@@ -1662,9 +1482,8 @@ public abstract class IndexDataProviderTestCase
     if (!isImplementingAbstractIdp()) {
       return;
     }
-    AbstractIndexDataProvider instance
-        = (AbstractIndexDataProvider) IndexTestUtil.createInstance(
-        index, dataProv, null, null);
+    AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
+        setupInstanceForTesting(false, false);
     instance.warmUpTerms();
   }
 
@@ -1681,10 +1500,8 @@ public abstract class IndexDataProviderTestCase
     if (!isImplementingAbstractIdp()) {
       return;
     }
-    AbstractIndexDataProvider instance
-        = (AbstractIndexDataProvider) IndexTestUtil.createInstance(
-        index, dataProv,
-        null, IndexTestUtil.getRandomStopWords(index));
+    AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
+        setupInstanceForTesting(false, true);
     instance.warmUpIndexTermFrequencies();
   }
 
@@ -1700,10 +1517,8 @@ public abstract class IndexDataProviderTestCase
     if (!isImplementingAbstractIdp()) {
       return;
     }
-    AbstractIndexDataProvider instance
-        = (AbstractIndexDataProvider) IndexTestUtil.createInstance(
-        index, dataProv,
-        null, IndexTestUtil.getRandomStopWords(index));
+    AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
+        setupInstanceForTesting(false, true);
     instance.warmUpDocumentIds();
   }
 
@@ -1718,9 +1533,8 @@ public abstract class IndexDataProviderTestCase
     if (!isImplementingAbstractIdp()) {
       return;
     }
-    final AbstractIndexDataProvider instance
-        = (AbstractIndexDataProvider) IndexTestUtil.
-        createInstance(index, dataProv, null, null);
+    final AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
+        setupInstanceForTesting(false, false);
     _testGetFieldId(instance);
   }
 
@@ -1736,11 +1550,8 @@ public abstract class IndexDataProviderTestCase
     if (!isImplementingAbstractIdp()) {
       return;
     }
-    final AbstractIndexDataProvider instance
-        = (AbstractIndexDataProvider) IndexTestUtil.
-        createInstance(
-            index, dataProv,
-            IndexTestUtil.getRandomFields(index), null);
+    final AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
+        setupInstanceForTesting(true, false);
     _testGetFieldId(instance);
   }
 
@@ -1756,12 +1567,9 @@ public abstract class IndexDataProviderTestCase
     if (!isImplementingAbstractIdp() || isAbstractIdpTestInstance()) {
       return;
     }
-    final AbstractIndexDataProvider instance
-        = (AbstractIndexDataProvider) IndexTestUtil.
-        createInstance(
-            index, dataProv,
-            IndexTestUtil.getRandomFields(index), null);
-    _test_getTermFrequency(index, instance);
+    final AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
+        setupInstanceForTesting(true, false);
+    _test_getTermFrequency(instance);
   }
 
   /**
@@ -1776,12 +1584,9 @@ public abstract class IndexDataProviderTestCase
     if (!isImplementingAbstractIdp() || isAbstractIdpTestInstance()) {
       return;
     }
-    final AbstractIndexDataProvider instance
-        = (AbstractIndexDataProvider) IndexTestUtil.
-        createInstance(
-            index, dataProv,
-            null, IndexTestUtil.getRandomStopWords(index));
-    _test_getTermFrequency(index, instance);
+    final AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
+        setupInstanceForTesting(false, true);
+    _test_getTermFrequency(instance);
   }
 
   /**
@@ -1796,12 +1601,9 @@ public abstract class IndexDataProviderTestCase
     if (!isImplementingAbstractIdp() || isAbstractIdpTestInstance()) {
       return;
     }
-    final AbstractIndexDataProvider instance
-        = (AbstractIndexDataProvider) IndexTestUtil.
-        createInstance(
-            index, dataProv,
-            IndexTestUtil.getRandomFields(index), null);
-    _test_getTermFrequency(index, instance);
+    final AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
+        setupInstanceForTesting(true, false);
+    _test_getTermFrequency(instance);
   }
 
   /**
@@ -1817,13 +1619,9 @@ public abstract class IndexDataProviderTestCase
     if (!isImplementingAbstractIdp() || isAbstractIdpTestInstance()) {
       return;
     }
-    final AbstractIndexDataProvider instance
-        = (AbstractIndexDataProvider) IndexTestUtil.
-        createInstance(
-            index, dataProv,
-            IndexTestUtil.getRandomFields(index),
-            IndexTestUtil.getRandomStopWords(index));
-    _test_getTermFrequency(index, instance);
+    final AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
+        setupInstanceForTesting(true, true);
+    _test_getTermFrequency(instance);
   }
 
   /**
@@ -1848,10 +1646,9 @@ public abstract class IndexDataProviderTestCase
     if (!isImplementingAbstractIdp() || isAbstractIdpTestInstance()) {
       return;
     }
-    final AbstractIndexDataProvider instance
-        = (AbstractIndexDataProvider) IndexTestUtil.
-        createInstance(index, dataProv, null, null);
-    _testGetTerms(index, instance);
+    final AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
+        setupInstanceForTesting(false, false);
+    _testGetTerms(instance);
   }
 
   /**
@@ -1866,12 +1663,9 @@ public abstract class IndexDataProviderTestCase
     if (!isImplementingAbstractIdp() || isAbstractIdpTestInstance()) {
       return;
     }
-    final AbstractIndexDataProvider instance
-        = (AbstractIndexDataProvider) IndexTestUtil.
-        createInstance(
-            index, dataProv,
-            null, IndexTestUtil.getRandomStopWords(index));
-    _testGetTerms(index, instance);
+    final AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
+        setupInstanceForTesting(false, true);
+    _testGetTerms(instance);
   }
 
   /**
@@ -1886,12 +1680,9 @@ public abstract class IndexDataProviderTestCase
     if (!isImplementingAbstractIdp() || isAbstractIdpTestInstance()) {
       return;
     }
-    final AbstractIndexDataProvider instance
-        = (AbstractIndexDataProvider) IndexTestUtil.
-        createInstance(
-            index, dataProv,
-            IndexTestUtil.getRandomFields(index), null);
-    _testGetTerms(index, instance);
+    final AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
+        setupInstanceForTesting(true, false);
+    _testGetTerms(instance);
   }
 
   /**
@@ -1906,13 +1697,9 @@ public abstract class IndexDataProviderTestCase
     if (!isImplementingAbstractIdp() || isAbstractIdpTestInstance()) {
       return;
     }
-    final AbstractIndexDataProvider instance
-        = (AbstractIndexDataProvider) IndexTestUtil.
-        createInstance(
-            index, dataProv,
-            IndexTestUtil.getRandomFields(index),
-            IndexTestUtil.getRandomStopWords(index));
-    _testGetTerms(index, instance);
+    final AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
+        setupInstanceForTesting(true, true);
+    _testGetTerms(instance);
   }
 
   /**
@@ -1926,15 +1713,16 @@ public abstract class IndexDataProviderTestCase
     if (!isImplementingAbstractIdp()) {
       return;
     }
-    final AbstractIndexDataProvider instance
-        = (AbstractIndexDataProvider) IndexTestUtil.
-        createInstance(index, dataProv, null, null);
+    final AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
+        setupInstanceForTesting(false, false);
     instance.clearCache();
-    assertTrue(msg("Index terms cache not empty."), instance.idxTerms.
-        isEmpty());
-    assertTrue(msg("Index document frequency cache not empty."),
+    assertTrue(
+        msg(instance, "Index terms cache not empty."),
+        instance.getIdxTerms().isEmpty());
+    assertTrue(
+        msg(instance, "Index document frequency cache not empty."),
         instance.idxDfMap.isEmpty());
-    assertEquals(msg("Index term frequency cache not empty."), null,
-        instance.idxTf);
+    assertNull(msg(instance, "Index term frequency cache not empty."),
+        instance.getIdxTf());
   }
 }

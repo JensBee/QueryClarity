@@ -16,7 +16,8 @@
  */
 package de.unihildesheim.iw;
 
-import de.unihildesheim.iw.lucene.Environment;
+import de.unihildesheim.iw.util.FileUtils;
+import de.unihildesheim.iw.util.RandomValue;
 import org.mapdb.Atomic;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
@@ -27,9 +28,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.Set;
 
 /**
@@ -44,34 +43,66 @@ public final class Persistence {
   /**
    * Database reference.
    */
-  public final DB db;
+  public DB db;
   /**
-   * Object storing meta information about the Lucene index and {@link
-   * Environment} configuration.
+   * Object storing meta information about the current Lucene index state and
+   * the runtime configuration.
    */
-  private final StorageMeta meta;
+  private StorageMeta meta;
+
+  private Persistence() {
+  }
 
   /**
-   * Create a new persistent store.
-   *
-   * @param newDb Database reference
-   * @param empty True if the store should be treated as being empty
-   * @throws Environment.NoIndexException Thrown, if no index is provided in the
-   * {@link Environment}
+   * Tries to create a file directory to store the persistent data.
+   * @param filePath Path to use for storing
+   * @return File instance of the path
+   * @throws IOException Thrown, if the path is not a directory, if the path
+   * does not exist an could not be created or if reading/writing to this
+   * directory is not allowed.
    */
-  public Persistence(final DB newDb, final boolean empty)
-      throws
-      Environment.NoIndexException {
-    this.db = newDb;
+  public static final File tryCreateDataPath(final String filePath)
+      throws IOException {
+    if (filePath == null || filePath.trim().isEmpty()) {
+      throw new IllegalArgumentException("Data path was empty.");
+    }
 
-    this.meta = new StorageMeta();
+    final File dataDir = new File(filePath);
+    if (dataDir.exists()) {
+      // check, if path is a directory
+      if (!dataDir.isDirectory()) {
+        throw new IOException("Data path '" + dataDir.getCanonicalPath()
+            + "' exists, but is not a directory.");
+      }
+    } else if (!dataDir.mkdirs()) {
+      throw new IOException("Error while creating data directories '"
+          + dataDir.getCanonicalPath() + "'.");
+    }
+    if (!dataDir.canWrite() || !dataDir.canRead()) {
+      throw new IOException("Insufficient rights for data directory '"
+          + dataDir.getCanonicalPath() + "'.");
+    }
+    return dataDir;
+  }
+
+  protected static final Persistence build(final Builder builder,
+      final boolean empty) {
+    final Persistence instance = new Persistence();
+    instance.db = builder.getMaker().make();
+    instance.meta = new StorageMeta();
 
     if (empty) {
-      getMetaData(true);
-      updateMetaData();
+      instance.getMetaData(true);
+      instance.updateMetaData(builder.getDocumentFields(),
+          builder.getStopwords());
+      if (builder.getLastCommitGeneration() != null) {
+        instance.meta.setIndexCommitGen(builder.getLastCommitGeneration());
+      }
     } else {
-      getMetaData(false);
+      instance.getMetaData(false);
     }
+
+    return instance;
   }
 
   /**
@@ -81,8 +112,6 @@ public final class Persistence {
    * returning the data.
    */
   private void getMetaData(final boolean create) {
-    meta.indexPath = this.db.getAtomicString(Storage.PERSISTENCE_IDX_PATH.
-        name());
     meta.indexCommitGen = this.db.getAtomicLong(
         Storage.PERSISTENCE_IDX_COMMIT_GEN.name());
     if (create && this.db.exists(Storage.PERSISTENCE_FIELDS.name())) {
@@ -102,17 +131,12 @@ public final class Persistence {
 
   /**
    * Update the meta-data records. This does not commit data to the database.
-   *
-   * @throws Environment.NoIndexException Thrown, if no index is provided in the
-   * {@link Environment}
    */
-  public void updateMetaData()
-      throws Environment.NoIndexException {
+  public void updateMetaData(final Set<String> fields,
+      final Set<String> stopwords) {
     LOG.debug("Updating meta-data.");
-    meta.setIndexPath(Environment.getIndexPath());
-    meta.setIndexCommitGen(Environment.getIndexGeneration());
-    meta.setFields(Arrays.asList(Environment.getFields()));
-    meta.setStopWords(Environment.getStopwords());
+    meta.setFields(fields);
+    meta.setStopWords(stopwords);
   }
 
   /**
@@ -128,11 +152,6 @@ public final class Persistence {
    * Keys to stored values in database.
    */
   private enum Storage {
-
-    /**
-     * Path to the Lucene index.
-     */
-    PERSISTENCE_IDX_PATH,
     /**
      * Latest commit generation of the Lucene index.
      */
@@ -154,34 +173,20 @@ public final class Persistence {
   public static final class StorageMeta {
 
     /**
-     * Index path used, when creating this store.
-     */
-    @SuppressWarnings({"ProtectedField", "checkstyle:visibilitymodifier"})
-    protected Atomic.String indexPath;
-    /**
-     * Latest index commit generation visible when creating this store.
+     * Latest index commit generation visible when last updating this store.
      */
     @SuppressWarnings({"ProtectedField", "checkstyle:visibilitymodifier"})
     protected Atomic.Long indexCommitGen;
     /**
-     * Fields active in the {@link Environment} when creating this store.
+     * Fields set when last updating this store.
      */
     @SuppressWarnings({"ProtectedField", "checkstyle:visibilitymodifier"})
     protected Set<String> fields;
     /**
-     * Stopwords active in the {@link Environment} when creating this store.
+     * Stopwords set when last updating this store.
      */
     @SuppressWarnings({"ProtectedField", "checkstyle:visibilitymodifier"})
     protected Set<String> stopWords;
-
-    /**
-     * Set the index path.
-     *
-     * @param newIndexPath Current path to Lucene index
-     */
-    protected void setIndexPath(final String newIndexPath) {
-      this.indexPath.set(newIndexPath);
-    }
 
     /**
      * Set the Lucene index commit generation.
@@ -197,9 +202,9 @@ public final class Persistence {
      *
      * @param newFields Fields list
      */
-    protected void setFields(final Collection<String> newFields) {
+    protected void setFields(final Set<String> newFields) {
       this.fields.clear();
-      this.fields.addAll(new HashSet<>(newFields));
+      this.fields.addAll(newFields);
     }
 
     /**
@@ -207,39 +212,46 @@ public final class Persistence {
      *
      * @param newStopWords List of stopwords
      */
-    protected void setStopWords(final Collection<String> newStopWords) {
+    protected void setStopWords(final Set<String> newStopWords) {
       this.stopWords.clear();
-      this.stopWords.addAll(new HashSet<>(newStopWords));
+      this.stopWords.addAll(newStopWords);
     }
 
     /**
-     * Checks the index fields currently set in the {@link Environment} against
-     * those stored in the meta-information.
+     * Checks the index fields currently set against those stored in the
+     * meta-information.
      *
+     * @param currentFields List of fields to check
      * @return True, if both contain the same field names.
      */
-    public boolean fieldsCurrent() {
-      final Collection<String> eFields = Arrays.
-          asList(Environment.getFields());
+    public boolean fieldsCurrent(final Set<String> currentFields) {
       if (this.fields == null) {
         throw new IllegalStateException("Fields meta information not set.");
       }
-      return this.fields.size() == eFields.size() && this.fields.containsAll(
-          eFields);
+      if (currentFields == null) {
+        throw new IllegalArgumentException("Fields were null.");
+      }
+      return this.fields.size() == currentFields.size() &&
+          this.fields.containsAll(
+              currentFields);
     }
 
     /**
-     * Checks the stopwords currently set in the {@link Environment} against
-     * those stored in the meta-information.
+     * Checks the stopwords currently set against those stored in the
+     * meta-information.
      *
+     * @param currentWords List of stopwords to check
      * @return True, if both contain the same list of stopwords.
      */
-    public boolean stopWordsCurrent() {
+    public boolean stopWordsCurrent(final Set<String> currentWords) {
       if (this.stopWords == null) {
         throw new IllegalStateException("Stopword meta information not set.");
       }
-      return this.stopWords.size() == Environment.getStopwords().size()
-             && this.stopWords.containsAll(Environment.getStopwords());
+      if (currentWords == null) {
+        throw new IllegalArgumentException("Stopwords were null.");
+      }
+      return this.stopWords.size() == currentWords.size()
+          && this.stopWords.containsAll(currentWords);
     }
 
     /**
@@ -247,17 +259,13 @@ public final class Persistence {
      * the meta-information.
      *
      * @return True, if both generation numbers are the same.
-     * @throws Environment.NoIndexException Thrown, if no index is provided in
-     * the {@link Environment}
      */
-    public boolean generationCurrent()
-        throws Environment.NoIndexException {
+    public boolean generationCurrent(final long currentGen) {
       if (this.indexCommitGen == null) {
         throw new IllegalStateException("Commit generation "
-                                        + "meta information not set.");
+            + "meta information not set.");
       }
-      return Environment.getIndexGeneration().
-          equals(this.indexCommitGen.get());
+      return this.indexCommitGen.get() == currentGen;
     }
   }
 
@@ -265,57 +273,118 @@ public final class Persistence {
    * Builder to create a new persistent store.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static final class Builder {
+  public static final class Builder
+      implements Buildable<Persistence> {
+
+    /**
+     * Instructions on how to load/create the persistent cache.
+     */
+    public enum LoadInstruction {
+      /**
+       * Tries to create a new cache.
+       */
+      MAKE,
+      /**
+       * Tries to load a cache.
+       */
+      GET,
+      /**
+       * Tries to load or create a cache.
+       */
+      MAKE_OR_GET
+    }
+
+    /**
+     * Instruction on how to handle the cache.
+     */
+    private LoadInstruction cacheInstruction = LoadInstruction.MAKE_OR_GET;
 
     /**
      * Database async write flush delay.
      */
     private static final int DB_ASYNC_WRITEFLUSH_DELAY = 100;
+
     /**
      * Database file prefix.
      */
     private static final String PREFIX = "persist_";
+
     /**
      * Builder used to create a new database.
      */
-    private final DBMaker dbMkr;
+    private ExtDBMaker dbMkr = new ExtDBMaker();
+
     /**
      * Name of the database to create.
      */
-    private final String name;
-    /**
-     * Resulting filename of the new database.
-     */
-    private final File dbFile;
+    private String name = null;
+
+//    /**
+//     * Resulting filename of the new database.
+//     */
+//    private File dbFile;
+
+    private String dataPath;
 
     /**
-     * Initialize the builder.
-     *
-     * @param newName Name of the storage to create
+     * List of stopwords to use.
      */
-    public Builder(final String newName) {
-      this.name = newName;
-      this.dbFile = new File(Environment.getDataPath() + Builder.PREFIX
-                             + "_" + this.name);
-      this.dbMkr = DBMaker.newFileDB(this.dbFile);
+    private Set<String> stopwords = Collections.<String>emptySet();
+
+    /**
+     * List of document fields to use.
+     */
+    private Set<String> documentFields = Collections.<String>emptySet();
+
+    /**
+     * Last commit generation id of the Lucene index.
+     */
+    private Long lastCommitGeneration = null;
+
+    /**
+     * Flag indicating, if the new instance will be temporary. If it's
+     * temporary any data may be deleted on JVM exit.
+     */
+    private boolean isTemporary = false;
+
+    /**
+     * Random string to prefix a temporary storage with.
+     */
+    private final String randNameSuffix = RandomValue.getString(32);
+
+    /**
+     * Simple extension of MapDB's {@link DBMaker} to allow specifying the
+     * database file after creating the maker instance.
+     */
+    private static final class ExtDBMaker extends DBMaker {
+      private ExtDBMaker() {
+        super();
+      }
+
+      private ExtDBMaker dbFile(final File file) {
+        props.setProperty(Keys.file, file.getPath());
+        return this;
+      }
     }
 
-    /**
-     * Get the database file name.
-     *
-     * @return Database file name
-     */
-    public String getFileName() {
-      return this.dbFile.toString();
+    public Builder() {
     }
 
-    /**
-     * Check, if a database with the given name already exists.
-     *
-     * @return True, if exists.
-     */
-    public boolean exists() {
-      return this.dbFile.exists();
+    public Builder dataPath(final String newDataPath) {
+      this.dataPath = newDataPath;
+      return this;
+    }
+
+    public Builder name(final String newName) {
+      if (newName == null || newName.isEmpty()) {
+        throw new IllegalArgumentException("Empty cache name.");
+      }
+      if (this.isTemporary) {
+       this.name = newName + "-" + this.randNameSuffix;
+      } else {
+        this.name = newName;
+      }
+      return this;
     }
 
     /**
@@ -334,7 +403,13 @@ public final class Persistence {
      * @return Self reference
      */
     public Builder temporary() {
-      this.dbMkr.deleteFilesAfterClose();
+      if (!this.isTemporary) {
+        this.dbMkr.deleteFilesAfterClose();
+        this.isTemporary = true;
+        if (this.name != null) {
+          this.name += "-" + this.randNameSuffix;
+        }
+      }
       return this;
     }
 
@@ -355,59 +430,183 @@ public final class Persistence {
     }
 
     /**
+     * Set the last commit generation id of the Lucene index.
+     *
+     * @param cGen Commit generation id
+     */
+    public Builder lastCommitGeneration(final long cGen) {
+      this.lastCommitGeneration = cGen;
+      return this;
+    }
+
+    protected Long getLastCommitGeneration() {
+      return this.lastCommitGeneration;
+    }
+
+    /**
+     * Set a list of stopwords to use by this instance.
+     *
+     * @param words List of stopwords. May be empty.
+     */
+    public Builder stopwords(final Set<String> words) {
+      if (words == null) {
+        throw new IllegalArgumentException("Stopwords were null.");
+      }
+      this.stopwords = words;
+      return this;
+    }
+
+    protected Set<String> getStopwords() {
+      return this.stopwords;
+    }
+
+    /**
+     * Set a list of document fields to use by this instance.
+     *
+     * @param fields List of field names. May be empty.
+     * @return self reference
+     */
+    public Builder documentFields(
+        final Set<String> fields) {
+      if (fields == null) {
+        throw new IllegalArgumentException("Fields were null.");
+      }
+      this.documentFields = fields;
+      return this;
+    }
+
+    protected Set<String> getDocumentFields() {
+      return this.documentFields;
+    }
+
+    /**
      * Creates a database with the current configuration.
      *
-     * @return {@link} Persistence} with a database created using the current
-     * configuration
-     * @throws IOException Thrown on low-level I/O errors
-     * @throws Environment.NoIndexException Thrown, if no index is provided in
-     * the {@link Environment}
+     * @return Self reference
      */
-    public Persistence make()
-        throws IOException, Environment.NoIndexException {
-      if (exists()) {
-        throw new IOException("Database file exists: " + getFileName());
-      }
-      LOG.debug("New fileDB @ {}", this.dbFile);
-      return new Persistence(this.dbMkr.make(), true);
+    public Builder make() {
+      this.cacheInstruction = LoadInstruction.MAKE;
+      return this;
     }
 
     /**
      * Loads a database with the current configuration.
      *
-     * @return {@link} Persistence} with a database created using the current
-     * configuration
-     * @throws FileNotFoundException Thrown, if the database could not be found
-     * @throws Environment.NoIndexException Thrown, if no index is provided in
-     * the {@link Environment}
+     * @return Self reference
      */
-    public Persistence get()
-        throws FileNotFoundException,
-               Environment.NoIndexException {
-      if (!exists()) {
-        throw new FileNotFoundException("Database file not found.");
-      }
-      return new Persistence(this.dbMkr.make(), false);
+    public Builder get() {
+      this.cacheInstruction = LoadInstruction.GET;
+      return this;
     }
 
     /**
      * Loads or creates a database with the current configuration.
      *
-     * @return {@link} Persistence} with a database created using the current
-     * configuration
-     * @throws Environment.NoIndexException Thrown, if no index is provided in
-     * the {@link Environment}
+     * @return Self reference
      */
-    public Persistence makeOrGet()
-        throws Environment.NoIndexException {
-      try {
-        if (exists()) {
-          return get();
-        }
-        return make();
-      } catch (IOException ex) {
-        LOG.error("Error getting database.", ex);
-        throw new IllegalStateException("Error creating database.");
+    public Builder makeOrGet() {
+      this.cacheInstruction = LoadInstruction.MAKE_OR_GET;
+      return this;
+    }
+
+    /**
+     * Tries to load an existing database and create the instance.
+     *
+     * @return Instance with current builder configuration
+     * @throws FileNotFoundException Thrown, if the database could not be found
+     */
+    private Persistence getInstance(final File dbFile)
+        throws FileNotFoundException {
+      if (!dbFile.exists()) {
+        throw new FileNotFoundException("Database file not found.");
+      }
+      return Persistence.build(this, false);
+    }
+
+    /**
+     * Tries to create a new database and create the instance.
+     *
+     * @return Instance with current builder configuration
+     * @throws IOException Thrown on low-level I/O errors
+     */
+    private Persistence makeInstance(final File dbFile)
+        throws IOException {
+      if (dbFile.exists()) {
+        throw new IOException("Database file exists: " + dbFile.toString());
+      }
+      LOG.debug("New fileDB @ {}", dbFile);
+      return Persistence.build(this, true);
+    }
+
+    public LoadInstruction getCacheLoadInstruction() {
+      return this.cacheInstruction;
+    }
+
+    public boolean dbExists()
+        throws BuilderConfigurationException {
+      if (this.dataPath == null || this.dataPath.trim().isEmpty()) {
+        throw new BuilderConfigurationException("Data path not set.");
+      }
+      if (this.name == null || this.name.trim().isEmpty()) {
+        throw new BuilderConfigurationException("Empty storage name.");
+      }
+      return new File(
+          FileUtils.makePath(this.dataPath) + Builder.PREFIX + "_" + this
+              .name).exists();
+    }
+
+    /**
+     * Creates a new instance with the current builder configuration.
+     *
+     * @return New instance
+     * @throws BuilderConfigurationException Thrown, if a mandatory
+     * configuration option is unset
+     * @throws IOException Thrown on low-level I/O errors
+     */
+    @Override
+    public Persistence build()
+        throws BuilderConfigurationException, IOException {
+      validate();
+      final File dbFile = new File(
+          FileUtils.makePath(this.dataPath) + Builder.PREFIX + "_" + this.name);
+      //this.dbMkr = DBMaker.newFileDB(dbFile);
+      this.dbMkr.dbFile(dbFile);
+      final Persistence p;
+      switch (this.cacheInstruction) {
+        case GET:
+          p = getInstance(dbFile);
+          break;
+        case MAKE:
+          p = makeInstance(dbFile);
+          break;
+        default:
+          if (dbFile.exists()) {
+            p = getInstance(dbFile);
+          } else {
+            p = makeInstance(dbFile);
+          }
+          break;
+      }
+      if (this.isTemporary) {
+        LOG.warn("Caches are temporary!");
+      }
+      return p;
+    }
+
+    @Override
+    public void validate()
+        throws BuilderConfigurationException {
+      if (this.dataPath == null || this.dataPath.trim().isEmpty()) {
+        throw new BuilderConfigurationException("Data path not set.");
+      }
+      if (this.name == null || this.name.trim().isEmpty()) {
+        throw new BuilderConfigurationException("Empty storage name.");
+      }
+      if (this.documentFields == null) {
+        throw new BuilderConfigurationException("Document fields are null.");
+      }
+      if (this.stopwords == null) {
+        throw new BuilderConfigurationException("Stopwords are null.");
       }
     }
   }

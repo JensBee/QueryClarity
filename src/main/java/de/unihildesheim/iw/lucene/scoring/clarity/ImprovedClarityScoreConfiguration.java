@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.iw.lucene.scoring.clarity.impl;
+package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.util.Configuration;
 
@@ -38,11 +38,11 @@ public final class ImprovedClarityScoreConfiguration
   private static enum Keys {
 
     /**
-     * Document model calculation alpha parameter.
+     * Document-model calculation alpha parameter.
      */
     docModelParamLambda,
     /**
-     * Document model calculation beta parameter.
+     * Document-model calculation beta parameter.
      */
     docModelParamBeta,
     /**

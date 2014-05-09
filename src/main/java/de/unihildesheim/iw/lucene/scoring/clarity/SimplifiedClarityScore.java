@@ -14,27 +14,27 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.iw.lucene.scoring.clarity.impl;
+package de.unihildesheim.iw.lucene.scoring.clarity;
 
+import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
-import de.unihildesheim.iw.lucene.metrics.CollectionMetrics;
+import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
-import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation;
-import de.unihildesheim.iw.util.Configuration;
 import de.unihildesheim.iw.util.TimeMeasure;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Collection;
 
 /**
  * Simplified Clarity Score implementation as described by He, Ben, and Iadh
  * Ounis.
- * <p>
+ * <p/>
  * Reference:
- * <p>
+ * <p/>
  * He, Ben, and Iadh Ounis. “Inferring Query Performance Using Pre-Retrieval
  * Predictors.” In String Processing and Information Retrieval, edited by
  * Alberto Apostolico and Massimo Melucci, 43–54. Lecture Notes in Computer
@@ -53,28 +53,46 @@ public final class SimplifiedClarityScore
       SimplifiedClarityScore.class);
 
   /**
-   * Default constructor using the {@link IndexDataProvider} for statistical
-   * index data.
+   * {@link IndexDataProvider} to use.
    */
-  public SimplifiedClarityScore() {
+  private IndexDataProvider dataProv;
+
+  /**
+   * Provider for general index metrics.
+   */
+  protected Metrics metrics;
+
+  /**
+   * Default constructor. Called from builder.
+   */
+  private SimplifiedClarityScore() {
     super();
   }
 
   /**
-   * Constructor to satisfy automatic instantiation. No configuration is
-   * actually used.
+   * Builder method to create a new instance.
    *
-   * @param conf Configuration (ignored)
+   * @param builder Builder to use for constructing the instance
+   * @return New instance
    */
-  public SimplifiedClarityScore(
-      @SuppressWarnings("UnusedParameters") final Configuration conf) {
-    this();
+  protected static SimplifiedClarityScore build(final Builder
+      builder) {
+    final SimplifiedClarityScore instance = new SimplifiedClarityScore();
+
+    // set configuration
+    instance.setIndexDataProvider(builder.idxDataProvider);
+    instance.metrics = Metrics.getInstance(builder.idxDataProvider);
+
+    return instance;
   }
 
-  @Override
-  public final SimplifiedClarityScore setConfiguration(
-      final Configuration conf) {
-    return this;
+  /**
+   * Set the {@link IndexDataProvider} to use.
+   *
+   * @param newDataProv Data provider
+   */
+  private void setIndexDataProvider(final IndexDataProvider newDataProv) {
+    this.dataProv = newDataProv;
   }
 
   /**
@@ -87,7 +105,7 @@ public final class SimplifiedClarityScore
     // length of the (rewritten) query
     final int queryLength = queryTerms.size();
     // number of unique terms in collection
-    final double collTermCount = CollectionMetrics.numberOfUniqueTerms().
+    final double collTermCount = this.metrics.collection.numberOfUniqueTerms().
         doubleValue();
 
     double result = 0d;
@@ -107,10 +125,10 @@ public final class SimplifiedClarityScore
       double pMl =
           Integer.valueOf(termCount).doubleValue() / Integer.valueOf(
               queryLength).doubleValue();
-      double pColl = CollectionMetrics.tf(queryTerm).doubleValue()
-                     / collTermCount;
+      double pColl = this.metrics.collection.tf(queryTerm).doubleValue()
+          / collTermCount;
       double log = (Math.log(pMl) / Math.log(2)) - (Math.log(pColl) /
-                                                    Math.log(2));
+          Math.log(2));
       result += pMl * log;
     }
 
@@ -119,8 +137,7 @@ public final class SimplifiedClarityScore
 
   @Override
   public ClarityScoreResult calculateClarity(final String query)
-      throws
-      ParseException {
+      throws ParseException, IOException {
     if (query == null || query.isEmpty()) {
       throw new IllegalArgumentException("Query was empty.");
     }
@@ -129,9 +146,15 @@ public final class SimplifiedClarityScore
     final Collection<ByteArray> queryTerms;
     try {
       // get all query terms - list must NOT be unique!
-      queryTerms = QueryUtils.getAllQueryTerms(query);
-    } catch (UnsupportedEncodingException ex) {
-      LOG.error("Caught exception while preparing calculation.", ex);
+      final QueryUtils queryUtils =
+          new QueryUtils(this.dataProv.getIndexReader(),
+              this.dataProv.getDocumentFields());
+      queryTerms = queryUtils.getAllQueryTerms(query);
+    } catch (UnsupportedEncodingException e) {
+      LOG.error("Caught exception while preparing calculation.", e);
+      return null;
+    } catch (Buildable.BuilderConfigurationException e) {
+      LOG.error("Caught exception while building query.", e);
       return null;
     }
     if (queryTerms == null || queryTerms.isEmpty()) {
@@ -146,8 +169,37 @@ public final class SimplifiedClarityScore
     LOG.debug("Calculation results: query={} score={}.", query, score);
 
     LOG.debug("Calculating simplified clarity score for query {} "
-              + "took {}. {}", query, timeMeasure.getTimeString(), score);
+        + "took {}. {}", query, timeMeasure.getTimeString(), score);
 
     return new ClarityScoreResult(this.getClass(), score);
+  }
+
+  /**
+   * Builder to create a new {@link SimplifiedClarityScore} instance.
+   */
+  public static final class Builder
+      implements Buildable<SimplifiedClarityScore> {
+    /**
+     * {@link IndexDataProvider} to use.
+     */
+    protected IndexDataProvider idxDataProvider = null;
+
+    public Builder indexDataProvider(
+        final IndexDataProvider dataProv) {
+      this.idxDataProvider = dataProv;
+      return this;
+    }
+
+    @Override
+    public SimplifiedClarityScore build()
+        throws BuilderConfigurationException {
+      validate();
+      return SimplifiedClarityScore.build(this);
+    }
+
+    @Override
+    public void validate()
+        throws BuilderConfigurationException {
+    }
   }
 }

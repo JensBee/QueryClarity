@@ -14,25 +14,20 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.iw.lucene.scoring.clarity.impl;
+package de.unihildesheim.iw.lucene.scoring.clarity;
 
+import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.Persistence;
-import de.unihildesheim.iw.SupportsPersistence;
 import de.unihildesheim.iw.Tuple;
-import de.unihildesheim.iw.lucene.Environment;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.document.Feedback;
 import de.unihildesheim.iw.lucene.index.ExternalDocTermDataManager;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
-import de.unihildesheim.iw.lucene.metrics.CollectionMetrics;
-import de.unihildesheim.iw.lucene.metrics.DocumentMetrics;
+import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.lucene.query.TermsQueryBuilder;
-import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation;
-import de.unihildesheim.iw.util.ByteArrayUtil;
-import de.unihildesheim.iw.util.Configuration;
-import de.unihildesheim.iw.util.RandomValue;
+import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import de.unihildesheim.iw.util.concurrent.AtomicDouble;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
@@ -47,15 +42,19 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Default Clarity Score implementation as described by Cronen-Townsend, Steve,
  * Yun Zhou, and W. Bruce Croft.
- * <p>
+ * <p/>
  * Reference:
- * <p>
+ * <p/>
  * “Predicting Query Performance.” In Proceedings of the 25th Annual
  * International ACM SIGIR Conference on Research and Development in Information
  * Retrieval, 299–306. SIGIR ’02. New York, NY, USA: ACM, 2002.
@@ -64,8 +63,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @author Jens Bertram
  */
 public final class DefaultClarityScore
-    implements ClarityScoreCalculation,
-               SupportsPersistence {
+    implements ClarityScoreCalculation {
 
   /**
    * Logger instance for this class.
@@ -133,9 +131,10 @@ public final class DefaultClarityScore
   private DefaultClarityScoreConfiguration conf;
 
   /**
-   * Flag indicating, if caches are temporary.
+   * Flag indicating, if this instance (it's caches) is temporary.
    */
-  private boolean cacheTemporary = false;
+  private boolean isTemporary = false;
+
   /**
    * Flag indicating, if a cache is set.
    */
@@ -145,80 +144,60 @@ public final class DefaultClarityScore
    * Database to use.
    */
   private DB db;
+
   /**
    * Manager object for extended document data.
    */
   private ExternalDocTermDataManager extDocMan;
 
   /**
-   * Create a new scoring instance with the default parameter set.
+   * {@link IndexDataProvider} to use.
    */
-  public DefaultClarityScore() {
-    this(new DefaultClarityScoreConfiguration());
-  }
+  private IndexDataProvider dataProv;
 
   /**
-   * Create a new scoring instance with the parameters set in the given
-   * configuration.
-   *
-   * @param newConf Configuration
+   * Provider for general index metrics.
    */
-  public DefaultClarityScore(final Configuration newConf) {
+  protected Metrics metrics;
+
+  /**
+   * Default constructor. Called from builder.
+   */
+  private DefaultClarityScore() {
     super();
-    setConfiguration(newConf);
   }
 
   /**
-   * Tries to load a persistent cache and creates a new one, if none found.
+   * Builder method to create a new instance.
    *
-   * @param name Cache name
-   * @throws IOException Thrown on low-level I/O errors
-   * @throws Environment.NoIndexException Thrown, if no index is provided in the
-   * {@link Environment}
+   * @param builder Builder to use for constructing the instance
+   * @return New instance
    */
-  @Override
-  public void loadOrCreateCache(final String name)
-      throws IOException,
-             Environment.NoIndexException {
-    initCache(name, false, true);
-  }
+  protected static DefaultClarityScore build(final Builder builder)
+      throws IOException {
+    final DefaultClarityScore instance = new DefaultClarityScore();
 
-  /**
-   * Creates a new persistent cache. Throws an exception if one with the given
-   * name already exist.
-   *
-   * @param name Cache name
-   * @throws IOException Thrown on low-level I/O errors
-   * @throws Environment.NoIndexException Thrown, if no index is provided in the
-   * {@link Environment}
-   */
-  @Override
-  public void createCache(final String name)
-      throws IOException,
-             Environment.NoIndexException {
-    initCache(name, true, true);
-  }
+    // set configuration
+    instance.setConfiguration(builder.getConfiguration());
+    instance.isTemporary = builder.isTemporary;
+    instance.dataProv = builder.idxDataProvider;
+    instance.metrics = Metrics.getInstance(builder.idxDataProvider);
 
-  /**
-   * Tries to load a persistent cache. Throws an exception if none with the
-   * given name exist.
-   *
-   * @param name Cache name
-   * @throws IOException Thrown on low-level I/O errors
-   * @throws Environment.NoIndexException Thrown, if no index is provided in the
-   * {@link Environment}
-   */
-  @Override
-  public void loadCache(final String name)
-      throws IOException,
-             Environment.NoIndexException {
-    initCache(name, false, false);
+    // initialize
+    try {
+      instance.initCache(builder);
+    } catch (Buildable.BuilderConfigurationException e) {
+      LOG.error("Failed to initialize cache.", e);
+      throw new IllegalStateException("Failed to initialize cache.");
+    }
+
+    return instance;
   }
 
   /**
    * Debug method. Get the local manager for external document data.
    *
-   * @return Document data manager
+   * @return Document-data manager
    */
   protected ExternalDocTermDataManager testGetExtDocMan() {
     return this.extDocMan;
@@ -227,46 +206,38 @@ public final class DefaultClarityScore
   /**
    * Initializes a cache.
    *
-   * @param name Cache name
-   * @param createNew If true, a new cache will be created. Throws an exception
-   * if one with the given name already exist.
-   * @param createIfNeeded If true, creates a new cache if none found
+   * @param builder Builder instance
    * @throws IOException Thrown on low-level I/O errors
-   * @throws Environment.NoIndexException Thrown, if no index is provided in the
-   * {@link Environment}
    */
   @SuppressWarnings("checkstyle:magicnumber")
-  private void initCache(final String name, boolean createNew,
-      final boolean createIfNeeded)
-      throws IOException,
-             Environment.NoIndexException {
-    final Persistence.Builder psb;
-    if (Environment.isTestRun() || this.cacheTemporary) {
-      psb = new Persistence.Builder(IDENTIFIER
-                                    + "_" + name + "_" +
-                                    RandomValue.getString(6)).temporary();
-    } else {
-      psb = new Persistence.Builder(IDENTIFIER + "_" + name);
-    }
+  private void initCache(final Builder builder)
+      throws IOException, Buildable.BuilderConfigurationException {
+    final Persistence.Builder psb = builder.persistenceBuilder;
     psb.setDbDefaults();
 
-    if (!psb.exists() && createIfNeeded) {
-      createNew = true;
+    final Persistence persistence;
+    boolean createNew = false;
+    switch (psb.getCacheLoadInstruction()) {
+      case MAKE:
+        persistence = psb.make().build();
+        createNew = true;
+        break;
+      case GET:
+        persistence = psb.get().build();
+        break;
+      default:
+        if (!psb.dbExists()) {
+          createNew = true;
+        }
+        persistence = psb.makeOrGet().build();
+        break;
     }
 
-    // wrapper for persistent data storage.
-    final Persistence pData;
-    if (createNew) {
-      pData = psb.make();
-    } else if (!createIfNeeded) {
-      pData = psb.get();
-    } else {
-      pData = psb.makeOrGet();
-    }
-    this.db = pData.db;
+    this.db = persistence.db;
 
     if (!createNew) {
-      if (!pData.getMetaData().generationCurrent()) {
+      if (!persistence.getMetaData()
+          .generationCurrent(this.dataProv.getLastIndexCommitGeneration())) {
         throw new IllegalStateException(
             "Index changed since last caching.");
       }
@@ -275,18 +246,21 @@ public final class DefaultClarityScore
         throw new IllegalStateException(
             "Different language-model weight used in cache.");
       }
-      if (!pData.getMetaData().fieldsCurrent()) {
+      if (!persistence.getMetaData()
+          .fieldsCurrent(this.dataProv.getDocumentFields())) {
         throw new IllegalStateException(
             "Current fields are different from cached ones.");
       }
-      if (!pData.getMetaData().stopWordsCurrent()) {
+      if (!persistence.getMetaData().stopWordsCurrent(this.dataProv
+          .getStopwords())) {
         throw new IllegalStateException(
             "Current stopwords are different from cached ones.");
       }
     } else {
       this.db.createAtomicString(Caches.LANGMODEL_WEIGHT.name(), this.conf.
           getLangModelWeight().toString());
-      pData.updateMetaData();
+      persistence.updateMetaData(this.dataProv.getDocumentFields(),
+          this.dataProv.getStopwords());
     }
 
     this.defaultDocModels = this.db
@@ -298,14 +272,15 @@ public final class DefaultClarityScore
     this.hasCache = true;
   }
 
-  @Override
-  public DefaultClarityScore setConfiguration(final Configuration newConf) {
-    if (!(newConf instanceof DefaultClarityScoreConfiguration)) {
-      throw new IllegalArgumentException("Wrong configuration type.");
-    }
-    this.conf = (DefaultClarityScoreConfiguration) newConf;
+  /**
+   * Set the configuration to use by this instance.
+   *
+   * @param newConf Configuration
+   */
+  private void setConfiguration(
+      final DefaultClarityScoreConfiguration newConf) {
+    this.conf = newConf;
     this.conf.debugDump();
-    return this;
   }
 
   /**
@@ -319,8 +294,9 @@ public final class DefaultClarityScore
     assert (this.defaultDocModels != null); // must be initialized
     Double model = this.defaultDocModels.get(term);
     if (model == null) {
-      model = ((1 - this.conf.getLangModelWeight()) * CollectionMetrics.relTf(
-          term));
+      model =
+          ((1 - this.conf.getLangModelWeight()) * this.metrics.collection.relTf(
+              term));
       this.defaultDocModels.put(term.clone(), model);
     }
     return model;
@@ -329,13 +305,13 @@ public final class DefaultClarityScore
   /**
    * Calculate the document distribution of a term, document model (pD).
    *
-   * @param docModel Document model to do the calculation for
+   * @param docModel Document-model to do the calculation for
    */
   void calcDocumentModel(final DocumentModel docModel) {
     for (ByteArray term : docModel.termFreqMap.keySet()) {
       final Double model = (this.conf.getLangModelWeight()
-                            * docModel.metrics().relTf(term))
-                           + calcDefaultDocumentModel(term);
+          * docModel.metrics().relTf(term))
+          + calcDefaultDocumentModel(term);
 
       this.extDocMan.setData(docModel.id, term.clone(), DataKeys.DM.name(),
           model);
@@ -345,7 +321,7 @@ public final class DefaultClarityScore
   /**
    * Get the document language model for a given term.
    *
-   * @param docId Document model to do the calculation for
+   * @param docId Document-model to do the calculation for
    * @param term Term to do the calculation for
    * @return Calculated language model for the given document and term or
    * <tt>null</tt> if the term was not found in the document
@@ -360,7 +336,7 @@ public final class DefaultClarityScore
       Map<ByteArray, Object> td = this.extDocMan.getData(docId, DataKeys.DM.
           name());
       if (td == null || td.isEmpty()) {
-        calcDocumentModel(DocumentMetrics.getModel(docId));
+        calcDocumentModel(this.metrics.getDocumentModel(docId));
         td = this.extDocMan.getData(docId, DataKeys.DM.name());
       }
       model = (Double) td.get(term);
@@ -385,14 +361,14 @@ public final class DefaultClarityScore
     final Atomic.Boolean hasData = this.db.getAtomicBoolean(
         Caches.HAS_PRECALC_DATA.name());
     if (hasData.get()) {
-      LOG.info("Precalculated models are current.");
+      LOG.info("Pre-calculated models are current.");
     } else {
       new Processing(
           new Target.TargetFuncCall<>(
-              Environment.getDataProvider().getDocumentIdSource(),
+              this.dataProv.getDocumentIdSource(),
               new DocumentModelCalculatorTarget()
           )
-      ).process(CollectionMetrics.numberOfDocuments().intValue());
+      ).process(this.metrics.collection.numberOfDocuments().intValue());
       hasData.set(true);
     }
   }
@@ -400,14 +376,13 @@ public final class DefaultClarityScore
   /**
    * Calculate the clarity score.
    *
-   * @param feedbackDocuments Document ids of feedback documents
+   * @param feedbackDocuments Document-ids of feedback documents
    * @param queryTerms Query terms
    * @return Result of the calculation
    */
   private Result calculateClarity(final Collection<Integer> feedbackDocuments,
       final Collection<ByteArray> queryTerms)
-      throws IOException,
-             Environment.NoIndexException {
+      throws IOException {
     // check if models are pre-calculated
     final Result result = new Result(this.getClass());
     result.setConf(this.conf);
@@ -425,7 +400,7 @@ public final class DefaultClarityScore
     @SuppressWarnings("StringBufferWithoutInitialCapacity")
     StringBuilder queryStr = new StringBuilder();
     for (ByteArray ba : queryTerms) {
-      queryStr.append(ByteArrayUtil.utf8ToString(ba)).append(' ');
+      queryStr.append(ByteArrayUtils.utf8ToString(ba)).append(' ');
     }
     LOG.info("Calculating clarity score. query={}", queryStr);
 
@@ -434,7 +409,7 @@ public final class DefaultClarityScore
     ByteArray queryTerm;
     while (queryTermsIt.hasNext()) {
       queryTerm = queryTermsIt.next();
-      if (CollectionMetrics.tf(queryTerm) == 0L) {
+      if (this.metrics.collection.tf(queryTerm) == 0L) {
         queryTermsIt.remove();
       }
     }
@@ -455,28 +430,18 @@ public final class DefaultClarityScore
     p.setSourceAndTarget(
         new Target.TargetFuncCall<>(
             new CollectionSource<>(feedbackDocuments),
-            new QueryModelCalulatorTarget(queryTerms, queryModels)
+            new QueryModelCalculatorTarget(queryTerms, queryModels)
         )
     ).process(feedbackDocuments.size());
 
     final AtomicDouble score = new AtomicDouble(0);
-//    final Source<ByteArray> sourceCollection;
 
-    // calculation with all terms from collection
-//  LOG.info("Calculating query probability values "
-//      + "for {} unique terms in collection.", this.dataProv.
-//      getUniqueTermsCount());
-//  sourceCollection = this.dataProv.getTermsSource();
-    // collection with query terms only
-//  LOG.info("Calculating query probability values for {} query terms.",
-//      this.queryTerms.size());
-//  sourceCollection = new CollectionSource<>(this.queryTerms);
     // terms from feedback documents only
-    final Collection<ByteArray> termSet = Environment.getDataProvider().
-        getDocumentsTermSet(feedbackDocuments);
+    final Collection<ByteArray> termSet = this.dataProv.getDocumentsTermSet(
+        feedbackDocuments);
 
     LOG.info("Calculating query probability values "
-             + "for {} feedback documents.", feedbackDocuments.size());
+        + "for {} feedback documents.", feedbackDocuments.size());
     p.setSourceAndTarget(
         new Target.TargetFuncCall<>(
             new CollectionSource<>(termSet),
@@ -491,7 +456,7 @@ public final class DefaultClarityScore
 
     timeMeasure.stop();
     LOG.debug("Calculating default clarity score for query {} "
-              + "with {} document models took {}. {}", queryStr,
+            + "with {} document models took {}. {}", queryStr,
         feedbackDocuments.size(), timeMeasure.getTimeString(), score
     );
 
@@ -500,19 +465,28 @@ public final class DefaultClarityScore
 
   @Override
   public Result calculateClarity(final String query)
-      throws
-      ParseException, Environment.NoIndexException, IOException {
+      throws ParseException, IOException {
     if (query == null || query.isEmpty()) {
       throw new IllegalArgumentException("Query was empty.");
     }
 
-    final Query queryObj = TermsQueryBuilder.buildFromEnvironment(query);
+    final QueryUtils queryUtils = new QueryUtils(dataProv.getIndexReader(),
+        dataProv.getDocumentFields());
+
+    final Query queryObj;
+    try {
+      queryObj = new TermsQueryBuilder(this.dataProv.getIndexReader
+          (), this.dataProv.getDocumentFields()).query(query).build();
+    } catch (Buildable.BuilderConfigurationException e) {
+      LOG.error("Caught exception while building query.", e);
+      return null;
+    }
 
     // get feedback documents
     final Collection<Integer> feedbackDocuments;
     try {
-      feedbackDocuments = Feedback.getFixed(queryObj, this.conf.
-          getFeedbackDocCount());
+      feedbackDocuments = Feedback.getFixed(this.dataProv.getIndexReader(),
+          queryObj, this.conf.getFeedbackDocCount());
 
     } catch (IOException ex) {
       LOG.error("Caught exception while preparing calculation.", ex);
@@ -522,21 +496,15 @@ public final class DefaultClarityScore
       throw new IllegalStateException("No feedback documents.");
     }
 
-    if (!this.hasCache) {
-      this.cacheTemporary = true;
-      try {
-        initCache("temp", true, true);
-      } catch (IOException ex) {
-        throw new IllegalStateException("Error creating cache.", ex);
-      }
-    }
-
     final Collection<ByteArray> queryTerms;
     try {
       // Get unique query terms
-      queryTerms = QueryUtils.getUniqueQueryTerms(query);
-    } catch (UnsupportedEncodingException | ParseException ex) {
-      LOG.error("Caught exception parsing query.", ex);
+      queryTerms = queryUtils.getUniqueQueryTerms(query);
+    } catch (UnsupportedEncodingException | ParseException e) {
+      LOG.error("Caught exception parsing query.", e);
+      return null;
+    } catch (Buildable.BuilderConfigurationException e) {
+      LOG.error("Caught exception building query.", e);
       return null;
     }
 
@@ -550,7 +518,7 @@ public final class DefaultClarityScore
   /**
    * {@link Processing} {@link Target} for query model calculation.
    */
-  private final class QueryModelCalulatorTarget
+  private final class QueryModelCalculatorTarget
       extends
       Target.TargetFunc<Integer> {
 
@@ -563,7 +531,7 @@ public final class DefaultClarityScore
      */
     private final Map<Integer, Double> map;
 
-    QueryModelCalulatorTarget(final Collection<ByteArray> qTerms,
+    QueryModelCalculatorTarget(final Collection<ByteArray> qTerms,
         final Map<Integer, Double> targetMap) {
       this.queryTerms = qTerms;
       this.map = targetMap;
@@ -627,7 +595,7 @@ public final class DefaultClarityScore
       if (term != null) {
         // calculate the query probability of the current term
         double qLangMod = 0d;
-        final double termRelFreq = CollectionMetrics.relTf(term);
+        final double termRelFreq = metrics.collection.relTf(term);
         Tuple.Tuple2<Double, Boolean> model;
 
         for (Integer docId : this.fbDocIds) {
@@ -659,7 +627,7 @@ public final class DefaultClarityScore
     @Override
     public void call(final Integer docId) {
       if (docId != null) {
-        final DocumentModel docModel = DocumentMetrics.getModel(docId);
+        final DocumentModel docModel = metrics.getDocumentModel(docId);
         if (docModel == null) {
           LOG.warn("({}) Model for document-id {} was null.", this.
               getName(), docId);
@@ -767,6 +735,58 @@ public final class DefaultClarityScore
      */
     public DefaultClarityScoreConfiguration getConfiguration() {
       return this.conf;
+    }
+  }
+
+  /**
+   * Builder to create a new {@link DefaultClarityScore} instance.
+   */
+  public static final class Builder
+      extends
+      AbstractClarityScoreCalculationBuilder<Builder, DefaultClarityScore> {
+    /**
+     * Configuration to use.
+     */
+    private DefaultClarityScoreConfiguration configuration = new
+        DefaultClarityScoreConfiguration();
+
+    public Builder() {
+      super(IDENTIFIER);
+    }
+
+    /**
+     * Set the configuration to use.
+     *
+     * @param conf Configuration
+     * @return Self reference
+     */
+    public Builder configuration(final DefaultClarityScoreConfiguration conf) {
+      this.configuration = conf;
+      return this;
+    }
+
+    /**
+     * Get the configuration to use.
+     *
+     * @return Configuration
+     */
+    protected DefaultClarityScoreConfiguration getConfiguration() {
+      return this.configuration;
+    }
+
+    @Override
+    public DefaultClarityScore build()
+        throws BuilderConfigurationException, IOException {
+      validate();
+      final DefaultClarityScore instance = DefaultClarityScore.build(this);
+      return instance;
+    }
+
+    @Override
+    public void validate()
+        throws BuilderConfigurationException {
+      super.validate();
+      super.validatePersistenceBuilder();
     }
   }
 }

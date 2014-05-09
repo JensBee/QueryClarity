@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.iw.lucene.scoring.clarity.impl;
+package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.util.Configuration;
 
@@ -44,7 +44,7 @@ public final class DefaultClarityScoreConfiguration
      */
     fbDocCount,
     /**
-     * Document model calculation weighting parameter.
+     * Document-model calculation weighting parameter.
      */
     langModelWeight
   }

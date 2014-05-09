@@ -16,7 +16,6 @@
  */
 package de.unihildesheim.iw.lucene.query;
 
-import de.unihildesheim.iw.lucene.Environment;
 import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
@@ -28,7 +27,11 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,14 +39,12 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Simple term query using a {@link org.apache.lucene.queryparser.classic
- * .MultiFieldQueryParser} under the hood. Fields and stop-words are taken from
- * the {@link Environment}. This keeps the {@link Analyzer} and {@link
- * QueryParser} static and listens to changes to the {@link Environment}.
+ * .MultiFieldQueryParser} under the hood.
  *
  * @author Jens Bertram
  */
@@ -81,8 +82,8 @@ public final class SimpleTermsQuery
    * string
    */
   public SimpleTermsQuery(final String query,
-      final QueryParser.Operator operator, final String[] fields,
-      final Collection<String> stopWords)
+      final QueryParser.Operator operator, final Set<String> fields,
+      final Set<String> stopWords)
       throws ParseException {
     LOG.debug("STQ q={} op={} f={} s={}", query, operator, fields,
         stopWords);
@@ -92,7 +93,8 @@ public final class SimpleTermsQuery
     final Analyzer analyzer = new StandardAnalyzer(LuceneDefaults.VERSION,
         new CharArraySet(LuceneDefaults.VERSION, stopWords, true));
     final QueryParser qParser = new MultiFieldQueryParser(
-        LuceneDefaults.VERSION, fields, analyzer);
+        LuceneDefaults.VERSION, fields.toArray(new String[fields.size()]),
+        analyzer);
     this.queryTerms = tokenizeQueryString(query, analyzer);
     final String stoppedQuery = StringUtils.join(this.queryTerms, " ");
 

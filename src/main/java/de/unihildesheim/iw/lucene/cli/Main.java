@@ -19,9 +19,7 @@ package de.unihildesheim.iw.lucene.cli;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
-import de.unihildesheim.iw.lucene.Environment;
 import de.unihildesheim.iw.lucene.document.DocumentModelException;
-import de.unihildesheim.iw.lucene.index.CachedIndexDataProvider;
 import org.apache.lucene.search.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -74,15 +72,6 @@ public final class Main {
       Runtime.getRuntime().exit(1);
     }
 
-    final CachedIndexDataProvider cIdp = new CachedIndexDataProvider();
-//    new Environment.Builder(indexDir, dataDir)
-    new Environment.Builder(dataDir)
-        .dataProvider(cIdp)
-        .loadCache("testCache")
-        .autoWarmUp()
-        .build();
-//    cIdp.cacheBuilder("testCache");
-
     // index field to operate on
 //    final String[] fields = new String[]{"text"};
 //    final String[] fields = new String[]{"text", "text_de"};
@@ -107,7 +96,6 @@ public final class Main {
 //    ics.preCalcDocumentModels();
 //    ics.calculateClarity(queryString);
     LOG.info("Closing data provider & lucene index.");
-    Environment.shutdown();
   }
 
   /**

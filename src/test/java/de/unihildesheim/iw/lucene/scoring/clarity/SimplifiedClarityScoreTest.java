@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.iw.lucene.scoring.clarity.impl;
+package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.MultiIndexDataProviderTestCase;
@@ -26,6 +26,7 @@ import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 
@@ -58,9 +59,15 @@ public final class SimplifiedClarityScoreTest
    * @param rType Data provider configuration
    */
   public SimplifiedClarityScoreTest(
-      final Class<? extends IndexDataProvider> dataProv,
+      final DataProviders dataProv,
       final MultiIndexDataProviderTestCase.RunType rType) {
     super(dataProv, rType);
+  }
+
+  private SimplifiedClarityScore.Builder getInstanceBuilder()
+      throws IOException {
+    return new SimplifiedClarityScore.Builder()
+        .indexDataProvider(referenceIndex);
   }
 
   /**
@@ -71,8 +78,8 @@ public final class SimplifiedClarityScoreTest
   @Test
   public void testCalculateClarity()
       throws Exception {
-    final String query = index.getQueryString();
-    final SimplifiedClarityScore instance = new SimplifiedClarityScore();
+    final String query = this.referenceIndex.util.getQueryString();
+    final SimplifiedClarityScore instance = getInstanceBuilder().build();
 
     final Collection<ByteArray> queryTerms = new ArrayList<>(15);
     for (String qTerm : query.split("\\s+")) {
@@ -80,7 +87,7 @@ public final class SimplifiedClarityScoreTest
     }
 
     final double ql = Integer.valueOf(queryTerms.size()).doubleValue();
-    final double tokenColl = Long.valueOf(index.getUniqueTermsCount()).
+    final double tokenColl = Long.valueOf(referenceIndex.getUniqueTermsCount()).
         doubleValue();
 
     double score = 0;
@@ -92,8 +99,8 @@ public final class SimplifiedClarityScoreTest
         }
       }
       final double pml = qtf / ql;
-      final double pcoll = index.getTermFrequency(term).doubleValue()
-                           / tokenColl;
+      final double pcoll = referenceIndex.getTermFrequency(term).doubleValue()
+          / tokenColl;
       score += pml * MathUtils.log2(pml / pcoll);
     }
 

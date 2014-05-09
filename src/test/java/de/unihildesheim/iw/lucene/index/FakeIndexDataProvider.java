@@ -19,9 +19,13 @@ package de.unihildesheim.iw.lucene.index;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.util.concurrent.processing.Source;
+import org.apache.lucene.index.IndexReader;
 
+import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.Set;
 
 /**
  * No-Operation data-provider for testing purposes.
@@ -111,21 +115,28 @@ public final class FakeIndexDataProvider
   }
 
   @Override
-  public void loadCache(final String name)
-      throws Exception {
-    // NOP
+  public long getLastIndexCommitGeneration() {
+    throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
-  public void loadOrCreateCache(final String name)
-      throws Exception {
-    // NOP
+  public Set<String> getDocumentFields() {
+    throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
-  public void createCache(final String name)
-      throws Exception {
-    // NOP
+  public Set<String> getStopwords() {
+    return Collections.<String>emptySet();
   }
 
+  @Override
+  public IndexReader getIndexReader()
+      throws IOException {
+    throw new UnsupportedOperationException("Not supported yet.");
+  }
+
+  @Override
+  public boolean isDisposed() {
+    return false;
+  }
 }

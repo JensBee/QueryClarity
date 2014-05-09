@@ -16,14 +16,13 @@
  */
 package de.unihildesheim.iw.lucene.index;
 
-import de.unihildesheim.iw.lucene.Environment;
-import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 
 import java.text.MessageFormat;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Set;
 
 /**
  * Simple utilities for working with a Lucene index.
@@ -41,26 +40,12 @@ public final class IndexUtils {
    * Get a list of fields available in the index.
    *
    * @return Fields list
-   * @throws de.unihildesheim.iw.lucene.Environment.NoIndexException Thrown, if
-   * no index is provided in the {@link Environment}
    */
-  public static Collection<String> getFields()
-      throws Environment.NoIndexException {
-    return MultiFields.getIndexedFields(Environment.getIndexReader());
-  }
-
-  /**
-   * Check if all given fields are available in the current index. Uses the
-   * {@link IndexReader} provided by the {@link Environment}. Throws an {@link
-   * IllegalStateException} if not all fields are present in the index.
-   *
-   * @param fields Fields to check
-   * @throws de.unihildesheim.iw.lucene.Environment.NoIndexException Thrown, if
-   * no index is provided in the {@link Environment}
-   */
-  public static void checkFields(final String[] fields)
-      throws Environment.NoIndexException {
-    checkFields(Environment.getIndexReader(), fields);
+  public static Collection<String> getFields(final IndexReader reader) {
+    if (reader == null) {
+      throw new IllegalArgumentException("IndexReader was null.");
+    }
+    return MultiFields.getIndexedFields(reader);
   }
 
   /**
@@ -69,33 +54,27 @@ public final class IndexUtils {
    *
    * @param reader IndexReader to use
    * @param fields Fields to check
-   * @throws de.unihildesheim.iw.lucene.Environment.NoIndexException Thrown, if
-   * no index is provided in the {@link Environment}
    */
   public static void checkFields(final IndexReader reader,
-      final String[] fields)
-      throws Environment.NoIndexException {
-    if (fields == null || fields.length == 0) {
+      final Set<String> fields) {
+    if (fields == null || fields.isEmpty()) {
       throw new IllegalArgumentException("No fields specified.");
+    }
+    if (reader == null) {
+      throw new IllegalArgumentException("IndexReader was null.");
     }
 
     // get all indexed fields from index - other fields are not of
     // interest here
-    final Collection<String> indexedFields;
-    if (reader == null) {
-      indexedFields = MultiFields.getIndexedFields(
-          Environment.getIndexReader());
-    } else {
-      indexedFields = MultiFields.getIndexedFields(
+    final Collection<String> indexedFields = MultiFields.getIndexedFields(
           reader);
-    }
 
     // check if all requested fields are available
-    if (!indexedFields.containsAll(Arrays.asList(fields))) {
+    if (!indexedFields.containsAll(fields)) {
       throw new IllegalStateException(MessageFormat.format(
           "Not all requested fields ({0}) are available in the " +
           "current index ({1}) or are not indexed.",
-          StringUtils.join(fields, ","),
+          fields,
           Arrays.toString(indexedFields.toArray(
               new String[indexedFields.size()]
           ))

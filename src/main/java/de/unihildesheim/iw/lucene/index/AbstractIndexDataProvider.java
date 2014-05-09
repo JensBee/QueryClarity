@@ -19,14 +19,14 @@ package de.unihildesheim.iw.lucene.index;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.Persistence;
 import de.unihildesheim.iw.SerializableByte;
-import de.unihildesheim.iw.Tuple;
-import de.unihildesheim.iw.lucene.Environment;
-import de.unihildesheim.iw.util.RandomValue;
+import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.Source;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.util.BytesRef;
 import org.mapdb.BTreeKeySerializer;
 import org.mapdb.DB;
 import org.mapdb.Fun;
@@ -34,17 +34,24 @@ import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NavigableSet;
+import java.util.Set;
 import java.util.concurrent.ConcurrentNavigableMap;
 
 /**
- * Abstract implementation of {@link IndexDataProvider}.
+ * Abstract implementation of {@link IndexDataProvider} supporting {@link
+ * Persistence} storage.
  *
  * @author Jens Bertram
  */
-public abstract class AbstractIndexDataProvider
+abstract class AbstractIndexDataProvider
     implements IndexDataProvider {
 
   /**
@@ -67,14 +74,13 @@ public abstract class AbstractIndexDataProvider
   /**
    * Transient cached overall term frequency of the index.
    */
-  @SuppressWarnings({"ProtectedField", "checkstyle:visibilitymodifier"})
-  Long idxTf = null;
+  private Long idxTf = null;
 
   /**
    * Transient cached collection of all (non deleted) document-ids.
    */
   @SuppressWarnings({"ProtectedField", "checkstyle:visibilitymodifier"})
-  Collection<Integer> idxDocumentIds = null;
+  private Set<Integer> idxDocumentIds = null;
 
   /**
    * Transient cached document-frequency map for all terms in index.
@@ -84,35 +90,43 @@ public abstract class AbstractIndexDataProvider
 
   /**
    * List of stop-words to exclude from term frequency calculations.
+   * Byte-encoded list for internal use.
    */
-  @SuppressWarnings({"ProtectedField", "checkstyle:visibilitymodifier",
-                     "RedundantTypeArguments"})
-  Collection<ByteArray> stopWords = Collections.<ByteArray>emptySet();
+  private Set<ByteArray> stopwords = Collections.<ByteArray>emptySet();
+
+  /**
+   * List of stop-words to exclude from term frequency calculations. Cached
+   * String set.
+   */
+  private Set<String> stopwordsStr = Collections.<String>emptySet();
 
   /**
    * Transient cached collection of all index terms.
    */
   @SuppressWarnings({"ProtectedField", "checkstyle:visibilitymodifier"})
-  Set<ByteArray> idxTerms = null;
+  private Set<ByteArray> idxTerms = null;
+
   /**
    * Persistent cached collection of all index terms mapped by document field.
    * Mapping is <tt>(Field, Term)</tt> to <tt>Frequency</tt>. Fields are indexed
    * by {@link #cachedFieldsMap}.
    */
   @SuppressWarnings({"ProtectedField", "checkstyle:visibilitymodifier"})
-  ConcurrentNavigableMap<Fun.Tuple2<
+  private ConcurrentNavigableMap<Fun.Tuple2<
       SerializableByte, ByteArray>, Long> idxTermsMap
       = null;
+
   /**
    * List of fields cached by this instance. Mapping of field name to id value.
    */
-  @SuppressWarnings({"ProtectedField", "checkstyle:visibilitymodifier"})
-  Map<String, SerializableByte> cachedFieldsMap;
+  private Map<String, SerializableByte> cachedFieldsMap;
+
   /**
    * Persistent disk backed storage backend.
    */
   @SuppressWarnings({"ProtectedField", "checkstyle:visibilitymodifier"})
-  DB db = null;
+  private DB db = null;
+
   /**
    * Flag indicating, if this instance is temporary (no data is hold
    * persistent).
@@ -120,16 +134,227 @@ public abstract class AbstractIndexDataProvider
   private boolean isTemporary = false;
 
   /**
+   * {@link IndexReader} to access the Lucene index.
+   */
+  private IndexReader idxReader;
+
+  /**
+   * List of document fields to operate on.
+   */
+  private Set<String> documentFields;
+
+  /**
+   * Last commit generation id of the Lucene index.
+   */
+  private Long indexLastCommitGeneration = null;
+
+  /**
+   * Flag indicating, if this instance is closed.
+   */
+  private transient boolean isDisposed = false;
+
+  /**
    * Initializes the abstract instance.
    *
    * @param isTemp If true, all data will be deleted after terminating the JVM.
-   * Gets overridden by {@link Environment} settings,
    */
   AbstractIndexDataProvider(final boolean isTemp) {
-    this.isTemporary = Environment.isTestRun() || isTemp;
+    this.isTemporary = isTemp;
     if (this.isTemporary) {
       LOG.info("Caches are temporary!");
     }
+  }
+
+  /**
+   * Set the {@link IndexReader} to use for accessing the Lucene index.
+   *
+   * @param reader Reader to use
+   */
+  protected void setIndexReader(final IndexReader reader) {
+    this.idxReader = reader;
+  }
+
+  @Override
+  public IndexReader getIndexReader() {
+    return this.idxReader;
+  }
+
+  /**
+   * Set the list of document fields to operate on.
+   *
+   * @param fields List of document field names
+   */
+  protected void setDocumentFields(final Set<String> fields) {
+    this.documentFields = fields;
+  }
+
+  @Override
+  public Set<String> getDocumentFields() {
+    return Collections.unmodifiableSet(this.documentFields);
+  }
+
+  /**
+   * Set the (String) list of stopwords.
+   *
+   * @param words List of words to exclude
+   * @throws java.io.UnsupportedEncodingException Thrown, if a term could not be
+   * encoded into the target charset (usually UTF-8)
+   */
+  protected void setStopwords(final Set<String> words)
+      throws UnsupportedEncodingException {
+    this.stopwordsStr = words;
+    this.stopwords = new HashSet<>();
+    for (String word : words) {
+      // terms in Lucene are UTF-8 encoded
+      this.stopwords.add(new ByteArray(word.getBytes("UTF-8")));
+    }
+  }
+
+  @Override
+  public Set<String> getStopwords() {
+    return this.stopwordsStr;
+  }
+
+  /**
+   * Set the database to use for persistent storage.
+   * @param newDb
+   */
+  protected void setDb(final DB newDb) {
+    this.db = newDb;
+  }
+
+  /**
+   * Get the database used for persistent storage.
+   * @return
+   */
+  protected DB getDb() {
+    return this.db;
+  }
+
+  /**
+   * Set the index terms list.
+   * @param newIdxTerms
+   */
+  protected void setIdxTerms(final Set<ByteArray> newIdxTerms) {
+    if (newIdxTerms == null) {
+      throw new IllegalArgumentException("Index terms set was null.");
+    }
+    this.idxTerms = newIdxTerms;
+  }
+
+  /**
+   * Get the index terms list.
+   * @return
+   */
+  protected Set<ByteArray> getIdxTerms() {
+    return this.idxTerms;
+  }
+
+  protected void setCachedFieldsMap(final Map<String,
+      SerializableByte> newFieldsMap) {
+    if (newFieldsMap == null) {
+      throw new IllegalArgumentException("Cached fields map was null.");
+    }
+    this.cachedFieldsMap = newFieldsMap;
+  }
+
+  protected Map<String, SerializableByte> getCachedFieldsMap() {
+    return this.cachedFieldsMap;
+  }
+
+  protected void addFieldToCacheMap(final String field) {
+    final Collection<SerializableByte> keys = new HashSet<>(
+        this.cachedFieldsMap.values());
+    for (byte i = Byte.MIN_VALUE; i < Byte.MAX_VALUE; i++) {
+      @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
+      final SerializableByte sByte = new SerializableByte(i);
+      if (!keys.contains(sByte)) {
+        getCachedFieldsMap().put(field, sByte);
+        keys.add(sByte);
+        break;
+      }
+    }
+  }
+
+  protected void setIdxTermsMap(ConcurrentNavigableMap<Fun.Tuple2<
+      SerializableByte, ByteArray>, Long> newIdxTermsMap) {
+    if (newIdxTermsMap == null) {
+      throw new IllegalArgumentException("Index terms map was null.");
+    }
+    this.idxTermsMap = newIdxTermsMap;
+  }
+
+  protected ConcurrentNavigableMap<Fun.Tuple2<
+      SerializableByte, ByteArray>, Long> getIdxTermsMap() {
+    return this.idxTermsMap;
+  }
+
+  protected void setIdxDocumentIds(final Set<Integer> docIds) {
+    if (docIds == null) {
+      throw new IllegalArgumentException("Document id list was null.");
+    }
+    this.idxDocumentIds = docIds;
+  }
+
+  protected Set<Integer> getIdxDocumentIds() {
+    return this.idxDocumentIds;
+  }
+
+  protected void setIdxTf(final Long tf) {
+    this.idxTf = tf;
+  }
+
+  protected Long getIdxTf() {
+    return this.idxTf;
+  }
+
+  /**
+   * Checks, if the given {@link ByteArray} is flagged as stopword.
+   *
+   * @param word Word to check
+   * @return True, if it's a stopword
+   */
+  protected boolean isStopword(final ByteArray word) {
+    return this.stopwords.contains(word);
+  }
+
+  /**
+   * Checks, if the given String is flagged as stopword.
+   *
+   * @param word Word to check
+   * @return True, if it's a stopword
+   */
+  protected boolean isStopword(final String word)
+      throws UnsupportedEncodingException {
+    return isStopword(new ByteArray(word.getBytes("UTF-8")));
+  }
+
+  /**
+   * Checks, if the given {@link BytesRef} is flagged as stopword.
+   *
+   * @param word Word to check
+   * @return True, if it's a stopword
+   */
+  protected boolean isStopword(final BytesRef word) {
+    return isStopword(BytesRefUtils.toByteArray(word));
+  }
+
+  /**
+   * Set the last Lucene index commit generation id.
+   *
+   * @param cGen Generation id
+   */
+  protected void setLastIndexCommitGeneration(final Long cGen) {
+    if (cGen == null) {
+      // TODO: Really throw? Enough to go with zero?
+      throw new IllegalArgumentException("Index generation was null.");
+    }
+    this.indexLastCommitGeneration = cGen;
+  }
+
+  @Override
+  public long getLastIndexCommitGeneration() {
+    return this.indexLastCommitGeneration;
   }
 
   /**
@@ -146,24 +371,6 @@ public abstract class AbstractIndexDataProvider
    */
   final boolean isTemporary() {
     return this.isTemporary;
-  }
-
-  /**
-   * Update cached list of stopwords from the {@link Environment}.
-   */
-  final void setStopwordsFromEnvironment() {
-    final Collection<String> newStopWords = Environment.getStopwords();
-    this.stopWords = new HashSet<>(newStopWords.size());
-    for (String stopWord : newStopWords) {
-      try {
-        @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
-        final ByteArray ba = new ByteArray(stopWord.getBytes
-            ("UTF-8"));
-        this.stopWords.add(ba);
-      } catch (UnsupportedEncodingException ex) {
-        LOG.error("Error adding stopword '" + stopWord + "'.", ex);
-      }
-    }
   }
 
   /**
@@ -195,13 +402,13 @@ public abstract class AbstractIndexDataProvider
       LOG.info("Cache warming: index term frequencies..");
       getTermFrequency(); // caches this.idxTf
       LOG.info("Cache warming: index term frequency calculation "
-               + "for {} terms took {}.", this.idxTerms.size(),
+              + "for {} terms took {}.", this.idxTerms.size(),
           tStep.stop().
               getTimeString()
       );
     } else {
       LOG.info("Cache warming: "
-               + "{} index term frequency values already loaded.",
+              + "{} index term frequency values already loaded.",
           this.idxTf
       );
     }
@@ -250,7 +457,6 @@ public abstract class AbstractIndexDataProvider
       LOG.info("Caches are up to date.");
       return;
     }
-    setStopwordsFromEnvironment();
 
     final TimeMeasure tOverAll = new TimeMeasure().start();
 
@@ -265,59 +471,6 @@ public abstract class AbstractIndexDataProvider
   }
 
   /**
-   * Get the {@link Persistence} object to create a database.
-   *
-   * @param name Database name
-   * @param createNew If true, a new database will be created. Throws an error,
-   * if a database with the current name already exists.
-   * @param createIfNotFound If true, a new database will be created, if none
-   * with the given name exists
-   * @return Tuple with Persistence object and flag indicating, if a new
-   * database is created
-   * @throws IOException Thrown on low-level I/O errors
-   * @throws Environment.NoIndexException Thrown, if no index is provided in the
-   * {@link Environment}
-   */
-  @SuppressWarnings("checkstyle:magicnumber")
-  final Tuple.Tuple2<Persistence, Boolean> getPersistence(
-      final String name,
-      final boolean createNew,
-      final boolean createIfNotFound)
-      throws IOException,
-             Environment.NoIndexException {
-    final Persistence.Builder psb;
-    final Tuple.Tuple2<Persistence, Boolean> ret;
-    if (this.isTemporary) {
-      LOG.warn("Caches are temporary!");
-      psb = new Persistence.Builder(name + "_" + RandomValue.getString(6))
-          .
-              temporary();
-    } else {
-      psb = new Persistence.Builder(name);
-    }
-    psb.getMaker()
-        .transactionDisable()
-        .commitFileSyncDisable()
-        .asyncWriteEnable()
-        .asyncWriteFlushDelay(DB_ANSYNC_WRITEFLUSH_DELAY)
-        .mmapFileEnableIfSupported()
-        .closeOnJvmShutdown();
-    if (createNew) {
-      ret = Tuple.tuple2(psb.make(), true);
-    } else if (!createIfNotFound) {
-      ret = Tuple.tuple2(psb.get(), false);
-    } else {
-      if (!psb.exists()) {
-        ret = Tuple.tuple2(psb.makeOrGet(), true);
-      } else {
-        ret = Tuple.tuple2(psb.makeOrGet(), false);
-      }
-    }
-    this.db = ret.a.db;
-    return ret;
-  }
-
-  /**
    * Get the id for a named field.
    *
    * @param fieldName Field name
@@ -327,7 +480,7 @@ public abstract class AbstractIndexDataProvider
     final SerializableByte fieldId = this.cachedFieldsMap.get(fieldName);
     if (fieldId == null) {
       throw new IllegalStateException("Unknown field '" + fieldName
-                                      + "'. No id found.");
+          + "'. No id found.");
     }
     return fieldId;
   }
@@ -341,7 +494,7 @@ public abstract class AbstractIndexDataProvider
   @SuppressWarnings("checkstyle:methodname")
   final Long _getTermFrequency(final ByteArray term) {
     Long tf = 0L;
-    for (String field : Environment.getFields()) {
+    for (String field : this.documentFields) {
       try {
         Long fieldTf =
             this.idxTermsMap.get(Fun.t2(getFieldId(field), term));
@@ -362,7 +515,7 @@ public abstract class AbstractIndexDataProvider
    */
   @Override
   public final Long getTermFrequency(final ByteArray term) {
-    if (this.stopWords.contains(term)) {
+    if (this.stopwords.contains(term)) {
       // skip stop-words
       return 0L;
     }
@@ -379,7 +532,7 @@ public abstract class AbstractIndexDataProvider
       this.idxTf = 0L;
 
       SerializableByte fieldId;
-      for (String field : Environment.getFields()) {
+      for (String field : this.documentFields) {
         fieldId = getFieldId(field);
         for (final ByteArray bytes : Fun.
             filter(this.idxTermsMap
@@ -398,17 +551,16 @@ public abstract class AbstractIndexDataProvider
       }
 
       // remove term frequencies of stop-words
-      if (!this.stopWords.isEmpty()) {
+      if (!this.stopwords.isEmpty()) {
         Long tf;
-        for (ByteArray stopWord : this.stopWords) {
+        for (ByteArray stopWord : this.stopwords) {
           tf = _getTermFrequency(stopWord);
           if (tf != null) {
             this.idxTf -= tf;
           }
         }
       }
-      this.db.getAtomicLong(DbMakers.Caches.IDX_TF.name())
-          .set(this.idxTf);
+      this.db.getAtomicLong(DbMakers.Caches.IDX_TF.name()).set(this.idxTf);
     }
     return this.idxTf;
   }
@@ -423,15 +575,14 @@ public abstract class AbstractIndexDataProvider
     if (this.idxTerms.isEmpty()) {
       LOG.info("Building transient index term cache.");
 
-      final String[] fields = Environment.getFields();
-      if (fields.length > 1) {
+      if (this.documentFields.size() > 1) {
         new Processing(new Target.TargetFuncCall<>(
-            new CollectionSource<>(Arrays.asList(fields)),
+            new CollectionSource<>(this.documentFields),
             new TermCollectorTarget(this.idxTermsMap.keySet(),
                 this.idxTerms)
-        )).process(fields.length);
+        )).process(this.documentFields.size());
       } else {
-        for (String field : fields) {
+        for (String field : this.documentFields) {
           for (final ByteArray byteArray : Fun
               .filter(this.idxTermsMap.keySet(),
                   getFieldId(field))) {
@@ -439,7 +590,7 @@ public abstract class AbstractIndexDataProvider
           }
         }
       }
-      this.idxTerms.removeAll(this.stopWords);
+      this.idxTerms.removeAll(this.stopwords);
     }
     return Collections.unmodifiableCollection(this.idxTerms);
   }
@@ -475,7 +626,7 @@ public abstract class AbstractIndexDataProvider
     if (term == null) {
       throw new IllegalArgumentException("Term was null.");
     }
-    if (this.stopWords.contains(term)) {
+    if (this.stopwords.contains(term)) {
       // skip stop-words
       return 0d;
     }
@@ -496,6 +647,7 @@ public abstract class AbstractIndexDataProvider
       this.db.compact();
       this.db.close();
     }
+    this.isDisposed = true;
   }
 
   @Override
@@ -525,12 +677,20 @@ public abstract class AbstractIndexDataProvider
 
   @Override
   public final boolean hasDocument(final Integer docId) {
+    if (this.idxDocumentIds == null) {
+      throw new IllegalStateException("No document ids set.");
+    }
     return this.idxDocumentIds.contains(docId);
   }
 
   @Override
   public final long getDocumentCount() {
     return getDocumentIds().size();
+  }
+
+  @Override
+  public boolean isDisposed() {
+    return this.isDisposed;
   }
 
   /**

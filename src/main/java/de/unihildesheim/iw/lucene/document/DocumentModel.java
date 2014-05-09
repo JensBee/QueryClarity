@@ -17,7 +17,7 @@
 package de.unihildesheim.iw.lucene.document;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.lucene.metrics.DocumentMetrics;
+import de.unihildesheim.iw.lucene.index.Metrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,7 +61,7 @@ public final class DocumentModel {
   /**
    * {@link DocumentMetrics} instance for this model.
    */
-  private DocumentMetrics metrics = null;
+  private Metrics.DocumentMetrics metrics = null;
 
   /**
    * Create a new model with data from the given builder.
@@ -126,13 +126,13 @@ public final class DocumentModel {
   }
 
   /**
-   * Get a {@link DocumentMetrics} instance for this model.
+   * Get a {@link Metrics.DocumentMetrics} instance for this model.
    *
-   * @return {@link DocumentMetrics} instance loaded with this model
+   * @return {@link Metrics.DocumentMetrics} instance loaded with this model
    */
-  public DocumentMetrics metrics() {
+  public Metrics.DocumentMetrics metrics() {
     if (this.metrics == null) {
-      this.metrics = new DocumentMetrics(this);
+      this.metrics = new Metrics.DocumentMetrics(this);
     }
     return this.metrics;
   }

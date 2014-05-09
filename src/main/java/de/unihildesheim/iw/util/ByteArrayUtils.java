@@ -31,13 +31,13 @@ import java.util.Map;
  *
  * @author Jens Bertram
  */
-public final class ByteArrayUtil {
+public final class ByteArrayUtils {
 
   /**
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(
-      ByteArrayUtil.class);
+      ByteArrayUtils.class);
 
   /**
    * Internal {@link Map} to cache string representations of UTF8 bytes.
@@ -53,7 +53,7 @@ public final class ByteArrayUtil {
   /**
    * Private empty constructor for utility class.
    */
-  private ByteArrayUtil() {
+  private ByteArrayUtils() {
     // empty
   }
 

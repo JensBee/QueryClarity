@@ -21,6 +21,7 @@ import de.unihildesheim.iw.lucene.index.DirectIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.IndexTestUtil;
 import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
+import de.unihildesheim.iw.util.RandomValue;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -30,6 +31,8 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Set;
 
 import static org.junit.Assert.assertTrue;
 
@@ -46,20 +49,19 @@ public class MultiIndexDataProviderTestCase
       MultiIndexDataProviderTestCase.class);
 
   /**
-   * DataProvider instance currently in use.
-   */
-  private final Class<? extends IndexDataProvider> dataProvType;
-
-  /**
    * Index configuration type.
    */
   private final RunType runType;
 
+  private final DataProviders dpType;
+
   /**
-   * Test documents index.
+   * Test documents referenceIndex.
    */
   @SuppressWarnings("ProtectedField")
-  protected static TestIndexDataProvider index;
+  protected static TestIndexDataProvider referenceIndex;
+
+  protected IndexDataProvider index;
 
   /**
    * Types of configurations ran.
@@ -68,7 +70,7 @@ public class MultiIndexDataProviderTestCase
   protected enum RunType {
 
     /**
-     * Use full index.
+     * Use full referenceIndex.
      */
     PLAIN,
     /**
@@ -86,28 +88,27 @@ public class MultiIndexDataProviderTestCase
 
   }
 
-  /**
-   * Initialize the generic test case.
-   *
-   * @param dataProv DataProvider
-   * @param rType DataProvider configuration
-   */
-  protected MultiIndexDataProviderTestCase(
-      final Class<? extends IndexDataProvider> dataProv,
-      final RunType rType) {
-    this.dataProvType = dataProv;
-    this.runType = rType;
+  protected enum DataProviders {
+    /**
+     * {@link TestIndexDataProvider}
+     */
+    TEST,
+    /**
+     * {@link DirectIndexDataProvider}
+     */
+    DIRECT
   }
 
   /**
    * Initialize the generic test case.
    *
    * @param dataProv DataProvider
+   * @param rType DataProvider configuration
    */
-  protected MultiIndexDataProviderTestCase(
-      final Class<? extends IndexDataProvider> dataProv) {
-    this.dataProvType = dataProv;
-    this.runType = RunType.PLAIN;
+  protected MultiIndexDataProviderTestCase(DataProviders dataProv,
+      final RunType rType) {
+    this.dpType = dataProv;
+    this.runType = rType;
   }
 
   /**
@@ -118,7 +119,8 @@ public class MultiIndexDataProviderTestCase
   @BeforeClass
   public static final void setUpClass()
       throws Exception {
-    index = new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL);
+    referenceIndex = new TestIndexDataProvider(TestIndexDataProvider
+        .IndexSize.SMALL);
     assertTrue("TestIndex is not initialized.", TestIndexDataProvider.
         isInitialized());
   }
@@ -128,8 +130,8 @@ public class MultiIndexDataProviderTestCase
    */
   @AfterClass
   public static final void tearDownClass() {
-    // close the test index
-    index.dispose();
+    // close the test referenceIndex
+    referenceIndex.dispose();
   }
 
   /**
@@ -140,8 +142,58 @@ public class MultiIndexDataProviderTestCase
   @Before
   public final void setUp()
       throws Exception {
-    Environment.clear();
-    caseSetUp();
+    LOG.info(
+        "MutilindexDataProviderTestCase SetUp dataProvider={} configuration={}",
+        this.dpType.name(), this.runType.name()
+    );
+
+    final Set<String> fields;
+    final Set<String> stopwords;
+
+    switch (this.runType) {
+      case RANDOM_FIELDS:
+        fields = IndexTestUtil.getRandomFields(referenceIndex);
+        stopwords = Collections.<String>emptySet();
+        break;
+      case RANDOM_FIELDS_AND_STOPPED:
+        fields = IndexTestUtil.getRandomFields(referenceIndex);
+        stopwords = IndexTestUtil.getRandomStopWords(referenceIndex);
+        break;
+      case STOPPED:
+        fields = referenceIndex.reference.getDocumentFields();
+        stopwords = IndexTestUtil.getRandomStopWords(referenceIndex);
+        break;
+      case PLAIN:
+      default:
+        fields = referenceIndex.reference.getDocumentFields();
+        stopwords = Collections.<String>emptySet();
+        break;
+    }
+
+    referenceIndex.prepareTestEnvironment(fields, stopwords);
+
+    switch (this.dpType) {
+      case DIRECT:
+        this.index = new DirectIndexDataProvider.Builder()
+            .temporary()
+            .documentFields(fields)
+            .stopwords(stopwords)
+            .dataPath(TestIndexDataProvider.reference.getDataDir())
+            .indexPath(TestIndexDataProvider.reference.getIndexDir())
+            .indexReader(this.referenceIndex.getIndexReader())
+            .createCache("test-" + RandomValue.getString(16))
+            .build();
+        break;
+      default:
+        this.index = referenceIndex;
+        break;
+    }
+    this.referenceIndex.warmUp();
+    this.index.warmUp();
+    LOG.info("MutilindexDataProviderTestCase SetUp finished "
+            + "dataProvider={} configuration={}",
+        this.dpType.name(), this.runType.name()
+    );
   }
 
   /**
@@ -151,7 +203,15 @@ public class MultiIndexDataProviderTestCase
    */
   @Parameterized.Parameters
   public static final Collection<Object[]> data() {
-    return getCaseParameters();
+    final Collection<Object[]> params = new ArrayList<>(DataProviders.values
+        ().length);
+
+    for (DataProviders dp : DataProviders.values()) {
+      for (RunType r : RunType.values()) {
+        params.add(new Object[]{dp, r});
+      }
+    }
+    return params;
   }
 
   /**
@@ -163,97 +223,20 @@ public class MultiIndexDataProviderTestCase
    */
   protected final String msg(final String msg) {
     return "(" + getDataProviderName() + ", " + this.runType.name() + ") "
-           + msg;
+        + msg;
   }
 
-  /**
-   * Get the list of {@link IndexDataProvider}s to test.
-   *
-   * @return List of {@link IndexDataProvider}s
-   */
-  protected static final Collection<
-      Class<? extends IndexDataProvider>> getDataProvider() {
-    final Collection<Class<? extends IndexDataProvider>> providers
-        = new ArrayList<>(2);
-    providers.add(DirectIndexDataProvider.class);
-    return providers;
-  }
-
-  /**
-   * Get the list of {@link IndexDataProvider}s for parameterized tests.
-   *
-   * @return List of {@link IndexDataProvider}s
-   */
-  protected static final Collection<Object[]> getCaseParameters() {
-    final Collection<Class<? extends IndexDataProvider>> providers
-        = getDataProvider();
-    final Collection<Object[]> params = new ArrayList<>(providers.size());
-
-    for (Class<? extends IndexDataProvider> prov : getDataProvider()) {
-      for (RunType r : RunType.values()) {
-        params.add(new Object[]{prov, r});
-      }
-    }
-    for (RunType r : RunType.values()) {
-      params.add(new Object[]{null, r});
-    }
-    return params;
-  }
-
-  /**
-   * Setup the {@link IndexDataProvider} for a test.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  protected final void caseSetUp()
-      throws Exception {
-    LOG.info("MutilindexDataProviderTestCase SetUp "
-             + "dataProvider={} configuration={}",
-        this.dataProvType == null ? "TestIndexDataProvider"
-            : this.dataProvType, this.runType.name()
-    );
-    Collection<String> fields = null;
-    Collection<String> stopwords = null;
-    switch (this.runType) {
-      case RANDOM_FIELDS:
-        fields = IndexTestUtil.getRandomFields(index);
-        break;
-      case RANDOM_FIELDS_AND_STOPPED:
-        fields = IndexTestUtil.getRandomFields(index);
-        stopwords = IndexTestUtil.getRandomStopWords(index);
-        break;
-      case STOPPED:
-        stopwords = IndexTestUtil.getRandomStopWords(index);
-        break;
-      case PLAIN:
-      default:
-        break;
-    }
-    if (this.dataProvType == null) {
-      index.setupEnvironment(fields, stopwords);
-    } else {
-      index.setupEnvironment(this.dataProvType, fields, stopwords);
-    }
-    index.warmUp();
-    Environment.getDataProvider().warmUp();
-    LOG.info("MutilindexDataProviderTestCase SetUp finished "
-             + "dataProvider={} configuration={}",
-        this.dataProvType == null ? "TestIndexDataProvider"
-            : this.dataProvType, this.runType.name()
-    );
-  }
-
-  /**
-   * Get the class of the {@link IndexDataProvider} currently in use.
-   *
-   * @return DataProvider class
-   */
-  protected final Class<? extends IndexDataProvider> getDataProviderClass() {
-    if (this.dataProvType == null) {
-      return TestIndexDataProvider.class;
-    }
-    return this.dataProvType;
-  }
+//  /**
+//   * Get the class of the {@link IndexDataProvider} currently in use.
+//   *
+//   * @return DataProvider class
+//   */
+//  protected final Class<? extends IndexDataProvider> getDataProviderClass() {
+//    if (this.dataProvType == null) {
+//      return TestIndexDataProvider.class;
+//    }
+//    return this.dataProvType;
+//  }
 
   /**
    * Get the name of the {@link IndexDataProvider} currently in use.
@@ -261,12 +244,6 @@ public class MultiIndexDataProviderTestCase
    * @return DataProvider name
    */
   protected final String getDataProviderName() {
-    final Class clazz;
-    if (this.dataProvType == null) {
-      clazz = TestIndexDataProvider.class;
-    } else {
-      clazz = this.dataProvType;
-    }
-    return clazz.getCanonicalName() + " " + runType.name();
+    return this.index.getClass().getCanonicalName() + " " + runType.name();
   }
 }

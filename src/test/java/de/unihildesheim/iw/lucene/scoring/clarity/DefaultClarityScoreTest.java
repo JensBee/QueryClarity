@@ -14,17 +14,15 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.iw.lucene.scoring.clarity.impl;
+package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.SupportsPersistenceTestMethods;
-import de.unihildesheim.iw.lucene.Environment;
 import de.unihildesheim.iw.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
-import de.unihildesheim.iw.lucene.metrics.CollectionMetrics;
-import de.unihildesheim.iw.lucene.metrics.DocumentMetrics;
-import de.unihildesheim.iw.util.ByteArrayUtil;
+import de.unihildesheim.iw.lucene.index.Metrics;
+import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
+import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import org.junit.Assert;
@@ -35,7 +33,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -46,7 +48,6 @@ import static org.junit.Assert.fail;
  * @author Jens Bertram
  */
 @RunWith(Parameterized.class)
-@SuppressWarnings("checkstyle:methodname")
 public final class DefaultClarityScoreTest
     extends MultiIndexDataProviderTestCase {
 
@@ -68,9 +69,18 @@ public final class DefaultClarityScoreTest
    * @param rType Data provider configuration
    */
   public DefaultClarityScoreTest(
-      final Class<? extends IndexDataProvider> dataProv,
+      final DataProviders dataProv,
       final MultiIndexDataProviderTestCase.RunType rType) {
     super(dataProv, rType);
+  }
+
+  private DefaultClarityScore.Builder getInstanceBuilder()
+      throws IOException {
+    return new DefaultClarityScore.Builder()
+        .indexDataProvider(referenceIndex)
+        .dataPath(TestIndexDataProvider.reference.getDataDir())
+        .createCache("test-" + RandomValue.getString(16))
+        .temporary();
   }
 
   /**
@@ -81,16 +91,17 @@ public final class DefaultClarityScoreTest
    * @param term Term to calculate
    * @return Calculated document model (pdt)
    */
-  private static double calcDefaultDocumentModel(final double langmodelWeight,
+  private double calcDefaultDocumentModel(final double langmodelWeight,
       final ByteArray term) {
-    return (1 - langmodelWeight) * CollectionMetrics.relTf(term);
+    final Metrics metrics = Metrics.getInstance(referenceIndex);
+    return (1 - langmodelWeight) * metrics.collection.relTf(term);
   }
 
   /**
    * Calculate the document model (pdt) for a given document & term.
    *
    * @param langmodelWeight Weight modifier to use
-   * @param docModel Document model to calculate for
+   * @param docModel Document-model to calculate for
    * @param term Term to calculate
    * @return Calculated document model (pdt)
    */
@@ -100,9 +111,9 @@ public final class DefaultClarityScoreTest
 
     if (docModel.contains(term)) {
       model = (docModel.metrics().relTf(term) * langmodelWeight)
-              + calcDefaultDocumentModel(langmodelWeight, term);
+          + calcDefaultDocumentModel(langmodelWeight, term);
     } else {
-      fail(msg("Missing term. term=" + ByteArrayUtil.utf8ToString(term)));
+      fail(msg("Missing term. term=" + ByteArrayUtils.utf8ToString(term)));
       model = calcDefaultDocumentModel(langmodelWeight, term);
     }
     return model;
@@ -115,21 +126,22 @@ public final class DefaultClarityScoreTest
    * @return collection distribution for the given term
    */
   private double calc_pc(final ByteArray term) {
-    return CollectionMetrics.relTf(term);
+    final Metrics metrics = Metrics.getInstance(referenceIndex);
+    return metrics.collection.relTf(term);
   }
 
   /**
    * Calculate pd(t) - document model for a term.
    *
    * @param langModelWeight Weight modifier to use
-   * @param docModel Document model
+   * @param docModel Document-model
    * @param term Term to calculate for
    * @return document model for the given term
    */
   private double calc_pd(final double langModelWeight,
       final DocumentModel docModel, final ByteArray term) {
     return (langModelWeight * docModel.metrics().relTf(term))
-           + ((1 - langModelWeight) * calc_pc(term));
+        + ((1 - langModelWeight) * calc_pc(term));
   }
 
   /**
@@ -167,7 +179,7 @@ public final class DefaultClarityScoreTest
   private double calc_score(final double langModelWeight,
       final Collection<DocumentModel> feedbackDocs,
       final Collection<ByteArray> query)
-      throws IOException, Environment.NoIndexException {
+      throws IOException {
     if (langModelWeight <= 0) {
       throw new IllegalArgumentException("LangModelWeight <= 0.");
     }
@@ -181,17 +193,12 @@ public final class DefaultClarityScoreTest
     final Iterator<ByteArray> termsIt;
     double score = 0;
 
-    // calculation with all collection terms
-//    final Iterator<BytesWrap> termsIt = index.getTermsIterator();
-    // calculation only with terms from the query
-//    termsIt = query.iterator();
     // calculation with terms from feedback documents
     final Collection<Integer> fbDocIds = new HashSet<>(feedbackDocs.size());
     for (DocumentModel docModel : feedbackDocs) {
       fbDocIds.add(docModel.id);
     }
-    termsIt = Environment.getDataProvider().
-        getDocumentsTermSet(fbDocIds).iterator();
+    termsIt = this.index.getDocumentsTermSet(fbDocIds).iterator();
 
     // go through all terms
     while (termsIt.hasNext()) {
@@ -211,15 +218,17 @@ public final class DefaultClarityScoreTest
   @SuppressWarnings("checkstyle:magicnumber")
   public void testCalcDocumentModel()
       throws Exception {
+    final Metrics metrics = Metrics.getInstance(referenceIndex);
     final DefaultClarityScoreConfiguration dcc
         = new DefaultClarityScoreConfiguration();
-    final DefaultClarityScore instance = new DefaultClarityScore(dcc);
-    instance.createCache(RandomValue.getString(50));
+    final DefaultClarityScore instance = getInstanceBuilder()
+        .configuration(dcc)
+        .build();
 
-    final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+    final Iterator<Integer> docIdIt = referenceIndex.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
-      final DocumentModel docModel = DocumentMetrics.getModel(docId);
+      final DocumentModel docModel = metrics.getDocumentModel(docId);
       instance.calcDocumentModel(docModel);
 
       Map<ByteArray, Object> valueMap = instance.testGetExtDocMan().getData(
@@ -243,17 +252,18 @@ public final class DefaultClarityScoreTest
   @SuppressWarnings("checkstyle:magicnumber")
   public void testPreCalcDocumentModels()
       throws Exception {
+    final Metrics metrics = Metrics.getInstance(referenceIndex);
     final DefaultClarityScoreConfiguration dcc
         = new DefaultClarityScoreConfiguration();
-    final DefaultClarityScore instance = new DefaultClarityScore(dcc);
-    // a cache is needed for pre-calculation
-    instance.createCache(RandomValue.getString(50));
+    final DefaultClarityScore instance = getInstanceBuilder()
+        .configuration(dcc)
+        .build();
     instance.preCalcDocumentModels();
 
-    final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+    final Iterator<Integer> docIdIt = referenceIndex.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
-      final DocumentModel docModel = DocumentMetrics.getModel(docId);
+      final DocumentModel docModel = metrics.getDocumentModel(docId);
 
       Map<ByteArray, Object> valueMap = instance.testGetExtDocMan().getData(
           docId, DefaultClarityScore.DataKeys.DM.name());
@@ -262,9 +272,9 @@ public final class DefaultClarityScoreTest
         final double expResult = calcDocumentModel(dcc.getLangModelWeight(),
             docModel, term);
         assertEquals(msg("Calculated document model value differs. docId="
-                         + docId + " term=" + ByteArrayUtil.utf8ToString(term) +
-                         " b="
-                         + term + " v=" + valueMap.get(term)), expResult,
+                + docId + " term=" + ByteArrayUtils.utf8ToString(term) +
+                " b="
+                + term + " v=" + valueMap.get(term)), expResult,
             (Double) valueMap.get(term), 0d
         );
       }
@@ -279,10 +289,14 @@ public final class DefaultClarityScoreTest
   @Test
   public void testCalculateClarity()
       throws Exception {
-    final String queryString = index.getQueryString();
+    final Metrics metrics = Metrics.getInstance(referenceIndex);
+    final String queryString = TestIndexDataProvider.util.getQueryString();
     final DefaultClarityScoreConfiguration dcc
         = new DefaultClarityScoreConfiguration();
-    final DefaultClarityScore instance = new DefaultClarityScore(dcc);
+    final DefaultClarityScore instance = getInstanceBuilder()
+        .configuration(dcc)
+        .build();
+
     final DefaultClarityScore.Result result
         = instance.calculateClarity(queryString);
 
@@ -290,7 +304,7 @@ public final class DefaultClarityScoreTest
     final Collection<DocumentModel> fbDocModels = new ArrayList<>(
         feedbackDocs.size());
     for (Integer docId : feedbackDocs) {
-      fbDocModels.add(DocumentMetrics.getModel(docId));
+      fbDocModels.add(metrics.getDocumentModel(docId));
     }
 
     final double score = calc_score(dcc.getLangModelWeight(),
@@ -306,78 +320,6 @@ public final class DefaultClarityScoreTest
   }
 
   /**
-   * Test of loadOrCreateCache method, of class DefaultClarityScore.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testLoadOrCreateCache()
-      throws Exception {
-    SupportsPersistenceTestMethods.testLoadOrCreateCache(
-        new DefaultClarityScore());
-  }
-
-  /**
-   * Test of createCache method, of class DefaultClarityScore.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testCreateCache()
-      throws Exception {
-    SupportsPersistenceTestMethods.testCreateCache(new DefaultClarityScore());
-  }
-
-  /**
-   * Test of loadCache method, of class DefaultClarityScore.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testLoadCache()
-      throws Exception {
-    boolean thrown = false;
-    try {
-      SupportsPersistenceTestMethods.testLoadCache(new DefaultClarityScore());
-    } catch (Exception ex) {
-      thrown = true;
-    }
-    if (!thrown) {
-      fail(msg("Expected to catch an exception."));
-    }
-  }
-
-  /**
-   * Test of setConfiguration method, of class DefaultClarityScore.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  @SuppressWarnings("UnnecessaryUnboxing")
-  public void testSetConfiguration()
-      throws Exception {
-    final int fbDocCount = RandomValue.getInteger(0, 1000);
-    final double langmodelWeight = RandomValue.getDouble(0.1, 0.9);
-
-    final String queryString = index.getQueryString();
-    DefaultClarityScoreConfiguration newConf
-        = new DefaultClarityScoreConfiguration();
-
-    newConf.setFeedbackDocCount(fbDocCount);
-    newConf.setLangModelWeight(langmodelWeight);
-
-    DefaultClarityScore instance = new DefaultClarityScore();
-    instance.setConfiguration(newConf);
-    final DefaultClarityScore.Result result
-        = instance.calculateClarity(queryString);
-
-    assertEquals("Configured feedback document count differs.", fbDocCount,
-        result.getConfiguration().getFeedbackDocCount().intValue());
-    assertEquals("Configured language model weight value differs.",
-        langmodelWeight, result.getConfiguration().getLangModelWeight(), 0);
-  }
-
-  /**
    * Test of testGetExtDocMan method, of class DefaultClarityScore.
    *
    * @throws Exception Any exception thrown indicates an error
@@ -386,8 +328,7 @@ public final class DefaultClarityScoreTest
   @SuppressWarnings("checkstyle:magicnumber")
   public void testTestGetExtDocMan()
       throws Exception {
-    DefaultClarityScore instance = new DefaultClarityScore();
-    instance.createCache(RandomValue.getString(50));
+    final DefaultClarityScore instance = getInstanceBuilder().build();
     Assert.assertNotNull(instance.testGetExtDocMan());
   }
 

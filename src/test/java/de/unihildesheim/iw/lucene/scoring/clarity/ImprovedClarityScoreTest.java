@@ -14,20 +14,18 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.iw.lucene.scoring.clarity.impl;
+package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.SupportsPersistenceTestMethods;
-import de.unihildesheim.iw.lucene.Environment;
 import de.unihildesheim.iw.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.document.Feedback;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
-import de.unihildesheim.iw.lucene.metrics.CollectionMetrics;
-import de.unihildesheim.iw.lucene.metrics.DocumentMetrics;
+import de.unihildesheim.iw.lucene.index.Metrics;
+import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.lucene.query.TermsQueryBuilder;
-import de.unihildesheim.iw.util.ByteArrayUtil;
+import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import org.apache.lucene.queryparser.classic.QueryParser;
@@ -39,9 +37,15 @@ import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Test for {@link ImprovedClarityScore}.
@@ -70,9 +74,18 @@ public final class ImprovedClarityScoreTest
    * @param rType Data provider configuration
    */
   public ImprovedClarityScoreTest(
-      final Class<? extends IndexDataProvider> dataProv,
+      final DataProviders dataProv,
       final MultiIndexDataProviderTestCase.RunType rType) {
     super(dataProv, rType);
+  }
+
+  private ImprovedClarityScore.Builder getInstanceBuilder()
+      throws IOException {
+    return new ImprovedClarityScore.Builder()
+        .indexDataProvider(referenceIndex)
+        .dataPath(TestIndexDataProvider.reference.getDataDir())
+        .createCache("test-" + RandomValue.getString(16))
+        .temporary();
   }
 
   /**
@@ -81,18 +94,19 @@ public final class ImprovedClarityScoreTest
    * @param conf Configuration
    * @param docId Document-id
    * @param term Term
-   * @return Document model value
+   * @return Document-model value
    */
   @SuppressWarnings("checkstyle:methodname")
   private double calc_pdt(final ImprovedClarityScoreConfiguration conf,
       final int docId, final ByteArray term) {
+    final Metrics metrics = Metrics.getInstance(this.referenceIndex);
     final double smoothing = conf.getDocumentModelSmoothingParameter();
     final double lambda = conf.getDocumentModelParamLambda();
     final double beta = conf.getDocumentModelParamBeta();
 
-    final DocumentModel docModel = DocumentMetrics.getModel(docId);
+    final DocumentModel docModel = metrics.getDocumentModel(docId);
     final double termFreq = docModel.metrics().tf(term);
-    final double relCollFreq = CollectionMetrics.relTf(term);
+    final double relCollFreq = metrics.collection.relTf(term);
 
     double termSum = 0;
     // get the term frequency of each term in the document
@@ -101,9 +115,7 @@ public final class ImprovedClarityScoreTest
     }
     double model = (termFreq + (smoothing * relCollFreq)) / termSum;
     model = (lambda * ((beta * model) + ((1 - beta) * relCollFreq))) + ((1
-                                                                         -
-                                                                         lambda) *
-                                                                        relCollFreq);
+        - lambda) * relCollFreq);
 
     return model;
   }
@@ -140,50 +152,53 @@ public final class ImprovedClarityScoreTest
   @Test
   public void testCalculateClarity()
       throws Exception {
-    final String query = index.getQueryString();
-    final ImprovedClarityScoreConfiguration conf
+    final Metrics metrics = Metrics.getInstance(this.referenceIndex);
+    final String query = this.referenceIndex.util.getQueryString();
+    final ImprovedClarityScoreConfiguration icc
         = new ImprovedClarityScoreConfiguration();
-    final ImprovedClarityScore instance = new ImprovedClarityScore(conf);
+    final ImprovedClarityScore instance = getInstanceBuilder()
+        .configuration(icc)
+        .build();
 
     // calculate
-    ImprovedClarityScore.Result result = instance.calculateClarity(query);
+    final ImprovedClarityScore.Result result = instance.calculateClarity(query);
 
     // check configuration
-    assertEquals(msg("Configuration object mismatch."), conf, result.
+    assertEquals(msg("Configuration object mismatch."), icc, result.
         getConfiguration());
 
     // check initial query
     assertEquals(msg("Query mismatch."), query, result.getQueries().get(0));
 
     // build query
-    TermsQueryBuilder qBuilder = new TermsQueryBuilder().setBoolOperator(
-        QueryParser.Operator.AND);
-    Query queryObj = qBuilder.buildUsingEnvironment(query);
+    final TermsQueryBuilder qBuilder = new TermsQueryBuilder(this.referenceIndex
+        .getIndexReader(), this.referenceIndex.getDocumentFields())
+        .setBoolOperator(QueryParser.Operator.AND);
+    final Query queryObj = qBuilder.query(query).build();
 
     // retrieve initial feedback set
-    Collection<Integer> feedbackDocIds = new HashSet<>(conf.
+    final Collection<Integer> feedbackDocIds = new HashSet<>(icc.
         getMaxFeedbackDocumentsCount());
-    feedbackDocIds.addAll(Feedback.get(queryObj, conf.
-        getMaxFeedbackDocumentsCount()));
+    feedbackDocIds.addAll(Feedback.get(this.referenceIndex.getIndexReader(), queryObj,
+            icc.getMaxFeedbackDocumentsCount()));
 
-    if (feedbackDocIds.size() < conf.getMinFeedbackDocumentsCount()) {
-      assertTrue(msg("Expecting query to be simplified."), result.
-          wasQuerySimplified());
+    if (feedbackDocIds.size() < icc.getMinFeedbackDocumentsCount()) {
+      assertTrue(msg("Expecting query to be simplified."), result.wasQuerySimplified());
     }
 
     // extract terms from feedback documents
-    final Collection<ByteArray> fbTerms = Environment.getDataProvider().
-        getDocumentsTermSet(feedbackDocIds);
+    final Collection<ByteArray> fbTerms = this.index.getDocumentsTermSet(
+        feedbackDocIds);
 
     // get document frequency threshold
-    int minDf = (int) (CollectionMetrics.numberOfDocuments()
-                       * conf.getFeedbackTermSelectionThreshold());
+    int minDf = (int) (metrics.collection.numberOfDocuments()
+        * icc.getFeedbackTermSelectionThreshold());
     final Iterator<ByteArray> fbTermsIt = fbTerms.iterator();
 
     // remove terms with lower than threshold df
     while (fbTermsIt.hasNext()) {
       final ByteArray term = fbTermsIt.next();
-      if (CollectionMetrics.df(term) < minDf) {
+      if (metrics.collection.df(term) < minDf) {
         fbTermsIt.remove();
       }
     }
@@ -194,10 +209,12 @@ public final class ImprovedClarityScoreTest
         getFeedbackTerms()));
 
     double score = 0;
-    final Collection<ByteArray> qTerms = QueryUtils.getAllQueryTerms(query);
+    final Collection<ByteArray> qTerms = new QueryUtils(this.referenceIndex
+        .getIndexReader(), this.referenceIndex.getDocumentFields())
+        .getAllQueryTerms(query);
     for (ByteArray fbTerm : fbTerms) {
-      final double pqt = calc_pqt(conf, fbTerm, feedbackDocIds, qTerms);
-      score += pqt * MathUtils.log2(pqt / CollectionMetrics.relTf(fbTerm));
+      final double pqt = calc_pqt(icc, fbTerm, feedbackDocIds, qTerms);
+      score += pqt * MathUtils.log2(pqt / metrics.collection.relTf(fbTerm));
     }
 
     final double maxResult = Math.max(score, result.getScore());
@@ -207,48 +224,6 @@ public final class ImprovedClarityScoreTest
 
     assertEquals(msg("Score mismatch."), score, result.getScore(),
         ALLOWED_SCORE_DELTA);
-  }
-
-  /**
-   * Test of loadOrCreateCache method, of class ImprovedClarityScore.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testLoadOrCreateCache()
-      throws Exception {
-    SupportsPersistenceTestMethods.testLoadOrCreateCache(
-        new ImprovedClarityScore());
-  }
-
-  /**
-   * Test of createCache method, of class ImprovedClarityScore.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testCreateCache()
-      throws Exception {
-    SupportsPersistenceTestMethods.testCreateCache(new ImprovedClarityScore());
-  }
-
-  /**
-   * Test of loadCache method, of class ImprovedClarityScore.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testLoadCache()
-      throws Exception {
-    boolean thrown = false;
-    try {
-      SupportsPersistenceTestMethods.testLoadCache(new ImprovedClarityScore());
-    } catch (Exception ex) {
-      thrown = true;
-    }
-    if (!thrown) {
-      fail(msg("Expected to catch an exception."));
-    }
   }
 
   /**
@@ -268,42 +243,43 @@ public final class ImprovedClarityScoreTest
     final ImprovedClarityScore.QuerySimplifyPolicy qspParam
         = ImprovedClarityScore.QuerySimplifyPolicy.FIRST;
 
-    final String queryString = index.getQueryString();
-    ImprovedClarityScoreConfiguration newConf
+    final String queryString = referenceIndex.util.getQueryString();
+    final ImprovedClarityScoreConfiguration icc
         = new ImprovedClarityScoreConfiguration();
 
-    newConf.setDocumentModelParamBeta(betaParam);
-    newConf.setDocumentModelParamLambda(lambdaParam);
-    newConf.setDocumentModelSmoothingParameter(smoothingParam);
-    newConf.setFeedbackTermSelectionThreshold(termTsParam);
-    newConf.setMaxFeedbackDocumentsCount(maxFbParam);
-    newConf.setMinFeedbackDocumentsCount(minFbParam);
-    newConf.setQuerySimplifyingPolicy(qspParam);
+    icc.setDocumentModelParamBeta(betaParam);
+    icc.setDocumentModelParamLambda(lambdaParam);
+    icc.setDocumentModelSmoothingParameter(smoothingParam);
+    icc.setFeedbackTermSelectionThreshold(termTsParam);
+    icc.setMaxFeedbackDocumentsCount(maxFbParam);
+    icc.setMinFeedbackDocumentsCount(minFbParam);
+    icc.setQuerySimplifyingPolicy(qspParam);
 
-    ImprovedClarityScore instance = new ImprovedClarityScore();
-    instance.setConfiguration(newConf);
+    final ImprovedClarityScore instance = getInstanceBuilder()
+        .configuration(icc)
+        .build();
     final ImprovedClarityScore.Result result
         = instance.calculateClarity(queryString);
 
     ImprovedClarityScoreConfiguration resConf = result.getConfiguration();
-    assertEquals("Beta param value mismatch.", newConf.
+    assertEquals("Beta param value mismatch.", icc.
         getDocumentModelParamBeta(), resConf.getDocumentModelParamBeta());
-    assertEquals("Lambda param value mismatch.", newConf.
+    assertEquals("Lambda param value mismatch.", icc.
         getDocumentModelParamLambda(), resConf.
         getDocumentModelParamLambda());
-    assertEquals("Smoothing param value mismatch.", newConf.
+    assertEquals("Smoothing param value mismatch.", icc.
         getDocumentModelSmoothingParameter(), resConf.
         getDocumentModelSmoothingParameter());
-    assertEquals("Term selection threshold value mismatch.", newConf.
+    assertEquals("Term selection threshold value mismatch.", icc.
         getFeedbackTermSelectionThreshold(), resConf.
         getFeedbackTermSelectionThreshold());
-    assertEquals("Max feedback doc count value mismatch.", newConf.
+    assertEquals("Max feedback doc count value mismatch.", icc.
         getMaxFeedbackDocumentsCount(), resConf.
         getMaxFeedbackDocumentsCount());
-    assertEquals("Min feedback doc count value mismatch.", newConf.
+    assertEquals("Min feedback doc count value mismatch.", icc.
         getMinFeedbackDocumentsCount(), resConf.
         getMinFeedbackDocumentsCount());
-    assertEquals("Query simplifying policy mismatch.", newConf.
+    assertEquals("Query simplifying policy mismatch.", icc.
         getQuerySimplifyingPolicy(), resConf.getQuerySimplifyingPolicy());
   }
 
@@ -316,24 +292,27 @@ public final class ImprovedClarityScoreTest
   @SuppressWarnings("checkstyle:magicnumber")
   public void testCalcQueryModel()
       throws Exception {
-    Collection<ByteArray> qTerms = QueryUtils.getAllQueryTerms(index.
-        getQueryString());
+    final Collection<ByteArray> qTerms = new QueryUtils(this.referenceIndex
+        .getIndexReader(), this.referenceIndex.getDocumentFields())
+        .getAllQueryTerms(this.referenceIndex.util.getQueryString());
     @SuppressWarnings("CollectionWithoutInitialCapacity")
-    Collection<Integer> fbDocIds = new ArrayList<>();
-    Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+    final Collection<Integer> fbDocIds = new ArrayList<>();
+    final Iterator<Integer> docIdIt = this.referenceIndex
+        .getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
       if (RandomValue.getBoolean()) {
         fbDocIds.add(docId);
       }
     }
-    ImprovedClarityScoreConfiguration icc
+    final ImprovedClarityScoreConfiguration icc
         = new ImprovedClarityScoreConfiguration();
-    ImprovedClarityScore instance = new ImprovedClarityScore(icc);
-    // a cache is needed for calculation
-    instance.createCache(RandomValue.getString(50));
+    final ImprovedClarityScore instance = getInstanceBuilder()
+        .configuration(icc)
+        .build();
 
-    Collection<ByteArray> fbTerms = index.getDocumentsTermSet(fbDocIds);
+    final Collection<ByteArray> fbTerms =
+        referenceIndex.getDocumentsTermSet(fbDocIds);
 
     for (ByteArray fbTerm : fbTerms) {
       final double result = instance.calcQueryModel(fbTerm, qTerms, fbDocIds);
@@ -352,27 +331,28 @@ public final class ImprovedClarityScoreTest
   @SuppressWarnings("checkstyle:magicnumber")
   public void testPreCalcDocumentModels()
       throws Exception {
-    ImprovedClarityScoreConfiguration icc
+    final Metrics metrics = Metrics.getInstance(this.referenceIndex);
+    final ImprovedClarityScoreConfiguration icc
         = new ImprovedClarityScoreConfiguration();
-    ImprovedClarityScore instance = new ImprovedClarityScore(icc);
-    // a cache is needed for pre-calculation
-    instance.createCache(RandomValue.getString(50));
+    final ImprovedClarityScore instance = getInstanceBuilder()
+        .configuration(icc)
+        .build();
     instance.preCalcDocumentModels();
 
-    final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+    final Iterator<Integer> docIdIt =
+        this.referenceIndex.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
-      final DocumentModel docModel = DocumentMetrics.getModel(docId);
+      final DocumentModel docModel = metrics.getDocumentModel(docId);
 
-      Map<ByteArray, Object> valueMap = instance.testGetExtDocMan().getData(
-          docId, DefaultClarityScore.DataKeys.DM.name());
+      final Map<ByteArray, Object> valueMap = instance.testGetExtDocMan()
+          .getData(docId, DefaultClarityScore.DataKeys.DM.name());
 
       for (ByteArray term : docModel.termFreqMap.keySet()) {
         final double expResult = calc_pdt(icc, docModel.id, term);
         assertEquals(msg("Calculated document model value differs. docId="
-                         + docId + " term=" + ByteArrayUtil.utf8ToString(term) +
-                         " b="
-                         + term + " v=" + valueMap.get(term)), expResult,
+                + docId + " term=" + ByteArrayUtils.utf8ToString(term) +
+                " b=" + term + " v=" + valueMap.get(term)), expResult,
             (Double) valueMap.get(term), 0d
         );
       }
@@ -388,8 +368,7 @@ public final class ImprovedClarityScoreTest
   @SuppressWarnings("checkstyle:magicnumber")
   public void testTestGetExtDocMan()
       throws Exception {
-    ImprovedClarityScore instance = new ImprovedClarityScore();
-    instance.createCache(RandomValue.getString(50));
+    final ImprovedClarityScore instance = getInstanceBuilder().build();
     Assert.assertNotNull(instance.testGetExtDocMan());
   }
 }

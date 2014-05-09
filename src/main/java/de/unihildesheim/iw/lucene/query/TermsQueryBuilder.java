@@ -16,45 +16,62 @@
  */
 package de.unihildesheim.iw.lucene.query;
 
-import de.unihildesheim.iw.lucene.Environment;
+import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.lucene.index.IndexUtils;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 
-import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.Set;
 
 /**
- * Builder building a simple terms query. This relies on the {@link Environment}
- * to validate some data. Further the {@link Environment} may be used to get
- * default values for some query parameters.
+ * Query builder building a simple terms query.
  *
  * @author Jens Bertram
  */
-public final class TermsQueryBuilder {
+public final class TermsQueryBuilder implements Buildable<SimpleTermsQuery> {
 
   /**
    * Collection of stop-words to use.
    */
-  private Collection<String> stopWords = null;
+  private Set<String> stopwords = Collections.<String>emptySet();
+
   /**
    * List of fields to query.
    */
-  private String[] fields = null;
+  private Set<String> fields = null;
+
   /**
    * Boolean operator to use for joining query terms.
    */
-  private QueryParser.Operator operator;
+  private QueryParser.Operator operator = SimpleTermsQuery.DEFAULT_OPERATOR;
+
+  /**
+   * Reader to access Lucene index.
+   */
+  private final IndexReader idxReader;
+
+  /**
+   * Query string.
+   */
+  private String query;
+
+  public TermsQueryBuilder(final IndexReader reader,
+      final Set<String> newFields) {
+    this.idxReader = reader;
+    this.fields = newFields;
+  }
 
   /**
    * Set the list of stop-words to exclude from the final query object.
    *
-   * @param newStopWords List of stop-words
+   * @param newStopwords List of stop-words
    * @return Self reference
    */
-  public TermsQueryBuilder setStopWords(final Collection<String> newStopWords) {
-    this.stopWords = new HashSet<>(newStopWords.size());
-    this.stopWords.addAll(newStopWords);
+  public TermsQueryBuilder setStopwords(final Set<String> newStopwords) {
+    this.stopwords = new HashSet<>(newStopwords);
     return this;
   }
 
@@ -63,14 +80,10 @@ public final class TermsQueryBuilder {
    *
    * @param newFields List of fields to query
    * @return Self reference
-   * @throws de.unihildesheim.iw.lucene.Environment.NoIndexException Thrown, if
-   * no index is provided in the {@link Environment}
    */
-  public TermsQueryBuilder setFields(final String[] newFields)
-      throws
-      Environment.NoIndexException {
-    IndexUtils.checkFields(newFields);
-    this.fields = newFields.clone();
+  public TermsQueryBuilder setFields(final Set<String> newFields) {
+    IndexUtils.checkFields(this.idxReader, newFields);
+    this.fields = new HashSet<>(newFields);
     return this;
   }
 
@@ -99,79 +112,42 @@ public final class TermsQueryBuilder {
   }
 
   /**
-   * Build the query using all parameters from the {@link Environment}.
+   * Set the query string.
    *
-   * @param query Query string
-   * @return Query build using default options from {@link SimpleTermsQuery} and
-   * parameters from the {@link Environment}
-   * @throws ParseException Thrown, if the query could not be parsed
+   * @param queryStr Query string
+   * @return Self reference
    */
-  public static SimpleTermsQuery buildFromEnvironment(final String query)
-      throws
-      ParseException {
-    checkQueryString(query);
-    return new SimpleTermsQuery(query, SimpleTermsQuery.DEFAULT_OPERATOR,
-        Environment.getFields(), Environment.getStopwords());
+  public TermsQueryBuilder query(final String queryStr) {
+    this.query = queryStr;
+    return this;
   }
 
   /**
-   * Build the query using the configured parameters and filling missing ones
-   * from the {@link Environment}.
-   *
-   * @param query Query string
-   * @return Query build using configured parameters and default options from
-   * {@link SimpleTermsQuery} and parameters from the {@link Environment} if
-   * they are missing
-   * @throws ParseException Thrown, if the query could not be parsed
-   */
-  public SimpleTermsQuery buildUsingEnvironment(final String query)
-      throws
-      ParseException {
-    checkQueryString(query);
-    Collection<String> finalStopWords = this.stopWords;
-    if (finalStopWords == null) {
-      finalStopWords = Environment.getStopwords();
-    }
-
-    String[] finalFields = this.fields;
-    if (finalFields == null || finalFields.length == 0) {
-      finalFields = Environment.getFields();
-    }
-
-    QueryParser.Operator finalOperator = this.operator;
-    if (finalOperator == null) {
-      finalOperator = SimpleTermsQuery.DEFAULT_OPERATOR;
-    }
-    return new SimpleTermsQuery(query, finalOperator, finalFields,
-        finalStopWords);
-  }
-
-  /**
-   * Build the query using all configured parameters. If a required parameter is
-   * left unconfigured an Exception will be thrown.
-   *
-   * @param query Query string
+   * Builds the instance.
    * @return Query build using configured parameters and default options from
    * {@link SimpleTermsQuery} if they are missing and defaults are provided
    * @throws ParseException Thrown, if the query could not be parsed
+   * @throws BuilderConfigurationException Thrown, if any mandatory setting
+   * is left unconfigured
    */
-  public SimpleTermsQuery build(final String query)
-      throws ParseException {
-    checkQueryString(query);
-    if (this.stopWords == null) {
+  @Override
+  public SimpleTermsQuery build()
+      throws BuilderConfigurationException, ParseException {
+    validate();
+    return new SimpleTermsQuery(this.query, this.operator, this.fields,
+        this.stopwords);
+  }
+
+  @Override
+  public void validate() throws BuilderConfigurationException {
+    if (this.query == null || this.query.trim().isEmpty()) {
+      throw new IllegalArgumentException("Query was empty.");
+    }
+    if (this.stopwords == null) {
       throw new IllegalStateException("No stopwords set.");
     }
     if (this.fields == null) {
       throw new IllegalStateException("No fields set.");
     }
-
-    final QueryParser.Operator finalOperator;
-    if (this.operator == null) {
-      finalOperator = SimpleTermsQuery.DEFAULT_OPERATOR;
-    } else {
-      finalOperator = this.operator;
-    }
-    return new SimpleTermsQuery(query, finalOperator, this.fields,
-        this.stopWords);
   }
 }

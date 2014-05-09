@@ -17,17 +17,22 @@
 package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.TestCase;
-import de.unihildesheim.iw.lucene.Environment;
 import de.unihildesheim.iw.lucene.index.IndexTestUtil;
 import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.iw.util.RandomValue;
 import org.apache.lucene.queryparser.classic.QueryParser;
-import org.junit.*;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Ignore;
+import org.junit.Test;
 
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Set;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Test for {@link TermsQueryBuilder}.
@@ -38,7 +43,7 @@ public final class TermsQueryBuilderTest
     extends TestCase {
 
   /**
-   * Test documents index.
+   * Test documents referenceIndex.
    */
   private static TestIndexDataProvider index;
 
@@ -62,7 +67,7 @@ public final class TermsQueryBuilderTest
    */
   @AfterClass
   public static final void tearDownClass() {
-    // close the test index
+    // close the test referenceIndex
     index.dispose();
   }
 
@@ -74,21 +79,19 @@ public final class TermsQueryBuilderTest
   @Before
   public final void setUp()
       throws Exception {
-    Environment.clear();
-    index.setupEnvironment(null, null);
+//    index.setupEnvironment(null, null);
   }
 
   /**
-   * Test of setStopWords method, of class TermsQueryBuilder.
+   * Test of setStopwords method, of class TermsQueryBuilder.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
   public void testSetStopWords()
       throws Exception {
-    final Collection<String> newStopWords =
-        IndexTestUtil.getRandomStopWords(
-            index);
+    final Set<String> newStopWords =
+        new HashSet<>(IndexTestUtil.getRandomStopWords(index));
     final int amount = RandomValue.getInteger(10, 100);
     final Collection<String> terms = new HashSet<>(amount);
 
@@ -100,8 +103,9 @@ public final class TermsQueryBuilderTest
       }
     }
 
-    final TermsQueryBuilder instance = new TermsQueryBuilder();
-    instance.setStopWords(newStopWords);
+    final TermsQueryBuilder instance = new TermsQueryBuilder(this.index
+        .getIndexReader(), this.index.getDocumentFields());
+    instance.setStopwords(newStopWords);
 
     @SuppressWarnings("StringBufferWithoutInitialCapacity")
     final StringBuilder qb = new StringBuilder();
@@ -112,10 +116,8 @@ public final class TermsQueryBuilderTest
       qb.append(t).append(' ');
     }
 
-    final SimpleTermsQuery stq =
-        instance.buildUsingEnvironment(qb.toString());
-    final Collection<String> finalTerms =
-        new HashSet<>(stq.getQueryTerms());
+    final SimpleTermsQuery stq = instance.query(qb.toString()).build();
+    final Collection<String> finalTerms = new HashSet<>(stq.getQueryTerms());
 
     for (String t : terms) {
       assertTrue("Term not found. t=" + t, finalTerms.contains(t));
@@ -126,19 +128,21 @@ public final class TermsQueryBuilderTest
   }
 
   /**
-   * Test of setFields method, of class TermsQueryBuilder.
+   * Test of setDocumentFields method, of class TermsQueryBuilder.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
   public void testSetFields()
       throws Exception {
-    final Collection<String> fields = IndexTestUtil.getRandomFields(index);
-    final String[] newFields = fields.toArray(new String[fields.size()]);
-    final TermsQueryBuilder instance = new TermsQueryBuilder();
+    final Set<String> fields = new HashSet<>(IndexTestUtil.getRandomFields
+        (index));
+    final TermsQueryBuilder instance = new TermsQueryBuilder(this.index
+        .getIndexReader(), this.index.getDocumentFields());
 
-    final String qStr = instance.setFields(newFields).buildUsingEnvironment(
-        "foo").getQueryObj().toString();
+    final String qStr =
+        instance.setFields(fields).query("foo").build().getQueryObj()
+            .toString();
     for (String f : fields) {
       // stupid simple & may break easily
       assertTrue("Field not found.", qStr.contains(f + ":foo"));
@@ -158,101 +162,9 @@ public final class TermsQueryBuilderTest
 
     // TODO: how to check results?
     for (QueryParser.Operator op : QueryParser.Operator.values()) {
-      instance = new TermsQueryBuilder();
-      instance.setBoolOperator(op).
-          buildUsingEnvironment("foo bar").toString();
-    }
-  }
-
-  /**
-   * Test of buildFromEnvironment method, of class TermsQueryBuilder.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testBuildFromEnvironment()
-      throws Exception {
-    final Collection<String> fields = IndexTestUtil.getRandomFields(index);
-    final Collection<String> stopwords = IndexTestUtil.getRandomStopWords(
-        index);
-
-    // generate some query terms
-    final int amount = RandomValue.getInteger(10, 100);
-    final Collection<String> terms = new HashSet<>(amount);
-
-    for (int i = 0; i < amount; ) {
-      final String term = RandomValue.getString(1, 100);
-      if (!stopwords.contains(term) && terms.add(term)) {
-        i++;
-      }
-    }
-
-    Environment.clear();
-    index.setupEnvironment(index, fields, stopwords);
-
-    TermsQueryBuilder instance = new TermsQueryBuilder();
-    instance.setStopWords(stopwords);
-
-    @SuppressWarnings("StringBufferWithoutInitialCapacity")
-    StringBuilder qb = new StringBuilder();
-    for (String t : stopwords) {
-      qb.append(t).append(' ');
-    }
-    for (String t : terms) {
-      qb.append(t).append(' ');
-    }
-
-    SimpleTermsQuery stq = instance.buildUsingEnvironment(qb.toString());
-    Collection<String> finalTerms = new HashSet<>(stq.getQueryTerms());
-
-    for (String t : terms) {
-      assertTrue("Term not found. t=" + t, finalTerms.contains(t));
-    }
-    for (String t : stopwords) {
-      assertFalse("Stopword found. t=" + t, finalTerms.contains(t));
-    }
-
-    final String qStr = stq.getQueryObj().toString();
-    for (String f : fields) {
-      // stupid simple & may break easily
-      assertTrue("Field not found.", qStr.contains(f + ":"));
-    }
-  }
-
-  /**
-   * Test of buildUsingEnvironment method, of class TermsQueryBuilder.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testBuildUsingEnvironment()
-      throws Exception {
-    TermsQueryBuilder instance;
-    final Collection<String> fields = IndexTestUtil.getRandomFields(index);
-    final Collection<String> stopwords = IndexTestUtil.getRandomStopWords(
-        index);
-
-    final String query = RandomValue.getString(1, 100) + " " + RandomValue.
-        getString(
-            1,
-            100);
-
-    instance = new TermsQueryBuilder();
-    instance.buildUsingEnvironment(query);
-
-    Environment.clear();
-    index.setupEnvironment(index, fields, stopwords);
-
-    instance = new TermsQueryBuilder();
-    instance.buildUsingEnvironment(query);
-
-    Environment.clear();
-    instance = new TermsQueryBuilder();
-    try {
-      instance.buildUsingEnvironment(query);
-      fail("Expected an exception.");
-    } catch (IllegalStateException ex) {
-
+      instance = new TermsQueryBuilder(this.index.getIndexReader(),
+          this.index.getDocumentFields());
+      instance.setBoolOperator(op).query("foo bar").build().toString();
     }
   }
 
@@ -265,20 +177,19 @@ public final class TermsQueryBuilderTest
   @SuppressWarnings("checkstyle:magicnumber")
   public void testBuild()
       throws Exception {
-    final Collection<String> fields = IndexTestUtil.getRandomFields(index);
-    final Collection<String> stopwords = IndexTestUtil.getRandomStopWords(
-        index);
+    final Set<String> fields = new HashSet<>(IndexTestUtil.getRandomFields
+        (this.index));
+    final Set<String> stopwords = new HashSet<>(IndexTestUtil
+        .getRandomStopWords(this.index));
 
-    TermsQueryBuilder instance = new TermsQueryBuilder();
-    instance.setFields(fields.toArray(new String[fields.size()]));
-    instance.setStopWords(stopwords);
+    TermsQueryBuilder instance = new TermsQueryBuilder(this.index
+        .getIndexReader(), fields);
+    instance.setStopwords(stopwords);
     instance.setBoolOperator(QueryParser.Operator.OR);
     final String query = RandomValue.getString(1, 100) + " " + RandomValue.
-        getString(
-            1,
-            100);
+        getString(1, 100);
 
-    instance.build(query);
+    instance.query(query).build();
   }
 
 }

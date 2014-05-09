@@ -16,19 +16,24 @@
  */
 package de.unihildesheim.iw.lucene.index;
 
+import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.Persistence;
 import de.unihildesheim.iw.SerializableByte;
-import de.unihildesheim.iw.Tuple;
-import de.unihildesheim.iw.lucene.Environment;
 import de.unihildesheim.iw.lucene.document.DocFieldsTermsEnum;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
-import de.unihildesheim.iw.lucene.util.BytesRefUtil;
+import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.DocsEnum;
+import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.mapdb.DB;
@@ -39,13 +44,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.ConcurrentNavigableMap;
 
 /**
- * {@link IndexDataProvider} implementation directly accessing the Lucene
- * index.
+ * {@link IndexDataProvider} implementation directly accessing the Lucene index
+ * and using some caching to speed-up data processing.
  *
  * @author Jens Bertram
  */
@@ -61,145 +72,153 @@ public final class DirectIndexDataProvider
    */
   private static final Logger LOG = LoggerFactory.getLogger(
       DirectIndexDataProvider.class);
+
   /**
    * Wrapper for persistent data storage.
    */
-  private Persistence pData;
+  private Persistence persistence;
 
   /**
-   * Default constructor using the parameters set by {@link Environment}.
+   * List of current stopwords.
+   */
+  private Collection<String> stopwords;
+
+  /**
+   * Default constructor.
    *
+   * @param isTemporary If true, data is held temporary only.
+   */
+  protected DirectIndexDataProvider(final boolean isTemporary) {
+    super(isTemporary);
+  }
+
+  /**
+   * Builder method to create a new instance.
+   *
+   * @param builder Builder to use for constructing the instance
+   * @return New instance
    * @throws IOException Thrown on low-level I/O errors
    */
-  public DirectIndexDataProvider()
-      throws IOException {
-    this(false);
-  }
+  protected static DirectIndexDataProvider build(final Builder builder)
+      throws Exception {
+    final DirectIndexDataProvider instance = new DirectIndexDataProvider
+        (builder.isTemporary);
 
-  /**
-   * Custom constructor allowing to set the parameters manually and optionally
-   * creating a temporary instance.
-   *
-   * @param temporary If true, all persistent data will be temporary
-   */
-  protected DirectIndexDataProvider(final boolean temporary) {
-    super(temporary);
-    setStopwordsFromEnvironment();
-  }
+    // set configuration
+    instance.setIndexReader(builder.idxReader);
+    instance.setDocumentFields(builder.documentFields);
+    instance.setLastIndexCommitGeneration(builder.lastCommitGeneration);
+    instance.setStopwords(builder.stopwords);
 
-  @Override
-  public void createCache(final String name)
-      throws
-      IOException, Environment.NoIndexException {
-    initCache(name, true, true);
-  }
+    // initialize
+    try {
+      instance.initCache(builder);
+    } catch (Buildable.BuilderConfigurationException e) {
+      LOG.error("Failed to initialize cache.", e);
+      throw new IllegalStateException("Failed to initialize cache.");
+    }
 
-  @Override
-  public void loadOrCreateCache(final String name)
-      throws
-      IOException, Environment.NoIndexException {
-    initCache(name, false, true);
-  }
+    if (builder.doWarmUp) {
+      instance.warmUp();
+    }
 
-  @Override
-  public void loadCache(final String name)
-      throws
-      IOException, Environment.NoIndexException {
-    initCache(name, false, false);
+    return instance;
   }
 
   /**
    * Initialize the database with a default configuration.
    *
-   * @param name Database name
-   * @param createNew If true, a new database will be created. Throws an error,
-   * if a database with the current name already exists.
-   * @param createIfNotFound If true, a new database will be created, if none
-   * with the given name exists
+   * @param builder Builder instance
    * @throws IOException Thrown on low-level I/O errors
-   * @throws Environment.NoIndexException Thrown, if no index is provided in the
-   * {@link Environment}
    */
-  private void initCache(final String name, final boolean createNew,
-      final boolean createIfNotFound)
-      throws
-      IOException, Environment.NoIndexException {
+  private void initCache(final Builder builder)
+      throws IOException, Buildable.BuilderConfigurationException {
     boolean clearCache = false;
 
-    final Tuple.Tuple2<Persistence, Boolean> pSetup = super.getPersistence(
-        IDENTIFIER + "_" + name, createNew, createIfNotFound);
-    final boolean create = pSetup.b;
+    final Persistence.Builder psb = builder.persistenceBuilder;
 
-    this.pData = pSetup.a;
-    final Persistence.StorageMeta dbMeta = this.pData.getMetaData();
+    switch (psb.getCacheLoadInstruction()) {
+      case MAKE:
+        this.persistence = psb.make().build();
+        clearCache = true;
+        break;
+      case GET:
+        this.persistence = psb.get().build();
+        break;
+      default:
+        if (!psb.dbExists()) {
+          clearCache = true;
+        }
+        this.persistence = psb.makeOrGet().build();
+        break;
+    }
 
-    if (create) {
-      clearCache = true;
-    } else {
-      if (!super.db.exists(DbMakers.Stores.IDX_TERMS_MAP.name())) {
+    setDb(this.persistence.db);
+
+    final Persistence.StorageMeta dbMeta = this.persistence.getMetaData();
+
+    if (!clearCache) {
+      if (!getDb().exists(DbMakers.Stores.IDX_TERMS_MAP.name())) {
         throw new IllegalStateException(
             "Invalid database state. 'idxTermsMap' does not exist.");
       }
 
-      if (!dbMeta.generationCurrent()) {
-        throw new IllegalStateException("Invalid database state. "
-                                        +
-                                        "Index changed since last caching.");
+      if (!dbMeta.generationCurrent(getLastIndexCommitGeneration())) {
+        throw new IllegalStateException("Invalid database state. " +
+            "Index changed since last caching.");
       }
-      if (!dbMeta.fieldsCurrent()) {
+      if (!dbMeta.fieldsCurrent(getDocumentFields())) {
         LOG.info("Fields changed. Caches needs to be rebuild.");
         clearCache = true;
       }
     }
 
-    if (super.isTemporary()) {
-      super.cachedFieldsMap =
-          new HashMap<>(Environment.getFields().length);
+    if (isTemporary()) {
+      setCachedFieldsMap(
+          new HashMap<String, SerializableByte>(getDocumentFields().size()));
     } else {
-      super.cachedFieldsMap = DbMakers.cachedFieldsMapMaker(super.db).
-          makeOrGet();
+      setCachedFieldsMap(DbMakers.cachedFieldsMapMaker(getDb()).<String,
+          SerializableByte>makeOrGet());
     }
 
-    LOG.debug("Fields: cached={} active={}", super.cachedFieldsMap.keySet(),
-        Arrays.toString(Environment.getFields()));
+    LOG.debug("Fields: cached={} active={}", getCachedFieldsMap().keySet(),
+        getDocumentFields());
 
-    super.idxTermsMap = DbMakers.idxTermsMapMkr(super.db).makeOrGet();
+    setIdxTermsMap(DbMakers.idxTermsMapMkr(getDb())
+        .<Fun.Tuple2<SerializableByte, ByteArray>, Long>makeOrGet());
 
     if (clearCache) {
       clearCache();
-      buildCache(Environment.getFields());
+      buildCache(getDocumentFields());
     } else {
-      if (dbMeta.stopWordsCurrent()) {
+      if (dbMeta.stopWordsCurrent(getStopwords())) {
         // load terms index
-        super.idxTerms = DbMakers.idxTermsMaker(super.db).makeOrGet();
-        LOG.info("Stopwords unchanged. "
-                 + "Loaded index terms cache with {} entries.",
-            super.idxTerms.
-                size()
+        setIdxTerms(DbMakers.idxTermsMaker(getDb()).<ByteArray>makeOrGet());
+        LOG.info("Stopwords unchanged. Loaded index terms cache with {} " +
+                "entries.", getIdxTerms().size()
         );
 
         // try load overall term frequency
-        super.idxTf =
-            super.db.getAtomicLong(DbMakers.Caches.IDX_TF.name()).
-                get();
-        if (super.idxTf == 0L) {
-          super.idxTf = null;
+        setIdxTf(getDb().getAtomicLong(DbMakers.Caches.IDX_TF.name())
+            .get());
+        if (getIdxTf() == 0L) {
+          setIdxTf(null);
         }
       } else {
         // reset terms index
         LOG.info("Stopwords changed. Deleting index terms cache.");
-        super.db.delete(DbMakers.Caches.IDX_TERMS.name());
-        super.idxTerms = DbMakers.idxTermsMaker(super.db).make();
+        getDb().delete(DbMakers.Caches.IDX_TERMS.name());
+        setIdxTerms(DbMakers.idxTermsMaker(getDb()).<ByteArray>make());
 
         // reset overall term frequency
-        super.idxTf = null;
+        setIdxTf(null);
       }
 
-      super.idxDfMap = DbMakers.idxDfMapMaker(super.db).makeOrGet();
+      super.idxDfMap = DbMakers.idxDfMapMaker(getDb()).makeOrGet();
     }
 
-    this.pData.updateMetaData();
-    super.db.commit();
+    this.persistence.updateMetaData(getDocumentFields(), getStopwords());
+    getDb().commit();
   }
 
   @Override
@@ -208,53 +227,49 @@ public final class DirectIndexDataProvider
     if (!super.warmed) {
       super.warmUp();
 
-      if (super.idxTf == null || super.idxTf == 0) {
+      if (getIdxTf() == null || getIdxTf() == 0) {
         throw new IllegalStateException("Zero term frequency.");
       }
-      if (super.idxDocumentIds.isEmpty()) {
+      if (getIdxDocumentIds().isEmpty()) {
         throw new IllegalStateException("Zero document ids.");
       }
-      if (super.idxTerms.isEmpty()) {
+      if (getIdxTerms().isEmpty()) {
         throw new IllegalStateException("Zero terms.");
       }
 
       LOG.info("Writing data.");
-      this.pData.updateMetaData();
-      super.db.commit();
+      this.persistence.updateMetaData(getDocumentFields(), getStopwords());
+      getDb().commit();
       LOG.debug("Writing data - done.");
     }
   }
 
   @Override
-  protected void warmUpDocumentFrequencies()
-      throws
-      Environment.NoIndexException {
+  protected void warmUpDocumentFrequencies() {
     // cache document frequency values for each term
     if (super.idxDfMap.isEmpty()) {
       final TimeMeasure tStep = new TimeMeasure().start();
       LOG.info("Cache warming: document frequencies..");
-      final List<AtomicReaderContext> arContexts = Environment.
-          getIndexReader()
-          .getContext()
+      final List<AtomicReaderContext> arContexts = getIndexReader().getContext()
           .leaves();
       new Processing(
           new Target.TargetFuncCall<>(
               new CollectionSource<>(arContexts),
               new DocFreqCalcTarget(super.idxDfMap,
-                  super.idxDocumentIds.size(),
-                  super.idxTerms,
-                  Environment.getFields())
+                  getIdxDocumentIds().size(),
+                  getIdxTerms(),
+                  getDocumentFields())
           )
       ).process(arContexts.size());
       LOG.info("Cache warming: calculating document frequencies "
-               + "for {} documents and {} terms took {}.",
-          super.idxDocumentIds.size(), super.idxTerms.size(),
+              + "for {} documents and {} terms took {}.",
+          getIdxDocumentIds().size(), getIdxTerms().size(),
           tStep.stop().getTimeString()
       );
     } else {
       LOG.info("Cache warming: Document frequencies "
-               + "for {} documents and {} terms already loaded.",
-          super.idxDocumentIds.size(), super.idxTerms.size()
+              + "for {} documents and {} terms already loaded.",
+          getIdxDocumentIds().size(), getIdxTerms().size()
       );
     }
   }
@@ -267,7 +282,7 @@ public final class DirectIndexDataProvider
   private void checkDocId(final int docId) {
     if (!hasDocument(docId)) {
       throw new IllegalArgumentException("No document with id '" + docId
-                                         + "' found.");
+          + "' found.");
     }
   }
 
@@ -276,28 +291,16 @@ public final class DirectIndexDataProvider
    *
    * @param fields List of fields to cache
    */
-  private void buildCache(final String[] fields)
-      throws
-      Environment.NoIndexException {
-    final Set<String> updatingFields = new HashSet<>(Arrays.asList(fields));
+  private void buildCache(final Set<String> fields) {
+    final Set<String> updatingFields = new HashSet<>(fields);
 
-    boolean update = new HashSet<>(this.cachedFieldsMap.keySet()).removeAll(
+    boolean update = new HashSet<>(getCachedFieldsMap().keySet()).removeAll(
         updatingFields);
-    updatingFields.removeAll(this.cachedFieldsMap.keySet());
+    updatingFields.removeAll(getCachedFieldsMap().keySet());
 
     if (!updatingFields.isEmpty()) {
-      final Collection<SerializableByte> keys = new HashSet<>(
-          this.cachedFieldsMap.values());
       for (String field : updatingFields) {
-        for (byte i = Byte.MIN_VALUE; i < Byte.MAX_VALUE; i++) {
-          @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
-          final SerializableByte sByte = new SerializableByte(i);
-          if (!keys.contains(sByte)) {
-            this.cachedFieldsMap.put(field, sByte);
-            keys.add(sByte);
-            break;
-          }
-        }
+        addFieldToCacheMap(field);
       }
     }
 
@@ -307,16 +310,15 @@ public final class DirectIndexDataProvider
 
     if (updatingFields.isEmpty()) {
       LOG.info("Updating persistent index term cache. {} -> {}",
-          this.cachedFieldsMap.keySet(), fields);
+          getCachedFieldsMap().keySet(), fields);
     } else {
       LOG.info("Building persistent index term cache. {}",
           updatingFields);
     }
     final IndexTermsCollectorTarget target = new IndexTermsCollectorTarget(
-        this.idxTermsMap, updatingFields);
+        getIdxTermsMap(), updatingFields);
     final List<AtomicReaderContext> arContexts =
-        Environment.getIndexReader().
-            getContext().leaves();
+        getIndexReader().getContext().leaves();
     new Processing(
         new Target.TargetFuncCall<>(
             new CollectionSource<>(arContexts),
@@ -327,7 +329,7 @@ public final class DirectIndexDataProvider
 
     LOG.info("Writing data.");
 
-    this.db.commit();
+    getDb().commit();
   }
 
   /**
@@ -338,26 +340,20 @@ public final class DirectIndexDataProvider
   @Override
   protected Collection<Integer> getDocumentIds() {
     Collection<Integer> ret;
-    if (super.idxDocumentIds == null) {
-      try {
-        final int maxDoc = Environment.getIndexReader().maxDoc();
-        super.idxDocumentIds = new ArrayList<>(maxDoc);
+    if (getIdxDocumentIds() == null) {
+      final int maxDoc = getIndexReader().maxDoc();
+      setIdxDocumentIds(new HashSet<Integer>(maxDoc));
 
-        final Bits liveDocs = MultiFields.getLiveDocs(Environment.
-            getIndexReader());
-        for (int i = 0; i < maxDoc; i++) {
-          if (liveDocs != null && !liveDocs.get(i)) {
-            continue;
-          }
-          super.idxDocumentIds.add(i);
+      final Bits liveDocs = MultiFields.getLiveDocs(getIndexReader());
+      for (int i = 0; i < maxDoc; i++) {
+        if (liveDocs != null && !liveDocs.get(i)) {
+          continue;
         }
-        ret = Collections.unmodifiableCollection(super.idxDocumentIds);
-      } catch (Environment.NoIndexException ex) {
-        LOG.error("Failed to get document-ids.", ex);
-        ret = Collections.emptyList();
+        getIdxDocumentIds().add(i);
       }
+      ret = Collections.unmodifiableCollection(getIdxDocumentIds());
     } else {
-      ret = Collections.unmodifiableCollection(super.idxDocumentIds);
+      ret = Collections.unmodifiableCollection(getIdxDocumentIds());
     }
     return ret;
   }
@@ -365,7 +361,7 @@ public final class DirectIndexDataProvider
   /**
    * {@inheritDoc} Stop-words will be skipped while creating the model.
    *
-   * @param docId Document id to create the model from
+   * @param docId Document-id to create the model from
    * @return Model for the given document
    */
   @Override
@@ -375,15 +371,16 @@ public final class DirectIndexDataProvider
         = new DocumentModel.DocumentModelBuilder(docId);
 
     try {
-      final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(docId);
+      final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum
+          (getIndexReader(), getDocumentFields()).setDocument(docId);
       @SuppressWarnings("CollectionWithoutInitialCapacity")
       final Map<ByteArray, Long> tfMap = new HashMap<>();
 
       BytesRef bytesRef = dftEnum.next();
       while (bytesRef != null) {
-        final ByteArray byteArray = BytesRefUtil.toByteArray(bytesRef);
+        final ByteArray byteArray = BytesRefUtils.toByteArray(bytesRef);
         // skip stop-words
-        if (!super.stopWords.contains(byteArray)) {
+        if (!isStopword(byteArray)) {
           if (tfMap.containsKey(byteArray)) {
             tfMap.put(byteArray, tfMap.get(byteArray) + dftEnum.
                 getTotalTermFreq());
@@ -400,9 +397,7 @@ public final class DirectIndexDataProvider
       return dmBuilder.getModel();
     } catch (IOException ex) {
       LOG.error("Caught exception while iterating document terms. "
-                + "docId=" + docId + ".", ex);
-    } catch (Environment.NoIndexException ex) {
-      LOG.error("Failed to create document-model.", ex);
+          + "docId=" + docId + ".", ex);
     }
     return null;
   }
@@ -416,13 +411,13 @@ public final class DirectIndexDataProvider
   @Override
   public Collection<ByteArray> getDocumentsTermSet(
       final Collection<Integer> docIds)
-      throws IOException,
-             Environment.NoIndexException {
+      throws IOException {
     final Set<Integer> uniqueDocIds = new HashSet<>(docIds);
     @SuppressWarnings("CollectionWithoutInitialCapacity")
     final Collection<ByteArray> terms = new HashSet<>();
-    final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum();
-//        try {
+    final DocFieldsTermsEnum dftEnum =
+        new DocFieldsTermsEnum(getIndexReader(), getDocumentFields());
+
     for (Integer docId : uniqueDocIds) {
       checkDocId(docId);
       try {
@@ -430,21 +425,18 @@ public final class DirectIndexDataProvider
         BytesRef br = dftEnum.next();
         ByteArray termBytes;
         while (br != null) {
-          termBytes = BytesRefUtil.toByteArray(br);
+          termBytes = BytesRefUtils.toByteArray(br);
           // skip adding stop-words
-          if (!super.stopWords.contains(termBytes)) {
+          if (!isStopword(termBytes)) {
             terms.add(termBytes);
           }
           br = dftEnum.next();
         }
       } catch (IOException ex) {
         LOG.error("Caught exception while iterating document terms. "
-                  + "docId=" + docId + ".", ex);
+            + "docId=" + docId + ".", ex);
       }
     }
-//        } catch (Environment.NoIndexException ex) {
-//            LOG.error("Failed to get document terms.", ex);
-//        }
     return terms;
   }
 
@@ -460,7 +452,7 @@ public final class DirectIndexDataProvider
   @Override
   public boolean documentContains(final int documentId,
       final ByteArray term) {
-    if (super.stopWords.contains(term)) {
+    if (isStopword(term)) {
       // skip stop-words
       return false;
     }
@@ -468,19 +460,19 @@ public final class DirectIndexDataProvider
     checkDocId(documentId);
     try {
       final DocFieldsTermsEnum dftEnum =
-          new DocFieldsTermsEnum(documentId);
+          new DocFieldsTermsEnum(getIndexReader(), getDocumentFields())
+              .setDocument
+                  (documentId);
       BytesRef br = dftEnum.next();
       while (br != null) {
-        if (BytesRefUtil.bytesEquals(br, term)) {
+        if (BytesRefUtils.bytesEquals(br, term)) {
           return true;
         }
         br = dftEnum.next();
       }
     } catch (IOException ex) {
       LOG.error("Caught exception while iterating document terms. "
-                + "docId=" + documentId + ".", ex);
-    } catch (Environment.NoIndexException ex) {
-      LOG.error("Failed to get document terms.", ex);
+          + "docId=" + documentId + ".", ex);
     }
     return false;
   }
@@ -493,7 +485,7 @@ public final class DirectIndexDataProvider
    */
   @Override
   public int getDocumentFrequency(final ByteArray term) {
-    if (super.stopWords.contains(term)) {
+    if (isStopword(term)) {
       // skip stop-words
       return 0;
     }
@@ -502,28 +494,28 @@ public final class DirectIndexDataProvider
 
     if (super.idxDfMap.get(term) == null) {
       final List<AtomicReaderContext> arContexts;
-      try {
-        arContexts = Environment.getIndexReader().leaves();
-      } catch (Environment.NoIndexException ex) {
-        LOG.error("Failed to get index reader.", ex);
-        return 0;
+      arContexts = getIndexReader().leaves();
+
+      final Collection<Integer> matchedDocs;
+      if (getIdxDocumentIds() == null) {
+        matchedDocs = new HashSet<>();
+      } else {
+        matchedDocs = new HashSet<>(getIdxDocumentIds().size());
       }
 
-      final Collection<Integer> matchedDocs = new HashSet<>(
-          super.idxDocumentIds.size());
       final BytesRef termBref = new BytesRef(term.bytes);
       AtomicReader reader;
       DocsEnum docsEnum;
       int docId;
       for (AtomicReaderContext aReader : arContexts) {
         reader = aReader.reader();
-        for (String field : Environment.getFields()) {
+        for (String field : getDocumentFields()) {
           try {
             docsEnum =
                 reader.termDocsEnum(new Term(field, termBref));
             if (docsEnum == null) {
               LOG.trace("Field or term does not exist. field={}" +
-                        " term={}", field,
+                      " term={}", field,
                   termBref.utf8ToString()
               );
             } else {
@@ -562,7 +554,7 @@ public final class DirectIndexDataProvider
     /**
      * Fields to index.
      */
-    private final String[] currentFields;
+    private final Set<String> currentFields;
     /**
      * Target map to put results into.
      */
@@ -588,7 +580,7 @@ public final class DirectIndexDataProvider
         final ConcurrentNavigableMap<ByteArray, Integer> targetMap,
         final int idxDocCount,
         final Set<ByteArray> idxTermSet,
-        final String[] fields) {
+        final Set<String> fields) {
       this.currentFields = fields;
       this.map = targetMap;
       this.docCount = idxDocCount;
@@ -755,13 +747,12 @@ public final class DirectIndexDataProvider
         BytesRef br;
         for (String field : this.fields) {
           final SerializableByte fieldId
-              = DirectIndexDataProvider.this.cachedFieldsMap
-              .get(field);
+              = getCachedFieldsMap().get(field);
           if (fieldId == null) {
             throw new IllegalStateException("(" + getName()
-                                            + ") Unknown field '" +
-                                            field +
-                                            "' without any id."
+                + ") Unknown field '" +
+                field +
+                "' without any id."
             );
           }
           terms = rContext.reader().terms(field);
@@ -781,7 +772,7 @@ public final class DirectIndexDataProvider
                   // add value up for all fields
                   final Fun.Tuple2<SerializableByte, ByteArray>
                       fieldTerm
-                      = Fun.t2(fieldId, BytesRefUtil
+                      = Fun.t2(fieldId, BytesRefUtils
                       .toByteArray(br));
 
                   try {
@@ -794,7 +785,7 @@ public final class DirectIndexDataProvider
                             .replace(fieldTerm,
                                 oldValue,
                                 oldValue +
-                                ttf
+                                    ttf
                             )) {
                           break;
                         }
@@ -826,6 +817,31 @@ public final class DirectIndexDataProvider
       } finally {
         this.localDb.delete(name);
       }
+    }
+  }
+
+  public final static class Builder
+      extends AbstractIndexDataProviderBuilder<DirectIndexDataProvider> {
+
+    /**
+     * Default constructor.
+     */
+    public Builder() {
+      super(IDENTIFIER);
+    }
+
+    @Override
+    public DirectIndexDataProvider build()
+        throws Exception {
+      validate();
+      return DirectIndexDataProvider.build(this);
+    }
+
+    @Override
+    public void validate()
+        throws BuilderConfigurationException, IOException {
+      super.validate();
+      validatePersistenceBuilder();
     }
   }
 }

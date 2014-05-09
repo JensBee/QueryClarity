@@ -26,12 +26,12 @@ import java.util.Arrays;
  *
  * @author Jens Bertram
  */
-public final class BytesRefUtil {
+public final class BytesRefUtils {
 
   /**
    * Private empty constructor for utility class.
    */
-  private BytesRefUtil() {
+  private BytesRefUtils() {
     // empty
   }
 

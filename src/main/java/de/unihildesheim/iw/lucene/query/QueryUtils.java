@@ -16,13 +16,16 @@
  */
 package de.unihildesheim.iw.lucene.query;
 
+import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.ByteArray;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Utilities to handle queries. Currently only simple term queries are
@@ -32,11 +35,13 @@ import java.util.HashSet;
  */
 public final class QueryUtils {
 
-  /**
-   * Private constructor for utility class.
-   */
-  private QueryUtils() {
-    // empty private constructor for utility class
+
+  private final Set<String> fields;
+  private final IndexReader reader;
+
+  public QueryUtils(final IndexReader newReader, final Set<String> newFields) {
+    this.fields = newFields;
+    this.reader = newReader;
   }
 
   /**
@@ -49,15 +54,17 @@ public final class QueryUtils {
    * @throws org.apache.lucene.queryparser.classic.ParseException Thrown, if
    * query string could not be parsed
    */
-  private static Collection<ByteArray> extractTerms(final String query)
+  private Collection<ByteArray> extractTerms(final String query)
       throws
-      UnsupportedEncodingException, ParseException {
+      UnsupportedEncodingException, ParseException,
+      Buildable.BuilderConfigurationException {
     if (query == null || query.isEmpty()) {
       throw new IllegalArgumentException("Query string was empty.");
     }
-    final SimpleTermsQuery queryObj = TermsQueryBuilder.buildFromEnvironment(
-        query);
-    final Collection<String> qTerms = queryObj.getQueryTerms();
+
+    final Collection<String> qTerms =
+        new TermsQueryBuilder(this.reader, this.fields).query(query).build()
+            .getQueryTerms();
 
     if (qTerms.isEmpty()) {
       throw new IllegalStateException("Query string returned no terms.");
@@ -79,8 +86,9 @@ public final class QueryUtils {
    * @throws org.apache.lucene.queryparser.classic.ParseException Thrown, if
    * query string could not be parsed
    */
-  public static Collection<ByteArray> getUniqueQueryTerms(final String query)
-      throws UnsupportedEncodingException, ParseException {
+  public Collection<ByteArray> getUniqueQueryTerms(final String query)
+      throws UnsupportedEncodingException, ParseException,
+             Buildable.BuilderConfigurationException {
     return new HashSet<>(extractTerms(query));
   }
 
@@ -94,8 +102,9 @@ public final class QueryUtils {
    * @throws org.apache.lucene.queryparser.classic.ParseException Thrown, if
    * query string could not be parsed
    */
-  public static Collection<ByteArray> getAllQueryTerms(final String query)
-      throws UnsupportedEncodingException, ParseException {
+  public Collection<ByteArray> getAllQueryTerms(final String query)
+      throws UnsupportedEncodingException, ParseException,
+             Buildable.BuilderConfigurationException {
     return extractTerms(query);
   }
 }

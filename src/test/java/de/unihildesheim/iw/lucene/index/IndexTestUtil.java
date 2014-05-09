@@ -18,8 +18,7 @@ package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.Tuple;
-import de.unihildesheim.iw.lucene.Environment;
-import de.unihildesheim.iw.util.ByteArrayUtil;
+import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,9 +28,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Set;
 
 /**
- * Utility class for testing index related functions.
+ * Utility class for testing referenceIndex related functions.
  *
  * @author Jens Bertram
  */
@@ -51,87 +51,39 @@ public final class IndexTestUtil {
   }
 
   /**
-   * Creates an {@link IndexDataProvider} instance and sets it active in the
-   * {@link Environment} using the {@link TestIndexDataProvider}.
+   * Picks some (1 to n) terms from the referenceIndex.
    *
-   * @param index {@link TestIndexDataProvider} to access utility functions
-   * @param dataProv {@link IndexDataProvider} class to create
-   * @param fields Document fields to use (may be null, to use all)
-   * @param stopwords Stopwords to use (may be null, to use none)
-   * @return {@link IndexDataProvider} instance
-   * @throws Exception Thrown on lower level errors
-   */
-  public static IndexDataProvider createInstance(
-      final TestIndexDataProvider index,
-      final Class<? extends IndexDataProvider> dataProv,
-      final Collection<String> fields,
-      final Collection<String> stopwords)
-      throws Exception {
-    Environment.clear();
-    index.setupEnvironment(dataProv, fields, stopwords);
-    IndexDataProvider instance = Environment.getDataProvider();
-    instance.createCache("test");
-    instance.warmUp();
-    return instance;
-  }
-
-  /**
-   * Picks some (1 to n) terms from the index.
-   *
-   * @param dataProv Data provider
+   * @param referenceIndex Data provider
    * @return Stop words term collection
    */
-  public static Collection<String> getRandomStopWords(
-      final TestIndexDataProvider dataProv) {
-    Iterator<ByteArray> termsIt = dataProv.getTermsIterator();
+  public static Set<String> getRandomStopWords(
+      final TestIndexDataProvider referenceIndex) {
+    Iterator<ByteArray> termsIt = referenceIndex.getTermsIterator();
     @SuppressWarnings("CollectionWithoutInitialCapacity")
-    final Collection<String> stopWords = new ArrayList<>();
+    final Set<String> stopWords = new HashSet<>();
     while (termsIt.hasNext()) {
       if (RandomValue.getBoolean()) {
-        stopWords.add(ByteArrayUtil.utf8ToString(termsIt.next()));
+        stopWords.add(ByteArrayUtils.utf8ToString(termsIt.next()));
       } else {
         termsIt.next();
       }
     }
     if (stopWords.isEmpty()) {
-      stopWords.add(ByteArrayUtil.utf8ToString(new ArrayList<>(
-          dataProv.getTermSet()).get(0)));
+      stopWords.add(ByteArrayUtils.utf8ToString(new ArrayList<>(
+          referenceIndex.reference.getTermSet()).get(0)));
     }
     return stopWords;
   }
 
   /**
-   * Get random index fields.
+   * Get random referenceIndex fields.
    *
-   * @param index {@link TestIndexDataProvider}
+   * @param referenceIndex {@link TestIndexDataProvider}
    * @return List of fields set
    */
-  public static Collection<String> getRandomFields(
-      final TestIndexDataProvider index) {
-    return index.getRandomFields();
-  }
-
-  /**
-   * Get the list of stopwords currently set in the {@link Environment}.
-   *
-   * @return Collection of stopwords or <tt>null</tt>, if none are set
-   * @throws UnsupportedEncodingException Thrown, if a stopword could not be
-   * proper encoded
-   */
-  public static Collection<ByteArray> getStopwordBytesFromEnvironment()
-      throws
-      UnsupportedEncodingException {
-    final Collection<String> stopwordsStr = Environment.getStopwords();
-    if (!stopwordsStr.isEmpty()) {
-      LOG.debug("Excluding stopwords: {}", stopwordsStr);
-      final Collection<ByteArray> stopwords = new ArrayList<>(stopwordsStr.
-          size());
-      for (String sw : stopwordsStr) {
-        stopwords.add(new ByteArray(sw.getBytes("UTF-8")));
-      }
-      return stopwords;
-    }
-    return null;
+  public static Set<String> getRandomFields(
+      final TestIndexDataProvider referenceIndex) {
+    return referenceIndex.util.getRandomFields();
   }
 
   /**
@@ -149,8 +101,7 @@ public final class IndexTestUtil {
   public static Collection<Tuple.Tuple4<
       Integer, ByteArray, String, Integer>> generateTermData(
       final IndexDataProvider index, final int amount)
-      throws
-      UnsupportedEncodingException {
+      throws UnsupportedEncodingException {
     return generateTermData(index, null, null, amount);
   }
 

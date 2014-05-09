@@ -17,10 +17,9 @@
 package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.lucene.Environment;
 import de.unihildesheim.iw.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
-import de.unihildesheim.iw.util.ByteArrayUtil;
+import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -49,7 +48,7 @@ public final class QueryUtilsTest
    * @param rType Data provider configuration
    */
   public QueryUtilsTest(
-      final Class<? extends IndexDataProvider> dataProv,
+      final DataProviders dataProv,
       final MultiIndexDataProviderTestCase.RunType rType) {
     super(dataProv, rType);
   }
@@ -65,7 +64,7 @@ public final class QueryUtilsTest
     final int termsCount = RandomValue.getInteger(3, 100);
     final Collection<ByteArray> termsBw = new HashSet<>(termsCount);
     final Collection<String> terms = new HashSet<>(termsCount);
-    final Collection<String> stopwords = Environment.getStopwords();
+    final Collection<String> stopwords = this.referenceIndex.getStopwords();
 
     for (int i = 0; i < termsCount; i++) {
       final String term = RandomValue.getString(1, 15);
@@ -76,10 +75,11 @@ public final class QueryUtilsTest
       terms.add(term);
     }
 
-    final String queryString = index.getQueryString(terms.toArray(
+    final String queryString = referenceIndex.util.getQueryString(terms.toArray(
         new String[terms.size()]));
-    final Collection<ByteArray> result = QueryUtils.getUniqueQueryTerms(
-        queryString);
+    final Collection<ByteArray> result = new QueryUtils(this.referenceIndex
+        .getIndexReader(), this.referenceIndex.getDocumentFields())
+        .getUniqueQueryTerms(queryString);
 
     assertEquals(msg("Terms amount mismatch."), termsBw.size(), result.size());
     assertTrue(msg("Term list content differs."), result.containsAll(termsBw));
@@ -97,7 +97,7 @@ public final class QueryUtilsTest
     final int termsCount = RandomValue.getInteger(3, 100);
     final Collection<ByteArray> termsBw = new ArrayList<>(termsCount);
     final Collection<String> terms = new ArrayList<>(termsCount);
-    final Collection<String> stopwords = Environment.getStopwords();
+    final Collection<String> stopwords = this.referenceIndex.getStopwords();
 
     for (int i = 0; i < termsCount; i++) {
       final String term = RandomValue.getString(1, 15);
@@ -112,10 +112,11 @@ public final class QueryUtilsTest
     terms.addAll(terms);
     termsBw.addAll(termsBw);
 
-    final String queryString = index.getQueryString(terms.toArray(
+    final String queryString = referenceIndex.util.getQueryString(terms.toArray(
         new String[termsCount]));
-    final Collection<ByteArray> result = QueryUtils.getAllQueryTerms(
-        queryString);
+    final Collection<ByteArray> result = new QueryUtils(this.referenceIndex
+        .getIndexReader(), this.referenceIndex.getDocumentFields())
+        .getAllQueryTerms(queryString);
 
     assertTrue(msg("Not all terms returned."), result.containsAll(termsBw));
 
@@ -131,7 +132,7 @@ public final class QueryUtilsTest
       StringBuilder sbResult = new StringBuilder();
 
       for (ByteArray bw : result) {
-        sbResult.append(ByteArrayUtil.utf8ToString(bw)).append(' ');
+        sbResult.append(ByteArrayUtils.utf8ToString(bw)).append(' ');
       }
     }
 

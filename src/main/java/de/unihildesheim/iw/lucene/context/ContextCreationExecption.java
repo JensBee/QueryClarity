@@ -14,23 +14,16 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.iw.lucene.scoring.clarity;
+
+package de.unihildesheim.iw.lucene.context;
 
 /**
- * Generic interface for various clarity score calculation implementations.
- *
  * @author Jens Bertram
  */
-public interface ClarityScoreCalculation {
+final class ContextCreationException
+    extends Exception {
 
-  /**
-   * Calculate the clarity score based on the given query terms.
-   *
-   * @param query Query used for term extraction
-   * @return Calculated clarity score for the given terms, or <tt>null</tt> on
-   * errors.
-   * @throws Exception May be thrown by implementing class
-   */
-  ClarityScoreResult calculateClarity(final String query)
-      throws Exception;
+  protected ContextCreationException(final String message) {
+    super("Failed to create context: " + message);
+  }
 }

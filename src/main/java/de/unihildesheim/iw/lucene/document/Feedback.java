@@ -16,7 +16,6 @@
  */
 package de.unihildesheim.iw.lucene.document;
 
-import de.unihildesheim.iw.lucene.Environment;
 import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.TimeMeasure;
 import org.apache.lucene.index.IndexReader;
@@ -120,22 +119,6 @@ public final class Feedback {
   }
 
   /**
-   * Same as {@link #get(IndexReader, Query, int)}, but gets the target {@link
-   * IndexReader} from the {@link Environment}.
-   *
-   * @param query Query to get matching documents
-   * @param docCount Number of documents to return
-   * @return List of Lucene document ids
-   * @throws IOException Thrown on low-level I/O errors
-   * @throws de.unihildesheim.iw.lucene.Environment.NoIndexException Thrown, if
-   * no index is provided in the {@link Environment}
-   */
-  public static Collection<Integer> get(final Query query, final int docCount)
-      throws IOException, Environment.NoIndexException {
-    return get(Environment.getIndexReader(), query, docCount);
-  }
-
-  /**
    * Get a number of feedback documents matching a query.
    *
    * @param reader Reader to access Lucene's index
@@ -175,23 +158,6 @@ public final class Feedback {
     LOG.debug("Getting {} matching feedback documents took {}.", docIds.
         size(), timeMeasure.getTimeString());
     return docIds;
-  }
-
-  /**
-   * Same as {@link #getFixed(IndexReader, Query, int)}, but gets the target
-   * {@link IndexReader} from the {@link Environment}.
-   *
-   * @param query Query to get matching documents
-   * @param docCount Number of documents to return
-   * @return List of Lucene document ids
-   * @throws java.io.IOException Thrown on low-level I/O errors
-   * @throws de.unihildesheim.iw.lucene.Environment.NoIndexException Thrown, if
-   * no index is provided in the {@link Environment}
-   */
-  public static Collection<Integer> getFixed(final Query query,
-      final int docCount)
-      throws IOException, Environment.NoIndexException {
-    return getFixed(Environment.getIndexReader(), query, docCount);
   }
 
   /**

@@ -16,11 +16,12 @@
  */
 package de.unihildesheim.iw.lucene.index;
 
+import de.unihildesheim.iw.util.RandomValue;
+
+import java.util.Set;
+
 /**
  * Test for {@link DirectIndexDataProvider}.
- * <p>
- * Some test methods are kept here (being empty) to satisfy Netbeans automatic
- * test creation routine.
  *
  * @author Jens Bertram
  */
@@ -29,109 +30,32 @@ public final class DirectIndexDataProviderTest
     extends IndexDataProviderTestCase {
 
   /**
-   * {@link IndexDataProvider} class being tested.
-   */
-  private static final Class<? extends IndexDataProvider> DATAPROV_CLASS
-      = DirectIndexDataProvider.class;
-
-  /**
    * Initialize the test.
    *
    * @throws Exception Any exception indicates an error
    */
   public DirectIndexDataProviderTest()
       throws Exception {
-    super(new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL),
-        DATAPROV_CLASS);
+    super(new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL));
   }
 
-  /**
-   * Test of createCache method, of class DirectIndexDataProvider.
-   *
-   * @see #testCreateCache__plain()
-   */
-  public void testCreateCache() {
-    // implemented in super class
+  @Override
+  protected Class<? extends IndexDataProvider> getInstanceClass() {
+    return DirectIndexDataProvider.class;
   }
 
-  /**
-   * Test of loadOrCreateCache method, of class DirectIndexDataProvider.
-   *
-   * @see #testLoadOrCreateCache__plain()
-   */
-  public void testLoadOrCreateCache() {
-    // implemented in super class
-  }
-
-  /**
-   * Test of loadCache method, of class DirectIndexDataProvider.
-   *
-   * @see #testLoadCache__plain()
-   */
-  public void testLoadCache() {
-    // implemented in super class
-  }
-
-  /**
-   * Test of warmUp method, of class DirectIndexDataProvider.
-   *
-   * @see #testWarmUp__plain()
-   */
-  public void testWarmUp() {
-    // implemented in super class
-  }
-
-  /**
-   * Test of warmUpDocumentFrequencies method, of class DirectIndexDataProvider.
-   *
-   * @see #testWarmUpDocumentFrequencies__plain()
-   */
-  public void testWarmUpDocumentFrequencies() {
-    // implemented in super class
-  }
-
-  /**
-   * Test of getDocumentIds method, of class DirectIndexDataProvider.
-   *
-   * @see #testGetDocumentIds__plain()
-   */
-  public void testGetDocumentIds() {
-    // implemented by super class
-  }
-
-  /**
-   * Test of getDocumentModel method, of class DirectIndexDataProvider.
-   *
-   * @see #testGetDocumentModel__plain()
-   */
-  public void testGetDocumentModel() {
-    // implemented in super class
-  }
-
-  /**
-   * Test of getDocumentsTermSet method, of class DirectIndexDataProvider.
-   *
-   * @see #testGetDocumentsTermSet__plain()
-   */
-  public void testGetDocumentsTermSet() {
-    // implemented in super class
-  }
-
-  /**
-   * Test of documentContains method, of class DirectIndexDataProvider.
-   *
-   * @see #testDocumentContains__plain()
-   */
-  public void testDocumentContains() {
-    // implemented in super class
-  }
-
-  /**
-   * Test of getDocumentFrequency method, of class DirectIndexDataProvider.
-   *
-   * @see #testGetDocumentFrequency__plain()
-   */
-  public void testGetDocumentFrequency() {
-    // implemented in super class
+  @Override
+  protected IndexDataProvider createInstance(final Set<String> fields,
+      final Set<String> stopwords)
+      throws Exception {
+    return new DirectIndexDataProvider.Builder()
+        .temporary()
+        .dataPath(this.referenceIndex.reference.getDataDir())
+        .documentFields(fields)
+        .indexPath(this.referenceIndex.reference.getIndexDir())
+        .stopwords(stopwords)
+        .createCache("test-" + RandomValue.getString(16))
+        .warmup()
+        .build();
   }
 }
