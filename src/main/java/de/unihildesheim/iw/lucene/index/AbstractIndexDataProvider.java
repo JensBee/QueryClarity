@@ -174,8 +174,12 @@ abstract class AbstractIndexDataProvider
     this.idxReader = reader;
   }
 
-  @Override
-  public IndexReader getIndexReader() {
+  /**
+   * Get the {@link IndexReader} to use for accessing the Lucene index.
+   *
+   * @return Reader
+   */
+  protected IndexReader getIndexReader() {
     return this.idxReader;
   }
 

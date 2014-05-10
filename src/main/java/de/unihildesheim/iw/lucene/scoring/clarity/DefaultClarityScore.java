@@ -33,6 +33,7 @@ import de.unihildesheim.iw.util.concurrent.AtomicDouble;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.Query;
 import org.mapdb.Atomic;
@@ -155,6 +156,8 @@ public final class DefaultClarityScore
    */
   private IndexDataProvider dataProv;
 
+  private IndexReader idxReader;
+
   /**
    * Provider for general index metrics.
    */
@@ -181,6 +184,7 @@ public final class DefaultClarityScore
     instance.setConfiguration(builder.getConfiguration());
     instance.isTemporary = builder.isTemporary;
     instance.dataProv = builder.idxDataProvider;
+    instance.idxReader = builder.idxReader;
     instance.metrics = Metrics.getInstance(builder.idxDataProvider);
 
     // initialize
@@ -470,13 +474,13 @@ public final class DefaultClarityScore
       throw new IllegalArgumentException("Query was empty.");
     }
 
-    final QueryUtils queryUtils = new QueryUtils(dataProv.getIndexReader(),
-        dataProv.getDocumentFields());
+    final QueryUtils queryUtils =
+        new QueryUtils(this.idxReader, this.dataProv.getDocumentFields());
 
     final Query queryObj;
     try {
-      queryObj = new TermsQueryBuilder(this.dataProv.getIndexReader
-          (), this.dataProv.getDocumentFields()).query(query).build();
+      queryObj = new TermsQueryBuilder(this.idxReader,
+          this.dataProv.getDocumentFields()).query(query).build();
     } catch (Buildable.BuilderConfigurationException e) {
       LOG.error("Caught exception while building query.", e);
       return null;
@@ -485,8 +489,8 @@ public final class DefaultClarityScore
     // get feedback documents
     final Collection<Integer> feedbackDocuments;
     try {
-      feedbackDocuments = Feedback.getFixed(this.dataProv.getIndexReader(),
-          queryObj, this.conf.getFeedbackDocCount());
+      feedbackDocuments = Feedback.getFixed(this.idxReader, queryObj,
+          this.conf.getFeedbackDocCount());
 
     } catch (IOException ex) {
       LOG.error("Caught exception while preparing calculation.", ex);

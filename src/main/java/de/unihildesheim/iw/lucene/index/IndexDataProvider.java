@@ -19,7 +19,6 @@ package de.unihildesheim.iw.lucene.index;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.util.concurrent.processing.Source;
-import org.apache.lucene.index.IndexReader;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -183,13 +182,13 @@ public interface IndexDataProvider {
    */
   Set<String> getStopwords();
 
-  /**
-   * Get the {@link IndexReader} for accessing the Lucene index.
-   *
-   * @return Index reader pointing at the Lucene index
-   */
-  IndexReader getIndexReader()
-      throws IOException;
+//  /**
+//   * Get the {@link IndexReader} for accessing the Lucene index.
+//   *
+//   * @return Index reader pointing at the Lucene index
+//   */
+//  IndexReader getIndexReader()
+//      throws IOException;
 
   /**
    * Flag indicating, if this instance is closed.

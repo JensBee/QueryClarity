@@ -22,6 +22,7 @@ import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.slf4j.LoggerFactory;
 
@@ -52,10 +53,14 @@ public final class SimplifiedClarityScore
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       SimplifiedClarityScore.class);
 
+  static final String IDENTIFIER = "SCS";
+
   /**
    * {@link IndexDataProvider} to use.
    */
   private IndexDataProvider dataProv;
+
+  private IndexReader idxReader;
 
   /**
    * Provider for general index metrics.
@@ -80,7 +85,8 @@ public final class SimplifiedClarityScore
     final SimplifiedClarityScore instance = new SimplifiedClarityScore();
 
     // set configuration
-    instance.setIndexDataProvider(builder.idxDataProvider);
+    instance.dataProv = builder.idxDataProvider;
+    instance.idxReader = builder.idxReader;
     instance.metrics = Metrics.getInstance(builder.idxDataProvider);
 
     return instance;
@@ -147,8 +153,7 @@ public final class SimplifiedClarityScore
     try {
       // get all query terms - list must NOT be unique!
       final QueryUtils queryUtils =
-          new QueryUtils(this.dataProv.getIndexReader(),
-              this.dataProv.getDocumentFields());
+          new QueryUtils(this.idxReader, this.dataProv.getDocumentFields());
       queryTerms = queryUtils.getAllQueryTerms(query);
     } catch (UnsupportedEncodingException e) {
       LOG.error("Caught exception while preparing calculation.", e);
@@ -178,14 +183,20 @@ public final class SimplifiedClarityScore
    * Builder to create a new {@link SimplifiedClarityScore} instance.
    */
   public static final class Builder
-      implements Buildable<SimplifiedClarityScore> {
+      extends AbstractClarityScoreCalculationBuilder
+                  <Builder, SimplifiedClarityScore> {
     /**
      * {@link IndexDataProvider} to use.
      */
     protected IndexDataProvider idxDataProvider = null;
 
+    public Builder() {
+      super(IDENTIFIER);
+    }
+
     public Builder indexDataProvider(
         final IndexDataProvider dataProv) {
+
       this.idxDataProvider = dataProv;
       return this;
     }

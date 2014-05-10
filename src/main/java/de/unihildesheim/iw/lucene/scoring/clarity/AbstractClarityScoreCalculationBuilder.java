@@ -21,6 +21,7 @@ import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.Persistence;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.util.FileUtils;
+import org.apache.lucene.index.IndexReader;
 
 import java.io.File;
 import java.io.IOException;
@@ -42,6 +43,11 @@ public abstract class AbstractClarityScoreCalculationBuilder<I extends
    * {@link IndexDataProvider} to use.
    */
   protected IndexDataProvider idxDataProvider = null;
+
+  /**
+   * {@link IndexReader} to access the Lucene index.
+   */
+  protected IndexReader idxReader = null;
 
   /**
    * Flag indicating, if the new instance will be temporary.
@@ -71,12 +77,19 @@ public abstract class AbstractClarityScoreCalculationBuilder<I extends
    * @param dataProv Data provider
    * @return Self reference
    */
-  public I indexDataProvider(
-      final IndexDataProvider dataProv) {
+  public I indexDataProvider(final IndexDataProvider dataProv) {
     if (dataProv == null) {
       throw new IllegalArgumentException("Data provider was null.");
     }
     this.idxDataProvider = dataProv;
+    return (I) this;
+  }
+
+  public I indexReader(final IndexReader newIdxReader) {
+    if (idxReader == null) {
+      throw new IllegalArgumentException("Index reader was null.");
+    }
+    this.idxReader = newIdxReader;
     return (I) this;
   }
 

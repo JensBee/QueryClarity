@@ -34,6 +34,7 @@ import de.unihildesheim.iw.util.concurrent.AtomicDouble;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.Query;
@@ -86,6 +87,8 @@ public final class ImprovedClarityScore
    * {@link IndexDataProvider} to use.
    */
   private IndexDataProvider dataProv;
+
+  private IndexReader idxReader;
 
   /**
    * Configuration object used for all parameters of the calculation.
@@ -217,14 +220,15 @@ public final class ImprovedClarityScore
     final ImprovedClarityScore instance = new ImprovedClarityScore();
     // set configuration
     instance.dataProv = builder.idxDataProvider;
+    instance.idxReader = builder.idxReader;
     instance.metrics = Metrics.getInstance(builder.idxDataProvider);
     instance.isTemporary = builder.isTemporary;
     instance.setConfiguration(builder.configuration);
 
     // initialize
     instance.queryUtils =
-        new QueryUtils(builder.idxDataProvider.getIndexReader(),
-            builder.idxDataProvider.getDocumentFields());
+        new QueryUtils(builder.idxReader, builder.idxDataProvider
+            .getDocumentFields());
 
     try {
       instance.initCache(builder);
@@ -597,14 +601,14 @@ public final class ImprovedClarityScore
 
     // run a query to get feedback
     final TermsQueryBuilder termsQueryBuilder =
-        new TermsQueryBuilder(this.dataProv.getIndexReader(),
+        new TermsQueryBuilder(this.idxReader,
             this.dataProv.getDocumentFields()).setBoolOperator(QueryParser
             .Operator.AND);
     try {
       Query queryObj = termsQueryBuilder.query(query).build();
       feedbackDocIds = new HashSet<>(this.conf.getMaxFeedbackDocumentsCount());
-      feedbackDocIds.addAll(Feedback.get(this.dataProv.getIndexReader(),
-          queryObj, this.conf.getMaxFeedbackDocumentsCount()));
+      feedbackDocIds.addAll(Feedback.get(this.idxReader, queryObj,
+          this.conf.getMaxFeedbackDocumentsCount()));
 
       // simplify query, if not enough feedback documents are available
       String simplifiedQuery = query;
@@ -632,8 +636,8 @@ public final class ImprovedClarityScore
         docsToGet = this.conf.getMaxFeedbackDocumentsCount()
             - feedbackDocIds.size();
         queryObj = termsQueryBuilder.query(simplifiedQuery).build();
-        feedbackDocIds.addAll(Feedback.get(this.dataProv.getIndexReader(),
-            queryObj, docsToGet));
+        feedbackDocIds.addAll(Feedback.get(this.idxReader, queryObj,
+            docsToGet));
       }
 
       // collect all unique terms from feedback documents

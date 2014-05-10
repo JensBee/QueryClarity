@@ -19,9 +19,7 @@ package de.unihildesheim.iw.lucene.index;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.util.concurrent.processing.Source;
-import org.apache.lucene.index.IndexReader;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
@@ -127,12 +125,6 @@ public final class FakeIndexDataProvider
   @Override
   public Set<String> getStopwords() {
     return Collections.<String>emptySet();
-  }
-
-  @Override
-  public IndexReader getIndexReader()
-      throws IOException {
-    throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
