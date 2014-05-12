@@ -20,7 +20,8 @@ import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.SerializableByte;
 import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
-import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderTest.AbstractIndexDataProviderTestImpl;
+import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderTest
+    .AbstractIndexDataProviderTestImpl;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
@@ -44,9 +45,6 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * Shared test functions for {@link IndexDataProvider} implementing classes.
- * <p/>
- * TODO: final boolean excludeStopwords = stopwords != null; must check against
- * empty
  *
  * @author Jens Bertram
  */
@@ -89,10 +87,10 @@ public abstract class IndexDataProviderTestCase
     Set<String> fields = null;
     Set<String> stopwords = null;
     if (randFields) {
-      fields = IndexTestUtil.getRandomFields(this.referenceIndex);
+      fields = this.referenceIndex.util.getRandomFields();
     }
     if (randStopwords) {
-      stopwords = IndexTestUtil.getRandomStopWords(this.referenceIndex);
+      stopwords = this.referenceIndex.util.getRandomStopWords();
     }
     this.referenceIndex.prepareTestEnvironment(fields, stopwords);
     return createInstance(this.referenceIndex.getDocumentFields(),
@@ -146,7 +144,7 @@ public abstract class IndexDataProviderTestCase
   @SuppressWarnings("null")
   private void _testGetTermFrequency_ByteArray(final IndexDataProvider instance)
       throws Exception {
-    final boolean excludeStopwords = this.referenceIndex.reference
+    final boolean excludeStopwords = TestIndexDataProvider.reference
         .hasStopwords();
     final Iterator<ByteArray> idxTermsIt = this.referenceIndex
         .getTermsIterator();
@@ -161,7 +159,7 @@ public abstract class IndexDataProviderTestCase
       );
 
       if (excludeStopwords) {
-        final Collection<ByteArray> stopwords = this.referenceIndex.reference
+        final Collection<ByteArray> stopwords = TestIndexDataProvider.reference
             .getStopwords();
         assertFalse(
             msg(instance, "Stopword found in term list."),
@@ -179,7 +177,7 @@ public abstract class IndexDataProviderTestCase
   @SuppressWarnings("null")
   private void _testGetRelativeTermFrequency(final IndexDataProvider instance)
       throws Exception {
-    final boolean excludeStopwords = this.referenceIndex.reference
+    final boolean excludeStopwords = TestIndexDataProvider.reference
         .hasStopwords();
     final Iterator<ByteArray> idxTermsIt = this.referenceIndex
         .getTermsIterator();
@@ -195,8 +193,8 @@ public abstract class IndexDataProviderTestCase
       );
 
       if (excludeStopwords) {
-        final Collection<ByteArray> stopwords =
-            this.referenceIndex.reference.getStopwords();
+        final Collection<ByteArray> stopwords = TestIndexDataProvider
+            .reference.getStopwords();
         assertFalse(
             msg(instance, "Stopword found in term list."),
             stopwords.contains(idxTerm));
@@ -213,7 +211,7 @@ public abstract class IndexDataProviderTestCase
   @SuppressWarnings("null")
   private void _testGetTermsIterator(final IndexDataProvider instance)
       throws Exception {
-    final boolean excludeStopwords = this.referenceIndex.reference
+    final boolean excludeStopwords = TestIndexDataProvider.reference
         .hasStopwords();
     final Iterator<ByteArray> result = instance.getTermsIterator();
 
@@ -221,7 +219,7 @@ public abstract class IndexDataProviderTestCase
     while (result.hasNext()) {
       iterations++;
       if (excludeStopwords) {
-        final Collection<ByteArray> stopwords = this.referenceIndex.reference
+        final Collection<ByteArray> stopwords = TestIndexDataProvider.reference
             .getStopwords();
         assertFalse(
             msg(instance, "Found stopword."),
@@ -262,7 +260,7 @@ public abstract class IndexDataProviderTestCase
   @SuppressWarnings("null")
   private void _testGetDocumentModel(final IndexDataProvider instance)
       throws Exception {
-    final boolean excludeStopwords = this.referenceIndex.reference
+    final boolean excludeStopwords = TestIndexDataProvider.reference
         .hasStopwords();
     final Iterator<Integer> docIdIt = this.referenceIndex
         .getDocumentIdIterator();
@@ -282,7 +280,7 @@ public abstract class IndexDataProviderTestCase
           LOG.debug("i: {}={}", ByteArrayUtils.utf8ToString(e.getKey()), e.
               getValue());
         }
-        for (Entry<ByteArray, Long> e : this.referenceIndex.reference
+        for (Entry<ByteArray, Long> e : TestIndexDataProvider.reference
             .getDocumentTermFrequencyMap(docId).entrySet()) {
           LOG.debug("m: {}={}", ByteArrayUtils.utf8ToString(e.getKey()), e.
               getValue());
@@ -296,8 +294,8 @@ public abstract class IndexDataProviderTestCase
       );
 
       if (excludeStopwords) {
-        final Collection<ByteArray> stopwords =
-            this.referenceIndex.reference.getStopwords();
+        final Collection<ByteArray> stopwords = TestIndexDataProvider
+            .reference.getStopwords();
         for (ByteArray term : iDocModel.termFreqMap.keySet()) {
           assertFalse(
               msg(instance, "Found stopword in model."),
@@ -323,8 +321,7 @@ public abstract class IndexDataProviderTestCase
     }
     assertEquals(
         msg(instance, "Number of document ids differ."),
-        docCount,
-        docCountIt);
+        docCount, docCountIt);
   }
 
   /**
@@ -353,7 +350,7 @@ public abstract class IndexDataProviderTestCase
   private void _testGetUniqueTermsCount(final IndexDataProvider instance) {
     assertEquals(
         msg(instance, "Unique term count values are different."),
-        this.referenceIndex.reference.getTermSet().size(),
+        TestIndexDataProvider.reference.getTermSet().size(),
         instance.getUniqueTermsCount());
   }
 
@@ -366,7 +363,7 @@ public abstract class IndexDataProviderTestCase
   @SuppressWarnings("null")
   private void _testDocumentContains(final IndexDataProvider instance)
       throws Exception {
-    final boolean excludeStopwords = this.referenceIndex.reference
+    final boolean excludeStopwords = TestIndexDataProvider.reference
         .hasStopwords();
     final Iterator<Integer> docIdIt = instance.getDocumentIdIterator();
 
@@ -380,8 +377,8 @@ public abstract class IndexDataProviderTestCase
             instance.documentContains(docId, byteArray)
         );
         if (excludeStopwords) {
-          final Collection<ByteArray> stopwords = this.referenceIndex.reference
-              .getStopwords();
+          final Collection<ByteArray> stopwords = TestIndexDataProvider
+              .reference.getStopwords();
           assertFalse(
               msg(instance, "Found stopword."),
               stopwords.contains(byteArray));
@@ -402,7 +399,7 @@ public abstract class IndexDataProviderTestCase
     assertEquals(
         msg(instance, "Not all items provided by source or processed by " +
             "target."),
-        new HashSet<>(this.referenceIndex.reference.getTermList()).size(),
+        new HashSet<>(TestIndexDataProvider.reference.getTermList()).size(),
         p.debugTestSource().longValue()
     );
   }
@@ -415,15 +412,15 @@ public abstract class IndexDataProviderTestCase
    */
   private void _testGetDocumentsTermSet(final IndexDataProvider instance)
       throws Exception {
-    final boolean excludeStopwords = this.referenceIndex.reference
+    final boolean excludeStopwords = TestIndexDataProvider.reference
         .hasStopwords();
-    final int docAmount = RandomValue.getInteger(2, (int) referenceIndex.
+    final int docAmount = RandomValue.getInteger(2, (int) this.referenceIndex.
         getDocumentCount() - 1);
     final Collection<Integer> docIds = new HashSet<>(docAmount);
 
     for (int i = 0; i < docAmount; ) {
       if (docIds.add(RandomValue.getInteger(0, RandomValue.getInteger(2,
-          (int) referenceIndex.getDocumentCount() - 1)))) {
+          (int) this.referenceIndex.getDocumentCount() - 1)))) {
         i++;
       }
     }
@@ -435,8 +432,7 @@ public abstract class IndexDataProviderTestCase
     assertEquals(
         msg(instance, "Not the same amount of terms retrieved (stopped: " +
             excludeStopwords + ")."),
-        expResult.size(),
-        result.size()
+        expResult.size(), result.size()
     );
     assertTrue(
         msg(instance, "Not all terms retrieved (stopped: " + excludeStopwords
@@ -445,8 +441,8 @@ public abstract class IndexDataProviderTestCase
     );
 
     if (excludeStopwords) {
-      final Collection<ByteArray> stopwords =
-          this.referenceIndex.reference.getStopwords();
+      final Collection<ByteArray> stopwords = TestIndexDataProvider.reference
+          .getStopwords();
       for (ByteArray term : result) {
         assertFalse(
             msg(instance, "Stopword found in term list."),
@@ -463,10 +459,10 @@ public abstract class IndexDataProviderTestCase
    */
   private void _testGetDocumentFrequency(final IndexDataProvider instance)
       throws Exception {
-    final boolean excludeStopwords = this.referenceIndex.reference
+    final boolean excludeStopwords = TestIndexDataProvider.reference
         .hasStopwords();
 
-    for (ByteArray term : this.referenceIndex.reference.getTermSet()) {
+    for (ByteArray term : TestIndexDataProvider.reference.getTermSet()) {
       assertEquals(
           msg(instance, "Document frequency mismatch (stopped: " +
               excludeStopwords + ") (" + ByteArrayUtils.utf8ToString(term) +
@@ -476,8 +472,8 @@ public abstract class IndexDataProviderTestCase
       );
 
       if (excludeStopwords) {
-        final Collection<ByteArray> stopwords =
-            this.referenceIndex.reference.getStopwords();
+        final Collection<ByteArray> stopwords = TestIndexDataProvider
+            .reference.getStopwords();
         assertFalse(
             msg(instance, "Found stopword in term list."),
             stopwords.contains(term));
@@ -533,8 +529,7 @@ public abstract class IndexDataProviderTestCase
 
     assertEquals(
         msg(instance, "Term list size differs."),
-        eTerms.size(),
-        iTerms.size());
+        eTerms.size(), iTerms.size());
     assertTrue(
         msg(instance, "Term list content differs."),
         iTerms.containsAll(eTerms));
@@ -617,8 +612,7 @@ public abstract class IndexDataProviderTestCase
             "TF using stop-words should be lower than without. filter="
                 + filteredTf + " plain=" + unfilteredTf + "."
         ),
-        filteredTf,
-        unfilteredTf
+        filteredTf, unfilteredTf
     );
   }
 
@@ -1143,7 +1137,8 @@ public abstract class IndexDataProviderTestCase
       return;
     }
 
-    final Iterator<Integer> docIdIt = referenceIndex.getDocumentIdIterator();
+    final Iterator<Integer> docIdIt = this.referenceIndex
+        .getDocumentIdIterator();
     final IndexDataProvider instance = setupInstanceForTesting(false, false);
     while (docIdIt.hasNext()) {
       assertTrue(
@@ -1156,7 +1151,7 @@ public abstract class IndexDataProviderTestCase
         instance.hasDocument(-1));
     assertFalse(
         msg(instance, "Document should not be found."),
-        instance.hasDocument((int) referenceIndex.getDocumentCount()));
+        instance.hasDocument((int) this.referenceIndex.getDocumentCount()));
   }
 
   /**

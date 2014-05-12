@@ -17,9 +17,10 @@
 package de.unihildesheim.iw.lucene.document;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.lucene.MultiIndexDataProviderTestCase;
+import de.unihildesheim.iw.lucene.AbstractMultiIndexDataProviderTestCase;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.Metrics;
+import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import org.apache.lucene.util.BytesRef;
 import org.junit.Test;
@@ -42,7 +43,7 @@ import static org.junit.Assert.assertTrue;
  */
 @RunWith(Parameterized.class)
 public final class DocFieldsTermsEnumTest
-    extends MultiIndexDataProviderTestCase {
+    extends AbstractMultiIndexDataProviderTestCase {
 
   /**
    * Initialize test with the current parameter.
@@ -52,7 +53,7 @@ public final class DocFieldsTermsEnumTest
    */
   public DocFieldsTermsEnumTest(
       final DataProviders dataProv,
-      final MultiIndexDataProviderTestCase.RunType rType) {
+      final AbstractMultiIndexDataProviderTestCase.RunType rType) {
     super(dataProv, rType);
   }
 
@@ -64,10 +65,9 @@ public final class DocFieldsTermsEnumTest
   @Test
   public void testSetDocument()
       throws Exception {
-    DocFieldsTermsEnum instance = new DocFieldsTermsEnum(this.referenceIndex
-        .getIndexReader(), this.referenceIndex.getDocumentFields());
-    final Iterator<Integer> docIdIt =
-        this.referenceIndex.getDocumentIdIterator();
+    DocFieldsTermsEnum instance = new DocFieldsTermsEnum(referenceIndex
+        .getIndexReader(), this.index.getDocumentFields());
+    final Iterator<Integer> docIdIt = this.index.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       instance.setDocument(docIdIt.next());
     }
@@ -81,10 +81,9 @@ public final class DocFieldsTermsEnumTest
   @Test
   public void testReset()
       throws Exception {
-    DocFieldsTermsEnum instance = new DocFieldsTermsEnum(this.referenceIndex
-        .getIndexReader(), this.referenceIndex.getDocumentFields());
-    final Iterator<Integer> docIdIt =
-        this.referenceIndex.getDocumentIdIterator();
+    DocFieldsTermsEnum instance = new DocFieldsTermsEnum(referenceIndex
+        .getIndexReader(), this.index.getDocumentFields());
+    final Iterator<Integer> docIdIt = this.index.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       instance.setDocument(docIdIt.next());
       int count = 0;
@@ -114,16 +113,16 @@ public final class DocFieldsTermsEnumTest
   public void testNext()
       throws Exception {
     final DocFieldsTermsEnum instance =
-        new DocFieldsTermsEnum(this.referenceIndex
-            .getIndexReader(), this.referenceIndex.getDocumentFields());
-    final Collection<ByteArray> stopwords = this.referenceIndex.reference
+        new DocFieldsTermsEnum(referenceIndex.getIndexReader(),
+            this.index.getDocumentFields());
+    final Collection<ByteArray> stopwords = TestIndexDataProvider.reference
         .getStopwords();
-    final boolean excludeStopwords = this.referenceIndex.reference
+    final boolean excludeStopwords = TestIndexDataProvider.reference
         .hasStopwords();
-    final Metrics metrics = Metrics.getInstance(this.referenceIndex);
+    final Metrics metrics = new Metrics(this.index);
 
     final Iterator<Integer> docIdIt =
-        this.referenceIndex.getDocumentIdIterator();
+        this.index.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
       final Map<ByteArray, Long> tfMap
@@ -150,8 +149,7 @@ public final class DocFieldsTermsEnumTest
       assertEquals(
           msg("Term map sizes differs (stopped: " + excludeStopwords
               + ")."),
-          tfMap.size(),
-          dftMap.size()
+          tfMap.size(), dftMap.size()
       );
       assertTrue(
           msg("Not all terms are present (stopped: " + excludeStopwords
@@ -163,8 +161,7 @@ public final class DocFieldsTermsEnumTest
         assertEquals(
             msg("Term frequency values differs (stopped: " + excludeStopwords +
                 "). docId=" + docId + " term=" + tfEntry.toString()),
-            tfEntry.getValue(),
-            dftMap.get(tfEntry.getKey())
+            tfEntry.getValue(), dftMap.get(tfEntry.getKey())
         );
       }
     }
@@ -179,18 +176,17 @@ public final class DocFieldsTermsEnumTest
   public void testGetTotalTermFreq()
       throws Exception {
     final DocFieldsTermsEnum instance =
-        new DocFieldsTermsEnum(this.referenceIndex
-            .getIndexReader(), this.referenceIndex.getDocumentFields());
-    final Collection<ByteArray> stopwords = this.referenceIndex.reference
+        new DocFieldsTermsEnum(referenceIndex.getIndexReader(),
+            this.index.getDocumentFields());
+    final Collection<ByteArray> stopwords = TestIndexDataProvider.reference
         .getStopwords();
-    final boolean excludeStopwords = this.referenceIndex.reference
+    final boolean excludeStopwords = TestIndexDataProvider.reference
         .hasStopwords();
 
-    final Iterator<Integer> docIdIt = this.referenceIndex
-        .getDocumentIdIterator();
+    final Iterator<Integer> docIdIt = this.index.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
-      final Map<ByteArray, Long> tfMap = this.referenceIndex.reference
+      final Map<ByteArray, Long> tfMap = TestIndexDataProvider.reference
           .getDocumentTermFrequencyMap(docId);
       final Map<ByteArray, Long> dftMap = new HashMap<>(tfMap.size());
 
@@ -212,8 +208,7 @@ public final class DocFieldsTermsEnumTest
 
       assertEquals(
           msg("Term map sizes differ (stopped: " + excludeStopwords + ")."),
-          tfMap.size(),
-          dftMap.size()
+          tfMap.size(), dftMap.size()
       );
       assertTrue(msg("Not all terms are present (stopped: " + excludeStopwords
               + ")."),
@@ -224,8 +219,7 @@ public final class DocFieldsTermsEnumTest
         assertEquals(
             msg("Term frequency values differ (stopped: " + excludeStopwords +
                 "). docId=" + docId + " term=" + tfEntry.toString()),
-            tfEntry.getValue(),
-            dftMap.get(tfEntry.getKey())
+            tfEntry.getValue(), dftMap.get(tfEntry.getKey())
         );
       }
     }

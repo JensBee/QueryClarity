@@ -17,12 +17,10 @@
 package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.TestCase;
-import de.unihildesheim.iw.lucene.index.IndexTestUtil;
 import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.iw.util.RandomValue;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -45,7 +43,7 @@ public final class TermsQueryBuilderTest
   /**
    * Test documents referenceIndex.
    */
-  private static TestIndexDataProvider index;
+  private static TestIndexDataProvider referenceIndex;
 
   /**
    * Static initializer run before all tests.
@@ -55,7 +53,7 @@ public final class TermsQueryBuilderTest
   @BeforeClass
   public static final void setUpClass()
       throws Exception {
-    index = new TestIndexDataProvider(
+    referenceIndex = new TestIndexDataProvider(
         TestIndexDataProvider.IndexSize.SMALL);
     assertTrue("TestIndex is not initialized.", TestIndexDataProvider.
         isInitialized());
@@ -68,18 +66,7 @@ public final class TermsQueryBuilderTest
   @AfterClass
   public static final void tearDownClass() {
     // close the test referenceIndex
-    index.dispose();
-  }
-
-  /**
-   * Run before each test starts.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Before
-  public final void setUp()
-      throws Exception {
-//    index.setupEnvironment(null, null);
+    referenceIndex.dispose();
   }
 
   /**
@@ -91,7 +78,7 @@ public final class TermsQueryBuilderTest
   public void testSetStopWords()
       throws Exception {
     final Set<String> newStopWords =
-        new HashSet<>(IndexTestUtil.getRandomStopWords(index));
+        new HashSet<>(this.referenceIndex.util.getRandomStopWords());
     final int amount = RandomValue.getInteger(10, 100);
     final Collection<String> terms = new HashSet<>(amount);
 
@@ -103,8 +90,8 @@ public final class TermsQueryBuilderTest
       }
     }
 
-    final TermsQueryBuilder instance = new TermsQueryBuilder(this.index
-        .getIndexReader(), this.index.getDocumentFields());
+    final TermsQueryBuilder instance = new TermsQueryBuilder(this.referenceIndex
+        .getIndexReader(), this.referenceIndex.getDocumentFields());
     instance.setStopwords(newStopWords);
 
     @SuppressWarnings("StringBufferWithoutInitialCapacity")
@@ -135,10 +122,10 @@ public final class TermsQueryBuilderTest
   @Test
   public void testSetFields()
       throws Exception {
-    final Set<String> fields = new HashSet<>(IndexTestUtil.getRandomFields
-        (index));
-    final TermsQueryBuilder instance = new TermsQueryBuilder(this.index
-        .getIndexReader(), this.index.getDocumentFields());
+    final Set<String> fields =
+        new HashSet<>(this.referenceIndex.util.getRandomFields());
+    final TermsQueryBuilder instance = new TermsQueryBuilder(this.referenceIndex
+        .getIndexReader(), this.referenceIndex.getDocumentFields());
 
     final String qStr =
         instance.setFields(fields).query("foo").build().getQueryObj()
@@ -162,8 +149,8 @@ public final class TermsQueryBuilderTest
 
     // TODO: how to check results?
     for (QueryParser.Operator op : QueryParser.Operator.values()) {
-      instance = new TermsQueryBuilder(this.index.getIndexReader(),
-          this.index.getDocumentFields());
+      instance = new TermsQueryBuilder(this.referenceIndex.getIndexReader(),
+          this.referenceIndex.getDocumentFields());
       instance.setBoolOperator(op).query("foo bar").build().toString();
     }
   }
@@ -177,12 +164,12 @@ public final class TermsQueryBuilderTest
   @SuppressWarnings("checkstyle:magicnumber")
   public void testBuild()
       throws Exception {
-    final Set<String> fields = new HashSet<>(IndexTestUtil.getRandomFields
-        (this.index));
-    final Set<String> stopwords = new HashSet<>(IndexTestUtil
-        .getRandomStopWords(this.index));
+    final Set<String> fields =
+        new HashSet<>(this.referenceIndex.util.getRandomFields());
+    final Set<String> stopwords = new HashSet<>(this.referenceIndex.util
+        .getRandomStopWords());
 
-    TermsQueryBuilder instance = new TermsQueryBuilder(this.index
+    TermsQueryBuilder instance = new TermsQueryBuilder(this.referenceIndex
         .getIndexReader(), fields);
     instance.setStopwords(stopwords);
     instance.setBoolOperator(QueryParser.Operator.OR);

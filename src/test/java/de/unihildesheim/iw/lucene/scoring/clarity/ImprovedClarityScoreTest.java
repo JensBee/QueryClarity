@@ -17,7 +17,7 @@
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.lucene.MultiIndexDataProviderTestCase;
+import de.unihildesheim.iw.lucene.AbstractMultiIndexDataProviderTestCase;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.document.Feedback;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
@@ -54,7 +54,7 @@ import static org.junit.Assert.assertTrue;
  */
 @RunWith(Parameterized.class)
 public final class ImprovedClarityScoreTest
-    extends MultiIndexDataProviderTestCase {
+    extends AbstractMultiIndexDataProviderTestCase {
 
   /**
    * Logger instance for this class.
@@ -75,15 +75,16 @@ public final class ImprovedClarityScoreTest
    */
   public ImprovedClarityScoreTest(
       final DataProviders dataProv,
-      final MultiIndexDataProviderTestCase.RunType rType) {
+      final AbstractMultiIndexDataProviderTestCase.RunType rType) {
     super(dataProv, rType);
   }
 
   private ImprovedClarityScore.Builder getInstanceBuilder()
       throws IOException {
     return new ImprovedClarityScore.Builder()
-        .indexDataProvider(referenceIndex)
+        .indexDataProvider(this.index)
         .dataPath(TestIndexDataProvider.reference.getDataDir())
+        .indexReader(referenceIndex.getIndexReader())
         .createCache("test-" + RandomValue.getString(16))
         .temporary();
   }
@@ -99,7 +100,7 @@ public final class ImprovedClarityScoreTest
   @SuppressWarnings("checkstyle:methodname")
   private double calc_pdt(final ImprovedClarityScoreConfiguration conf,
       final int docId, final ByteArray term) {
-    final Metrics metrics = Metrics.getInstance(this.referenceIndex);
+    final Metrics metrics = new Metrics(this.index);
     final double smoothing = conf.getDocumentModelSmoothingParameter();
     final double lambda = conf.getDocumentModelParamLambda();
     final double beta = conf.getDocumentModelParamBeta();
@@ -152,8 +153,8 @@ public final class ImprovedClarityScoreTest
   @Test
   public void testCalculateClarity()
       throws Exception {
-    final Metrics metrics = Metrics.getInstance(this.referenceIndex);
-    final String query = this.referenceIndex.util.getQueryString();
+    final Metrics metrics = new Metrics(this.index);
+    final String query = TestIndexDataProvider.util.getQueryString();
     final ImprovedClarityScoreConfiguration icc
         = new ImprovedClarityScoreConfiguration();
     final ImprovedClarityScore instance = getInstanceBuilder()
@@ -171,19 +172,22 @@ public final class ImprovedClarityScoreTest
     assertEquals(msg("Query mismatch."), query, result.getQueries().get(0));
 
     // build query
-    final TermsQueryBuilder qBuilder = new TermsQueryBuilder(this.referenceIndex
-        .getIndexReader(), this.referenceIndex.getDocumentFields())
+    final TermsQueryBuilder qBuilder = new TermsQueryBuilder(referenceIndex
+        .getIndexReader(), this.index.getDocumentFields())
         .setBoolOperator(QueryParser.Operator.AND);
     final Query queryObj = qBuilder.query(query).build();
 
     // retrieve initial feedback set
     final Collection<Integer> feedbackDocIds = new HashSet<>(icc.
         getMaxFeedbackDocumentsCount());
-    feedbackDocIds.addAll(Feedback.get(this.referenceIndex.getIndexReader(), queryObj,
-            icc.getMaxFeedbackDocumentsCount()));
+    feedbackDocIds.addAll(
+        Feedback.get(referenceIndex.getIndexReader(), queryObj,
+            icc.getMaxFeedbackDocumentsCount())
+    );
 
     if (feedbackDocIds.size() < icc.getMinFeedbackDocumentsCount()) {
-      assertTrue(msg("Expecting query to be simplified."), result.wasQuerySimplified());
+      assertTrue(msg("Expecting query to be simplified."),
+          result.wasQuerySimplified());
     }
 
     // extract terms from feedback documents
@@ -209,8 +213,8 @@ public final class ImprovedClarityScoreTest
         getFeedbackTerms()));
 
     double score = 0;
-    final Collection<ByteArray> qTerms = new QueryUtils(this.referenceIndex
-        .getIndexReader(), this.referenceIndex.getDocumentFields())
+    final Collection<ByteArray> qTerms = new QueryUtils(referenceIndex
+        .getIndexReader(), this.index.getDocumentFields())
         .getAllQueryTerms(query);
     for (ByteArray fbTerm : fbTerms) {
       final double pqt = calc_pqt(icc, fbTerm, feedbackDocIds, qTerms);
@@ -243,7 +247,7 @@ public final class ImprovedClarityScoreTest
     final ImprovedClarityScore.QuerySimplifyPolicy qspParam
         = ImprovedClarityScore.QuerySimplifyPolicy.FIRST;
 
-    final String queryString = referenceIndex.util.getQueryString();
+    final String queryString = TestIndexDataProvider.util.getQueryString();
     final ImprovedClarityScoreConfiguration icc
         = new ImprovedClarityScoreConfiguration();
 
@@ -292,13 +296,12 @@ public final class ImprovedClarityScoreTest
   @SuppressWarnings("checkstyle:magicnumber")
   public void testCalcQueryModel()
       throws Exception {
-    final Collection<ByteArray> qTerms = new QueryUtils(this.referenceIndex
-        .getIndexReader(), this.referenceIndex.getDocumentFields())
-        .getAllQueryTerms(this.referenceIndex.util.getQueryString());
+    final Collection<ByteArray> qTerms = new QueryUtils(referenceIndex
+        .getIndexReader(), this.index.getDocumentFields())
+        .getAllQueryTerms(referenceIndex.util.getQueryString());
     @SuppressWarnings("CollectionWithoutInitialCapacity")
     final Collection<Integer> fbDocIds = new ArrayList<>();
-    final Iterator<Integer> docIdIt = this.referenceIndex
-        .getDocumentIdIterator();
+    final Iterator<Integer> docIdIt = this.index.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
       if (RandomValue.getBoolean()) {
@@ -311,8 +314,8 @@ public final class ImprovedClarityScoreTest
         .configuration(icc)
         .build();
 
-    final Collection<ByteArray> fbTerms =
-        referenceIndex.getDocumentsTermSet(fbDocIds);
+    final Collection<ByteArray> fbTerms = this.index.getDocumentsTermSet
+        (fbDocIds);
 
     for (ByteArray fbTerm : fbTerms) {
       final double result = instance.calcQueryModel(fbTerm, qTerms, fbDocIds);
@@ -331,16 +334,15 @@ public final class ImprovedClarityScoreTest
   @SuppressWarnings("checkstyle:magicnumber")
   public void testPreCalcDocumentModels()
       throws Exception {
-    final Metrics metrics = Metrics.getInstance(this.referenceIndex);
-    final ImprovedClarityScoreConfiguration icc
-        = new ImprovedClarityScoreConfiguration();
+    final Metrics metrics = new Metrics(this.index);
+    final ImprovedClarityScoreConfiguration icc = new
+        ImprovedClarityScoreConfiguration();
     final ImprovedClarityScore instance = getInstanceBuilder()
         .configuration(icc)
         .build();
     instance.preCalcDocumentModels();
 
-    final Iterator<Integer> docIdIt =
-        this.referenceIndex.getDocumentIdIterator();
+    final Iterator<Integer> docIdIt = this.index.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
       final DocumentModel docModel = metrics.getDocumentModel(docId);
@@ -365,7 +367,6 @@ public final class ImprovedClarityScoreTest
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
-  @SuppressWarnings("checkstyle:magicnumber")
   public void testTestGetExtDocMan()
       throws Exception {
     final ImprovedClarityScore instance = getInstanceBuilder().build();

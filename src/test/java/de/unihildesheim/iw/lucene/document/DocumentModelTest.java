@@ -17,9 +17,10 @@
 package de.unihildesheim.iw.lucene.document;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.lucene.MultiIndexDataProviderTestCase;
+import de.unihildesheim.iw.lucene.AbstractMultiIndexDataProviderTestCase;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.Metrics;
+import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.iw.util.RandomValue;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -43,7 +44,7 @@ import static org.junit.Assert.assertTrue;
  */
 @RunWith(Parameterized.class)
 public final class DocumentModelTest
-    extends MultiIndexDataProviderTestCase {
+    extends AbstractMultiIndexDataProviderTestCase {
 
   /**
    * Initialize test with the current parameter.
@@ -52,7 +53,7 @@ public final class DocumentModelTest
    * @param rType Data provider configuration
    */
   public DocumentModelTest(final DataProviders dataProv,
-      final MultiIndexDataProviderTestCase.RunType rType) {
+      final AbstractMultiIndexDataProviderTestCase.RunType rType) {
     super(dataProv, rType);
   }
 
@@ -65,18 +66,16 @@ public final class DocumentModelTest
   @SuppressWarnings("null")
   public void testContains()
       throws Exception {
-    final Collection<ByteArray> stopwords =
-        this.referenceIndex.reference.getStopwords();
+    final Collection<ByteArray> stopwords = TestIndexDataProvider.reference
+        .getStopwords();
     final boolean excludeStopwords = stopwords != null;
-    final Metrics metrics = Metrics.getInstance(this.referenceIndex);
+    final Metrics metrics = new Metrics(this.index);
 
-    final Iterator<Integer> docIdIt =
-        this.referenceIndex.getDocumentIdIterator();
+    final Iterator<Integer> docIdIt = this.index.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
       final DocumentModel docModel = metrics.getDocumentModel(docId);
-      final DocumentModel docModelExp =
-          this.referenceIndex.getDocumentModel(docId);
+      final DocumentModel docModelExp = this.index.getDocumentModel(docId);
       for (ByteArray bw : docModel.termFreqMap.keySet()) {
         assertEquals(msg("Document contains term mismatch (stopped: "
                 + excludeStopwords + ")."), docModelExp.contains(bw),
@@ -99,25 +98,23 @@ public final class DocumentModelTest
   @SuppressWarnings("null")
   public void testTermFreqMap()
       throws Exception {
-    final Collection<ByteArray> stopwords =
-        this.referenceIndex.reference.getStopwords();
+    final Collection<ByteArray> stopwords = TestIndexDataProvider.reference
+        .getStopwords();
     final boolean excludeStopwords = stopwords != null;
-    final Metrics metrics = Metrics.getInstance(this.referenceIndex);
+    final Metrics metrics = new Metrics(this.index);
 
-    final Iterator<Integer> docIdIt =
-        this.referenceIndex.getDocumentIdIterator();
+    final Iterator<Integer> docIdIt = this.index.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
-      final Map<ByteArray, Long> tfMap
-          = metrics.getDocumentModel(docId).termFreqMap;
-      final Map<ByteArray, Long> tfMapExp = this.referenceIndex.reference
+      final Map<ByteArray, Long> tfMap = metrics.getDocumentModel(docId)
+          .termFreqMap;
+      final Map<ByteArray, Long> tfMapExp = TestIndexDataProvider.reference
           .getDocumentTermFrequencyMap(docId);
 
       assertEquals(msg("Term count mismatch between referenceIndex and model."),
           tfMapExp.size(), tfMap.size());
       assertTrue(msg("Term mismatch between referenceIndex and model."),
-          tfMapExp.
-              keySet().containsAll(tfMap.keySet())
+          tfMapExp.keySet().containsAll(tfMap.keySet())
       );
 
       for (Entry<ByteArray, Long> tfEntry : tfMap.entrySet()) {
@@ -139,7 +136,7 @@ public final class DocumentModelTest
   @Test
   @SuppressWarnings({"DM_DEFAULT_ENCODING", "checkstyle:magicnumber"})
   public void testEquals() {
-    final Metrics metrics = Metrics.getInstance(this.referenceIndex);
+    final Metrics metrics = new Metrics(this.index);
 
     final int firstDocId = RandomValue.getInteger(0, metrics.collection.
         numberOfDocuments().intValue() - 1);
@@ -172,7 +169,7 @@ public final class DocumentModelTest
   @Test
   @SuppressWarnings("DM_DEFAULT_ENCODING")
   public void testHashCode() {
-    final Metrics metrics = Metrics.getInstance(this.referenceIndex);
+    final Metrics metrics = new Metrics(this.index);
     final int firstDocId = RandomValue.getInteger(0, metrics.collection.
         numberOfDocuments().intValue() - 1);
     int secondDocId = RandomValue.getInteger(0, metrics.collection.
@@ -206,8 +203,7 @@ public final class DocumentModelTest
 
     assertNotEquals(msg("HashCode of derived DocumentModel should "
             + "not be the same as the original one."),
-        firstDocModel.hashCode(),
-        derivedDocModel.getModel().hashCode()
+        firstDocModel.hashCode(), derivedDocModel.getModel().hashCode()
     );
   }
 
@@ -216,10 +212,9 @@ public final class DocumentModelTest
    */
   @Test
   public void testGetSmoothedRelativeTermFrequency() {
-    final Metrics metrics = Metrics.getInstance(this.referenceIndex);
+    final Metrics metrics = new Metrics(this.index);
     final int smoothingAmount = 100;
-    final Iterator<Integer> docIdIt =
-        this.referenceIndex.getDocumentIdIterator();
+    final Iterator<Integer> docIdIt = this.index.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
       final DocumentModel docModel = metrics.getDocumentModel(docId);
@@ -241,18 +236,17 @@ public final class DocumentModelTest
   @SuppressWarnings({"null", "ConstantConditions"})
   public void testTf()
       throws Exception {
-    final Metrics metrics = Metrics.getInstance(this.referenceIndex);
-    final Collection<ByteArray> stopwords =
-        this.referenceIndex.reference.getStopwords();
+    final Metrics metrics = new Metrics(this.index);
+    final Collection<ByteArray> stopwords = TestIndexDataProvider.reference
+        .getStopwords();
     final boolean excludeStopwords = stopwords != null;
 
-    final Iterator<Integer> docIdIt = referenceIndex.getDocumentIdIterator();
+    final Iterator<Integer> docIdIt = this.index.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
       final DocumentModel docModel = metrics.getDocumentModel(docId);
-      final Map<ByteArray, Long> tfMap =
-          referenceIndex.reference.getDocumentTermFrequencyMap(
-              docId);
+      final Map<ByteArray, Long> tfMap = TestIndexDataProvider.reference
+          .getDocumentTermFrequencyMap(docId);
       for (Entry<ByteArray, Long> tfEntry : tfMap.entrySet()) {
         assertEquals(msg("Term frequency mismatch."), docModel.tf(tfEntry.
             getKey()), tfEntry.getValue());
@@ -273,18 +267,17 @@ public final class DocumentModelTest
   @SuppressWarnings("null")
   public void testTermCount()
       throws Exception {
-    final Metrics metrics = Metrics.getInstance(this.referenceIndex);
-    final Collection<ByteArray> stopwords =
-        this.referenceIndex.reference.getStopwords();
+    final Metrics metrics = new Metrics(this.index);
+    final Collection<ByteArray> stopwords = TestIndexDataProvider.reference
+        .getStopwords();
     final boolean excludeStopwords = stopwords != null;
 
-    final Iterator<Integer> docIdIt = referenceIndex.getDocumentIdIterator();
+    final Iterator<Integer> docIdIt = this.index.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
       final DocumentModel docModel = metrics.getDocumentModel(docId);
-      final Map<ByteArray, Long> tfMap =
-          referenceIndex.reference.getDocumentTermFrequencyMap(
-              docId);
+      final Map<ByteArray, Long> tfMap = TestIndexDataProvider.reference
+          .getDocumentTermFrequencyMap(docId);
       assertEquals(msg("Unique term count mismatch."), docModel.termCount(),
           tfMap.size());
       if (excludeStopwords) {
@@ -301,8 +294,8 @@ public final class DocumentModelTest
    */
   @Test
   public void testMetrics() {
-    final Iterator<Integer> docIdIt = referenceIndex.getDocumentIdIterator();
-    final Metrics metrics = Metrics.getInstance(this.referenceIndex);
+    final Iterator<Integer> docIdIt = this.index.getDocumentIdIterator();
+    final Metrics metrics = new Metrics(this.index);
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
       final DocumentModel docModel = metrics.getDocumentModel(docId);

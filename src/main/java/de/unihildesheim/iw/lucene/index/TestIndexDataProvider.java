@@ -354,13 +354,13 @@ public final class TestIndexDataProvider
           + "'");
     }
 
-    final String[] activeFields;
+//    final String[] activeFields;
     if (newFields == null) {
       enableAllFields();
-      activeFields = getDocumentFields().toArray(
-          new String[TestIndexDataProvider.activeFieldState.length]);
+//      activeFields = getDocumentFields().toArray(
+//          new String[TestIndexDataProvider.activeFieldState.length]);
     } else {
-      activeFields = newFields.toArray(new String[newFields.size()]);
+//      activeFields = newFields.toArray(new String[newFields.size()]);
       Arrays.fill(TestIndexDataProvider.activeFieldState, 0);
       // activate single fields
       for (String field : newFields) {
@@ -386,7 +386,8 @@ public final class TestIndexDataProvider
 
     this.reference.setDataDir(dataDir.getPath());
 
-    LOG.info("Preparing Environment. fields={}", getDocumentFields());
+    LOG.info("Preparing Environment. fields={} stopwords={}",
+        getDocumentFields(), TestIndexDataProvider.stopWords.size());
   }
 
   /**
@@ -641,12 +642,37 @@ public final class TestIndexDataProvider
 
   public class Util {
     /**
+     * Picks some (1 to n) terms from the referenceIndex.
+     *
+     * @param referenceIndex Data provider
+     * @return Stop words term collection
+     */
+    public Set<String> getRandomStopWords() {
+      final Iterator<ByteArray> termsIt = TestIndexDataProvider.this
+          .getTermsIterator();
+      @SuppressWarnings("CollectionWithoutInitialCapacity")
+      final Set<String> stopWords = new HashSet<>();
+      while (termsIt.hasNext()) {
+        if (RandomValue.getBoolean()) {
+          stopWords.add(ByteArrayUtils.utf8ToString(termsIt.next()));
+        } else {
+          termsIt.next();
+        }
+      }
+      if (stopWords.isEmpty()) {
+        stopWords.add(ByteArrayUtils.utf8ToString(new ArrayList<>(
+            TestIndexDataProvider.reference.getTermSet()).get(0)));
+      }
+      return stopWords;
+    }
+
+    /**
      * Get a random subset of all available fields.
      *
      * @return Collection of random fields
      */
     public Set<String> getRandomFields() {
-      Set<String> fieldNames;
+      final Set<String> fieldNames;
       if (TestIndexDataProvider.fields.size() == 1) {
         fieldNames = new HashSet<>(1);
         fieldNames.add(TestIndexDataProvider.fields.get(0));
@@ -684,22 +710,21 @@ public final class TestIndexDataProvider
      * stopwords.
      *
      * @param queryTerms Terms to use in query
-     * @param testIndexDataProvider
      * @return A query object consisting of the given terms
      * @throws ParseException Thrown on query parsing errors
      */
-    public SimpleTermsQuery getQueryObj(final String[] queryTerms,
-        final TestIndexDataProvider testIndexDataProvider)
+    public SimpleTermsQuery getQueryObj(final String[] queryTerms)
         throws ParseException, IOException,
                Buildable.BuilderConfigurationException {
       final TermsQueryBuilder tqb = new TermsQueryBuilder(tmpIdx.getReader(),
-          testIndexDataProvider.getDocumentFields());
-      tqb.setFields(testIndexDataProvider.getDocumentFields());
+          TestIndexDataProvider.this.getDocumentFields());
+      tqb.setFields(TestIndexDataProvider.this.getDocumentFields());
       if (queryTerms == null) {
-        return tqb.query(testIndexDataProvider.util.getQueryString()).build();
+        return tqb.query(TestIndexDataProvider.this.util.getQueryString())
+            .build();
       }
-      return tqb.query(testIndexDataProvider.util.getQueryString(queryTerms))
-          .build();
+      return tqb.query(TestIndexDataProvider.this.util.getQueryString
+          (queryTerms)).build();
     }
 
     /**
@@ -801,15 +826,13 @@ public final class TestIndexDataProvider
      * Get a random query matching terms from the documents in index. The terms
      * in the query are not unique. The query string may contain stopwords.
      *
-     * @param testIndexDataProvider
      * @return Query generated from random query string
      * @throws ParseException Thrown on query parsing errors
      */
-    public SimpleTermsQuery getQueryObj(
-        final TestIndexDataProvider testIndexDataProvider)
+    public SimpleTermsQuery getQueryObj()
         throws ParseException, IOException,
                Buildable.BuilderConfigurationException {
-      return getQueryObj(null, testIndexDataProvider);
+      return getQueryObj(null);
     }
 
     /**

@@ -47,19 +47,12 @@ public final class Metrics {
   public final CollectionMetrics collection;
   private final Map<Integer, DocumentModel> docModelCache = new SoftHashMap<>();
 
-  private Metrics(final IndexDataProvider dataProvider) {
+  public Metrics(final IndexDataProvider dataProvider) {
+    if (dataProvider == null) {
+      throw new IllegalArgumentException("Data provider was null.");
+    }
     this.dataProv = dataProvider;
     this.collection = new CollectionMetrics();
-  }
-
-  public static Metrics getInstance(final IndexDataProvider dataProv) {
-    Metrics m;
-    m = CACHE.get(dataProv);
-    if (m == null) {
-      m = new Metrics(dataProv);
-      CACHE.put(dataProv, m);
-    }
-    return m;
   }
 
   public DocumentMetrics document(final DocumentModel docModel) {

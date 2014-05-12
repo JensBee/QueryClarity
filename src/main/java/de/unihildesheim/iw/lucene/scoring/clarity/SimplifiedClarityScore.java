@@ -87,7 +87,7 @@ public final class SimplifiedClarityScore
     // set configuration
     instance.dataProv = builder.idxDataProvider;
     instance.idxReader = builder.idxReader;
-    instance.metrics = Metrics.getInstance(builder.idxDataProvider);
+    instance.metrics = new Metrics(builder.idxDataProvider);
 
     return instance;
   }

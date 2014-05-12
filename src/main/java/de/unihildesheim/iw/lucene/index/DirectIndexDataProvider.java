@@ -821,7 +821,8 @@ public final class DirectIndexDataProvider
   }
 
   public final static class Builder
-      extends AbstractIndexDataProviderBuilder<DirectIndexDataProvider> {
+      extends AbstractIndexDataProviderBuilder<Builder,
+      DirectIndexDataProvider> {
 
     /**
      * Default constructor.

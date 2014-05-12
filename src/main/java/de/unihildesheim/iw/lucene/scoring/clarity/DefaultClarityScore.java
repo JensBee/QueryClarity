@@ -185,7 +185,7 @@ public final class DefaultClarityScore
     instance.isTemporary = builder.isTemporary;
     instance.dataProv = builder.idxDataProvider;
     instance.idxReader = builder.idxReader;
-    instance.metrics = Metrics.getInstance(builder.idxDataProvider);
+    instance.metrics = new Metrics(builder.idxDataProvider);
 
     // initialize
     try {

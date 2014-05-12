@@ -190,6 +190,10 @@ public abstract class AbstractClarityScoreCalculationBuilder<I extends
   @Override
   public void validate()
       throws BuilderConfigurationException {
+    if (this.idxReader == null) {
+      throw new Buildable.BuilderConfigurationException("No IndexReader" +
+          " set.");
+    }
     if (this.idxDataProvider == null) {
       throw new Buildable.BuilderConfigurationException("No IndexDataProvider" +
           " set.");

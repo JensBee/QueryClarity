@@ -50,9 +50,9 @@ public final class DirectIndexDataProviderTest
       throws Exception {
     return new DirectIndexDataProvider.Builder()
         .temporary()
-        .dataPath(this.referenceIndex.reference.getDataDir())
+        .dataPath(TestIndexDataProvider.reference.getDataDir())
         .documentFields(fields)
-        .indexPath(this.referenceIndex.reference.getIndexDir())
+        .indexPath(TestIndexDataProvider.reference.getIndexDir())
         .stopwords(stopwords)
         .createCache("test-" + RandomValue.getString(16))
         .warmup()

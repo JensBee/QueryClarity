@@ -86,7 +86,7 @@ public final class QueryUtils {
    * @throws org.apache.lucene.queryparser.classic.ParseException Thrown, if
    * query string could not be parsed
    */
-  public Collection<ByteArray> getUniqueQueryTerms(final String query)
+  public Set<ByteArray> getUniqueQueryTerms(final String query)
       throws UnsupportedEncodingException, ParseException,
              Buildable.BuilderConfigurationException {
     return new HashSet<>(extractTerms(query));

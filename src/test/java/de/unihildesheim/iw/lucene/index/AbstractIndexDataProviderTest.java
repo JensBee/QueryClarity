@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Jens Bertram
+ * Copyright (C) 2014 Jens Bertram <code@jens-bertram.net>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -69,18 +69,6 @@ public final class AbstractIndexDataProviderTest
 //    assertEquals("Temporary flag not set.", expResult, result);
   }
 
-  /**
-   * Test of warmUpTerms method, of class AbstractIndexDataProvider.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   * @see #testWarmUpTerms__plain()
-   */
-  @SuppressWarnings("EmptyMethod")
-  public void testWarmUpTerms()
-      throws Exception {
-    // implemented in super class
-  }
-
   @Override
   protected Class<? extends IndexDataProvider> getInstanceClass() {
     return AbstractIndexDataProviderTestImpl.class;
@@ -103,8 +91,9 @@ public final class AbstractIndexDataProviderTest
     );
     instance.setCachedFieldsMap(
         new HashMap<String, SerializableByte>(this.referenceIndex
-            .getDocumentFields().size()));
-    for (String field: this.referenceIndex.getDocumentFields()) {
+            .getDocumentFields().size())
+    );
+    for (String field : this.referenceIndex.getDocumentFields()) {
       instance.addFieldToCacheMap(field);
     }
     return instance;

@@ -85,8 +85,8 @@ public final class SimpleTermsQuery
       final QueryParser.Operator operator, final Set<String> fields,
       final Set<String> stopWords)
       throws ParseException {
-    LOG.debug("STQ q={} op={} f={} s={}", query, operator, fields,
-        stopWords);
+    LOG.debug("STQ q({})={} op={} f={} s({})={}", query.split(" ").length,
+        query, operator, fields, stopWords.size(), stopWords);
     if (query == null || query.trim().isEmpty()) {
       throw new IllegalArgumentException("Empty query.");
     }

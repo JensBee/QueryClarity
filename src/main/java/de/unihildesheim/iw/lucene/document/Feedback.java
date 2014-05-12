@@ -20,7 +20,11 @@ import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.TimeMeasure;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.util.Bits;
 import org.slf4j.LoggerFactory;
 
@@ -72,7 +76,7 @@ public final class Feedback {
     int fbDocCnt;
     if (maxDocCount == -1) {
       LOG.debug("Feedback doc count is unlimited. "
-                + "Running pre query to get total hits.");
+          + "Running pre query to get total hits.");
       final TotalHitCountCollector coll = new TotalHitCountCollector();
       searcher.search(query, coll);
       final int expResults = coll.getTotalHits();
@@ -84,14 +88,14 @@ public final class Feedback {
       results = searcher.search(query, maxDocCount);
       fbDocCnt = Math.min(results.totalHits, maxDocCount);
       LOG.debug("Query returned {} feedback documents "
-                + "from {} total matching documents.",
+              + "from {} total matching documents.",
           fbDocCnt, results.totalHits
       );
     }
 
     timeMeasure.stop();
     LOG.debug("Getting {} feedback documents "
-              + "took {}.", fbDocCnt, timeMeasure.getTimeString());
+        + "took {}.", fbDocCnt, timeMeasure.getTimeString());
     return results;
   }
 
@@ -108,8 +112,8 @@ public final class Feedback {
     if (docCount > maxIdxDocs) {
       maxRetDocs = Math.min(maxIdxDocs, docCount);
       LOG.warn("Requested number of feedback documents ({}) "
-               + "is larger than the amount of documents in the index ({}). "
-               + "Returning only {} feedback documents at maximum.",
+              + "is larger than the amount of documents in the index ({}). "
+              + "Returning only {} feedback documents at maximum.",
           docCount, maxIdxDocs, maxRetDocs
       );
     } else {
@@ -130,6 +134,13 @@ public final class Feedback {
   public static Collection<Integer> get(final IndexReader reader,
       final Query query, final int docCount)
       throws IOException {
+    if (reader == null) {
+      throw new IllegalArgumentException("Reader was null.");
+    }
+    if (query == null) {
+      throw new IllegalArgumentException("Query was null.");
+    }
+
     final TimeMeasure timeMeasure = new TimeMeasure().start();
     if (LOG.isDebugEnabled()) {
       if (docCount == -1) {
@@ -175,6 +186,13 @@ public final class Feedback {
   public static Collection<Integer> getFixed(final IndexReader reader,
       final Query query, final int docCount)
       throws IOException {
+    if (reader == null) {
+      throw new IllegalArgumentException("Reader was null.");
+    }
+    if (query == null) {
+      throw new IllegalArgumentException("Query was null.");
+    }
+
     final TimeMeasure timeMeasure = new TimeMeasure().start();
     LOG.debug("Getting {} feedback documents...", docCount);
 
@@ -186,7 +204,7 @@ public final class Feedback {
 
     if (randDocs > 0) {
       LOG.debug("Got {} matching feedback documents. "
-                + "Getting additional {} random feedback documents...",
+              + "Getting additional {} random feedback documents...",
           docIds.size(), randDocs
       );
       final Bits liveDocs = MultiFields.getLiveDocs(reader);

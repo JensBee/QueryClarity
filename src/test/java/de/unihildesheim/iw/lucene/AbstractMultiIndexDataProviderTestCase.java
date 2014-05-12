@@ -19,7 +19,6 @@ package de.unihildesheim.iw.lucene;
 import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.lucene.index.DirectIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
-import de.unihildesheim.iw.lucene.index.IndexTestUtil;
 import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.iw.util.RandomValue;
 import org.junit.AfterClass;
@@ -39,14 +38,14 @@ import static org.junit.Assert.assertTrue;
 /**
  * Test case utilities for testing with multiple {@link IndexDataProvider}s.
  */
-public class MultiIndexDataProviderTestCase
+public abstract class AbstractMultiIndexDataProviderTestCase
     extends TestCase {
 
   /**
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(
-      MultiIndexDataProviderTestCase.class);
+      AbstractMultiIndexDataProviderTestCase.class);
 
   /**
    * Index configuration type.
@@ -105,7 +104,7 @@ public class MultiIndexDataProviderTestCase
    * @param dataProv DataProvider
    * @param rType DataProvider configuration
    */
-  protected MultiIndexDataProviderTestCase(DataProviders dataProv,
+  protected AbstractMultiIndexDataProviderTestCase(DataProviders dataProv,
       final RunType rType) {
     this.dpType = dataProv;
     this.runType = rType;
@@ -152,20 +151,20 @@ public class MultiIndexDataProviderTestCase
 
     switch (this.runType) {
       case RANDOM_FIELDS:
-        fields = IndexTestUtil.getRandomFields(referenceIndex);
+        fields = TestIndexDataProvider.util.getRandomFields();
         stopwords = Collections.<String>emptySet();
         break;
       case RANDOM_FIELDS_AND_STOPPED:
-        fields = IndexTestUtil.getRandomFields(referenceIndex);
-        stopwords = IndexTestUtil.getRandomStopWords(referenceIndex);
+        fields = TestIndexDataProvider.util.getRandomFields();
+        stopwords = TestIndexDataProvider.util.getRandomStopWords();
         break;
       case STOPPED:
-        fields = referenceIndex.reference.getDocumentFields();
-        stopwords = IndexTestUtil.getRandomStopWords(referenceIndex);
+        fields = TestIndexDataProvider.reference.getDocumentFields();
+        stopwords = TestIndexDataProvider.util.getRandomStopWords();
         break;
       case PLAIN:
       default:
-        fields = referenceIndex.reference.getDocumentFields();
+        fields = TestIndexDataProvider.reference.getDocumentFields();
         stopwords = Collections.<String>emptySet();
         break;
     }
@@ -180,7 +179,7 @@ public class MultiIndexDataProviderTestCase
             .stopwords(stopwords)
             .dataPath(TestIndexDataProvider.reference.getDataDir())
             .indexPath(TestIndexDataProvider.reference.getIndexDir())
-            .indexReader(this.referenceIndex.getIndexReader())
+            .indexReader(referenceIndex.getIndexReader())
             .createCache("test-" + RandomValue.getString(16))
             .build();
         break;
@@ -188,7 +187,7 @@ public class MultiIndexDataProviderTestCase
         this.index = referenceIndex;
         break;
     }
-    this.referenceIndex.warmUp();
+    referenceIndex.warmUp();
     this.index.warmUp();
     LOG.info("MutilindexDataProviderTestCase SetUp finished "
             + "dataProvider={} configuration={}",
@@ -219,24 +218,12 @@ public class MultiIndexDataProviderTestCase
    * and the testing type.
    *
    * @param msg Message to prepend
-   * @return Message prepended with testing informations
+   * @return Message prepended with testing information
    */
   protected final String msg(final String msg) {
     return "(" + getDataProviderName() + ", " + this.runType.name() + ") "
         + msg;
   }
-
-//  /**
-//   * Get the class of the {@link IndexDataProvider} currently in use.
-//   *
-//   * @return DataProvider class
-//   */
-//  protected final Class<? extends IndexDataProvider> getDataProviderClass() {
-//    if (this.dataProvType == null) {
-//      return TestIndexDataProvider.class;
-//    }
-//    return this.dataProvType;
-//  }
 
   /**
    * Get the name of the {@link IndexDataProvider} currently in use.

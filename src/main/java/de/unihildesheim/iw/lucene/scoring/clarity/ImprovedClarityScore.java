@@ -221,7 +221,7 @@ public final class ImprovedClarityScore
     // set configuration
     instance.dataProv = builder.idxDataProvider;
     instance.idxReader = builder.idxReader;
-    instance.metrics = Metrics.getInstance(builder.idxDataProvider);
+    instance.metrics = new Metrics(builder.idxDataProvider);
     instance.isTemporary = builder.isTemporary;
     instance.setConfiguration(builder.configuration);
 
@@ -351,11 +351,6 @@ public final class ImprovedClarityScore
    * Parse the configuration and do some simple pre-checks.
    */
   private void parseConfig() {
-    LOG.debug("conf={}", this.conf);
-    LOG.debug("fb={}", this.conf.getMinFeedbackDocumentsCount());
-    LOG.debug("m={}", this.metrics);
-    LOG.debug("mc={}", this.metrics.collection);
-    LOG.debug("mc:n={}", this.metrics.collection.numberOfDocuments());
     if (this.conf.getMinFeedbackDocumentsCount() > this.metrics.collection.
         numberOfDocuments()) {
       throw new IllegalStateException(

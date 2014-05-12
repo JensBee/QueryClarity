@@ -24,10 +24,19 @@ import org.apache.lucene.index.MultiFields;
 import org.junit.Test;
 
 import java.io.File;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Test for {@link TestIndexDataProvider}.
@@ -113,7 +122,7 @@ public final class TestIndexDataProviderTest
     initEnvironment(null, null);
     // stopwords are already removed
     final Collection<String> qTerms = TestIndexDataProvider.util
-        .getQueryObj(this.referenceIndex).getQueryTerms();
+        .getQueryObj().getQueryTerms();
     for (String term : qTerms) {
       final long result = this.referenceIndex.getTermFrequency(new ByteArray
           (term.getBytes("UTF-8")));
@@ -181,8 +190,8 @@ public final class TestIndexDataProviderTest
     }
     // stopwords are already removed
     final Collection<String> qTerms = TestIndexDataProvider.util.getQueryObj
-        (oQueryTermsStr.toArray(new String[oQueryTermsStr.size()]),
-            this.referenceIndex).getQueryTerms();
+        (oQueryTermsStr.toArray(new String[oQueryTermsStr.size()]))
+        .getQueryTerms();
     for (String term : qTerms) {
       final long result =
           this.referenceIndex.getTermFrequency(new ByteArray(term.getBytes(
@@ -234,8 +243,7 @@ public final class TestIndexDataProviderTest
   @Test
   public void testGetActiveFieldNames()
       throws Exception {
-    final Set<String> aFields = IndexTestUtil.getRandomFields(
-        this.referenceIndex);
+    final Set<String> aFields = this.referenceIndex.util.getRandomFields();
     initEnvironment(aFields, null);
     final Collection<String> result = this.referenceIndex.getDocumentFields();
 

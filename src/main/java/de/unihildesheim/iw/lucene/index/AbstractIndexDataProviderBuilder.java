@@ -38,8 +38,7 @@ import java.util.Set;
  *
  * @author Jens Bertram
  */
-public abstract class AbstractIndexDataProviderBuilder<T extends
-    AbstractIndexDataProvider>
+public abstract class AbstractIndexDataProviderBuilder<I, T>
     implements Buildable<T> {
 
   /**
@@ -101,13 +100,13 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
 
   protected Long lastCommitGeneration = null;
 
-  /**
-   * Builds the instance.
-   *
-   * @return New instance
-   */
-  public abstract T build()
-      throws Exception;
+//  /**
+//   * Builds the instance.
+//   *
+//   * @return New instance
+//   */
+//  public abstract T build()
+//      throws Exception;
 
   /**
    * Constructor setting the implementation identifier for the cache.
@@ -141,10 +140,10 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * @param name Cache name
    * @return Self reference
    */
-  public AbstractIndexDataProviderBuilder loadCache(final String name) {
+  public final I loadCache(final String name) {
     this.persistenceBuilder.name(createCacheName(name));
     this.persistenceBuilder.get();
-    return this;
+    return (I) this;
   }
 
   /**
@@ -153,10 +152,10 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * @param name Cache name
    * @return Self reference
    */
-  public AbstractIndexDataProviderBuilder createCache(final String name) {
+  public final I createCache(final String name) {
     this.persistenceBuilder.name(createCacheName(name));
     this.persistenceBuilder.make();
-    return this;
+    return (I) this;
   }
 
   /**
@@ -165,10 +164,10 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * @param name Cache name
    * @return Self reference
    */
-  public AbstractIndexDataProviderBuilder loadOrCreateCache(final String name) {
+  public I loadOrCreateCache(final String name) {
     this.persistenceBuilder.name(createCacheName(name));
     this.persistenceBuilder.makeOrGet();
-    return this;
+    return (I) this;
   }
 
   /**
@@ -177,13 +176,13 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * @param words List of stopwords. May be empty.
    * @return self reference
    */
-  public AbstractIndexDataProviderBuilder stopwords(final Set<String> words) {
+  public final I stopwords(final Set<String> words) {
     if (words == null) {
       throw new IllegalArgumentException("Stopwords were null.");
     }
     this.stopwords = words;
     this.persistenceBuilder.stopwords(stopwords);
-    return this;
+    return (I) this;
   }
 
   /**
@@ -192,14 +191,14 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * @param fields List of field names. May be empty.
    * @return self reference
    */
-  public AbstractIndexDataProviderBuilder documentFields(
+  public final I documentFields(
       final Set<String> fields) {
     if (fields == null) {
       throw new IllegalArgumentException("Fields were null.");
     }
     this.documentFields = fields;
     this.persistenceBuilder.documentFields(fields);
-    return this;
+    return (I) this;
   }
 
   /**
@@ -207,9 +206,9 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    *
    * @return self reference
    */
-  public AbstractIndexDataProviderBuilder temporary() {
+  public final I temporary() {
     this.isTemporary = true;
-    return this;
+    return (I) this;
   }
 
   /**
@@ -221,7 +220,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * was found in the directory or if reading from this directory is not
    * allowed.
    */
-  public AbstractIndexDataProviderBuilder indexPath(final String filePath)
+  public final I indexPath(final String filePath)
       throws IOException {
     if (filePath == null || filePath.trim().isEmpty()) {
       throw new IllegalArgumentException("Index path was empty.");
@@ -253,7 +252,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
     }
 
     this.idxPath = idxDir;
-    return this;
+    return (I) this;
   }
 
   /**
@@ -266,13 +265,13 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * directory is not allowed.
    * @see Persistence#tryCreateDataPath(String)
    */
-  public final AbstractIndexDataProviderBuilder dataPath(
+  public final I dataPath(
       final String filePath)
       throws IOException {
     this.dataPath = null;
     this.dataPath = Persistence.tryCreateDataPath(filePath);
     this.persistenceBuilder.dataPath(FileUtils.getPath(this.dataPath));
-    return this;
+    return (I) this;
   }
 
   /**
@@ -281,18 +280,18 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * @param reader
    * @return
    */
-  public AbstractIndexDataProviderBuilder indexReader(final IndexReader
+  public I indexReader(final IndexReader
       reader) {
     if (reader == null) {
       throw new IllegalArgumentException("IndexReader was null.");
     }
     this.idxReader = reader;
-    return this;
+    return (I) this;
   }
 
-  public AbstractIndexDataProviderBuilder warmup() {
+  public I warmup() {
     this.doWarmUp = true;
-    return this;
+    return (I) this;
   }
 
   /**

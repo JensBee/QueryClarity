@@ -17,17 +17,23 @@
 package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.lucene.MultiIndexDataProviderTestCase;
+import de.unihildesheim.iw.lucene.AbstractMultiIndexDataProviderTestCase;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
+import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -39,7 +45,13 @@ import static org.junit.Assert.assertTrue;
  */
 @RunWith(Parameterized.class)
 public final class QueryUtilsTest
-    extends MultiIndexDataProviderTestCase {
+    extends AbstractMultiIndexDataProviderTestCase {
+
+  /**
+   * Logger instance for this class.
+   */
+  private static final Logger LOG = LoggerFactory.getLogger(
+      QueryUtilsTest.class);
 
   /**
    * Initialize test with the current parameter.
@@ -49,7 +61,7 @@ public final class QueryUtilsTest
    */
   public QueryUtilsTest(
       final DataProviders dataProv,
-      final MultiIndexDataProviderTestCase.RunType rType) {
+      final AbstractMultiIndexDataProviderTestCase.RunType rType) {
     super(dataProv, rType);
   }
 
@@ -62,9 +74,9 @@ public final class QueryUtilsTest
   public void testGetUniqueQueryTerms()
       throws Exception {
     final int termsCount = RandomValue.getInteger(3, 100);
-    final Collection<ByteArray> termsBw = new HashSet<>(termsCount);
-    final Collection<String> terms = new HashSet<>(termsCount);
-    final Collection<String> stopwords = this.referenceIndex.getStopwords();
+    final Set<ByteArray> termsBw = new HashSet<>(termsCount);
+    final List<String> terms = new ArrayList<>(termsCount);
+    final Set<String> stopwords = referenceIndex.getStopwords();
 
     for (int i = 0; i < termsCount; i++) {
       final String term = RandomValue.getString(1, 15);
@@ -75,13 +87,24 @@ public final class QueryUtilsTest
       terms.add(term);
     }
 
-    final String queryString = referenceIndex.util.getQueryString(terms.toArray(
-        new String[terms.size()]));
-    final Collection<ByteArray> result = new QueryUtils(this.referenceIndex
-        .getIndexReader(), this.referenceIndex.getDocumentFields())
+    final String queryString = TestIndexDataProvider.util.getQueryString(
+        terms.toArray(new String[terms.size()]));
+    LOG.debug("QS->{}", queryString);
+    final Set<ByteArray> result = new QueryUtils(referenceIndex
+        .getIndexReader(), referenceIndex.getDocumentFields())
         .getUniqueQueryTerms(queryString);
 
-    assertEquals(msg("Terms amount mismatch."), termsBw.size(), result.size());
+    // manual stopword removal
+    final Iterator<ByteArray> rt = result.iterator();
+    while (rt.hasNext()) {
+      if (stopwords.contains(ByteArrayUtils.utf8ToString(rt.next()))) {
+        rt.remove();
+      }
+    }
+
+    LOG.debug("A={} B={}", termsBw, result);
+    assertEquals(msg("Terms amount mismatch."), termsBw.size(),
+        result.size());
     assertTrue(msg("Term list content differs."), result.containsAll(termsBw));
   }
 
@@ -95,9 +118,9 @@ public final class QueryUtilsTest
   public void testGetAllQueryTerms()
       throws Exception {
     final int termsCount = RandomValue.getInteger(3, 100);
-    final Collection<ByteArray> termsBw = new ArrayList<>(termsCount);
-    final Collection<String> terms = new ArrayList<>(termsCount);
-    final Collection<String> stopwords = this.referenceIndex.getStopwords();
+    final List<ByteArray> termsBw = new ArrayList<>(termsCount);
+    final List<String> terms = new ArrayList<>(termsCount);
+    final Set<String> stopwords = referenceIndex.getStopwords();
 
     for (int i = 0; i < termsCount; i++) {
       final String term = RandomValue.getString(1, 15);
@@ -112,11 +135,19 @@ public final class QueryUtilsTest
     terms.addAll(terms);
     termsBw.addAll(termsBw);
 
-    final String queryString = referenceIndex.util.getQueryString(terms.toArray(
-        new String[termsCount]));
-    final Collection<ByteArray> result = new QueryUtils(this.referenceIndex
-        .getIndexReader(), this.referenceIndex.getDocumentFields())
+    final String queryString = TestIndexDataProvider.util.getQueryString(
+        terms.toArray(new String[termsCount]));
+    final Collection<ByteArray> result = new QueryUtils(referenceIndex
+        .getIndexReader(), referenceIndex.getDocumentFields())
         .getAllQueryTerms(queryString);
+
+    // manual stopword removal
+    final Iterator<ByteArray> rt = result.iterator();
+    while (rt.hasNext()) {
+      if (stopwords.contains(ByteArrayUtils.utf8ToString(rt.next()))) {
+        rt.remove();
+      }
+    }
 
     assertTrue(msg("Not all terms returned."), result.containsAll(termsBw));
 

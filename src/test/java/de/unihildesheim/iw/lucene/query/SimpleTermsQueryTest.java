@@ -17,7 +17,7 @@
 package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.lucene.MultiIndexDataProviderTestCase;
+import de.unihildesheim.iw.lucene.AbstractMultiIndexDataProviderTestCase;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.RandomValue;
@@ -43,7 +43,7 @@ import static org.junit.Assert.fail;
  */
 @RunWith(Parameterized.class)
 public final class SimpleTermsQueryTest
-    extends MultiIndexDataProviderTestCase {
+    extends AbstractMultiIndexDataProviderTestCase {
 
   /**
    * Setup test using a defined {@link IndexDataProvider}.
@@ -53,7 +53,7 @@ public final class SimpleTermsQueryTest
    */
   public SimpleTermsQueryTest(
       final DataProviders dataProv,
-      final MultiIndexDataProviderTestCase.RunType rType) {
+      final AbstractMultiIndexDataProviderTestCase.RunType rType) {
     super(dataProv, rType);
   }
 

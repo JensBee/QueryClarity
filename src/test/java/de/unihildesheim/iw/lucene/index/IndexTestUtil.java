@@ -18,17 +18,13 @@ package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.Tuple;
-import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
 
 /**
  * Utility class for testing referenceIndex related functions.
@@ -51,42 +47,6 @@ public final class IndexTestUtil {
   }
 
   /**
-   * Picks some (1 to n) terms from the referenceIndex.
-   *
-   * @param referenceIndex Data provider
-   * @return Stop words term collection
-   */
-  public static Set<String> getRandomStopWords(
-      final TestIndexDataProvider referenceIndex) {
-    Iterator<ByteArray> termsIt = referenceIndex.getTermsIterator();
-    @SuppressWarnings("CollectionWithoutInitialCapacity")
-    final Set<String> stopWords = new HashSet<>();
-    while (termsIt.hasNext()) {
-      if (RandomValue.getBoolean()) {
-        stopWords.add(ByteArrayUtils.utf8ToString(termsIt.next()));
-      } else {
-        termsIt.next();
-      }
-    }
-    if (stopWords.isEmpty()) {
-      stopWords.add(ByteArrayUtils.utf8ToString(new ArrayList<>(
-          referenceIndex.reference.getTermSet()).get(0)));
-    }
-    return stopWords;
-  }
-
-  /**
-   * Get random referenceIndex fields.
-   *
-   * @param referenceIndex {@link TestIndexDataProvider}
-   * @return List of fields set
-   */
-  public static Set<String> getRandomFields(
-      final TestIndexDataProvider referenceIndex) {
-    return referenceIndex.util.getRandomFields();
-  }
-
-  /**
    * Generate a collection of termData for testing. A Tuple4 consists of
    * <tt>(DocumentId, term, key, value)</tt>. All fields of this tuple are
    * random generated.
@@ -103,26 +63,6 @@ public final class IndexTestUtil {
       final IndexDataProvider index, final int amount)
       throws UnsupportedEncodingException {
     return generateTermData(index, null, null, amount);
-  }
-
-  /**
-   * Generate a collection of termData for testing. A Tuple4 consists of
-   * <tt>(DocumentId, term, key, value)</tt>. All fields of this tuple are
-   * random generated.
-   *
-   * @param index DataProvider to generate valid document ids, null to generate
-   * random ones
-   * @param key Key to identify the data
-   * @param amount Number of test items to create
-   * @return Collection of test data items
-   * @throws java.io.UnsupportedEncodingException Thrown, if a term could not be
-   * encoded to target charset
-   */
-  public static Collection<Tuple.Tuple4<
-      Integer, ByteArray, String, Integer>> generateTermData(
-      final IndexDataProvider index, final String key, final int amount)
-      throws UnsupportedEncodingException {
-    return generateTermData(index, null, key, amount);
   }
 
   /**

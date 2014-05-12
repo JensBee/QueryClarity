@@ -17,7 +17,7 @@
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.lucene.MultiIndexDataProviderTestCase;
+import de.unihildesheim.iw.lucene.AbstractMultiIndexDataProviderTestCase;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.Metrics;
@@ -49,7 +49,7 @@ import static org.junit.Assert.fail;
  */
 @RunWith(Parameterized.class)
 public final class DefaultClarityScoreTest
-    extends MultiIndexDataProviderTestCase {
+    extends AbstractMultiIndexDataProviderTestCase {
 
   /**
    * Logger instance for this class.
@@ -70,15 +70,16 @@ public final class DefaultClarityScoreTest
    */
   public DefaultClarityScoreTest(
       final DataProviders dataProv,
-      final MultiIndexDataProviderTestCase.RunType rType) {
+      final AbstractMultiIndexDataProviderTestCase.RunType rType) {
     super(dataProv, rType);
   }
 
   private DefaultClarityScore.Builder getInstanceBuilder()
       throws IOException {
     return new DefaultClarityScore.Builder()
-        .indexDataProvider(referenceIndex)
+        .indexDataProvider(this.index)
         .dataPath(TestIndexDataProvider.reference.getDataDir())
+        .indexReader(referenceIndex.getIndexReader())
         .createCache("test-" + RandomValue.getString(16))
         .temporary();
   }
@@ -93,7 +94,7 @@ public final class DefaultClarityScoreTest
    */
   private double calcDefaultDocumentModel(final double langmodelWeight,
       final ByteArray term) {
-    final Metrics metrics = Metrics.getInstance(referenceIndex);
+    final Metrics metrics = new Metrics(this.index);
     return (1 - langmodelWeight) * metrics.collection.relTf(term);
   }
 
@@ -126,7 +127,7 @@ public final class DefaultClarityScoreTest
    * @return collection distribution for the given term
    */
   private double calc_pc(final ByteArray term) {
-    final Metrics metrics = Metrics.getInstance(referenceIndex);
+    final Metrics metrics = new Metrics(this.index);
     return metrics.collection.relTf(term);
   }
 
@@ -218,14 +219,14 @@ public final class DefaultClarityScoreTest
   @SuppressWarnings("checkstyle:magicnumber")
   public void testCalcDocumentModel()
       throws Exception {
-    final Metrics metrics = Metrics.getInstance(referenceIndex);
+    final Metrics metrics = new Metrics(this.index);
     final DefaultClarityScoreConfiguration dcc
         = new DefaultClarityScoreConfiguration();
     final DefaultClarityScore instance = getInstanceBuilder()
         .configuration(dcc)
         .build();
 
-    final Iterator<Integer> docIdIt = referenceIndex.getDocumentIdIterator();
+    final Iterator<Integer> docIdIt = this.index.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
       final DocumentModel docModel = metrics.getDocumentModel(docId);
@@ -252,7 +253,7 @@ public final class DefaultClarityScoreTest
   @SuppressWarnings("checkstyle:magicnumber")
   public void testPreCalcDocumentModels()
       throws Exception {
-    final Metrics metrics = Metrics.getInstance(referenceIndex);
+    final Metrics metrics = new Metrics(this.index);
     final DefaultClarityScoreConfiguration dcc
         = new DefaultClarityScoreConfiguration();
     final DefaultClarityScore instance = getInstanceBuilder()
@@ -260,7 +261,7 @@ public final class DefaultClarityScoreTest
         .build();
     instance.preCalcDocumentModels();
 
-    final Iterator<Integer> docIdIt = referenceIndex.getDocumentIdIterator();
+    final Iterator<Integer> docIdIt = this.index.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
       final DocumentModel docModel = metrics.getDocumentModel(docId);
@@ -289,7 +290,7 @@ public final class DefaultClarityScoreTest
   @Test
   public void testCalculateClarity()
       throws Exception {
-    final Metrics metrics = Metrics.getInstance(referenceIndex);
+    final Metrics metrics = new Metrics(this.index);
     final String queryString = TestIndexDataProvider.util.getQueryString();
     final DefaultClarityScoreConfiguration dcc
         = new DefaultClarityScoreConfiguration();

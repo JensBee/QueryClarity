@@ -17,8 +17,9 @@
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.lucene.MultiIndexDataProviderTestCase;
+import de.unihildesheim.iw.lucene.AbstractMultiIndexDataProviderTestCase;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
+import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.iw.util.MathUtils;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -39,7 +40,7 @@ import static org.junit.Assert.assertEquals;
  */
 @RunWith(Parameterized.class)
 public final class SimplifiedClarityScoreTest
-    extends MultiIndexDataProviderTestCase {
+    extends AbstractMultiIndexDataProviderTestCase {
 
   /**
    * Logger instance for this class.
@@ -60,14 +61,14 @@ public final class SimplifiedClarityScoreTest
    */
   public SimplifiedClarityScoreTest(
       final DataProviders dataProv,
-      final MultiIndexDataProviderTestCase.RunType rType) {
+      final AbstractMultiIndexDataProviderTestCase.RunType rType) {
     super(dataProv, rType);
   }
 
   private SimplifiedClarityScore.Builder getInstanceBuilder()
       throws IOException {
     return new SimplifiedClarityScore.Builder()
-        .indexDataProvider(referenceIndex);
+        .indexDataProvider(this.index);
   }
 
   /**
@@ -78,7 +79,7 @@ public final class SimplifiedClarityScoreTest
   @Test
   public void testCalculateClarity()
       throws Exception {
-    final String query = this.referenceIndex.util.getQueryString();
+    final String query = TestIndexDataProvider.util.getQueryString();
     final SimplifiedClarityScore instance = getInstanceBuilder().build();
 
     final Collection<ByteArray> queryTerms = new ArrayList<>(15);
@@ -87,8 +88,8 @@ public final class SimplifiedClarityScoreTest
     }
 
     final double ql = Integer.valueOf(queryTerms.size()).doubleValue();
-    final double tokenColl = Long.valueOf(referenceIndex.getUniqueTermsCount()).
-        doubleValue();
+    final double tokenColl = Long.valueOf(referenceIndex
+        .getUniqueTermsCount()).doubleValue();
 
     double score = 0;
     for (ByteArray term : queryTerms) {
@@ -99,7 +100,8 @@ public final class SimplifiedClarityScoreTest
         }
       }
       final double pml = qtf / ql;
-      final double pcoll = referenceIndex.getTermFrequency(term).doubleValue()
+      final double pcoll = referenceIndex.getTermFrequency(term)
+          .doubleValue()
           / tokenColl;
       score += pml * MathUtils.log2(pml / pcoll);
     }
@@ -113,15 +115,6 @@ public final class SimplifiedClarityScoreTest
 
     assertEquals(msg("Score mismatch."), score, result.getScore(),
         ALLOWED_SCORE_DELTA);
-  }
-
-  /**
-   * Test of setConfiguration method, of class SimplifiedClarityScore.
-   */
-  @SuppressWarnings("EmptyMethod")
-  @Test
-  public void testSetConfiguration() {
-    // not implemented
   }
 
 }
