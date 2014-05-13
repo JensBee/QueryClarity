@@ -31,6 +31,7 @@ import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.iw.util.concurrent.processing.Source;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
+import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.mapdb.BTreeKeySerializer;
@@ -313,7 +314,7 @@ public final class TestIndexDataProvider
     }
     final Map<Integer, String[]> idxMap = DBMaker.newTempTreeMap();
     new Processing(
-        new Target.TargetFuncCall<>(
+        new TargetFuncCall<>(
             new CollectionSource<>(latch),
             new DocCreator(idxMap, seedTermList, fieldsCount)
         )
@@ -1103,7 +1104,7 @@ public final class TestIndexDataProvider
    */
   @SuppressWarnings("PublicInnerClass")
   public final class DocCreator
-      extends Target.TargetFunc<Integer> {
+      extends TargetFuncCall.TargetFunc<Integer> {
 
     /**
      * Seed list with document terms.

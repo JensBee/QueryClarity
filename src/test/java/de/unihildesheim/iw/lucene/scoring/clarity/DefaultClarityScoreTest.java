@@ -30,6 +30,7 @@ import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
+import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -211,7 +212,7 @@ public final class DefaultClarityScoreTest
     final Collection<ByteArray> fbTerms = this.index.getDocumentsTermSet
         (fbDocIds);
     new Processing().setSourceAndTarget(
-        new Target.TargetFuncCall<>(
+        new TargetFuncCall<>(
             new CollectionSource<>(fbTerms),
             new PartialScoreCalculatorTarget(pScore, langModelWeight,
                 feedbackDocs, query)
@@ -245,7 +246,7 @@ public final class DefaultClarityScoreTest
         .build();
 
     new Processing().setSourceAndTarget(
-        new Target.TargetFuncCall<>(
+        new TargetFuncCall<>(
             this.index.getDocumentIdSource(),
             new DocModelCalculatorTarget(metrics, instance, dcc)
         )
@@ -287,7 +288,7 @@ public final class DefaultClarityScoreTest
     instance.preCalcDocumentModels();
 
     new Processing().setSourceAndTarget(
-        new Target.TargetFuncCall<>(
+        new TargetFuncCall<>(
             this.index.getDocumentIdSource(),
             new DocModelCalculatorTarget(metrics, instance, dcc)
         )
@@ -368,7 +369,7 @@ public final class DefaultClarityScoreTest
    * {@link Processing} {@link Target} for document model calculation.
    */
   private final class DocModelCalculatorTarget
-      extends Target.TargetFunc<Integer> {
+      extends TargetFuncCall.TargetFunc<Integer> {
 
     private final Metrics metrics;
     private final DefaultClarityScore instance;
@@ -406,7 +407,7 @@ public final class DefaultClarityScoreTest
    * clarity score.
    */
   private final class PartialScoreCalculatorTarget
-      extends Target.TargetFunc<ByteArray> {
+      extends TargetFuncCall.TargetFunc<ByteArray> {
 
     private final AtomicDouble target;
     private final double lmw;

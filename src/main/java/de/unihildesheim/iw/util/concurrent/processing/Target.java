@@ -20,7 +20,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * {@link Target} for a processing {@link Source}. Implements {@link Runnable}
@@ -29,7 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * @param <T> Type that this {@link Target} accepts
  */
 public abstract class Target<T>
-    implements Runnable {
+    implements Callable<Boolean> {
 
   /**
    * Logger instance for this class.
@@ -126,173 +125,22 @@ public abstract class Target<T>
   /**
    * Equivalent for <tt>run()</tt> function called by abstract Target class.
    *
-   * @throws java.lang.Exception Any exception is catched by main function
+   * @throws java.lang.Exception
    */
   public abstract void runProcess()
       throws Exception;
 
-  @Override
-  public final void run() {
+  public final Boolean call()
+      throws Exception {
     try {
       LOG.trace("({}) Starting.", getName());
       getSource().awaitStart();
       runProcess();
-    } catch (ProcessingException.SourceHasFinishedException ex) {
-      LOG.error("({}) Source has finished unexpectedly.", getName(), ex);
-    } catch (Exception ex) { // make sure we catch everything
-      LOG.error("({}) Caught exception. cause={}", getName(), ex, ex);
+      return Boolean.TRUE; // simple flag indication success
     } finally {
       this.terminate = true;
       LOG.trace("({}) Terminating.", getName());
       this.latch.countDown();
     }
-  }
-
-  /**
-   * Simple processing target calling a single function on each object.
-   *
-   * @param <T> Type of data to process
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public static final class TargetFuncCall<T>
-      extends Target<T> {
-
-    /**
-     * Function to call for each element.
-     */
-    private final TargetFunc<T> tFunc;
-
-    /**
-     * Create a new {@link Processing} target invoking a function for each
-     * element.
-     *
-     * @param newSource Source providing items
-     * @param func Function to call
-     */
-    public TargetFuncCall(final Source<T> newSource, final TargetFunc<T> func) {
-      super(newSource);
-      if (func == null) {
-        throw new IllegalArgumentException("Target function was null.");
-      }
-      this.tFunc = func;
-    }
-
-    @Override
-    public Target<T> newInstance() {
-      return new TargetFuncCall<>(getSource(), this.tFunc);
-    }
-
-    @Override
-    public void runProcess()
-        throws Exception {
-      while (!isTerminating()) {
-        T data;
-        try {
-          data = getSource().next();
-        } catch (ProcessingException.SourceHasFinishedException ex) {
-          break;
-        }
-
-        this.tFunc.call(data);
-      }
-    }
-
-  }
-
-  /**
-   * Function implementation for {@link TargetFuncCall}.
-   *
-   * @param <T> Type to process
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public abstract static class TargetFunc<T> {
-
-    /**
-     * Gets called with the current item
-     *
-     * @param data Current item
-     */
-    public abstract void call(final T data);
-
-    /**
-     * Get the name of this class.
-     *
-     * @return Name
-     */
-    public final String getName() {
-      return this.getClass().getSimpleName() + "-" + this.hashCode();
-    }
-  }
-
-  /**
-   * Debug {@link Target} to test {@link Source}es.
-   *
-   * @param <T> Type of this target
-   */
-  @SuppressWarnings("ProtectedInnerClass")
-  protected static final class TargetTest<T>
-      extends Target<T>
-      implements
-      Callable<Long> {
-
-    /**
-     * Synchronization lock.
-     */
-    private final Object syncLock;
-    /**
-     * Flag to indicate, if processing is done.
-     */
-    private boolean done = false;
-    /**
-     * Counter of processed items.
-     */
-    private final AtomicLong itemCount = new AtomicLong(0);
-
-    /**
-     * Creates a new debugging {@link Target}. Only one instance may be run.
-     *
-     * @param newSource Source to use
-     */
-    public TargetTest(final Source<T> newSource) {
-      super(newSource);
-      this.syncLock = new Object();
-    }
-
-    @Override
-    public Target<T> newInstance() {
-      return new TargetTest<>(getSource());
-    }
-
-    @Override
-    public void runProcess()
-        throws Exception {
-      while (!isTerminating()) {
-        try {
-          final T o = getSource().next();
-          if (o != null) {
-            itemCount.incrementAndGet();
-          }
-        } catch (ProcessingException.SourceHasFinishedException ex) {
-          break;
-        }
-      }
-      synchronized (this.syncLock) {
-        this.done = true;
-        this.syncLock.notifyAll();
-      }
-    }
-
-    @Override
-    public Long call()
-        throws Exception {
-      super.run();
-      synchronized (this.syncLock) {
-        while (!this.done) {
-          this.syncLock.wait();
-        }
-      }
-      return itemCount.get();
-    }
-
   }
 }

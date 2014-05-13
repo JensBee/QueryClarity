@@ -133,7 +133,8 @@ public final class Processing {
    * @param newTarget Processing target
    * @return self reference
    */
-  public Processing setSourceAndTarget(final Target newTarget) {
+  public Processing setSourceAndTarget(final Target
+      newTarget) {
     if (newTarget == null) {
       throw new IllegalArgumentException("Target was null.");
     }
@@ -167,56 +168,6 @@ public final class Processing {
       Runtime.getRuntime().addShutdownHook(new Thread(new ShutDownHook(),
           "Processing_shutdownHandler"));
     }
-  }
-
-  /**
-   * Run a debug {@link Target} on the given {@link Source}.
-   *
-   * @return Items processed by the debug {@link Target}
-   */
-  public Long debugTestSource() {
-    if (this.source == null) {
-      throw new IllegalStateException("No source set.");
-    }
-    initPool();
-    Long result = null;
-    final int threadCount = 1;
-    this.threadTrackingLatch = new CountDownLatch(threadCount);
-
-    LOG.trace("Spawning {} Processing-Target thread.", threadCount);
-    final Target<Object> aTarget = new Target.TargetTest<Object>(source);
-    aTarget.setLatch(this.threadTrackingLatch);
-
-    LOG.trace("Starting Processing-Source.");
-    final Future sourceThread = executor.runSource(this.source);
-    LOG.trace("Starting Processing-Target thread.");
-    final Future targetThread = executor.runTask((Callable) aTarget);
-
-    // wait until source has finished
-    try {
-      sourceThread.get();
-    } catch (InterruptedException | ExecutionException ex) {
-      LOG.error("Caught exception while tracking source state.", ex);
-    }
-
-    LOG.trace("Processing-Source finished. Terminating Target.");
-    aTarget.terminate();
-
-    LOG.trace("Awaiting Processing-Target termination.");
-    try {
-      this.threadTrackingLatch.await();
-    } catch (InterruptedException ex) {
-      LOG.error("Processing interrupted.", ex);
-    }
-
-    try {
-      result = (Long) targetThread.get();
-    } catch (InterruptedException | ExecutionException ex) {
-      LOG.error("Caught exception while tracking source state.", ex);
-    }
-
-    LOG.trace("Processing finished.");
-    return result;
   }
 
   /**
@@ -254,6 +205,8 @@ public final class Processing {
     initPool();
 
     final Collection<Target> targets = new ArrayList<>(threadCount);
+    final Collection<Future<Boolean>> targetStates = new ArrayList<>
+        (threadCount);
     this.threadTrackingLatch = new CountDownLatch(threadCount);
 
     LOG.debug("Spawning {} Processing-Target threads.", threadCount);
@@ -264,14 +217,14 @@ public final class Processing {
     }
 
     LOG.trace("Starting Processing-Source.");
-    final Future sourceThread = executor.runSource(this.source);
+    final Future<Long> sourceThread = executor.runSource(this.source);
     LOG.trace("Starting Processing-Observer.");
     final SourceObserver sourceObserver = new SourceObserver(this.source);
-    final Future sourceTime = executor.runTask(sourceObserver);
+    final Future<Double> sourceTime = executor.runObserver(sourceObserver);
 
     LOG.trace("Starting Processing-Target threads.");
     for (final Target aTarget : targets) {
-      executor.runTask(aTarget);
+      targetStates.add(executor.runTarget(aTarget));
     }
 
     Long processedItems = null;
@@ -280,7 +233,7 @@ public final class Processing {
       this.threadTrackingLatch.await();
       try {
         // retrieve result from source
-        processedItems = (Long) sourceThread.get(3, TimeUnit.SECONDS);
+        processedItems = sourceThread.get(3, TimeUnit.SECONDS);
       } catch (TimeoutException ex) {
         throw new ProcessingException.TargetFailedException(
             "Source finished without result. "
@@ -288,6 +241,7 @@ public final class Processing {
         );
       }
     } catch (InterruptedException | ExecutionException ex) {
+      // TODO: ugly skip source finished exception
       if (!(ex.getCause() instanceof ProcessingException
           .SourceHasFinishedException)) {
         throw new ProcessingException("Caught exception while tracking source" +
@@ -305,7 +259,12 @@ public final class Processing {
       );
     } catch (InterruptedException | ExecutionException | TimeoutException
         ex) {
-      LOG.debug("Source finished with {} items.", processedItems);
+      // TODO: ugly skip source finished exception
+      if (!(ex.getCause() instanceof ProcessingException
+          .SourceHasFinishedException)) {
+        throw new ProcessingException("Caught exception while tracking source" +
+            " state.", ex);
+      }
     }
 
     LOG.trace("Processing-Source finished. Terminating Targets.");
@@ -318,6 +277,18 @@ public final class Processing {
       this.threadTrackingLatch.await();
     } catch (InterruptedException ex) {
       throw new ProcessingException("Processing interrupted.", ex);
+    }
+
+    // check target states
+    for (Future<Boolean> state : targetStates) {
+      try {
+        state.get();
+      } catch (InterruptedException e) {
+        throw new ProcessingException("Target interrupted.", e);
+      } catch (ExecutionException e) {
+        throw new ProcessingException("Target throwed an exception.",
+            e.getCause());
+      }
     }
 
     LOG.trace("Processing finished.");
@@ -349,17 +320,17 @@ public final class Processing {
           new SynchronousQueue<Runnable>());
     }
 
-    /**
-     * Here we add our jobs to working queue.
-     *
-     * @param task a Runnable task
-     */
-    void runTask(final Runnable task) {
-      if (task == null) {
-        throw new IllegalArgumentException("Task was null.");
-      }
-      threadPool.execute(task);
-    }
+//    /**
+//     * Here we add our jobs to working queue.
+//     *
+//     * @param task a Runnable task
+//     */
+//    void runTask(final Runnable task) {
+//      if (task == null) {
+//        throw new IllegalArgumentException("Task was null.");
+//      }
+//      threadPool.execute(task);
+//    }
 
     /**
      * Submit the {@link Source} to the thread queue, returning a {@link Future}
@@ -368,10 +339,23 @@ public final class Processing {
      * @param task Source runnable
      * @return Future to track the state
      */
-    @SuppressWarnings("unchecked")
-    Future<Object> runSource(final Callable task) {
+    Future<Long> runSource(final Callable<Long> task) {
       if (task == null) {
-        throw new IllegalArgumentException("Task was null.");
+        throw new IllegalArgumentException("Source was null.");
+      }
+      return threadPool.submit(task);
+    }
+
+    /**
+     * Submit the {@link SourceObserver} to the thread queue, returning a {@link
+     * Future} to track it's state.
+     *
+     * @param task Source runnable
+     * @return Future to track the state
+     */
+    Future<Double> runObserver(final Callable<Double> task) {
+      if (task == null) {
+        throw new IllegalArgumentException("Source was null.");
       }
       return threadPool.submit(task);
     }
@@ -380,13 +364,12 @@ public final class Processing {
      * Submit a task to the thread queue, returning a {@link Future} to track
      * it's state.
      *
-     * @param task Task runnable
+     * @param task Target to run
      * @return Future to track the state
      */
-    @SuppressWarnings("unchecked")
-    Future<Object> runTask(final Callable task) {
+    Future<Boolean> runTarget(final Callable<Boolean> task) {
       if (task == null) {
-        throw new IllegalArgumentException("Task was null.");
+        throw new IllegalArgumentException("Target was null.");
       }
       return threadPool.submit(task);
     }

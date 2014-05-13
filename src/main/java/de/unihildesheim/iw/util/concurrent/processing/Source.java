@@ -24,10 +24,10 @@ import java.util.concurrent.Callable;
 
 /**
  * Base class for all {@link Source} implementations.
- * <p>
+ * <p/>
  * A {@link Source} is meant to be used once, so starting it more than one time
  * may lead to unexpected behavior.
- * <p>
+ * <p/>
  * If the {@link Source} has finished processing items it should decrement the
  * latch (if set), to indicate it has finished. This is handled by {@link
  * #stop()} which must be called by the implementing class when finished.
@@ -101,7 +101,6 @@ public abstract class Source<T>
    * already finished
    * @throws java.lang.InterruptedException Thrown, if thread gets interrupted
    */
-  @SuppressWarnings("RedundantThrows")
   public abstract T next()
       throws ProcessingException, InterruptedException;
 

@@ -28,6 +28,7 @@ import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
+import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.DocsEnum;
@@ -263,7 +264,7 @@ public final class DirectIndexDataProvider
           .leaves();
       try {
         new Processing(
-            new Target.TargetFuncCall<>(
+            new TargetFuncCall<>(
                 new CollectionSource<>(arContexts),
                 new DocFreqCalcTarget(getIdxDfMap(),
                     getIdxDocumentIds().size(),
@@ -335,7 +336,7 @@ public final class DirectIndexDataProvider
     final List<AtomicReaderContext> arContexts =
         getIndexReader().getContext().leaves();
     new Processing(
-        new Target.TargetFuncCall<>(
+        new TargetFuncCall<>(
             new CollectionSource<>(arContexts),
             target
         )
@@ -572,7 +573,7 @@ public final class DirectIndexDataProvider
    * {@link Processing} {@link Target} for document term-frequency calculation.
    */
   private static final class DocFreqCalcTarget
-      extends Target.TargetFunc<AtomicReaderContext> {
+      extends TargetFuncCall.TargetFunc<AtomicReaderContext> {
 
     /**
      * Fields to index.
@@ -678,7 +679,7 @@ public final class DirectIndexDataProvider
    * {@link Processing} {@link Target} for collecting index terms.
    */
   private final class IndexTermsCollectorTarget
-      extends Target.TargetFunc<AtomicReaderContext> {
+      extends TargetFuncCall.TargetFunc<AtomicReaderContext> {
 
     /**
      * List of fields to collect terms from.

@@ -25,6 +25,8 @@ import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderTest
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
+import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
+import de.unihildesheim.iw.util.concurrent.processing.TestTargets;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +37,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -332,16 +335,21 @@ public abstract class IndexDataProviderTestCase
    *
    * @param instance {@link IndexDataProvider} implementation to test
    */
-  private void _testGetDocumentIdSource(final IndexDataProvider instance) {
-    final Processing p = new Processing();
+  private void _testGetDocumentIdSource(final IndexDataProvider instance)
+      throws Exception {
 
-    p.setSource(instance.getDocumentIdSource());
+    final AtomicLong counter = new AtomicLong(0);
+    new Processing(
+        new TargetFuncCall<>(
+            instance.getDocumentIdSource(),
+            new TestTargets.FuncCall<Integer>(counter)
+        )
+    ).process((int) referenceIndex.getDocumentCount());
 
     assertEquals(
         msg(instance, "Not all items provided by source or processed by " +
             "target."),
-        this.referenceIndex.getDocumentCount(),
-        p.debugTestSource().longValue()
+        this.referenceIndex.getDocumentCount(), counter.get()
     );
   }
 
@@ -398,14 +406,20 @@ public abstract class IndexDataProviderTestCase
    */
   private void _testGetTermsSource(final IndexDataProvider instance)
       throws Exception {
-    final Processing p = new Processing();
-    p.setSource(instance.getTermsSource());
+
+    final AtomicLong counter = new AtomicLong(0);
+    new Processing(
+        new TargetFuncCall<>(
+            instance.getTermsSource(),
+            new TestTargets.FuncCall<ByteArray>(counter)
+        )
+    ).process((int) referenceIndex.getUniqueTermsCount());
 
     assertEquals(
         msg(instance, "Not all items provided by source or processed by " +
             "target."),
         new HashSet<>(TestIndexDataProvider.reference.getTermList()).size(),
-        p.debugTestSource().longValue()
+        counter.intValue()
     );
   }
 

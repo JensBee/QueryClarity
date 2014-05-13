@@ -35,6 +35,7 @@ import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
+import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
@@ -706,7 +707,7 @@ public final class ImprovedClarityScore
     // remove all terms whose threshold is too low
     try {
       new Processing(
-          new Target.TargetFuncCall<>(
+          new TargetFuncCall<>(
               new CollectionSource<>(fbTerms),
               new FbTermReducerTarget(minDf, reducedFbTerms)
           )
@@ -728,7 +729,7 @@ public final class ImprovedClarityScore
     LOG.debug("Using {} feedback documents.", feedbackDocIds.size());
     try {
       new Processing(
-          new Target.TargetFuncCall<>(
+          new TargetFuncCall<>(
               new CollectionSource<>(reducedFbTerms),
               new ModelCalculatorTarget(feedbackDocIds,
                   this.queryUtils.getAllQueryTerms(query), score)
@@ -768,7 +769,7 @@ public final class ImprovedClarityScore
     } else {
       LOG.info("Pre-calculating models.");
       new Processing(
-          new Target.TargetFuncCall<>(
+          new TargetFuncCall<>(
               this.dataProv.getDocumentIdSource(),
               new DocumentModelCalculatorTarget()
           )
@@ -781,7 +782,7 @@ public final class ImprovedClarityScore
    * {@link Processing} {@link Target} to reduce feedback terms.
    */
   private final class FbTermReducerTarget
-      extends Target.TargetFunc<ByteArray> {
+      extends TargetFuncCall.TargetFunc<ByteArray> {
 
     /**
      * Target to store terms passing through the reducing process.
@@ -818,7 +819,7 @@ public final class ImprovedClarityScore
    * {@link Processing} {@link Target} to calculate document models.
    */
   private final class ModelCalculatorTarget
-      extends Target.TargetFunc<ByteArray> {
+      extends TargetFuncCall.TargetFunc<ByteArray> {
 
     /**
      * Query terms.
@@ -875,7 +876,7 @@ public final class ImprovedClarityScore
    */
   private final class DocumentModelCalculatorTarget
       extends
-      Target.TargetFunc<Integer> {
+      TargetFuncCall.TargetFunc<Integer> {
 
     @Override
     public void call(final Integer docId) {

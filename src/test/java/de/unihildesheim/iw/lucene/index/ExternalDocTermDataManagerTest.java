@@ -22,7 +22,7 @@ import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
-import de.unihildesheim.iw.util.concurrent.processing.Target;
+import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import org.junit.Before;
 import org.junit.Test;
 import org.mapdb.DB;
@@ -110,7 +110,7 @@ public final class ExternalDocTermDataManagerTest
     testData = IndexTestUtil.generateTermData(null, 10000);
 
     new Processing(
-        new Target.TargetFuncCall<>(
+        new TargetFuncCall<>(
             new CollectionSource<>(testData),
             new TermDataTarget(instance)
         )
@@ -122,7 +122,7 @@ public final class ExternalDocTermDataManagerTest
     }
 
     new Processing(
-        new Target.TargetFuncCall<>(
+        new TargetFuncCall<>(
             new CollectionSource<>(testData),
             new TermDataTarget(instance)
         )
@@ -186,7 +186,7 @@ public final class ExternalDocTermDataManagerTest
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class TermDataTarget
-      extends Target.TargetFunc<
+      extends TargetFuncCall.TargetFunc<
       Tuple.Tuple4<Integer, ByteArray, String, Integer>> {
 
     private final ExternalDocTermDataManager dtMan;

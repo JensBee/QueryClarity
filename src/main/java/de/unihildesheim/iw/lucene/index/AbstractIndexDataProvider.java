@@ -26,6 +26,7 @@ import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.iw.util.concurrent.processing.Source;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
+import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.BytesRef;
 import org.mapdb.BTreeKeySerializer;
@@ -626,7 +627,7 @@ abstract class AbstractIndexDataProvider
       LOG.info("Building transient index term cache.");
 
       if (this.documentFields.size() > 1) {
-        new Processing(new Target.TargetFuncCall<>(
+        new Processing(new TargetFuncCall<>(
             new CollectionSource<>(this.documentFields),
             new TermCollectorTarget(this.idxTermsMap.keySet(),
                 this.idxTerms)
@@ -927,7 +928,7 @@ abstract class AbstractIndexDataProvider
    * terms.
    */
   private final class TermCollectorTarget
-      extends Target.TargetFunc<String> {
+      extends TargetFuncCall.TargetFunc<String> {
 
     /**
      * Set to get terms from.

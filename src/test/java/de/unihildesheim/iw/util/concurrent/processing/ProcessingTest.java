@@ -24,6 +24,7 @@ import org.junit.rules.ExpectedException;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.Assert.assertEquals;
 
@@ -71,9 +72,11 @@ public class ProcessingTest
     final Collection<String> coll = new ArrayList<>(1);
     coll.add(RandomValue.getString(1, 10));
     final Source<String> newSource = new CollectionSource<>(coll);
-    final Target<String> newTarget = new Target.TargetTest<>(newSource);
     final Processing instance = new Processing();
-    instance.setSourceAndTarget(newTarget);
+    final TargetFuncCall target = new TargetFuncCall<>(newSource,
+        new TestTargets.FuncCall<String>(new AtomicLong(0)));
+
+    instance.setSourceAndTarget(target);
 
     instance.process();
 
@@ -90,10 +93,12 @@ public class ProcessingTest
     final Collection<String> coll = new ArrayList<>(1);
     coll.add(RandomValue.getString(1, 10));
     final Source<String> newSource = new CollectionSource<>(coll);
-    final Target<String> newTarget = new Target.TargetTest<>(newSource);
-    final Processing instance = new Processing();
 
-    instance.setTarget(newTarget);
+    final Processing instance = new Processing();
+    final TargetFuncCall target = new TargetFuncCall<>(newSource,
+        new TestTargets.FuncCall<String>(new AtomicLong(0)));
+
+    instance.setTarget(target);
 
     exception.expect(IllegalStateException.class);
     // should throw - no source set
@@ -113,11 +118,14 @@ public class ProcessingTest
     Collection<String> coll = new ArrayList<>(1);
     coll.add(RandomValue.getString(1, 10));
     Source<String> newSource = new CollectionSource<>(coll);
-    Target<String> newTarget = new Target.TargetTest<>(newSource);
-    final Processing instance = new Processing();
-    instance.setSourceAndTarget(newTarget);
 
-    instance.process();
+    final AtomicLong counter = new AtomicLong(0);
+    final Processing instance = new Processing();
+    TargetFuncCall target = new TargetFuncCall<>(newSource,
+        new TestTargets.FuncCall<String>(counter));
+
+    instance.setSourceAndTarget(target);
+    instance.process(coll.size());
     Processing.shutDown();
     instance.process();
 
@@ -127,9 +135,10 @@ public class ProcessingTest
       coll.add(RandomValue.getString(1, 10));
     }
     newSource = new CollectionSource<>(coll);
-    newTarget = new Target.TargetTest<>(newSource);
+    target = new TargetFuncCall<>(newSource,
+        new TestTargets.FuncCall<String>(counter));
     Processing.shutDown();
-    instance.setSourceAndTarget(newTarget);
+    instance.setSourceAndTarget(target);
     instance.process();
   }
 
@@ -137,19 +146,25 @@ public class ProcessingTest
    * Test of debugTestSource method, of class Processing.
    */
   @Test
-  public void testDebugTestSource() {
+  public void testDebugTestSource()
+      throws Exception {
     final int collSize = RandomValue.getInteger(100, 10000);
     final Collection<String> coll = new ArrayList<>(collSize);
     for (int i = 0; i < collSize; i++) {
       coll.add(RandomValue.getString(1, 10));
     }
     final Source<String> newSource = new CollectionSource<>(coll);
-    final Target<String> newTarget = new Target.TargetTest<>(newSource);
-    final Processing instance = new Processing();
-    instance.setSourceAndTarget(newTarget);
 
-    final long amount = instance.debugTestSource();
-    assertEquals("Not all items provided by source.", collSize, amount);
+    final AtomicLong counter = new AtomicLong(0);
+    new Processing(
+        new TargetFuncCall<>(
+            newSource,
+            new TestTargets.FuncCall<String>(counter)
+        )
+    ).process(coll.size());
+
+    assertEquals("Not all items provided by source.", collSize,
+        counter.intValue());
   }
 
   /**
@@ -158,19 +173,25 @@ public class ProcessingTest
   @Test
   public void testProcess_0args()
       throws Exception {
-    Collection<String> coll = new ArrayList<>(1);
-    coll.add(RandomValue.getString(1, 10));
-    final Source<String> newSource = new CollectionSource<>(coll);
-    final Target<String> newTarget = new Target.TargetTest<>(newSource);
-    final Processing instance = new Processing();
-    instance.setSourceAndTarget(newTarget);
+    final Collection<String> coll;
 
     final int collSize = RandomValue.getInteger(100, 10000);
     coll = new ArrayList<>(collSize);
     for (int i = 0; i < collSize; i++) {
       coll.add(RandomValue.getString(1, 10));
     }
-    instance.process();
+
+    final Source<String> newSource = new CollectionSource<>(coll);
+
+    final Processing instance = new Processing();
+    final AtomicLong counter = new AtomicLong(0);
+    final TargetFuncCall target = new TargetFuncCall<>(newSource,
+        new TestTargets.FuncCall<String>(counter));
+
+    instance.setSourceAndTarget(target).process();
+
+    assertEquals("Number of processed items differs.", collSize,
+        counter.intValue());
   }
 
   /**
@@ -179,20 +200,25 @@ public class ProcessingTest
   @Test
   public void testProcess_int()
       throws Exception {
-    Collection<String> coll = new ArrayList<>(1);
-    coll.add(RandomValue.getString(1, 10));
-    final Source<String> newSource = new CollectionSource<>(coll);
-    final Target<String> newTarget = new Target.TargetTest<>(newSource);
-    final Processing instance = new Processing();
-    instance.setSourceAndTarget(newTarget);
-
+    final Collection<String> coll;
     final int collSize = RandomValue.getInteger(100, 10000);
     coll = new ArrayList<>(collSize);
     for (int i = 0; i < collSize; i++) {
       coll.add(RandomValue.getString(1, 10));
     }
-    instance.process(RandomValue.getInteger(1, Runtime.getRuntime().
-        availableProcessors()));
+
+    final Source<String> newSource = new CollectionSource<>(coll);
+    final Processing instance = new Processing();
+    final AtomicLong counter = new AtomicLong(0);
+    TargetFuncCall target = new TargetFuncCall<>(newSource,
+        new TestTargets.FuncCall<String>(counter));
+
+    instance.setSourceAndTarget(target).process(
+        RandomValue.getInteger(1, Runtime.getRuntime().
+            availableProcessors())
+    );
+    assertEquals("Number of processed items differs.", collSize,
+        counter.intValue());
   }
 
 }

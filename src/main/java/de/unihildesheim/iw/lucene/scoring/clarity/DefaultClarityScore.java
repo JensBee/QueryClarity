@@ -34,6 +34,7 @@ import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
+import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.Query;
@@ -377,7 +378,7 @@ public final class DefaultClarityScore
       LOG.info("Pre-calculated models are current.");
     } else {
       new Processing(
-          new Target.TargetFuncCall<>(
+          new TargetFuncCall<>(
               this.dataProv.getDocumentIdSource(),
               new DocumentModelCalculatorTarget()
           )
@@ -441,7 +442,7 @@ public final class DefaultClarityScore
         feedbackDocuments.size());
 
     p.setSourceAndTarget(
-        new Target.TargetFuncCall<>(
+        new TargetFuncCall<>(
             new CollectionSource<>(feedbackDocuments),
             new QueryModelCalculatorTarget(queryTerms, queryModels)
         )
@@ -456,7 +457,7 @@ public final class DefaultClarityScore
     LOG.info("Calculating query probability values "
         + "for {} feedback documents.", feedbackDocuments.size());
     p.setSourceAndTarget(
-        new Target.TargetFuncCall<>(
+        new TargetFuncCall<>(
             new CollectionSource<>(termSet),
             new QueryProbabilityCalculatorTarget(
                 this.conf.getLangModelWeight(),
@@ -536,7 +537,7 @@ public final class DefaultClarityScore
    * {@link Processing} {@link Target} for query model calculation.
    */
   private final class QueryModelCalculatorTarget
-      extends Target.TargetFunc<Integer> {
+      extends TargetFuncCall.TargetFunc<Integer> {
 
     /**
      * List of query terms used.
@@ -576,7 +577,7 @@ public final class DefaultClarityScore
    * {@link Processing} {@link Target} for query model calculation.
    */
   private class QueryProbabilityCalculatorTarget
-      extends Target.TargetFunc<ByteArray> {
+      extends TargetFuncCall.TargetFunc<ByteArray> {
 
     /**
      * List of feedback document-ids.
@@ -656,7 +657,7 @@ public final class DefaultClarityScore
    */
   private final class DocumentModelCalculatorTarget
       extends
-      Target.TargetFunc<Integer> {
+      TargetFuncCall.TargetFunc<Integer> {
 
     @Override
     public void call(final Integer docId) {
