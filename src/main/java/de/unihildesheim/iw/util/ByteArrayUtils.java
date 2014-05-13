@@ -66,6 +66,9 @@ public final class ByteArrayUtils {
    * @return String created from bytes
    */
   public static String utf8ToString(final byte[] bytes) {
+    if (bytes == null) {
+      throw new IllegalArgumentException("Bytes were null.");
+    }
     String str = INTERN8.get(bytes);
     if (str == null) {
       try {
@@ -87,6 +90,9 @@ public final class ByteArrayUtils {
    * @return String created from bytes
    */
   public static String utf8ToString(final ByteArray bytes) {
+    if (bytes == null) {
+      throw new IllegalArgumentException("Bytes were null.");
+    }
     return utf8ToString(bytes.bytes);
   }
 
@@ -99,6 +105,9 @@ public final class ByteArrayUtils {
    * @return String created from bytes
    */
   public static String utf16ToString(final byte[] bytes) {
+    if (bytes == null) {
+      throw new IllegalArgumentException("Bytes were null.");
+    }
     String str = INTERN16.get(bytes);
     if (str == null) {
       try {
@@ -120,6 +129,9 @@ public final class ByteArrayUtils {
    * @return String created from bytes
    */
   public static String utf16ToString(final ByteArray bytes) {
+    if (bytes == null) {
+      throw new IllegalArgumentException("Bytes were null.");
+    }
     return utf8ToString(bytes.bytes);
   }
 }

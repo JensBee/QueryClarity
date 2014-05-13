@@ -17,7 +17,7 @@
 package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.lucene.AbstractMultiIndexDataProviderTestCase;
+import de.unihildesheim.iw.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.iw.util.ByteArrayUtils;
@@ -45,7 +45,7 @@ import static org.junit.Assert.assertTrue;
  */
 @RunWith(Parameterized.class)
 public final class QueryUtilsTest
-    extends AbstractMultiIndexDataProviderTestCase {
+    extends MultiIndexDataProviderTestCase {
 
   /**
    * Logger instance for this class.
@@ -61,7 +61,7 @@ public final class QueryUtilsTest
    */
   public QueryUtilsTest(
       final DataProviders dataProv,
-      final AbstractMultiIndexDataProviderTestCase.RunType rType) {
+      final MultiIndexDataProviderTestCase.RunType rType) {
     super(dataProv, rType);
   }
 
@@ -71,6 +71,7 @@ public final class QueryUtilsTest
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
+  @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
   public void testGetUniqueQueryTerms()
       throws Exception {
     final int termsCount = RandomValue.getInteger(3, 100);
@@ -114,7 +115,8 @@ public final class QueryUtilsTest
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
-  @SuppressWarnings("DM_DEFAULT_ENCODING")
+  @SuppressWarnings({"DM_DEFAULT_ENCODING",
+      "PMD.AvoidInstantiatingObjectsInLoops"})
   public void testGetAllQueryTerms()
       throws Exception {
     final int termsCount = RandomValue.getInteger(3, 100);
@@ -153,16 +155,16 @@ public final class QueryUtilsTest
 
     if (termsBw.size() != result.size()) {
       @java.lang.SuppressWarnings("StringBufferWithoutInitialCapacity")
-      StringBuilder sbInitial = new StringBuilder();
+      final StringBuilder sbInitial = new StringBuilder();
 
-      for (ByteArray bw : termsBw) {
+      for (final ByteArray bw : termsBw) {
         sbInitial.append(new String(bw.bytes)).append(' ');
       }
 
       @java.lang.SuppressWarnings("StringBufferWithoutInitialCapacity")
-      StringBuilder sbResult = new StringBuilder();
+      final StringBuilder sbResult = new StringBuilder();
 
-      for (ByteArray bw : result) {
+      for (final ByteArray bw : result) {
         sbResult.append(ByteArrayUtils.utf8ToString(bw)).append(' ');
       }
     }

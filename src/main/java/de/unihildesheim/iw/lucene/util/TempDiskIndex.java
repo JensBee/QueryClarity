@@ -80,6 +80,9 @@ public final class TempDiskIndex {
       final Collection<String[]> documents)
       throws IOException {
     this(fields);
+    if (documents == null || documents.isEmpty()) {
+      throw new IllegalArgumentException("Documents were empty.");
+    }
     addDocs(documents);
   }
 
@@ -91,6 +94,9 @@ public final class TempDiskIndex {
    */
   public TempDiskIndex(final String[] fields)
       throws IOException {
+    if (fields == null || fields.length == 0) {
+      throw new IllegalArgumentException("Fields were empty.");
+    }
     final Analyzer analyzer = new StandardAnalyzer(LuceneDefaults.VERSION,
         CharArraySet.EMPTY_SET);
     final IndexWriterConfig config = new IndexWriterConfig(
@@ -166,6 +172,9 @@ public final class TempDiskIndex {
    */
   public void addDoc(final String[] content)
       throws IOException {
+    if (content == null || content.length == 0) {
+      throw new IllegalArgumentException("Empty content.");
+    }
     addDoc(this.writer, content);
   }
 
@@ -177,8 +186,11 @@ public final class TempDiskIndex {
    */
   public void addDocs(final Collection<String[]> documents)
       throws IOException {
+    if (documents == null || documents.isEmpty()) {
+      throw new IllegalArgumentException("Empty documents list.");
+    }
     // index documents
-    for (String[] doc : documents) {
+    for (final String[] doc : documents) {
       addDoc(this.writer, doc);
     }
     LOG.info("Added {} documents to index", documents.size());
@@ -191,9 +203,10 @@ public final class TempDiskIndex {
    * @param content Content of the document
    * @throws IOException Thrown, if index could not be accessed
    */
+  @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
   private void addDoc(final IndexWriter writer, final String[] content)
       throws IOException {
-    Document doc = new Document();
+    final Document doc = new Document();
     for (int i = 0; i < content.length; i++) {
       doc.add(new VecTextField(this.idxFields[i], content[i],
           Field.Store.NO));

@@ -68,6 +68,9 @@ public final class SourceObserver
    * @param newSource Source whose process to observe
    */
   public SourceObserver(final Source newSource) {
+    if (newSource == null) {
+      throw new IllegalArgumentException("Source was null.");
+    }
     this.terminate = false;
     this.source = newSource;
     this.overallTime = new TimeMeasure();
@@ -102,11 +105,11 @@ public final class SourceObserver
    */
   private void showStatus(final long itemCount, final long lastStatus) {
     final long estimate = (long) ((itemCount - lastStatus) / (lastStatus
-                                                              / overallTime
+        / overallTime
         .getElapsedSeconds()));
     LOG.info("Processing {} of {} items ({}%). "
-             + "{}s since last status. Running for {}. "
-             + "Time left {}.", lastStatus, itemCount,
+            + "{}s since last status. Running for {}. "
+            + "Time left {}.", lastStatus, itemCount,
         (lastStatus * 100) / itemCount,
         runTime.stop().getElapsedSeconds(),
         overallTime.getTimeString(),
@@ -159,7 +162,7 @@ public final class SourceObserver
           }
           this.runTime.start();
         } else if (hasItemCount && step > 0 && lastStatus < status
-                   && status % step == 0) {
+            && status % step == 0) {
           // max wait time not elapsed, check if we should provide
           // a status
           // based on progres

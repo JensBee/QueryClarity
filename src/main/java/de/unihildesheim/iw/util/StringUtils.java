@@ -55,16 +55,22 @@ public final class StringUtils {
    * Joins a string array using a given separator string.
    *
    * @param strings Strings to join
-   * @param seperator Separator char
+   * @param separator Separator char
    * @return Joined string
    */
   public static String join(final List<String> strings,
-      final String seperator) {
+      final String separator) {
+    if (strings == null || strings.isEmpty()) {
+      throw new IllegalArgumentException("Empty string list.");
+    }
+    if (separator == null) {
+      throw new IllegalArgumentException("Separator was null.");
+    }
     @SuppressWarnings("StringBufferWithoutInitialCapacity")
     final StringBuilder joinedStr = new StringBuilder();
     for (int i = 0, il = strings.size(); i < il; i++) {
       if (i > 0) {
-        joinedStr.append(seperator);
+        joinedStr.append(separator);
       }
       joinedStr.append(strings.get(i));
     }
@@ -80,6 +86,15 @@ public final class StringUtils {
    */
   public static Collection<String> split(final String str,
       final String separator) {
+    if (str == null) {
+      throw new IllegalArgumentException("String was null.");
+    }
+    if (separator == null) {
+      throw new IllegalArgumentException("Separator was null.");
+    }
+    if (str.isEmpty() || str.length() <= 1) {
+      return Arrays.asList(new String[]{str});
+    }
     return Arrays.asList(str.split(separator));
   }
 
@@ -91,6 +106,12 @@ public final class StringUtils {
    * @return Lower-cased input string
    */
   public static String lowerCase(final String input) {
+    if (input == null) {
+      throw new IllegalArgumentException("String was null.");
+    }
+    if (input.trim().isEmpty()) {
+      return input;
+    }
     // manual transform to lowercase to avoid locale problems
     char[] inputChars = input.toCharArray();
     for (int i = 0; i < inputChars.length; i++) {

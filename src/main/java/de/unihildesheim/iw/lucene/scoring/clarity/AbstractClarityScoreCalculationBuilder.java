@@ -29,25 +29,25 @@ import java.io.IOException;
 /**
  * @author Jens Bertram
  */
-public abstract class AbstractClarityScoreCalculationBuilder<I extends
-    AbstractClarityScoreCalculationBuilder, T>
-    implements Buildable<T> {
+public abstract class AbstractClarityScoreCalculationBuilder<T extends
+    AbstractClarityScoreCalculationBuilder<T>>
+    implements Buildable {
   protected Persistence.Builder persistenceBuilder = new Persistence.Builder();
 
   /**
    * Implementation identifier used for proper cache naming.
    */
-  private String identifier = null;
+  private final String identifier;
 
   /**
    * {@link IndexDataProvider} to use.
    */
-  protected IndexDataProvider idxDataProvider = null;
+  protected IndexDataProvider idxDataProvider;
 
   /**
    * {@link IndexReader} to access the Lucene index.
    */
-  protected IndexReader idxReader = null;
+  protected IndexReader idxReader;
 
   /**
    * Flag indicating, if the new instance will be temporary.
@@ -57,7 +57,9 @@ public abstract class AbstractClarityScoreCalculationBuilder<I extends
   /**
    * File path where the working data will be stored.
    */
-  private File dataPath = null;
+  private File dataPath;
+
+  protected abstract T getThis();
 
   /**
    * Constructor setting the implementation identifier for the cache.
@@ -65,7 +67,7 @@ public abstract class AbstractClarityScoreCalculationBuilder<I extends
    * @param newIdentifier Implementation identifier for the cache
    */
   protected AbstractClarityScoreCalculationBuilder(final String newIdentifier) {
-    if (newIdentifier == null || newIdentifier.isEmpty()) {
+    if (newIdentifier == null || newIdentifier.trim().isEmpty()) {
       throw new IllegalArgumentException("Identifier was empty.");
     }
     this.identifier = newIdentifier;
@@ -77,20 +79,20 @@ public abstract class AbstractClarityScoreCalculationBuilder<I extends
    * @param dataProv Data provider
    * @return Self reference
    */
-  public I indexDataProvider(final IndexDataProvider dataProv) {
+  public T indexDataProvider(final IndexDataProvider dataProv) {
     if (dataProv == null) {
       throw new IllegalArgumentException("Data provider was null.");
     }
     this.idxDataProvider = dataProv;
-    return (I) this;
+    return getThis();
   }
 
-  public I indexReader(final IndexReader newIdxReader) {
-    if (idxReader == null) {
+  public T indexReader(final IndexReader newIdxReader) {
+    if (newIdxReader == null) {
       throw new IllegalArgumentException("Index reader was null.");
     }
     this.idxReader = newIdxReader;
-    return (I) this;
+    return getThis();
   }
 
   /**
@@ -98,10 +100,10 @@ public abstract class AbstractClarityScoreCalculationBuilder<I extends
    *
    * @return self reference
    */
-  public I temporary()
+  public T temporary()
       throws IOException {
     this.isTemporary = true;
-    return (I) this;
+    return getThis();
   }
 
   /**
@@ -124,10 +126,10 @@ public abstract class AbstractClarityScoreCalculationBuilder<I extends
    * @param name Cache name
    * @return Self reference
    */
-  public I loadCache(final String name) {
+  public T loadCache(final String name) {
     this.persistenceBuilder.name(createCacheName(name));
     this.persistenceBuilder.get();
-    return (I) this;
+    return getThis();
   }
 
   /**
@@ -136,10 +138,10 @@ public abstract class AbstractClarityScoreCalculationBuilder<I extends
    * @param name Cache name
    * @return Self reference
    */
-  public I createCache(final String name) {
+  public T createCache(final String name) {
     this.persistenceBuilder.name(createCacheName(name));
     this.persistenceBuilder.make();
-    return (I) this;
+    return getThis();
   }
 
   /**
@@ -148,11 +150,11 @@ public abstract class AbstractClarityScoreCalculationBuilder<I extends
    * @param name Cache name
    * @return Self reference
    */
-  public I loadOrCreateCache(
+  public T loadOrCreateCache(
       final String name) {
     this.persistenceBuilder.name(createCacheName(name));
     this.persistenceBuilder.makeOrGet();
-    return (I) this;
+    return getThis();
   }
 
   /**
@@ -165,37 +167,36 @@ public abstract class AbstractClarityScoreCalculationBuilder<I extends
    * directory is not allowed.
    * @see Persistence#tryCreateDataPath(String)
    */
-  public final I dataPath(
-      final String filePath)
+  public final T dataPath(final String filePath)
       throws IOException {
     this.dataPath = null;
     this.dataPath = Persistence.tryCreateDataPath(filePath);
     this.persistenceBuilder.dataPath(FileUtils.getPath(this.dataPath));
-    return (I) this;
+    return getThis();
   }
 
   /**
    * Validates the settings for the {@link Persistence} storage.
    *
-   * @throws Buildable.BuilderConfigurationException Thrown, if any mandatory
-   * configuration is not set
+   * @throws ConfigurationException Thrown, if any mandatory configuration is
+   * not set
    */
   public void validatePersistenceBuilder()
-      throws Buildable.BuilderConfigurationException {
+      throws ConfigurationException {
     if (this.dataPath == null) {
-      throw new Buildable.BuilderConfigurationException("No data-path set.");
+      throw new ConfigurationException("No data-path set.");
     }
   }
 
   @Override
   public void validate()
-      throws BuilderConfigurationException {
+      throws ConfigurationException {
     if (this.idxReader == null) {
-      throw new Buildable.BuilderConfigurationException("No IndexReader" +
+      throw new ConfigurationException("No IndexReader" +
           " set.");
     }
     if (this.idxDataProvider == null) {
-      throw new Buildable.BuilderConfigurationException("No IndexDataProvider" +
+      throw new ConfigurationException("No IndexDataProvider" +
           " set.");
     }
   }

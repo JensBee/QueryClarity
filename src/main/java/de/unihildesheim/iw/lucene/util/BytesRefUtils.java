@@ -44,6 +44,9 @@ public final class BytesRefUtils {
    * BytesRef}
    */
   public static ByteArray toByteArray(final BytesRef br) {
+    if (br == null) {
+      throw new IllegalArgumentException("BytesRef was null.");
+    }
     return new ByteArray(br.bytes, br.offset, br.length);
   }
 
@@ -56,6 +59,12 @@ public final class BytesRefUtils {
    * @return True, if both byte arrays are equal
    */
   public static boolean bytesEquals(final BytesRef br, final ByteArray ba) {
+    if (br == null) {
+      throw new IllegalArgumentException("BytesRef was null.");
+    }
+    if (ba == null) {
+      throw new IllegalArgumentException("ByteArray was null.");
+    }
     return ba.compareBytes(Arrays.copyOfRange(br.bytes, br.offset,
         br.length)) == 0;
   }

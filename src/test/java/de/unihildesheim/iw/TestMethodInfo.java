@@ -37,8 +37,8 @@ public class TestMethodInfo
       TestMethodInfo.class);
 
   @Override
-  protected void starting(Description description) {
+  protected void starting(final Description description) {
     LOG.info("*** Starting test: " + description.getMethodName() + " @ "
-             + description.getClassName());
+        + description.getClassName());
   }
 }

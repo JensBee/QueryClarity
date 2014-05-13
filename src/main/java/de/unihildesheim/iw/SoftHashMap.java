@@ -13,7 +13,7 @@ import java.util.Set;
 /**
  * Based on code from "The Java(tm) Specialists' Newsletter" by  Dr. Heinz M.
  * Kabutz
- * <p>
+ * <p/>
  * See http://www.javaspecialists.eu/archive/Issue098.html
  *
  * @author Jens Bertram
@@ -35,11 +35,11 @@ public class SoftHashMap<K, V>
    */
   private final ReferenceQueue<V> queue = new ReferenceQueue<V>();
 
-  public V get(Object key) {
+  public V get(final Object key) {
     expungeStaleEntries();
     V result = null;
     // We get the SoftReference represented by that key
-    SoftReference<V> soft_ref = hash.get(key);
+    final SoftReference<V> soft_ref = hash.get(key);
     if (soft_ref != null) {
       // From the SoftReference we get the value, which can be
       // null if it has been garbage collected
@@ -61,11 +61,11 @@ public class SoftHashMap<K, V>
     }
   }
 
-  public V put(K key, V value) {
+  public V put(final K key, final V value) {
     expungeStaleEntries();
-    SoftReference<V> soft_ref = new SoftReference<V>(value, queue);
+    final SoftReference<V> soft_ref = new SoftReference<V>(value, queue);
     reverseLookup.put(soft_ref, key);
-    SoftReference<V> result = hash.put(key, soft_ref);
+    final SoftReference<V> result = hash.put(key, soft_ref);
     if (result == null) {
       return null;
     }
@@ -73,9 +73,9 @@ public class SoftHashMap<K, V>
     return result.get();
   }
 
-  public V remove(Object key) {
+  public V remove(final Object key) {
     expungeStaleEntries();
-    SoftReference<V> result = hash.remove(key);
+    final SoftReference<V> result = hash.remove(key);
     if (result == null) {
       return null;
     }
@@ -96,9 +96,10 @@ public class SoftHashMap<K, V>
    * Returns a copy of the key/values in the map at the point of calling.
    * However, setValue still sets the value in the actual SoftHashMap.
    */
+  @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
   public Set<Entry<K, V>> entrySet() {
     expungeStaleEntries();
-    Set<Entry<K, V>> result = new LinkedHashSet<Entry<K, V>>();
+    final Set<Entry<K, V>> result = new LinkedHashSet<Entry<K, V>>();
     for (final Entry<K, SoftReference<V>> entry : hash.entrySet()) {
       final V value = entry.getValue().get();
       if (value != null) {
@@ -111,7 +112,7 @@ public class SoftHashMap<K, V>
             return value;
           }
 
-          public V setValue(V v) {
+          public V setValue(final V v) {
             entry.setValue(new SoftReference<V>(v, queue));
             return value;
           }

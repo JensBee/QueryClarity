@@ -32,6 +32,7 @@ import de.unihildesheim.iw.util.TimeMeasure;
 import de.unihildesheim.iw.util.concurrent.AtomicDouble;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
+import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
@@ -49,6 +50,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * Default Clarity Score implementation as described by Cronen-Townsend, Steve,
@@ -124,7 +126,7 @@ public final class DefaultClarityScore
   /**
    * Cached mapping of document model values.
    */
-  private Map<ByteArray, Double> defaultDocModels = null;
+  private Map<ByteArray, Double> defaultDocModels;
 
   /**
    * Configuration object used for all parameters of the calculation.
@@ -161,7 +163,7 @@ public final class DefaultClarityScore
   /**
    * Provider for general index metrics.
    */
-  protected Metrics metrics;
+  Metrics metrics;
 
   /**
    * Default constructor. Called from builder.
@@ -177,7 +179,10 @@ public final class DefaultClarityScore
    * @return New instance
    */
   protected static DefaultClarityScore build(final Builder builder)
-      throws IOException {
+      throws IOException, Buildable.BuildableException {
+    if (builder == null) {
+      throw new IllegalArgumentException("Builder was null.");
+    }
     final DefaultClarityScore instance = new DefaultClarityScore();
 
     // set configuration
@@ -188,12 +193,7 @@ public final class DefaultClarityScore
     instance.metrics = new Metrics(builder.idxDataProvider);
 
     // initialize
-    try {
-      instance.initCache(builder);
-    } catch (Buildable.BuilderConfigurationException e) {
-      LOG.error("Failed to initialize cache.", e);
-      throw new IllegalStateException("Failed to initialize cache.");
-    }
+    instance.initCache(builder);
 
     return instance;
   }
@@ -215,7 +215,7 @@ public final class DefaultClarityScore
    */
   @SuppressWarnings("checkstyle:magicnumber")
   private void initCache(final Builder builder)
-      throws IOException, Buildable.BuilderConfigurationException {
+      throws IOException, Buildable.BuildableException {
     final Persistence.Builder psb = builder.persistenceBuilder;
     psb.setDbDefaults();
 
@@ -240,10 +240,15 @@ public final class DefaultClarityScore
     this.db = persistence.db;
 
     if (!createNew) {
-      if (!persistence.getMetaData()
-          .generationCurrent(this.dataProv.getLastIndexCommitGeneration())) {
-        throw new IllegalStateException(
-            "Index changed since last caching.");
+      if (this.dataProv.getLastIndexCommitGeneration() == null) {
+        LOG.warn("Index commit generation not available. Assuming an " +
+            "unchanged index!");
+      } else {
+        if (!persistence.getMetaData()
+            .generationCurrent(this.dataProv.getLastIndexCommitGeneration())) {
+          throw new IllegalStateException(
+              "Index changed since last caching.");
+        }
       }
       if (!this.db.getAtomicString(Caches.LANGMODEL_WEIGHT.name()).get().
           equals(this.conf.getLangModelWeight().toString())) {
@@ -312,7 +317,10 @@ public final class DefaultClarityScore
    * @param docModel Document-model to do the calculation for
    */
   void calcDocumentModel(final DocumentModel docModel) {
-    for (ByteArray term : docModel.termFreqMap.keySet()) {
+    if (docModel == null) {
+      throw new IllegalArgumentException("Document model was null.");
+    }
+    for (final ByteArray term : docModel.termFreqMap.keySet()) {
       final Double model = (this.conf.getLangModelWeight()
           * docModel.metrics().relTf(term))
           + calcDefaultDocumentModel(term);
@@ -357,7 +365,8 @@ public final class DefaultClarityScore
   /**
    * Pre-calculate all document models for all terms known from the index.
    */
-  public void preCalcDocumentModels() {
+  public void preCalcDocumentModels()
+      throws ProcessingException {
     if (!this.hasCache) {
       LOG.warn("Won't pre-calculate any values. Cache not set.");
       return;
@@ -386,7 +395,7 @@ public final class DefaultClarityScore
    */
   private Result calculateClarity(final Collection<Integer> feedbackDocuments,
       final Collection<ByteArray> queryTerms)
-      throws IOException {
+      throws IOException, ProcessingException {
     // check if models are pre-calculated
     final Result result = new Result(this.getClass());
     result.setConf(this.conf);
@@ -395,7 +404,7 @@ public final class DefaultClarityScore
 
     this.docModelDataCache = new ConcurrentHashMap<>(feedbackDocuments.size());
     // models generated for the query model calculation.
-    final Map<Integer, Double> queryModels =
+    final ConcurrentMap<Integer, Double> queryModels =
         new ConcurrentHashMap<>(feedbackDocuments.size());
 
     final TimeMeasure timeMeasure = new TimeMeasure().start();
@@ -403,7 +412,7 @@ public final class DefaultClarityScore
     // convert query to readable string for logging output
     @SuppressWarnings("StringBufferWithoutInitialCapacity")
     StringBuilder queryStr = new StringBuilder();
-    for (ByteArray ba : queryTerms) {
+    for (final ByteArray ba : queryTerms) {
       queryStr.append(ByteArrayUtils.utf8ToString(ba)).append(' ');
     }
     LOG.info("Calculating clarity score. query={}", queryStr);
@@ -469,8 +478,8 @@ public final class DefaultClarityScore
 
   @Override
   public Result calculateClarity(final String query)
-      throws ParseException, IOException {
-    if (query == null || query.isEmpty()) {
+      throws ClarityScoreCalculationException {
+    if (query == null || query.trim().isEmpty()) {
       throw new IllegalArgumentException("Query was empty.");
     }
 
@@ -481,9 +490,9 @@ public final class DefaultClarityScore
     try {
       queryObj = new TermsQueryBuilder(this.idxReader,
           this.dataProv.getDocumentFields()).query(query).build();
-    } catch (Buildable.BuilderConfigurationException e) {
-      LOG.error("Caught exception while building query.", e);
-      return null;
+    } catch (Buildable.BuildableException e) {
+      throw new ClarityScoreCalculationException(
+          "Caught exception while building query.", e);
     }
 
     // get feedback documents
@@ -507,7 +516,7 @@ public final class DefaultClarityScore
     } catch (UnsupportedEncodingException | ParseException e) {
       LOG.error("Caught exception parsing query.", e);
       return null;
-    } catch (Buildable.BuilderConfigurationException e) {
+    } catch (Buildable.BuildableException e) {
       LOG.error("Caught exception building query.", e);
       return null;
     }
@@ -516,15 +525,18 @@ public final class DefaultClarityScore
       throw new IllegalStateException("No query terms.");
     }
 
-    return calculateClarity(feedbackDocuments, queryTerms);
+    try {
+      return calculateClarity(feedbackDocuments, queryTerms);
+    } catch (IOException | ProcessingException e) {
+      throw new ClarityScoreCalculationException(e);
+    }
   }
 
   /**
    * {@link Processing} {@link Target} for query model calculation.
    */
   private final class QueryModelCalculatorTarget
-      extends
-      Target.TargetFunc<Integer> {
+      extends Target.TargetFunc<Integer> {
 
     /**
      * List of query terms used.
@@ -537,6 +549,13 @@ public final class DefaultClarityScore
 
     QueryModelCalculatorTarget(final Collection<ByteArray> qTerms,
         final Map<Integer, Double> targetMap) {
+      super();
+      if (qTerms == null || qTerms.isEmpty()) {
+        throw new IllegalArgumentException("List of query terms was empty.");
+      }
+      if (targetMap == null) {
+        throw new IllegalArgumentException("Target map was null.");
+      }
       this.queryTerms = qTerms;
       this.map = targetMap;
     }
@@ -545,7 +564,7 @@ public final class DefaultClarityScore
     public void call(final Integer docId) {
       if (docId != null) {
         double modelWeight = 1d;
-        for (ByteArray term : this.queryTerms) {
+        for (final ByteArray term : this.queryTerms) {
           modelWeight *= getDocumentModel(docId, term).a;
         }
         this.map.put(docId, modelWeight);
@@ -588,6 +607,17 @@ public final class DefaultClarityScore
         final Collection<Integer> feedbackDocuments,
         final AtomicDouble newResult) {
       super();
+      if (qModelsMap == null) {
+        throw new IllegalArgumentException("Query models map was null.");
+      }
+      if (feedbackDocuments == null) {
+        throw new IllegalArgumentException("List of feedback documents was " +
+            "null.");
+      }
+      if (newResult == null) {
+        throw new IllegalArgumentException("Calculation result target was " +
+            "null.");
+      }
       this.weightFactor = 1 - langModelWeight;
       this.fbDocIds = feedbackDocuments;
       this.result = newResult;
@@ -602,7 +632,7 @@ public final class DefaultClarityScore
         final double termRelFreq = metrics.collection.relTf(term);
         Tuple.Tuple2<Double, Boolean> model;
 
-        for (Integer docId : this.fbDocIds) {
+        for (final Integer docId : this.fbDocIds) {
           model = getDocumentModel(docId, term);
           if (model.b) {
             qLangMod += this.weightFactor * termRelFreq * this.queryModels.
@@ -682,6 +712,10 @@ public final class DefaultClarityScore
      * @param fbDocIds List of feedback documents
      */
     protected void setFeedbackDocIds(final Collection<Integer> fbDocIds) {
+      if (fbDocIds == null) {
+        throw new IllegalArgumentException("Feedback document id list was " +
+            "null.");
+      }
       this.feedbackDocIds = new ArrayList<>(fbDocIds.size());
       this.feedbackDocIds.addAll(fbDocIds);
     }
@@ -692,6 +726,9 @@ public final class DefaultClarityScore
      * @param qTerms Query terms
      */
     protected void setQueryTerms(final Collection<ByteArray> qTerms) {
+      if (qTerms == null) {
+        throw new IllegalArgumentException("Queryterms list was null.");
+      }
       this.queryTerms = new ArrayList<>(qTerms.size());
       this.queryTerms.addAll(qTerms);
     }
@@ -711,6 +748,9 @@ public final class DefaultClarityScore
      * @param newConf Configuration used
      */
     protected void setConf(final DefaultClarityScoreConfiguration newConf) {
+      if (newConf == null) {
+        throw new IllegalArgumentException("Configuration was null.");
+      }
       this.conf = newConf;
     }
 
@@ -746,8 +786,7 @@ public final class DefaultClarityScore
    * Builder to create a new {@link DefaultClarityScore} instance.
    */
   public static final class Builder
-      extends
-      AbstractClarityScoreCalculationBuilder<Builder, DefaultClarityScore> {
+      extends AbstractClarityScoreCalculationBuilder<Builder> {
     /**
      * Configuration to use.
      */
@@ -758,6 +797,10 @@ public final class DefaultClarityScore
       super(IDENTIFIER);
     }
 
+    protected Builder getThis() {
+      return this;
+    }
+
     /**
      * Set the configuration to use.
      *
@@ -765,6 +808,9 @@ public final class DefaultClarityScore
      * @return Self reference
      */
     public Builder configuration(final DefaultClarityScoreConfiguration conf) {
+      if (conf == null) {
+        throw new IllegalArgumentException("Configuration was null.");
+      }
       this.configuration = conf;
       return this;
     }
@@ -780,15 +826,18 @@ public final class DefaultClarityScore
 
     @Override
     public DefaultClarityScore build()
-        throws BuilderConfigurationException, IOException {
+        throws BuildableException {
       validate();
-      final DefaultClarityScore instance = DefaultClarityScore.build(this);
-      return instance;
+      try {
+        return DefaultClarityScore.build(this);
+      } catch (IOException e) {
+        throw new BuildException(e);
+      }
     }
 
     @Override
     public void validate()
-        throws BuilderConfigurationException {
+        throws ConfigurationException {
       super.validate();
       super.validatePersistenceBuilder();
     }

@@ -56,7 +56,7 @@ public final class ExternalDocTermDataManagerTest
    */
   @Before
   public void setUp() {
-    DBMaker dbMkr = DBMaker.newTempFileDB();
+    final DBMaker dbMkr = DBMaker.newTempFileDB();
     this.db = dbMkr.make();
     this.instance = getInstance();
   }
@@ -87,7 +87,8 @@ public final class ExternalDocTermDataManagerTest
     Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>> testData;
     testData = IndexTestUtil.generateTermData(null, docId, key, 100);
 
-    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> data : testData) {
+    for (final Tuple.Tuple4<Integer, ByteArray, String,
+        Integer> data : testData) {
       instance.setData(data.a, data.b, data.c, data.d);
     }
 
@@ -115,7 +116,8 @@ public final class ExternalDocTermDataManagerTest
         )
     ).process(testData.size());
 
-    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> data : testData) {
+    for (final Tuple.Tuple4<Integer, ByteArray, String,
+        Integer> data : testData) {
       instance.setData(data.a, data.b, data.c, data.d);
     }
 
@@ -141,12 +143,14 @@ public final class ExternalDocTermDataManagerTest
     Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>> testData;
     testData = IndexTestUtil.generateTermData(null, docId, key, 100);
 
-    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> data : testData) {
+    for (final Tuple.Tuple4<Integer, ByteArray, String,
+        Integer> data : testData) {
       instance.setData(data.a, data.b, data.c, data.d);
     }
 
-    Map<ByteArray, Object> result = instance.getData(docId, key);
-    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> data : testData) {
+    final Map<ByteArray, Object> result = instance.getData(docId, key);
+    for (final Tuple.Tuple4<Integer, ByteArray, String,
+        Integer> data : testData) {
       assertEquals("Value not restored.", data.d, result.get(data.b));
     }
   }
@@ -164,11 +168,13 @@ public final class ExternalDocTermDataManagerTest
     Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>> testData;
     testData = IndexTestUtil.generateTermData(null, docId, key, 100);
 
-    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> data : testData) {
+    for (final Tuple.Tuple4<Integer, ByteArray, String,
+        Integer> data : testData) {
       instance.setData(data.a, data.b, data.c, data.d);
     }
 
-    for (Tuple.Tuple4<Integer, ByteArray, String, Integer> data : testData) {
+    for (final Tuple.Tuple4<Integer, ByteArray, String,
+        Integer> data : testData) {
       assertEquals("Value not restored.", data.d, instance.getData(docId,
           data.b, key));
     }
@@ -191,12 +197,13 @@ public final class ExternalDocTermDataManagerTest
      * @param dtm DocTerm data manager
      */
     public TermDataTarget(final ExternalDocTermDataManager dtm) {
+      super();
       this.dtMan = dtm;
     }
 
     @Override
-    public void call(
-        Tuple.Tuple4<Integer, ByteArray, String, Integer> data) {
+    public void call(final Tuple.Tuple4<Integer, ByteArray, String,
+        Integer> data) {
       if (data == null) {
         return;
       }

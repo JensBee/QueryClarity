@@ -17,7 +17,7 @@
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.lucene.AbstractMultiIndexDataProviderTestCase;
+import de.unihildesheim.iw.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.iw.util.MathUtils;
@@ -40,7 +40,7 @@ import static org.junit.Assert.assertEquals;
  */
 @RunWith(Parameterized.class)
 public final class SimplifiedClarityScoreTest
-    extends AbstractMultiIndexDataProviderTestCase {
+    extends MultiIndexDataProviderTestCase {
 
   /**
    * Logger instance for this class.
@@ -61,13 +61,14 @@ public final class SimplifiedClarityScoreTest
    */
   public SimplifiedClarityScoreTest(
       final DataProviders dataProv,
-      final AbstractMultiIndexDataProviderTestCase.RunType rType) {
+      final MultiIndexDataProviderTestCase.RunType rType) {
     super(dataProv, rType);
   }
 
   private SimplifiedClarityScore.Builder getInstanceBuilder()
       throws IOException {
     return new SimplifiedClarityScore.Builder()
+        .indexReader(referenceIndex.getIndexReader())
         .indexDataProvider(this.index);
   }
 
@@ -83,8 +84,9 @@ public final class SimplifiedClarityScoreTest
     final SimplifiedClarityScore instance = getInstanceBuilder().build();
 
     final Collection<ByteArray> queryTerms = new ArrayList<>(15);
-    for (String qTerm : query.split("\\s+")) {
-      queryTerms.add(new ByteArray(qTerm.getBytes("UTF-8")));
+    for (final String qTerm : query.split("\\s+")) {
+      final ByteArray termBa = new ByteArray(qTerm.getBytes("UTF-8"));
+      queryTerms.add(termBa);
     }
 
     final double ql = Integer.valueOf(queryTerms.size()).doubleValue();
@@ -92,9 +94,9 @@ public final class SimplifiedClarityScoreTest
         .getUniqueTermsCount()).doubleValue();
 
     double score = 0;
-    for (ByteArray term : queryTerms) {
+    for (final ByteArray term : queryTerms) {
       double qtf = 0;
-      for (ByteArray aTerm : queryTerms) {
+      for (final ByteArray aTerm : queryTerms) {
         if (aTerm.equals(term)) {
           qtf++;
         }
@@ -110,7 +112,7 @@ public final class SimplifiedClarityScoreTest
 
     final double maxResult = Math.max(score, result.getScore());
     final double minResult = Math.min(score, result.getScore());
-    LOG.debug(msg("SCORE test={} scs={} deltaAllow={} delta={}"), score,
+    LOG.debug(msg("SC-SCORE test={} scs={} deltaAllow={} delta={}"), score,
         result.getScore(), ALLOWED_SCORE_DELTA, maxResult - minResult);
 
     assertEquals(msg("Score mismatch."), score, result.getScore(),

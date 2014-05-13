@@ -41,21 +41,15 @@ public final class RandomValue {
    * Character source for random query term generation.
    */
   private static final char[] RAND_TERM_LETTERS = new char[]{'a', 'b', 'c',
-                                                             'd', 'e', 'f', 'g',
-                                                             'h', 'i', 'j', 'k',
-                                                             'l', 'm', 'n', 'o',
-                                                             'p', 'q', 'r',
-                                                             's', 't', 'u', 'v',
-                                                             'w', 'x', 'y', 'z',
-                                                             '1', '2', '3', '4',
-                                                             '5', '6', '7',
-                                                             '8', '9', '0'};
+      'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q',
+      'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '1', '2', '3', '4', '5',
+      '6', '7', '8', '9', '0'};
 
   /**
    * Returns a pseudo-random number between min and max, inclusive. The
    * difference between min and max can be at most <code>Integer.MAX_VALUE -
    * 1</code>.
-   * <p>
+   * <p/>
    * https://stackoverflow.com/a/363692
    *
    * @param min Minimum value
@@ -81,7 +75,7 @@ public final class RandomValue {
    * Returns a pseudo-random number between min and max, inclusive. The
    * difference between min and max can be at most <code>Double.MAX_VALUE -
    * 1</code>.
-   * <p>
+   * <p/>
    * https://stackoverflow.com/a/363692
    *
    * @param min Minimum value

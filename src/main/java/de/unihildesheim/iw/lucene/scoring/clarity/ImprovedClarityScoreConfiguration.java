@@ -185,6 +185,9 @@ public final class ImprovedClarityScoreConfiguration
    */
   public void setQuerySimplifyingPolicy(
       final ImprovedClarityScore.QuerySimplifyPolicy policy) {
+    if (policy == null) {
+      throw new IllegalArgumentException("Policy was null.");
+    }
     add(Keys.querySimplifyingPolicy.name(), policy.name());
   }
 

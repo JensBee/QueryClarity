@@ -17,8 +17,9 @@
 package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.lucene.AbstractMultiIndexDataProviderTestCase;
+import de.unihildesheim.iw.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
+import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.StringUtils;
@@ -43,7 +44,7 @@ import static org.junit.Assert.fail;
  */
 @RunWith(Parameterized.class)
 public final class SimpleTermsQueryTest
-    extends AbstractMultiIndexDataProviderTestCase {
+    extends MultiIndexDataProviderTestCase {
 
   /**
    * Setup test using a defined {@link IndexDataProvider}.
@@ -53,7 +54,7 @@ public final class SimpleTermsQueryTest
    */
   public SimpleTermsQueryTest(
       final DataProviders dataProv,
-      final AbstractMultiIndexDataProviderTestCase.RunType rType) {
+      final MultiIndexDataProviderTestCase.RunType rType) {
     super(dataProv, rType);
   }
 
@@ -65,7 +66,7 @@ public final class SimpleTermsQueryTest
    */
   private SimpleTermsQuery getInstance()
       throws Exception {
-    return getInstance(this.referenceIndex.util.getQueryString());
+    return getInstance(TestIndexDataProvider.util.getQueryString());
   }
 
   /**
@@ -78,8 +79,8 @@ public final class SimpleTermsQueryTest
   private SimpleTermsQuery getInstance(final String query)
       throws Exception {
     return new SimpleTermsQuery(query, SimpleTermsQuery.DEFAULT_OPERATOR,
-        this.referenceIndex.getDocumentFields(),
-        this.referenceIndex.getStopwords());
+        referenceIndex.getDocumentFields(),
+        referenceIndex.getStopwords());
   }
 
   /**
@@ -93,22 +94,22 @@ public final class SimpleTermsQueryTest
       throws Exception {
     try {
       new SimpleTermsQuery(" ", SimpleTermsQuery.DEFAULT_OPERATOR,
-          this.referenceIndex.getDocumentFields(),
-          this.referenceIndex.getStopwords());
+          referenceIndex.getDocumentFields(),
+          referenceIndex.getStopwords());
       fail(msg("Expected exception: Empty query string."));
     } catch (IllegalArgumentException ex) {
     }
     try {
       new SimpleTermsQuery(null, SimpleTermsQuery.DEFAULT_OPERATOR,
-          this.referenceIndex.getDocumentFields(),
-          this.referenceIndex.getStopwords());
+          referenceIndex.getDocumentFields(),
+          referenceIndex.getStopwords());
       fail(msg("Expected exception: Empty query string (null)."));
     } catch (IllegalArgumentException ex) {
     }
     try {
       new SimpleTermsQuery("", SimpleTermsQuery.DEFAULT_OPERATOR,
-          this.referenceIndex.getDocumentFields(),
-          this.referenceIndex.getStopwords());
+          referenceIndex.getDocumentFields(),
+          referenceIndex.getStopwords());
       fail(msg("Expected exception: Empty query string."));
     } catch (IllegalArgumentException ex) {
     }
@@ -123,9 +124,9 @@ public final class SimpleTermsQueryTest
   public void testToString_String()
       throws Exception {
     final SimpleTermsQuery instance = getInstance();
-    for (String field : this.referenceIndex.getDocumentFields()) {
-      String result = instance.toString(field);
-      assertFalse(result.isEmpty());
+    for (final String field : referenceIndex.getDocumentFields()) {
+      final String result = instance.toString(field);
+      assertFalse("Results were empty.", result.isEmpty());
     }
   }
 
@@ -148,8 +149,8 @@ public final class SimpleTermsQueryTest
   @Test
   public void testCreateWeight()
       throws Exception {
-    IndexSearcher searcher =
-        new IndexSearcher(this.referenceIndex.getIndexReader().
+    final IndexSearcher searcher =
+        new IndexSearcher(referenceIndex.getIndexReader().
             getContext());
     getInstance().createWeight(searcher);
   }
@@ -162,16 +163,16 @@ public final class SimpleTermsQueryTest
   @Test
   public void testGetQueryObj()
       throws Exception {
-    final String queryStr = referenceIndex.util.getQueryString();
+    final String queryStr = TestIndexDataProvider.util.getQueryString();
     final SimpleTermsQuery instance = getInstance(queryStr);
     final Collection<String> result = instance.getQueryTerms();
-    final Collection<ByteArray> exp = new QueryUtils(this.referenceIndex
-        .getIndexReader(), this.referenceIndex.getDocumentFields())
+    final Collection<ByteArray> exp = new QueryUtils(referenceIndex
+        .getIndexReader(), referenceIndex.getDocumentFields())
         .getAllQueryTerms(queryStr);
     final Collection<String> expResult = new ArrayList<>(exp.size());
-    final Collection<String> stopwords = this.referenceIndex.getStopwords();
+    final Collection<String> stopwords = referenceIndex.getStopwords();
 
-    for (ByteArray ba : exp) {
+    for (final ByteArray ba : exp) {
       final String term = ByteArrayUtils.utf8ToString(ba);
       if (!stopwords.contains(term)) {
         expResult.add(term);
@@ -192,7 +193,7 @@ public final class SimpleTermsQueryTest
       throws Exception {
     final int termsCount = RandomValue.getInteger(3, 100);
     final List<String> terms = new ArrayList<>(termsCount);
-    final Collection<String> stopwords = this.referenceIndex.getStopwords();
+    final Collection<String> stopwords = referenceIndex.getStopwords();
 
     for (int i = 0; i < termsCount; i++) {
       final String term = RandomValue.getString(1, 15);
@@ -200,7 +201,7 @@ public final class SimpleTermsQueryTest
         terms.add(term);
       }
     }
-    SimpleTermsQuery instance = getInstance(StringUtils.join(terms, " "));
+    final SimpleTermsQuery instance = getInstance(StringUtils.join(terms, " "));
 
     assertEquals(msg("Not all terms returned."), terms.size(), instance.
         getQueryTerms().size());

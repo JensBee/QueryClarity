@@ -21,7 +21,14 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.concurrent.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Utility class to simplify concurrent processing of large data-sets. One
@@ -44,15 +51,15 @@ public final class Processing {
   /**
    * Thread pool handling thread execution.
    */
-  private static volatile ProcessingThreadPoolExecutor executor = null;
+  private static volatile ProcessingThreadPoolExecutor executor;
   /**
    * Processing {@link Source}.
    */
-  private Source source = null;
+  private Source source;
   /**
    * Processing {@link Target}.
    */
-  private Target target = null;
+  private Target target;
   /**
    * Latch that tracks the running threads.
    */
@@ -78,8 +85,7 @@ public final class Processing {
   }
 
   /**
-   * Creates a new processing pipe, deriving the {@link Source} from the
-   * {@link
+   * Creates a new processing pipe, deriving the {@link Source} from the {@link
    * Target}.
    *
    * @param newTarget Processing {@link Target}
@@ -174,11 +180,10 @@ public final class Processing {
     }
     initPool();
     Long result = null;
-    int threadCount = 1;
+    final int threadCount = 1;
     this.threadTrackingLatch = new CountDownLatch(threadCount);
 
     LOG.trace("Spawning {} Processing-Target thread.", threadCount);
-    @SuppressWarnings("unchecked")
     final Target<Object> aTarget = new Target.TargetTest<Object>(source);
     aTarget.setLatch(this.threadTrackingLatch);
 
@@ -218,7 +223,8 @@ public final class Processing {
    * Start processing with the defined {@link Source} and {@link Target} with
    * the default number of threads.
    */
-  public void process() {
+  public void process()
+      throws ProcessingException {
     process(Processing.THREADS);
   }
 
@@ -229,7 +235,8 @@ public final class Processing {
    * @param maxThreadCount Maximum number of threads to use
    */
   @SuppressWarnings("ThrowableResultIgnored")
-  public void process(final int maxThreadCount) {
+  public void process(final int maxThreadCount)
+      throws ProcessingException {
     final int threadCount;
     if (maxThreadCount > Processing.THREADS) {
       threadCount = Processing.THREADS;
@@ -263,7 +270,7 @@ public final class Processing {
     final Future sourceTime = executor.runTask(sourceObserver);
 
     LOG.trace("Starting Processing-Target threads.");
-    for (Target aTarget : targets) {
+    for (final Target aTarget : targets) {
       executor.runTask(aTarget);
     }
 
@@ -275,13 +282,16 @@ public final class Processing {
         // retrieve result from source
         processedItems = (Long) sourceThread.get(3, TimeUnit.SECONDS);
       } catch (TimeoutException ex) {
-        LOG.warn("Source finished without result. "
-                 + "There may be processing errors.");
+        throw new ProcessingException.TargetFailedException(
+            "Source finished without result. "
+                + "There may be processing errors."
+        );
       }
     } catch (InterruptedException | ExecutionException ex) {
       if (!(ex.getCause() instanceof ProcessingException
           .SourceHasFinishedException)) {
-        LOG.error("Caught exception while tracking source state.", ex);
+        throw new ProcessingException("Caught exception while tracking source" +
+            " state.", ex);
       }
     }
 
@@ -299,7 +309,7 @@ public final class Processing {
     }
 
     LOG.trace("Processing-Source finished. Terminating Targets.");
-    for (Target aTarget : targets) {
+    for (final Target aTarget : targets) {
       aTarget.terminate();
     }
 
@@ -307,7 +317,7 @@ public final class Processing {
     try {
       this.threadTrackingLatch.await();
     } catch (InterruptedException ex) {
-      LOG.error("Processing interrupted.", ex);
+      throw new ProcessingException("Processing interrupted.", ex);
     }
 
     LOG.trace("Processing finished.");
@@ -326,7 +336,7 @@ public final class Processing {
     /**
      * Thread pool manager.
      */
-    private ThreadPoolExecutor threadPool = null;
+    private final ThreadPoolExecutor threadPool;
 
     /**
      * Create a new processing thread pool manager. The maximum number of
@@ -345,6 +355,9 @@ public final class Processing {
      * @param task a Runnable task
      */
     void runTask(final Runnable task) {
+      if (task == null) {
+        throw new IllegalArgumentException("Task was null.");
+      }
       threadPool.execute(task);
     }
 
@@ -357,6 +370,9 @@ public final class Processing {
      */
     @SuppressWarnings("unchecked")
     Future<Object> runSource(final Callable task) {
+      if (task == null) {
+        throw new IllegalArgumentException("Task was null.");
+      }
       return threadPool.submit(task);
     }
 
@@ -369,6 +385,9 @@ public final class Processing {
      */
     @SuppressWarnings("unchecked")
     Future<Object> runTask(final Callable task) {
+      if (task == null) {
+        throw new IllegalArgumentException("Task was null.");
+      }
       return threadPool.submit(task);
     }
 

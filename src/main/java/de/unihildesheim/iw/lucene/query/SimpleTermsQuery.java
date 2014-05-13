@@ -76,22 +76,31 @@ public final class SimpleTermsQuery
    * @param query Query string
    * @param operator Default boolean operator to use
    * @param fields Document fields to include
-   * @param stopWords List of stop-words to exclude from the query (case is
+   * @param stopwords List of stop-words to exclude from the query (case is
    * ignored)
    * @throws ParseException Thrown if there were errors parsing the query
    * string
    */
   public SimpleTermsQuery(final String query,
       final QueryParser.Operator operator, final Set<String> fields,
-      final Set<String> stopWords)
+      final Set<String> stopwords)
       throws ParseException {
-    LOG.debug("STQ q({})={} op={} f={} s({})={}", query.split(" ").length,
-        query, operator, fields, stopWords.size(), stopWords);
+    super();
+    if (fields == null || fields.isEmpty()) {
+      throw new IllegalArgumentException("Empty fields list.");
+    }
     if (query == null || query.trim().isEmpty()) {
       throw new IllegalArgumentException("Empty query.");
     }
+    if (stopwords == null) {
+      throw new IllegalArgumentException("Stopwords were null.");
+    }
+
+    LOG.debug("STQ q({})={} op={} f={} s({})={}", query.split(" ").length,
+        query, operator, fields, stopwords.size(), stopwords);
+
     final Analyzer analyzer = new StandardAnalyzer(LuceneDefaults.VERSION,
-        new CharArraySet(LuceneDefaults.VERSION, stopWords, true));
+        new CharArraySet(LuceneDefaults.VERSION, stopwords, true));
     final QueryParser qParser = new MultiFieldQueryParser(
         LuceneDefaults.VERSION, fields.toArray(new String[fields.size()]),
         analyzer);
@@ -118,7 +127,7 @@ public final class SimpleTermsQuery
   private List<String> tokenizeQueryString(final String query,
       final Analyzer analyzer) {
     @SuppressWarnings("CollectionWithoutInitialCapacity")
-    List<String> result = new ArrayList<>();
+    final List<String> result = new ArrayList<>();
     try (TokenStream stream = analyzer.tokenStream(null,
         new StringReader(query))) {
       stream.reset();
@@ -153,6 +162,9 @@ public final class SimpleTermsQuery
 
   @Override
   public String toString(final String field) {
+    if (field == null || field.trim().isEmpty()) {
+      throw new IllegalArgumentException("Field name was empty.");
+    }
     return "SimpleTermQuery: " + queryObj.toString(field);
   }
 
@@ -164,6 +176,9 @@ public final class SimpleTermsQuery
   @Override
   public Weight createWeight(final IndexSearcher searcher)
       throws IOException {
+    if (searcher == null) {
+      throw new IllegalArgumentException("IndexSearcher was null.");
+    }
     return new SimpleTermQueryWeight(searcher);
   }
 
@@ -186,9 +201,11 @@ public final class SimpleTermsQuery
      * @throws IOException Thrown on low-level I/O errors
      */
     public SimpleTermQueryWeight(final IndexSearcher searcher)
-        throws
-        IOException {
+        throws IOException {
       super();
+      if (searcher == null) {
+        throw new IllegalArgumentException("IndexSearcher was null.");
+      }
       stqWeight = getQueryObj().createWeight(searcher);
     }
 
@@ -220,8 +237,10 @@ public final class SimpleTermsQuery
         final boolean scoreDocsInOrder,
         final boolean topScorer, final Bits acceptDocs)
         throws IOException {
-      return stqWeight.
-          scorer(context, scoreDocsInOrder, topScorer, acceptDocs);
+      if (context == null) {
+        throw new IllegalArgumentException("Context was null.");
+      }
+      return stqWeight.scorer(context, scoreDocsInOrder, topScorer, acceptDocs);
     }
   }
 }

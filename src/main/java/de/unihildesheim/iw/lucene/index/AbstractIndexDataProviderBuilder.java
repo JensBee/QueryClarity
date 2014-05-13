@@ -38,8 +38,9 @@ import java.util.Set;
  *
  * @author Jens Bertram
  */
-public abstract class AbstractIndexDataProviderBuilder<I, T>
-    implements Buildable<T> {
+public abstract class AbstractIndexDataProviderBuilder<T extends
+    AbstractIndexDataProviderBuilder<T>>
+    implements Buildable {
 
   /**
    * Logger instance for this class.
@@ -66,22 +67,17 @@ public abstract class AbstractIndexDataProviderBuilder<I, T>
   /**
    * {@link IndexReader} to use for accessing the Lucene index.
    */
-  protected IndexReader idxReader = null;
-
-  /**
-   * File path where the Lucene index resides in.
-   */
-  private File idxPath = null;
+  protected IndexReader idxReader;
 
   /**
    * File path where the working data will be stored.
    */
-  private File dataPath = null;
+  private File dataPath;
 
   /**
    * {@link Directory} instance pointing at the Lucene index.
    */
-  private Directory luceneDir = null;
+  private Directory luceneDir;
 
   /**
    * Builder used to create a proper caching backend.
@@ -91,22 +87,20 @@ public abstract class AbstractIndexDataProviderBuilder<I, T>
   /**
    * Implementation identifier used for proper cache naming.
    */
-  private String identifier = null;
+  private final String identifier;
 
   /**
    * Warm-up the instance right after building it?
    */
   protected boolean doWarmUp = false;
 
-  protected Long lastCommitGeneration = null;
+  /**
+   * Last commit generation of the Lucene index (if it's a {@link Directory}
+   * index). May be {@code null}.
+   */
+  protected Long lastCommitGeneration;
 
-//  /**
-//   * Builds the instance.
-//   *
-//   * @return New instance
-//   */
-//  public abstract T build()
-//      throws Exception;
+  protected abstract T getThis();
 
   /**
    * Constructor setting the implementation identifier for the cache.
@@ -140,10 +134,10 @@ public abstract class AbstractIndexDataProviderBuilder<I, T>
    * @param name Cache name
    * @return Self reference
    */
-  public final I loadCache(final String name) {
+  public final T loadCache(final String name) {
     this.persistenceBuilder.name(createCacheName(name));
     this.persistenceBuilder.get();
-    return (I) this;
+    return getThis();
   }
 
   /**
@@ -152,10 +146,10 @@ public abstract class AbstractIndexDataProviderBuilder<I, T>
    * @param name Cache name
    * @return Self reference
    */
-  public final I createCache(final String name) {
+  public final T createCache(final String name) {
     this.persistenceBuilder.name(createCacheName(name));
     this.persistenceBuilder.make();
-    return (I) this;
+    return getThis();
   }
 
   /**
@@ -164,10 +158,10 @@ public abstract class AbstractIndexDataProviderBuilder<I, T>
    * @param name Cache name
    * @return Self reference
    */
-  public I loadOrCreateCache(final String name) {
+  public T loadOrCreateCache(final String name) {
     this.persistenceBuilder.name(createCacheName(name));
     this.persistenceBuilder.makeOrGet();
-    return (I) this;
+    return getThis();
   }
 
   /**
@@ -176,13 +170,13 @@ public abstract class AbstractIndexDataProviderBuilder<I, T>
    * @param words List of stopwords. May be empty.
    * @return self reference
    */
-  public final I stopwords(final Set<String> words) {
+  public final T stopwords(final Set<String> words) {
     if (words == null) {
       throw new IllegalArgumentException("Stopwords were null.");
     }
     this.stopwords = words;
     this.persistenceBuilder.stopwords(stopwords);
-    return (I) this;
+    return getThis();
   }
 
   /**
@@ -191,14 +185,14 @@ public abstract class AbstractIndexDataProviderBuilder<I, T>
    * @param fields List of field names. May be empty.
    * @return self reference
    */
-  public final I documentFields(
+  public final T documentFields(
       final Set<String> fields) {
     if (fields == null) {
       throw new IllegalArgumentException("Fields were null.");
     }
     this.documentFields = fields;
     this.persistenceBuilder.documentFields(fields);
-    return (I) this;
+    return getThis();
   }
 
   /**
@@ -206,9 +200,9 @@ public abstract class AbstractIndexDataProviderBuilder<I, T>
    *
    * @return self reference
    */
-  public final I temporary() {
+  public final T temporary() {
     this.isTemporary = true;
-    return (I) this;
+    return getThis();
   }
 
   /**
@@ -220,7 +214,7 @@ public abstract class AbstractIndexDataProviderBuilder<I, T>
    * was found in the directory or if reading from this directory is not
    * allowed.
    */
-  public final I indexPath(final String filePath)
+  public final T indexPath(final String filePath)
       throws IOException {
     if (filePath == null || filePath.trim().isEmpty()) {
       throw new IllegalArgumentException("Index path was empty.");
@@ -251,8 +245,7 @@ public abstract class AbstractIndexDataProviderBuilder<I, T>
           + idxDir.getCanonicalPath() + "'.");
     }
 
-    this.idxPath = idxDir;
-    return (I) this;
+    return getThis();
   }
 
   /**
@@ -265,59 +258,80 @@ public abstract class AbstractIndexDataProviderBuilder<I, T>
    * directory is not allowed.
    * @see Persistence#tryCreateDataPath(String)
    */
-  public final I dataPath(
-      final String filePath)
+  public final T dataPath(final String filePath)
       throws IOException {
     this.dataPath = null;
     this.dataPath = Persistence.tryCreateDataPath(filePath);
     this.persistenceBuilder.dataPath(FileUtils.getPath(this.dataPath));
-    return (I) this;
+    return getThis();
   }
 
   /**
    * Set the {@link IndexReader} to access the Lucene index.
    *
    * @param reader
-   * @return
+   * @return Self reference
    */
-  public I indexReader(final IndexReader
-      reader) {
+  public T indexReader(final IndexReader reader) {
     if (reader == null) {
       throw new IllegalArgumentException("IndexReader was null.");
     }
     this.idxReader = reader;
-    return (I) this;
+    return getThis();
   }
 
-  public I warmup() {
+  /**
+   * Instruct the instance to pre-load (warmUp) caches after initialization.
+   *
+   * @return Self reference
+   */
+  public T warmup() {
     this.doWarmUp = true;
-    return (I) this;
+    return getThis();
   }
 
   /**
    * Validates the settings for the {@link Persistence} storage.
    *
-   * @throws Buildable.BuilderConfigurationException Thrown, if any mandatory
-   * configuration is not set
+   * @throws ConfigurationException Thrown, if any mandatory configuration is
+   * not set
    */
   public void validatePersistenceBuilder()
-      throws Buildable.BuilderConfigurationException {
+      throws ConfigurationException {
     if (this.dataPath == null) {
-      throw new Buildable.BuilderConfigurationException("No data-path set.");
+      throw new ConfigurationException("No data-path set.");
     }
   }
 
   @Override
   public void validate()
-      throws Buildable.BuilderConfigurationException, IOException {
+      throws ConfigurationException {
     // index reader
-    if (this.idxReader == null && this.luceneDir == null) {
-      throw new IllegalStateException("No IndexReader and no index path was " +
-          "set. Could not open an IndexReader.");
+    if (this.idxReader == null) {
+      if (this.luceneDir == null) {
+        throw new IllegalStateException(
+            "No IndexReader and no index path was set. Could not open an " +
+                "IndexReader."
+        );
+      }
+      try {
+        this.idxReader = DirectoryReader.open(this.luceneDir);
+      } catch (IOException e) {
+        throw new ConfigurationException("Filed to open Lucene index.", e);
+      }
     }
-    this.idxReader = DirectoryReader.open(this.luceneDir);
 
-    this.lastCommitGeneration = SegmentInfos.getLastCommitGeneration(this
-        .luceneDir);
+
+    if (this.idxReader instanceof DirectoryReader) {
+      this.luceneDir = ((DirectoryReader) this.idxReader)
+          .directory();
+      try {
+        this.lastCommitGeneration = SegmentInfos.getLastCommitGeneration(this
+            .luceneDir);
+      } catch (IOException e) {
+        throw new ConfigurationException("Filed to get Lucene segment " +
+            "information.", e);
+      }
+    }
   }
 }

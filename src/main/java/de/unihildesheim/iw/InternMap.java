@@ -47,6 +47,7 @@ public final class InternMap<K, V>
    * @param newMaxSize Maximum size of the map
    */
   public InternMap(final int newMaxSize) {
+    super();
     this.maxSize = newMaxSize;
   }
 

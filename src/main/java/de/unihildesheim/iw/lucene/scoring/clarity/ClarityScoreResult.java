@@ -17,7 +17,6 @@
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.lucene.scoring.ScoringResult;
-import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation;
 
 /**
  * Wrapper class enclosing the results of a clarity score calculation.
@@ -41,6 +40,9 @@ public class ClarityScoreResult
   ClarityScoreResult(final Class<? extends ClarityScoreCalculation> cscType,
       final double clarityScore) {
     super();
+    if (cscType == null) {
+      throw new IllegalArgumentException("Calculation class type was null.");
+    }
     this.type = cscType;
     _setScore(clarityScore);
   }
@@ -52,6 +54,9 @@ public class ClarityScoreResult
    */
   ClarityScoreResult(final Class<? extends ClarityScoreCalculation> cscType) {
     super();
+    if (cscType == null) {
+      throw new IllegalArgumentException("Calculation class type was null.");
+    }
     this.type = cscType;
   }
 

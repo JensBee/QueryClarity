@@ -26,7 +26,13 @@ import java.io.IOException;
 public final class FileUtils {
 
   /**
-   * Get the cannonical path of the given File with a trailing separator char
+   * Private empty constructor for utility class.
+   */
+  private FileUtils() {
+  }
+
+  /**
+   * Get the canonical path of the given File with a trailing separator char
    * added.
    *
    * @param file File whose path to get
@@ -35,6 +41,9 @@ public final class FileUtils {
    */
   public static String getPath(final File file)
       throws IOException {
+    if (file == null) {
+      throw new IllegalArgumentException("File was null.");
+    }
     return makePath(file.getCanonicalPath());
   }
 
@@ -45,6 +54,9 @@ public final class FileUtils {
    * @return Given path with a trailing separator char
    */
   public static String makePath(final String path) {
+    if (path == null || path.trim().isEmpty()) {
+      throw new IllegalArgumentException("Path was empty.");
+    }
     if (path.charAt(path.length() - 1) != File.separatorChar) {
       return path + File.separator;
     }

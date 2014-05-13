@@ -32,5 +32,26 @@ public interface ClarityScoreCalculation {
    * @throws Exception May be thrown by implementing class
    */
   ClarityScoreResult calculateClarity(final String query)
-      throws Exception;
+      throws ClarityScoreCalculationException;
+
+  /**
+   * Basic class wrapping errors occurring while calculating the Clarity Score.
+   * May be extended by implementing classes to provide finer grained error
+   * tracing.
+   */
+  public class ClarityScoreCalculationException
+      extends Exception {
+    public ClarityScoreCalculationException(final Exception ex) {
+      super("Failed to calculate clarity score.", ex);
+    }
+
+    public ClarityScoreCalculationException(final String msg, final Exception
+        ex) {
+      super(msg, ex);
+    }
+
+    public ClarityScoreCalculationException(final String msg) {
+      super(msg);
+    }
+  }
 }

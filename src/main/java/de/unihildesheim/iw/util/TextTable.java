@@ -132,7 +132,7 @@ public final class TextTable {
    */
   private int getCellsWidth(final int... newCells) {
     int width = 0;
-    for (int newCell : newCells) {
+    for (final int newCell : newCells) {
       width += newCell + 2; // add spacing
     }
     return width;
@@ -145,7 +145,7 @@ public final class TextTable {
    * @param newCells Cells specified by their width
    */
   @SuppressWarnings({"ConfusingArrayVararg",
-                     "PrimitiveArrayArgumentToVariableArgMethod"})
+      "PrimitiveArrayArgumentToVariableArgMethod"})
   public void hLine(final int... newCells) {
     hLine(true, newCells);
   }
@@ -154,7 +154,7 @@ public final class TextTable {
    * Same as {@link #hLine(int...)}, but uses the globally specified cells.
    */
   @SuppressWarnings({"ConfusingArrayVararg",
-                     "PrimitiveArrayArgumentToVariableArgMethod"})
+      "PrimitiveArrayArgumentToVariableArgMethod"})
   public void hLine() {
     hasCells();
     hLine(true, this.cells);
@@ -226,7 +226,7 @@ public final class TextTable {
    */
   private void printHeader(final String title, final int... newCells) {
     @SuppressWarnings({"ConfusingArrayVararg",
-                       "PrimitiveArrayArgumentToVariableArgMethod"})
+        "PrimitiveArrayArgumentToVariableArgMethod"})
     int width = getCellsWidth(newCells);
     // fix spacing introduced by vertical lines
     if (newCells.length > 3) {
@@ -242,7 +242,7 @@ public final class TextTable {
    * @param newCells Cell widths
    */
   @SuppressWarnings({"ConfusingArrayVararg",
-                     "PrimitiveArrayArgumentToVariableArgMethod"})
+      "PrimitiveArrayArgumentToVariableArgMethod"})
   public void header(final String title, final int... newCells) {
     hLine(false, newCells);
     printHeader(title, newCells);
@@ -256,7 +256,7 @@ public final class TextTable {
    * @param title Title of the table
    */
   @SuppressWarnings({"ConfusingArrayVararg",
-                     "PrimitiveArrayArgumentToVariableArgMethod"})
+      "PrimitiveArrayArgumentToVariableArgMethod"})
   public void header(final String title) {
     hasCells();
     header(title, this.cells);
@@ -270,7 +270,7 @@ public final class TextTable {
    * @param cellWidths Cell widths
    */
   @SuppressWarnings({"ConfusingArrayVararg",
-                     "PrimitiveArrayArgumentToVariableArgMethod"})
+      "PrimitiveArrayArgumentToVariableArgMethod"})
   public void header(final String title, final String[] columns,
       final int[] cellWidths) {
     hLine(false, cellWidths);
@@ -318,8 +318,7 @@ public final class TextTable {
   }
 
   /**
-   * Same as {@link #cHeader(java.lang.String[], int[])}, but uses the
-   * globally
+   * Same as {@link #cHeader(java.lang.String[], int[])}, but uses the globally
    * specified cells.
    *
    * @param columns Column titles
@@ -357,7 +356,7 @@ public final class TextTable {
         this.out.print("|");
       }
       this.out.printf(" " + format[i].replace("%", "%" + this.cells[i])
-                      + " |", data[i]);
+          + " |", data[i]);
     }
     this.out.print("\n");
   }

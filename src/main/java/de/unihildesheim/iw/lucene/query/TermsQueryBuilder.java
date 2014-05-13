@@ -31,7 +31,8 @@ import java.util.Set;
  *
  * @author Jens Bertram
  */
-public final class TermsQueryBuilder implements Buildable<SimpleTermsQuery> {
+public final class TermsQueryBuilder
+    implements Buildable<SimpleTermsQuery> {
 
   /**
    * Collection of stop-words to use.
@@ -41,7 +42,7 @@ public final class TermsQueryBuilder implements Buildable<SimpleTermsQuery> {
   /**
    * List of fields to query.
    */
-  private Set<String> fields = null;
+  private Set<String> fields;
 
   /**
    * Boolean operator to use for joining query terms.
@@ -60,6 +61,12 @@ public final class TermsQueryBuilder implements Buildable<SimpleTermsQuery> {
 
   public TermsQueryBuilder(final IndexReader reader,
       final Set<String> newFields) {
+    if (reader == null) {
+      throw new IllegalArgumentException("IndexReader was null.");
+    }
+    if (newFields == null || newFields.isEmpty()) {
+      throw new IllegalArgumentException("Empty fields.");
+    }
     this.idxReader = reader;
     this.fields = newFields;
   }
@@ -71,6 +78,9 @@ public final class TermsQueryBuilder implements Buildable<SimpleTermsQuery> {
    * @return Self reference
    */
   public TermsQueryBuilder setStopwords(final Set<String> newStopwords) {
+    if (newStopwords == null) {
+      throw new IllegalArgumentException("Stopwords was null.");
+    }
     this.stopwords = new HashSet<>(newStopwords);
     return this;
   }
@@ -82,6 +92,9 @@ public final class TermsQueryBuilder implements Buildable<SimpleTermsQuery> {
    * @return Self reference
    */
   public TermsQueryBuilder setFields(final Set<String> newFields) {
+    if (newFields == null || newFields.isEmpty()) {
+      throw new IllegalArgumentException("Empty fields.");
+    }
     IndexUtils.checkFields(this.idxReader, newFields);
     this.fields = new HashSet<>(newFields);
     return this;
@@ -95,20 +108,11 @@ public final class TermsQueryBuilder implements Buildable<SimpleTermsQuery> {
    */
   public TermsQueryBuilder setBoolOperator(
       final QueryParser.Operator newOperator) {
+    if (newOperator == null) {
+      throw new IllegalArgumentException("Operator was null.");
+    }
     this.operator = newOperator;
     return this;
-  }
-
-  /**
-   * Simple validation of the provided query string. Throws an exception if the
-   * query is invalid.
-   *
-   * @param query Query string
-   */
-  private static void checkQueryString(final String query) {
-    if (query == null || query.trim().isEmpty()) {
-      throw new IllegalArgumentException("Query was empty.");
-    }
   }
 
   /**
@@ -118,36 +122,45 @@ public final class TermsQueryBuilder implements Buildable<SimpleTermsQuery> {
    * @return Self reference
    */
   public TermsQueryBuilder query(final String queryStr) {
+    if (queryStr == null || queryStr.trim().isEmpty()) {
+      throw new IllegalArgumentException("Empty query string.");
+    }
     this.query = queryStr;
     return this;
   }
 
   /**
    * Builds the instance.
+   *
    * @return Query build using configured parameters and default options from
    * {@link SimpleTermsQuery} if they are missing and defaults are provided
    * @throws ParseException Thrown, if the query could not be parsed
-   * @throws BuilderConfigurationException Thrown, if any mandatory setting
-   * is left unconfigured
+   * @throws ConfigurationException Thrown, if any mandatory setting is left
+   * unconfigured
    */
   @Override
   public SimpleTermsQuery build()
-      throws BuilderConfigurationException, ParseException {
+      throws ConfigurationException, BuildException {
     validate();
-    return new SimpleTermsQuery(this.query, this.operator, this.fields,
-        this.stopwords);
+    try {
+      return new SimpleTermsQuery(this.query, this.operator, this.fields,
+          this.stopwords);
+    } catch (ParseException e) {
+      throw new BuildException(e);
+    }
   }
 
   @Override
-  public void validate() throws BuilderConfigurationException {
+  public void validate()
+      throws ConfigurationException {
     if (this.query == null || this.query.trim().isEmpty()) {
-      throw new IllegalArgumentException("Query was empty.");
+      throw new ConfigurationException("Query was empty.");
     }
     if (this.stopwords == null) {
-      throw new IllegalStateException("No stopwords set.");
+      throw new ConfigurationException("No stopwords set.");
     }
     if (this.fields == null) {
-      throw new IllegalStateException("No fields set.");
+      throw new ConfigurationException("No fields set.");
     }
   }
 }

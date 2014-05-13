@@ -18,6 +18,7 @@ package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
+import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.iw.util.concurrent.processing.Source;
 
 import java.io.IOException;
@@ -51,7 +52,7 @@ public interface IndexDataProvider {
    * @throws Exception Thrown, if any warm-up method fails
    */
   void warmUp()
-      throws Exception;
+      throws DataProviderException;
 
   /**
    * Get the term frequency of a single term in the index.
@@ -89,14 +90,16 @@ public interface IndexDataProvider {
    *
    * @return Unique terms iterator
    */
-  Iterator<ByteArray> getTermsIterator();
+  Iterator<ByteArray> getTermsIterator()
+      throws DataProviderException;
 
   /**
    * Get a {@link Source} providing all known terms.
    *
    * @return {@link Source} providing all known terms
    */
-  Source<ByteArray> getTermsSource();
+  Source<ByteArray> getTermsSource()
+      throws ProcessingException;
 
   /**
    * Get an iterator over all known document-ids.
@@ -117,7 +120,8 @@ public interface IndexDataProvider {
    *
    * @return Number of unique terms in the index
    */
-  long getUniqueTermsCount();
+  long getUniqueTermsCount()
+      throws DataProviderException;
 
   /**
    * Get a {@link DocumentModel} instance for the document with the given id.
@@ -162,11 +166,13 @@ public interface IndexDataProvider {
   boolean documentContains(final int documentId, final ByteArray term);
 
   /**
-   * Get the last commit generation id of the Lucene index.
+   * Get the last commit generation id of the Lucene index. Only available, if
+   * the index resides in a {@link org.apache.lucene.store.Directory}. May be
+   * {@code null}.
    *
    * @return Commit generation id
    */
-  long getLastIndexCommitGeneration();
+  Long getLastIndexCommitGeneration();
 
   /**
    * Get the list of currently visible document fields.

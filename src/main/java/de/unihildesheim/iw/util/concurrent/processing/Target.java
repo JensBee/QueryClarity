@@ -108,6 +108,9 @@ public abstract class Target<T>
    * @param newLatch Shared latch to track running threads.
    */
   public final void setLatch(final CountDownLatch newLatch) {
+    if (newLatch == null) {
+      throw new IllegalArgumentException("Latch was null.");
+    }
     this.latch = newLatch;
   }
 
@@ -140,7 +143,7 @@ public abstract class Target<T>
       LOG.error("({}) Caught exception. cause={}", getName(), ex, ex);
     } finally {
       this.terminate = true;
-      LOG.debug("({}) Terminating.", getName());
+      LOG.trace("({}) Terminating.", getName());
       this.latch.countDown();
     }
   }
@@ -168,6 +171,9 @@ public abstract class Target<T>
      */
     public TargetFuncCall(final Source<T> newSource, final TargetFunc<T> func) {
       super(newSource);
+      if (func == null) {
+        throw new IllegalArgumentException("Target function was null.");
+      }
       this.tFunc = func;
     }
 

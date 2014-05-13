@@ -46,9 +46,11 @@ public class ProcessingTest
    * Test of setSource method, of class Processing.
    */
   @Test
-  public void testSetSource() {
-    final Collection<Object> coll = new ArrayList<>(1);
-    final Source newSource = new CollectionSource<>(coll);
+  public void testSetSource()
+      throws Exception {
+    final Collection<String> coll = new ArrayList<>(1);
+    coll.add(RandomValue.getString(1, 10));
+    final Source<String> newSource = new CollectionSource<>(coll);
     final Processing instance = new Processing();
     instance.setSource(newSource);
 
@@ -64,11 +66,12 @@ public class ProcessingTest
    * Test of setSourceAndTarget method, of class Processing.
    */
   @Test
-  public void testSetSourceAndTarget() {
-    final Collection<Object> coll = new ArrayList<>(1);
-    final Source newSource = new CollectionSource<>(coll);
-    @SuppressWarnings("unchecked")
-    final Target newTarget = new Target.TargetTest<>(newSource);
+  public void testSetSourceAndTarget()
+      throws Exception {
+    final Collection<String> coll = new ArrayList<>(1);
+    coll.add(RandomValue.getString(1, 10));
+    final Source<String> newSource = new CollectionSource<>(coll);
+    final Target<String> newTarget = new Target.TargetTest<>(newSource);
     final Processing instance = new Processing();
     instance.setSourceAndTarget(newTarget);
 
@@ -82,11 +85,12 @@ public class ProcessingTest
    * Test of setTarget method, of class Processing.
    */
   @Test
-  public void testSetTarget() {
+  public void testSetTarget()
+      throws Exception {
     final Collection<String> coll = new ArrayList<>(1);
-    final Source newSource = new CollectionSource<>(coll);
-    @SuppressWarnings("unchecked")
-    final Target newTarget = new Target.TargetTest<>(newSource);
+    coll.add(RandomValue.getString(1, 10));
+    final Source<String> newSource = new CollectionSource<>(coll);
+    final Target<String> newTarget = new Target.TargetTest<>(newSource);
     final Processing instance = new Processing();
 
     instance.setTarget(newTarget);
@@ -104,10 +108,12 @@ public class ProcessingTest
    */
   @Test
   @SuppressWarnings("unchecked")
-  public void testShutDown() {
+  public void testShutDown()
+      throws Exception {
     Collection<String> coll = new ArrayList<>(1);
-    Source newSource = new CollectionSource<>(coll);
-    Target newTarget = new Target.TargetTest<>(newSource);
+    coll.add(RandomValue.getString(1, 10));
+    Source<String> newSource = new CollectionSource<>(coll);
+    Target<String> newTarget = new Target.TargetTest<>(newSource);
     final Processing instance = new Processing();
     instance.setSourceAndTarget(newTarget);
 
@@ -115,7 +121,7 @@ public class ProcessingTest
     Processing.shutDown();
     instance.process();
 
-    int collSize = RandomValue.getInteger(100, 10000);
+    final int collSize = RandomValue.getInteger(100, 10000);
     coll = new ArrayList<>(collSize);
     for (int i = 0; i < collSize; i++) {
       coll.add(RandomValue.getString(1, 10));
@@ -132,30 +138,30 @@ public class ProcessingTest
    */
   @Test
   public void testDebugTestSource() {
-    int collSize = RandomValue.getInteger(100, 10000);
-    Collection<String> coll = new ArrayList<>(collSize);
+    final int collSize = RandomValue.getInteger(100, 10000);
+    final Collection<String> coll = new ArrayList<>(collSize);
     for (int i = 0; i < collSize; i++) {
       coll.add(RandomValue.getString(1, 10));
     }
-    final Source newSource = new CollectionSource<>(coll);
-    @SuppressWarnings("unchecked")
-    final Target newTarget = new Target.TargetTest<>(newSource);
+    final Source<String> newSource = new CollectionSource<>(coll);
+    final Target<String> newTarget = new Target.TargetTest<>(newSource);
     final Processing instance = new Processing();
     instance.setSourceAndTarget(newTarget);
 
-    long amount = instance.debugTestSource();
-    assertEquals(collSize, amount);
+    final long amount = instance.debugTestSource();
+    assertEquals("Not all items provided by source.", collSize, amount);
   }
 
   /**
    * Test of process method, of class Processing.
    */
   @Test
-  public void testProcess_0args() {
+  public void testProcess_0args()
+      throws Exception {
     Collection<String> coll = new ArrayList<>(1);
-    Source newSource = new CollectionSource<>(coll);
-    @SuppressWarnings("unchecked")
-    Target newTarget = new Target.TargetTest<>(newSource);
+    coll.add(RandomValue.getString(1, 10));
+    final Source<String> newSource = new CollectionSource<>(coll);
+    final Target<String> newTarget = new Target.TargetTest<>(newSource);
     final Processing instance = new Processing();
     instance.setSourceAndTarget(newTarget);
 
@@ -171,11 +177,12 @@ public class ProcessingTest
    * Test of process method, of class Processing.
    */
   @Test
-  public void testProcess_int() {
+  public void testProcess_int()
+      throws Exception {
     Collection<String> coll = new ArrayList<>(1);
-    Source newSource = new CollectionSource<>(coll);
-    @SuppressWarnings("unchecked")
-    Target newTarget = new Target.TargetTest<>(newSource);
+    coll.add(RandomValue.getString(1, 10));
+    final Source<String> newSource = new CollectionSource<>(coll);
+    final Target<String> newTarget = new Target.TargetTest<>(newSource);
     final Processing instance = new Processing();
     instance.setSourceAndTarget(newTarget);
 

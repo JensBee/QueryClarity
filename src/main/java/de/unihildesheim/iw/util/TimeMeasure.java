@@ -117,7 +117,7 @@ public final class TimeMeasure {
    * @return elapsed seconds, or <tt>0</tt> if no time was recorded
    */
   public double getElapsedSeconds() {
-    double nanos = getElapsedNanos();
+    final double nanos = getElapsedNanos();
     return nanos > 0 ? nanos / 1000000000.0 : 0d;
   }
 
@@ -152,12 +152,12 @@ public final class TimeMeasure {
   public static String getTimeString(final long elapsedTime) {
     final StringBuilder timeStr = new StringBuilder(20);
 
-    int day = (int) TimeUnit.SECONDS.toDays(elapsedTime);
-    long hours = TimeUnit.SECONDS.toHours(elapsedTime) - (day * 24L);
-    long minutes = TimeUnit.SECONDS.toMinutes(elapsedTime)
-                   - (TimeUnit.SECONDS.toHours(elapsedTime) * 60L);
-    long seconds = TimeUnit.SECONDS.toSeconds(elapsedTime)
-                   - (TimeUnit.SECONDS.toMinutes(elapsedTime) * 60L);
+    final int day = (int) TimeUnit.SECONDS.toDays(elapsedTime);
+    final long hours = TimeUnit.SECONDS.toHours(elapsedTime) - (day * 24L);
+    final long minutes = TimeUnit.SECONDS.toMinutes(elapsedTime)
+        - (TimeUnit.SECONDS.toHours(elapsedTime) * 60L);
+    final long seconds = TimeUnit.SECONDS.toSeconds(elapsedTime)
+        - (TimeUnit.SECONDS.toMinutes(elapsedTime) * 60L);
 
     if (day > 0) {
       timeStr.append(day).append("d ").append(hours).append("h ").append(

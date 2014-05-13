@@ -31,41 +31,53 @@ import java.util.Set;
  */
 public class StopwordsFileReader {
 
+  /**
+   * Private empty constructor for utility class.
+   */
+  private StopwordsFileReader() {
+  }
+
   public static Set<String> readWords(final Format format, final String source)
       throws IOException {
-    BufferedReader reader =
-        new BufferedReader(new InputStreamReader(new FileInputStream(source)));
+    Set<String> words;
+    try (BufferedReader reader = new BufferedReader(
+        new InputStreamReader(new FileInputStream(source)))) {
 
-    final Set<String> words = new HashSet<>();
+      words = new HashSet<>();
 
-    String line;
-    while ((line = reader.readLine()) != null) {
-      line = line.trim();
+      String line;
+      while ((line = reader.readLine()) != null) {
+        line = line.trim();
 
-      // ignore empty lines
-      if (line.isEmpty()) {
-        continue;
-      }
-
-      // skip snowball comment lines
-      if (Format.SNOWBALL.equals(format)) {
-        if (line.startsWith("|")) {
+        // ignore empty lines
+        if (line.isEmpty()) {
           continue;
         }
-      }
 
-      // add the first word
-      words.add(line.split(" ", 2)[0]);
+        // skip snowball comment lines
+        if (Format.SNOWBALL.equals(format)) {
+          if (line.charAt(0) == '|') {
+            continue;
+          }
+        }
+
+        // add the first word
+        words.add(line.split(" ", 2)[0]);
+      }
     }
     return words;
   }
 
   /**
-   * Tries to get the fomat type from the given string.
+   * Tries to get the format type from the given string.
+   *
    * @param format String naming the format
    * @return Format or null, if none is matching
    */
   public static Format getFormatFromString(final String format) {
+    if (format == null || format.trim().isEmpty()) {
+      throw new IllegalArgumentException("Format type string was empty.");
+    }
     if (Format.PLAIN.name().equalsIgnoreCase(format)) {
       return Format.PLAIN;
     } else if (Format.SNOWBALL.name().equalsIgnoreCase(format)) {

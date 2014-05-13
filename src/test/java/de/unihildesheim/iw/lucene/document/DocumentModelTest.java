@@ -17,7 +17,7 @@
 package de.unihildesheim.iw.lucene.document;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.lucene.AbstractMultiIndexDataProviderTestCase;
+import de.unihildesheim.iw.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
@@ -44,7 +44,7 @@ import static org.junit.Assert.assertTrue;
  */
 @RunWith(Parameterized.class)
 public final class DocumentModelTest
-    extends AbstractMultiIndexDataProviderTestCase {
+    extends MultiIndexDataProviderTestCase {
 
   /**
    * Initialize test with the current parameter.
@@ -53,7 +53,7 @@ public final class DocumentModelTest
    * @param rType Data provider configuration
    */
   public DocumentModelTest(final DataProviders dataProv,
-      final AbstractMultiIndexDataProviderTestCase.RunType rType) {
+      final MultiIndexDataProviderTestCase.RunType rType) {
     super(dataProv, rType);
   }
 
@@ -76,7 +76,7 @@ public final class DocumentModelTest
       final int docId = docIdIt.next();
       final DocumentModel docModel = metrics.getDocumentModel(docId);
       final DocumentModel docModelExp = this.index.getDocumentModel(docId);
-      for (ByteArray bw : docModel.termFreqMap.keySet()) {
+      for (final ByteArray bw : docModel.termFreqMap.keySet()) {
         assertEquals(msg("Document contains term mismatch (stopped: "
                 + excludeStopwords + ")."), docModelExp.contains(bw),
             docModel.contains(bw)
@@ -117,7 +117,7 @@ public final class DocumentModelTest
           tfMapExp.keySet().containsAll(tfMap.keySet())
       );
 
-      for (Entry<ByteArray, Long> tfEntry : tfMap.entrySet()) {
+      for (final Entry<ByteArray, Long> tfEntry : tfMap.entrySet()) {
         assertEquals(msg("Document term frequency mismatch "
                 + "between referenceIndex and model."),
             tfMapExp.get(tfEntry.getKey()), tfEntry.getValue()
@@ -219,7 +219,7 @@ public final class DocumentModelTest
       final int docId = docIdIt.next();
       final DocumentModel docModel = metrics.getDocumentModel(docId);
       final Metrics.DocumentMetrics dm = docModel.metrics();
-      for (ByteArray bw : docModel.termFreqMap.keySet()) {
+      for (final ByteArray bw : docModel.termFreqMap.keySet()) {
         assertNotEquals(msg("Smoothed and absolute relative term frequency "
             + "should not be the same."), dm.relTf(bw), dm.
             smoothedRelativeTermFrequency(bw, smoothingAmount));
@@ -247,7 +247,7 @@ public final class DocumentModelTest
       final DocumentModel docModel = metrics.getDocumentModel(docId);
       final Map<ByteArray, Long> tfMap = TestIndexDataProvider.reference
           .getDocumentTermFrequencyMap(docId);
-      for (Entry<ByteArray, Long> tfEntry : tfMap.entrySet()) {
+      for (final Entry<ByteArray, Long> tfEntry : tfMap.entrySet()) {
         assertEquals(msg("Term frequency mismatch."), docModel.tf(tfEntry.
             getKey()), tfEntry.getValue());
         if (excludeStopwords) {
@@ -281,7 +281,7 @@ public final class DocumentModelTest
       assertEquals(msg("Unique term count mismatch."), docModel.termCount(),
           tfMap.size());
       if (excludeStopwords) {
-        for (ByteArray term : tfMap.keySet()) {
+        for (final ByteArray term : tfMap.keySet()) {
           assertFalse(msg("Stopword found in model."), stopwords.
               contains(term));
         }

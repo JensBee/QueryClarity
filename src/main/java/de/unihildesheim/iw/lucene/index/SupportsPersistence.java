@@ -27,8 +27,7 @@ public interface SupportsPersistence {
    * @param name Name of the cache to create
    * @throws Exception Thrown, if cache loading fails
    */
-  void loadCache(final String name)
-      throws Exception;
+  void loadCache(final String name);
 
   /**
    * Tries to load a persistent cache with the given name. If none is found a
@@ -37,8 +36,7 @@ public interface SupportsPersistence {
    * @param name Name of the cache to create
    * @throws Exception Thrown, if cache loading/creation fails
    */
-  void loadOrCreateCache(final String name)
-      throws Exception;
+  void loadOrCreateCache(final String name);
 
   /**
    * Creates a new persistent cache with the given name.
@@ -46,6 +44,5 @@ public interface SupportsPersistence {
    * @param name Name of the cache to create
    * @throws Exception Thrown, if cache creation fails
    */
-  void createCache(final String name)
-      throws Exception;
+  void createCache(final String name);
 }

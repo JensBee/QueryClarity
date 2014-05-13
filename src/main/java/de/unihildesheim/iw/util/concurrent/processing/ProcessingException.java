@@ -35,6 +35,23 @@ public class ProcessingException
     super(message);
   }
 
+  ProcessingException(final String message, final Exception e) {
+    super(message, e);
+  }
+
+  public static final class TargetFailedException
+      extends ProcessingException {
+
+    /**
+     * General exception with custom message.
+     *
+     * @param message Exception message
+     */
+    public TargetFailedException(final String message) {
+      super(message);
+    }
+  }
+
   /**
    * Exception to indicate that the {@link Source} is not ready to serve items.
    */

@@ -47,7 +47,7 @@ public final class AbstractIndexDataProviderTest
    */
   public AbstractIndexDataProviderTest()
       throws Exception {
-    super(new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL));
+    super(new TestIndexDataProvider(TestIndexDataProvider.DEFAULT_INDEX_SIZE));
   }
 
   /**
@@ -93,7 +93,7 @@ public final class AbstractIndexDataProviderTest
         new HashMap<String, SerializableByte>(this.referenceIndex
             .getDocumentFields().size())
     );
-    for (String field : this.referenceIndex.getDocumentFields()) {
+    for (final String field : this.referenceIndex.getDocumentFields()) {
       instance.addFieldToCacheMap(field);
     }
     return instance;
@@ -145,8 +145,7 @@ public final class AbstractIndexDataProviderTest
     }
 
     @Override
-    public void warmUpDocumentFrequencies()
-        throws Exception {
+    public void warmUpDocumentFrequencies() {
       // NOP
     }
 

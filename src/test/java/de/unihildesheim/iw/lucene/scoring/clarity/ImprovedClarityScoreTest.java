@@ -17,7 +17,7 @@
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.lucene.AbstractMultiIndexDataProviderTestCase;
+import de.unihildesheim.iw.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.document.Feedback;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
@@ -54,7 +54,7 @@ import static org.junit.Assert.assertTrue;
  */
 @RunWith(Parameterized.class)
 public final class ImprovedClarityScoreTest
-    extends AbstractMultiIndexDataProviderTestCase {
+    extends MultiIndexDataProviderTestCase {
 
   /**
    * Logger instance for this class.
@@ -75,7 +75,7 @@ public final class ImprovedClarityScoreTest
    */
   public ImprovedClarityScoreTest(
       final DataProviders dataProv,
-      final AbstractMultiIndexDataProviderTestCase.RunType rType) {
+      final MultiIndexDataProviderTestCase.RunType rType) {
     super(dataProv, rType);
   }
 
@@ -111,7 +111,7 @@ public final class ImprovedClarityScoreTest
 
     double termSum = 0;
     // get the term frequency of each term in the document
-    for (Long tfTerm : docModel.termFreqMap.values()) {
+    for (final Long tfTerm : docModel.termFreqMap.values()) {
       termSum += tfTerm + smoothing;
     }
     double model = (termFreq + (smoothing * relCollFreq)) / termSum;
@@ -135,9 +135,9 @@ public final class ImprovedClarityScoreTest
       final ByteArray term, final Collection<Integer> fbDocIds,
       final Collection<ByteArray> queryTerms) {
     double model = 0;
-    for (Integer fbDocId : fbDocIds) {
+    for (final Integer fbDocId : fbDocIds) {
       double aModel = calc_pdt(conf, fbDocId, term);
-      for (ByteArray qTerm : queryTerms) {
+      for (final ByteArray qTerm : queryTerms) {
         aModel *= calc_pdt(conf, fbDocId, qTerm);
       }
       model += aModel;
@@ -157,6 +157,7 @@ public final class ImprovedClarityScoreTest
     final String query = TestIndexDataProvider.util.getQueryString();
     final ImprovedClarityScoreConfiguration icc
         = new ImprovedClarityScoreConfiguration();
+    icc.setFeedbackTermSelectionThreshold(0.1); // include most terms
     final ImprovedClarityScore instance = getInstanceBuilder()
         .configuration(icc)
         .build();
@@ -171,31 +172,32 @@ public final class ImprovedClarityScoreTest
     // check initial query
     assertEquals(msg("Query mismatch."), query, result.getQueries().get(0));
 
-    // build query
+    // build reference query
     final TermsQueryBuilder qBuilder = new TermsQueryBuilder(referenceIndex
         .getIndexReader(), this.index.getDocumentFields())
         .setBoolOperator(QueryParser.Operator.AND);
     final Query queryObj = qBuilder.query(query).build();
-
-    // retrieve initial feedback set
+    // retrieve initial feedback set to check document availability
     final Collection<Integer> feedbackDocIds = new HashSet<>(icc.
         getMaxFeedbackDocumentsCount());
     feedbackDocIds.addAll(
         Feedback.get(referenceIndex.getIndexReader(), queryObj,
             icc.getMaxFeedbackDocumentsCount())
     );
-
+    // check, if query must have been simplified
     if (feedbackDocIds.size() < icc.getMinFeedbackDocumentsCount()) {
       assertTrue(msg("Expecting query to be simplified."),
           result.wasQuerySimplified());
     }
 
-    // extract terms from feedback documents
+    // extract terms from actually used feedback documents
+//    final Collection<ByteArray> fbTerms = this.index.getDocumentsTermSet(
+//        feedbackDocIds);
     final Collection<ByteArray> fbTerms = this.index.getDocumentsTermSet(
-        feedbackDocIds);
+        result.getFeedbackDocuments());
 
     // get document frequency threshold
-    int minDf = (int) (metrics.collection.numberOfDocuments()
+    final int minDf = (int) (metrics.collection.numberOfDocuments()
         * icc.getFeedbackTermSelectionThreshold());
     final Iterator<ByteArray> fbTermsIt = fbTerms.iterator();
 
@@ -207,6 +209,7 @@ public final class ImprovedClarityScoreTest
       }
     }
 
+    // compare resulting terms
     assertEquals(msg("Feedback term count mismatch."), fbTerms.size(), result.
         getFeedbackTerms().size());
     assertTrue(msg("Feedback terms mismatch."), fbTerms.containsAll(result.
@@ -216,14 +219,14 @@ public final class ImprovedClarityScoreTest
     final Collection<ByteArray> qTerms = new QueryUtils(referenceIndex
         .getIndexReader(), this.index.getDocumentFields())
         .getAllQueryTerms(query);
-    for (ByteArray fbTerm : fbTerms) {
+    for (final ByteArray fbTerm : fbTerms) {
       final double pqt = calc_pqt(icc, fbTerm, feedbackDocIds, qTerms);
       score += pqt * MathUtils.log2(pqt / metrics.collection.relTf(fbTerm));
     }
 
     final double maxResult = Math.max(score, result.getScore());
     final double minResult = Math.min(score, result.getScore());
-    LOG.debug(msg("SCORE test={} ics={} deltaAllow={} delta={}"), score,
+    LOG.debug(msg("IC-SCORE test={} ics={} deltaAllow={} delta={}"), score,
         result.getScore(), ALLOWED_SCORE_DELTA, maxResult - minResult);
 
     assertEquals(msg("Score mismatch."), score, result.getScore(),
@@ -243,7 +246,7 @@ public final class ImprovedClarityScoreTest
     final double betaParam = RandomValue.getDouble(0.1, 0.9);
     final double lambdaParam = RandomValue.getDouble(0.1, 0.9);
     final double smoothingParam = RandomValue.getDouble(0.1, 0.9);
-    final double termTsParam = RandomValue.getDouble(0.1, 0.9);
+    final double termTsParam = 0.1; // low to get matches
     final ImprovedClarityScore.QuerySimplifyPolicy qspParam
         = ImprovedClarityScore.QuerySimplifyPolicy.FIRST;
 
@@ -262,10 +265,14 @@ public final class ImprovedClarityScoreTest
     final ImprovedClarityScore instance = getInstanceBuilder()
         .configuration(icc)
         .build();
+//    try {
     final ImprovedClarityScore.Result result
         = instance.calculateClarity(queryString);
+//    } catch (ImprovedClarityScore.NoTermsLeftException e) {
+//      // pass
+//    }
 
-    ImprovedClarityScoreConfiguration resConf = result.getConfiguration();
+    final ImprovedClarityScoreConfiguration resConf = result.getConfiguration();
     assertEquals("Beta param value mismatch.", icc.
         getDocumentModelParamBeta(), resConf.getDocumentModelParamBeta());
     assertEquals("Lambda param value mismatch.", icc.
@@ -317,7 +324,7 @@ public final class ImprovedClarityScoreTest
     final Collection<ByteArray> fbTerms = this.index.getDocumentsTermSet
         (fbDocIds);
 
-    for (ByteArray fbTerm : fbTerms) {
+    for (final ByteArray fbTerm : fbTerms) {
       final double result = instance.calcQueryModel(fbTerm, qTerms, fbDocIds);
       final double expected = calc_pqt(icc, fbTerm, fbDocIds, qTerms);
       assertEquals("Query model value differs.", expected, result,
@@ -350,7 +357,7 @@ public final class ImprovedClarityScoreTest
       final Map<ByteArray, Object> valueMap = instance.testGetExtDocMan()
           .getData(docId, DefaultClarityScore.DataKeys.DM.name());
 
-      for (ByteArray term : docModel.termFreqMap.keySet()) {
+      for (final ByteArray term : docModel.termFreqMap.keySet()) {
         final double expResult = calc_pdt(icc, docModel.id, term);
         assertEquals(msg("Calculated document model value differs. docId="
                 + docId + " term=" + ByteArrayUtils.utf8ToString(term) +

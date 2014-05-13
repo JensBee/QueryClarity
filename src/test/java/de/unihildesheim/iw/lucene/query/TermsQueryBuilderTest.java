@@ -53,8 +53,8 @@ public final class TermsQueryBuilderTest
   @BeforeClass
   public static final void setUpClass()
       throws Exception {
-    referenceIndex = new TestIndexDataProvider(
-        TestIndexDataProvider.IndexSize.SMALL);
+    referenceIndex =
+        new TestIndexDataProvider(TestIndexDataProvider.DEFAULT_INDEX_SIZE);
     assertTrue("TestIndex is not initialized.", TestIndexDataProvider.
         isInitialized());
 
@@ -96,20 +96,20 @@ public final class TermsQueryBuilderTest
 
     @SuppressWarnings("StringBufferWithoutInitialCapacity")
     final StringBuilder qb = new StringBuilder();
-    for (String t : newStopWords) {
+    for (final String t : newStopWords) {
       qb.append(t).append(' ');
     }
-    for (String t : terms) {
+    for (final String t : terms) {
       qb.append(t).append(' ');
     }
 
     final SimpleTermsQuery stq = instance.query(qb.toString()).build();
     final Collection<String> finalTerms = new HashSet<>(stq.getQueryTerms());
 
-    for (String t : terms) {
+    for (final String t : terms) {
       assertTrue("Term not found. t=" + t, finalTerms.contains(t));
     }
-    for (String t : newStopWords) {
+    for (final String t : newStopWords) {
       assertFalse("Stopword found. t=" + t, finalTerms.contains(t));
     }
   }
@@ -130,7 +130,7 @@ public final class TermsQueryBuilderTest
     final String qStr =
         instance.setFields(fields).query("foo").build().getQueryObj()
             .toString();
-    for (String f : fields) {
+    for (final String f : fields) {
       // stupid simple & may break easily
       assertTrue("Field not found.", qStr.contains(f + ":foo"));
     }
@@ -145,10 +145,11 @@ public final class TermsQueryBuilderTest
   @Ignore
   public void testSetBoolOperator()
       throws Exception {
+    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
     TermsQueryBuilder instance;
 
     // TODO: how to check results?
-    for (QueryParser.Operator op : QueryParser.Operator.values()) {
+    for (final QueryParser.Operator op : QueryParser.Operator.values()) {
       instance = new TermsQueryBuilder(this.referenceIndex.getIndexReader(),
           this.referenceIndex.getDocumentFields());
       instance.setBoolOperator(op).query("foo bar").build().toString();
@@ -169,7 +170,7 @@ public final class TermsQueryBuilderTest
     final Set<String> stopwords = new HashSet<>(this.referenceIndex.util
         .getRandomStopWords());
 
-    TermsQueryBuilder instance = new TermsQueryBuilder(this.referenceIndex
+    final TermsQueryBuilder instance = new TermsQueryBuilder(this.referenceIndex
         .getIndexReader(), fields);
     instance.setStopwords(stopwords);
     instance.setBoolOperator(QueryParser.Operator.OR);

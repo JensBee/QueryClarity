@@ -59,16 +59,15 @@ public final class DocumentModel {
   private int hashCode;
 
   /**
-   * {@link DocumentMetrics} instance for this model.
+   * {@link Metrics.DocumentMetrics} instance for this model.
    */
-  private Metrics.DocumentMetrics metrics = null;
+  private Metrics.DocumentMetrics metrics;
 
   /**
    * Create a new model with data from the given builder.
    *
    * @param builder Builder to use
    */
-  @SuppressWarnings("AccessingNonPublicFieldOfAnotherObject")
   private DocumentModel(final DocumentModelBuilder builder) {
     if (builder == null) {
       throw new NullPointerException("Builder was null.");
@@ -87,7 +86,10 @@ public final class DocumentModel {
    * @return True if known
    */
   public boolean contains(final ByteArray term) {
-    return term != null && this.termFreqMap.containsKey(term);
+    if (term == null) {
+      throw new IllegalArgumentException("Term was null.");
+    }
+    return this.termFreqMap.containsKey(term);
   }
 
   /**
@@ -98,7 +100,7 @@ public final class DocumentModel {
    */
   public Long tf(final ByteArray term) {
     if (term == null) {
-      return 0L;
+      throw new IllegalArgumentException("Term was null.");
     }
     final Long tFreq = this.termFreqMap.get(term);
     if (tFreq == null) {
@@ -143,36 +145,24 @@ public final class DocumentModel {
       return true;
     }
     if (!(o instanceof DocumentModel)) {
-      LOG.debug("FAIL 0");
       return false;
     }
 
-    DocumentModel other = (DocumentModel) o;
+    final DocumentModel other = (DocumentModel) o;
 
     if (this.id != other.id || this.termFrequency != other.termFrequency
         || this.termFreqMap.size() != other.termFreqMap.size()) {
-      LOG.debug("FAIL 1 id={}::{} tf={}::{} tfm={}::{}", this.id,
-          other.id,
-          this.termFrequency, other.termFrequency,
-          this.termFreqMap.size(),
-          other.termFreqMap.size());
       return false;
     }
 
-    if (!other.termFreqMap.keySet()
-        .containsAll(this.termFreqMap.keySet())) {
+    if (!other.termFreqMap.keySet().containsAll(this.termFreqMap.keySet())) {
       LOG.debug("FAIL 2");
       return false;
     }
 
-    for (Entry<ByteArray, Long> entry : this.termFreqMap.entrySet()) {
-      if (entry.getValue()
-              .compareTo(other.termFreqMap.get(entry.getKey()))
+    for (final Entry<ByteArray, Long> entry : this.termFreqMap.entrySet()) {
+      if (entry.getValue().compareTo(other.termFreqMap.get(entry.getKey()))
           != 0) {
-        LOG.debug("FAIL 3 t={} tf={} otf={}", entry.getKey(), entry.
-                getValue(),
-            other.termFreqMap.get(entry.getKey())
-        );
         return false;
       }
     }
@@ -187,8 +177,8 @@ public final class DocumentModel {
     this.hashCode = 7;
     this.hashCode = 19 * this.hashCode + this.id;
     this.hashCode = 19 * this.hashCode + (int) (this.termFrequency
-                                                ^ (this.termFrequency
-                                                   >>> 32));
+        ^ (this.termFrequency
+        >>> 32));
     this.hashCode = 19 * this.hashCode * this.termFreqMap.size();
   }
 
@@ -215,7 +205,7 @@ public final class DocumentModel {
     /**
      * Id to identify the corresponding document.
      */
-    private int docId;
+    private final int docId;
     /**
      * Overall term frequency of the corresponding document.
      */
@@ -283,10 +273,10 @@ public final class DocumentModel {
      */
     public DocumentModelBuilder setTermFrequency(
         final Map<ByteArray, Long> map) {
-      for (Entry<ByteArray, Long> entry : map.entrySet()) {
+      for (final Entry<ByteArray, Long> entry : map.entrySet()) {
         if (entry.getKey() == null || entry.getValue() == null) {
           throw new NullPointerException("Encountered null value in "
-                                         + "termFreqMap.");
+              + "termFreqMap.");
         }
         this.termFreqMap.put(entry.getKey(), entry.getValue());
       }
@@ -299,7 +289,7 @@ public final class DocumentModel {
      * @return New document model with the data of this builder set
      */
     public DocumentModel getModel() {
-      for (Long tf : this.termFreqMap.values()) {
+      for (final Long tf : this.termFreqMap.values()) {
         this.termFreq += tf;
       }
       return new DocumentModel(this);

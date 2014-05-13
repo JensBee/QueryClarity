@@ -55,6 +55,7 @@ public final class Persistence {
 
   /**
    * Tries to create a file directory to store the persistent data.
+   *
    * @param filePath Path to use for storing
    * @return File instance of the path
    * @throws IOException Thrown, if the path is not a directory, if the path
@@ -87,6 +88,9 @@ public final class Persistence {
 
   protected static final Persistence build(final Builder builder,
       final boolean empty) {
+    if (builder == null) {
+      throw new IllegalArgumentException("Builder was null.");
+    }
     final Persistence instance = new Persistence();
     instance.db = builder.getMaker().make();
     instance.meta = new StorageMeta();
@@ -134,6 +138,12 @@ public final class Persistence {
    */
   public void updateMetaData(final Set<String> fields,
       final Set<String> stopwords) {
+    if (fields == null) {
+      throw new IllegalArgumentException("Fields were null.");
+    }
+    if (stopwords == null) {
+      throw new IllegalArgumentException("Stopwords were null.");
+    }
     LOG.debug("Updating meta-data.");
     meta.setFields(fields);
     meta.setStopWords(stopwords);
@@ -175,18 +185,15 @@ public final class Persistence {
     /**
      * Latest index commit generation visible when last updating this store.
      */
-    @SuppressWarnings({"ProtectedField", "checkstyle:visibilitymodifier"})
-    protected Atomic.Long indexCommitGen;
+    Atomic.Long indexCommitGen;
     /**
      * Fields set when last updating this store.
      */
-    @SuppressWarnings({"ProtectedField", "checkstyle:visibilitymodifier"})
-    protected Set<String> fields;
+    Set<String> fields;
     /**
      * Stopwords set when last updating this store.
      */
-    @SuppressWarnings({"ProtectedField", "checkstyle:visibilitymodifier"})
-    protected Set<String> stopWords;
+    Set<String> stopWords;
 
     /**
      * Set the Lucene index commit generation.
@@ -203,6 +210,9 @@ public final class Persistence {
      * @param newFields Fields list
      */
     protected void setFields(final Set<String> newFields) {
+      if (newFields == null) {
+        throw new IllegalArgumentException("Fields were null.");
+      }
       this.fields.clear();
       this.fields.addAll(newFields);
     }
@@ -210,11 +220,14 @@ public final class Persistence {
     /**
      * Set the current active stopwords.
      *
-     * @param newStopWords List of stopwords
+     * @param newStopwords List of stopwords
      */
-    protected void setStopWords(final Set<String> newStopWords) {
+    protected void setStopWords(final Set<String> newStopwords) {
+      if (newStopwords == null) {
+        throw new IllegalArgumentException("Stopwords were null.");
+      }
       this.stopWords.clear();
-      this.stopWords.addAll(newStopWords);
+      this.stopWords.addAll(newStopwords);
     }
 
     /**
@@ -260,7 +273,10 @@ public final class Persistence {
      *
      * @return True, if both generation numbers are the same.
      */
-    public boolean generationCurrent(final long currentGen) {
+    public boolean generationCurrent(final Long currentGen) {
+      if (currentGen == null) {
+        throw new IllegalArgumentException("Index commit generation was null.");
+      }
       if (this.indexCommitGen == null) {
         throw new IllegalStateException("Commit generation "
             + "meta information not set.");
@@ -312,17 +328,12 @@ public final class Persistence {
     /**
      * Builder used to create a new database.
      */
-    private ExtDBMaker dbMkr = new ExtDBMaker();
+    private final ExtDBMaker dbMkr = new ExtDBMaker();
 
     /**
      * Name of the database to create.
      */
-    private String name = null;
-
-//    /**
-//     * Resulting filename of the new database.
-//     */
-//    private File dbFile;
+    private String name;
 
     private String dataPath;
 
@@ -339,11 +350,11 @@ public final class Persistence {
     /**
      * Last commit generation id of the Lucene index.
      */
-    private Long lastCommitGeneration = null;
+    private Long lastCommitGeneration;
 
     /**
-     * Flag indicating, if the new instance will be temporary. If it's
-     * temporary any data may be deleted on JVM exit.
+     * Flag indicating, if the new instance will be temporary. If it's temporary
+     * any data may be deleted on JVM exit.
      */
     private boolean isTemporary = false;
 
@@ -356,7 +367,8 @@ public final class Persistence {
      * Simple extension of MapDB's {@link DBMaker} to allow specifying the
      * database file after creating the maker instance.
      */
-    private static final class ExtDBMaker extends DBMaker {
+    private static final class ExtDBMaker
+        extends DBMaker {
       private ExtDBMaker() {
         super();
       }
@@ -371,16 +383,19 @@ public final class Persistence {
     }
 
     public Builder dataPath(final String newDataPath) {
+      if (newDataPath == null || newDataPath.trim().isEmpty()) {
+        throw new IllegalArgumentException("Empty data path.");
+      }
       this.dataPath = newDataPath;
       return this;
     }
 
     public Builder name(final String newName) {
-      if (newName == null || newName.isEmpty()) {
+      if (newName == null || newName.trim().isEmpty()) {
         throw new IllegalArgumentException("Empty cache name.");
       }
       if (this.isTemporary) {
-       this.name = newName + "-" + this.randNameSuffix;
+        this.name = newName + "-" + this.randNameSuffix;
       } else {
         this.name = newName;
       }
@@ -543,49 +558,53 @@ public final class Persistence {
     }
 
     public boolean dbExists()
-        throws BuilderConfigurationException {
+        throws ConfigurationException {
       if (this.dataPath == null || this.dataPath.trim().isEmpty()) {
-        throw new BuilderConfigurationException("Data path not set.");
+        throw new ConfigurationException("Data path not set.");
       }
       if (this.name == null || this.name.trim().isEmpty()) {
-        throw new BuilderConfigurationException("Empty storage name.");
+        throw new ConfigurationException("Empty storage name.");
       }
       return new File(
           FileUtils.makePath(this.dataPath) + Builder.PREFIX + "_" + this
-              .name).exists();
+              .name
+      ).exists();
     }
 
     /**
      * Creates a new instance with the current builder configuration.
      *
      * @return New instance
-     * @throws BuilderConfigurationException Thrown, if a mandatory
-     * configuration option is unset
-     * @throws IOException Thrown on low-level I/O errors
+     * @throws ConfigurationException Thrown, if a mandatory configuration
+     * option is unset
      */
     @Override
     public Persistence build()
-        throws BuilderConfigurationException, IOException {
+        throws ConfigurationException, BuildException {
       validate();
       final File dbFile = new File(
           FileUtils.makePath(this.dataPath) + Builder.PREFIX + "_" + this.name);
       //this.dbMkr = DBMaker.newFileDB(dbFile);
       this.dbMkr.dbFile(dbFile);
       final Persistence p;
-      switch (this.cacheInstruction) {
-        case GET:
-          p = getInstance(dbFile);
-          break;
-        case MAKE:
-          p = makeInstance(dbFile);
-          break;
-        default:
-          if (dbFile.exists()) {
+      try {
+        switch (this.cacheInstruction) {
+          case GET:
             p = getInstance(dbFile);
-          } else {
+            break;
+          case MAKE:
             p = makeInstance(dbFile);
-          }
-          break;
+            break;
+          default:
+            if (dbFile.exists()) {
+              p = getInstance(dbFile);
+            } else {
+              p = makeInstance(dbFile);
+            }
+            break;
+        }
+      } catch (IOException e) {
+        throw new BuildException(e);
       }
       if (this.isTemporary) {
         LOG.warn("Caches are temporary!");
@@ -595,18 +614,18 @@ public final class Persistence {
 
     @Override
     public void validate()
-        throws BuilderConfigurationException {
+        throws ConfigurationException {
       if (this.dataPath == null || this.dataPath.trim().isEmpty()) {
-        throw new BuilderConfigurationException("Data path not set.");
+        throw new ConfigurationException("Data path not set.");
       }
       if (this.name == null || this.name.trim().isEmpty()) {
-        throw new BuilderConfigurationException("Empty storage name.");
+        throw new ConfigurationException("Empty storage name.");
       }
       if (this.documentFields == null) {
-        throw new BuilderConfigurationException("Document fields are null.");
+        throw new ConfigurationException("Document fields are null.");
       }
       if (this.stopwords == null) {
-        throw new BuilderConfigurationException("Stopwords are null.");
+        throw new ConfigurationException("Stopwords are null.");
       }
     }
   }

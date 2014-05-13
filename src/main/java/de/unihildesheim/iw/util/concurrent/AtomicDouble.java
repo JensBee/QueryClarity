@@ -30,8 +30,8 @@ import static java.lang.Double.longBitsToDouble;
  * for a {@link Double}. However, this class does extend {@code Number} to allow
  * uniform access by tools and utilities that deal with numerically-based
  * classes.
- * <p>
- * <p>
+ * <p/>
+ * <p/>
  * This class compares primitive {@code double} values in methods such as {@link
  * #compareAndSet} by comparing their bitwise representation using {@link
  * Double#doubleToRawLongBits}, which differs from both the primitive double
@@ -42,12 +42,12 @@ import static java.lang.Double.longBitsToDouble;
  *   long yBits = Double.doubleToRawLongBits(y);
  *   return xBits == yBits;
  * }}</pre>
- * <p>
- * <p>
+ * <p/>
+ * <p/>
  * It is possible to write a more scalable updater, at the cost of giving up
  * strict atomicity. See for example <a href="http://gee.cs.oswego
- * .edu/dl/jsr166/dist/jsr166edocs/jsr166e/DoubleAdder.html">
- * DoubleAdder</a> and <a href="http://gee.cs.oswego
+ * .edu/dl/jsr166/dist/jsr166edocs/jsr166e/DoubleAdder.html"> DoubleAdder</a>
+ * and <a href="http://gee.cs.oswego
  * .edu/dl/jsr166/dist/jsr166edocs/jsr166e/DoubleMaxUpdater.html">
  * DoubleMaxUpdater</a>.
  *
@@ -78,6 +78,7 @@ public final class AtomicDouble
    * @param initialValue the initial value
    */
   public AtomicDouble(final double initialValue) {
+    super();
     this.value = doubleToRawLongBits(initialValue);
   }
 
@@ -85,6 +86,7 @@ public final class AtomicDouble
    * Creates a new {@code AtomicDouble} with initial value {@code 0.0}.
    */
   public AtomicDouble() {
+    super();
     assert doubleToRawLongBits(0.0) == 0L;
   }
 
@@ -112,7 +114,7 @@ public final class AtomicDouble
    * @param newValue the new value
    */
   public void lazySet(final double newValue) {
-    long next = doubleToRawLongBits(newValue);
+    final long next = doubleToRawLongBits(newValue);
     AtomicDouble.UPDATER.lazySet(this, next);
   }
 
@@ -123,7 +125,7 @@ public final class AtomicDouble
    * @return the previous value
    */
   public double getAndSet(final double newValue) {
-    long next = doubleToRawLongBits(newValue);
+    final long next = doubleToRawLongBits(newValue);
     return longBitsToDouble(AtomicDouble.UPDATER.getAndSet(this, next));
   }
 
@@ -146,13 +148,13 @@ public final class AtomicDouble
   /**
    * Atomically sets the value to the given updated value if the current value
    * is <a href="#bitEquals">bitwise equal</a> to the expected value.
-   * <p>
-   * <p>
+   * <p/>
+   * <p/>
    * May <a href="http://download.oracle
    * .com/javase/7/docs/api/java/util/concurrent/atomic/package-summary
-   * .html#Spurious">
-   * fail spuriously</a> and does not provide ordering guarantees, so is only
-   * rarely an appropriate alternative to {@code compareAndSet}.
+   * .html#Spurious"> fail spuriously</a> and does not provide ordering
+   * guarantees, so is only rarely an appropriate alternative to {@code
+   * compareAndSet}.
    *
    * @param expect the expected value
    * @param update the new value
@@ -174,10 +176,10 @@ public final class AtomicDouble
    */
   public double getAndAdd(final double delta) {
     while (true) {
-      long current = this.value;
-      double currentVal = longBitsToDouble(current);
-      double nextVal = currentVal + delta;
-      long next = doubleToRawLongBits(nextVal);
+      final long current = this.value;
+      final double currentVal = longBitsToDouble(current);
+      final double nextVal = currentVal + delta;
+      final long next = doubleToRawLongBits(nextVal);
       if (AtomicDouble.UPDATER.compareAndSet(this, current, next)) {
         return currentVal;
       }
@@ -192,10 +194,10 @@ public final class AtomicDouble
    */
   public double addAndGet(final double delta) {
     while (true) {
-      long current = this.value;
-      double currentVal = longBitsToDouble(current);
-      double nextVal = currentVal + delta;
-      long next = doubleToRawLongBits(nextVal);
+      final long current = this.value;
+      final double currentVal = longBitsToDouble(current);
+      final double nextVal = currentVal + delta;
+      final long next = doubleToRawLongBits(nextVal);
       if (AtomicDouble.UPDATER.compareAndSet(this, current, next)) {
         return nextVal;
       }

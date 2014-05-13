@@ -29,7 +29,7 @@ import java.io.PrintStream;
 /**
  * @author Jens Bertram
  */
-public abstract class CliBase {
+public class CliBase {
 
   /**
    * Logger instance for this class.

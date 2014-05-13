@@ -94,7 +94,8 @@ public final class Metrics {
      *
      * @return Number of unique terms in index
      */
-    public Long numberOfUniqueTerms() {
+    public Long numberOfUniqueTerms()
+        throws DataProviderException {
       return dataProv.getUniqueTermsCount();
     }
 
@@ -114,6 +115,9 @@ public final class Metrics {
      * @return Document frequency of the given term
      */
     public Integer df(final ByteArray term) {
+      if (term == null) {
+        throw new IllegalArgumentException("Term was null.");
+      }
       return dataProv.getDocumentFrequency(term);
     }
 
@@ -124,6 +128,9 @@ public final class Metrics {
      * @return Collection frequency of the given term
      */
     public Long tf(final ByteArray term) {
+      if (term == null) {
+        throw new IllegalArgumentException("Term was null.");
+      }
       return dataProv.getTermFrequency(term);
     }
 
@@ -145,6 +152,9 @@ public final class Metrics {
      * @return Relative collection frequency of the given term
      */
     public Double relTf(final ByteArray term) {
+      if (term == null) {
+        throw new IllegalArgumentException("Term was null.");
+      }
       return dataProv.getRelativeTermFrequency(term);
     }
 
@@ -168,6 +178,9 @@ public final class Metrics {
      * @return Inverse document frequency (logN)
      */
     public Double idf(final ByteArray term, final double logBase) {
+      if (term == null) {
+        throw new IllegalArgumentException("Term was null.");
+      }
       return MathUtils.logN(logBase, 1 + (numberOfDocuments() / df(term)));
     }
 
@@ -191,6 +204,9 @@ public final class Metrics {
      * @return Inverse document frequency BM25 (logN)
      */
     public Double idfBM25(final ByteArray term, final double logBase) {
+      if (term == null) {
+        throw new IllegalArgumentException("Term was null.");
+      }
       final int docFreq = df(term);
       return MathUtils.logN(logBase, (numberOfDocuments() - docFreq + 0.5)
           / (docFreq + 0.5));
@@ -202,7 +218,8 @@ public final class Metrics {
      *
      * @return Iterator providing <tt>term, index</tt> frequency value pairs
      */
-    public Iterator<Tuple.Tuple2<ByteArray, Long>> termFrequencyIterator() {
+    public Iterator<Tuple.Tuple2<ByteArray, Long>> termFrequencyIterator()
+        throws DataProviderException {
       return new Iterator<Tuple.Tuple2<ByteArray, Long>>() {
         private final Iterator<ByteArray> idxTerms =
             dataProv.getTermsIterator();
@@ -237,6 +254,9 @@ public final class Metrics {
     private final DocumentModel docModel;
 
     public DocumentMetrics(final DocumentModel documentModel) {
+      if (documentModel == null) {
+        throw new IllegalArgumentException("Document model was null.");
+      }
       this.docModel = documentModel;
     }
 
@@ -247,6 +267,9 @@ public final class Metrics {
      * @return Frequency value
      */
     public double wdf(final ByteArray term) {
+      if (term == null) {
+        throw new IllegalArgumentException("Term was null.");
+      }
       return MathUtils.log2(tf(term).doubleValue() + 1) /
           MathUtils.log2(tf().doubleValue());
     }
@@ -295,7 +318,10 @@ public final class Metrics {
      * @return Relative frequency. Zero if term is not in document.
      */
     public Double relTf(final ByteArray term) {
-      Long tf = this.docModel.tf(term);
+      if (term == null) {
+        throw new IllegalArgumentException("Term was null.");
+      }
+      final Long tf = this.docModel.tf(term);
       if (tf == 0) {
         return 0.0;
       }
@@ -310,6 +336,9 @@ public final class Metrics {
      * @return True, if term is in document
      */
     public boolean contains(final ByteArray term) {
+      if (term == null) {
+        throw new IllegalArgumentException("Term was null.");
+      }
       return this.docModel.contains(term);
     }
 
@@ -324,6 +353,9 @@ public final class Metrics {
      */
     public double smoothedRelativeTermFrequency(final ByteArray term,
         final double smoothing) {
+      if (term == null) {
+        throw new IllegalArgumentException("Term was null.");
+      }
       final double termFreq = this.docModel.tf(term).doubleValue();
       final double relCollFreq = relTf(term);
       return ((termFreq + smoothing) * relCollFreq) / (termFreq + (Integer.

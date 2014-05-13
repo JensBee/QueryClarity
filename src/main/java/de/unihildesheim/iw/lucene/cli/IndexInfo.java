@@ -16,12 +16,21 @@
  */
 package de.unihildesheim.iw.lucene.cli;
 
-import asg.cliche.*;
+import asg.cliche.CLIException;
+import asg.cliche.Command;
+import asg.cliche.Param;
+import asg.cliche.Shell;
+import asg.cliche.ShellFactory;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import de.unihildesheim.iw.util.StringUtils;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
@@ -45,7 +54,7 @@ public final class IndexInfo {
       = CliParams.SHELL_EXEC_U,
       required = false, variableArity = true)
   @SuppressWarnings({"CollectionWithoutInitialCapacity",
-                     "MismatchedQueryAndUpdateOfCollection"})
+      "MismatchedQueryAndUpdateOfCollection"})
   private final List<String> runCommand = new ArrayList<>();
   /**
    * CLI-parameter to specify the Lucene index directory.
@@ -88,7 +97,7 @@ public final class IndexInfo {
   public void listFields()
       throws IOException {
     final Fields idxFields = MultiFields.getFields(this.reader);
-    for (String field : idxFields) {
+    for (final String field : idxFields) {
       System.out.println("field={" + field + "} docCount={" + this.reader.
           getDocCount(field) + "} sumDocFreq={" + this.reader.
           getSumDocFreq(field) + "} sumTotalTermFreq={" + this.reader.
@@ -103,7 +112,7 @@ public final class IndexInfo {
   public void stats() {
     System.out.println("MaxDoc: " + this.reader.maxDoc());
     System.out.println("Deletions: " + this.reader.hasDeletions() + " ("
-                       + this.reader.numDeletedDocs() + ")");
+        + this.reader.numDeletedDocs() + ")");
   }
 
   /**
@@ -140,7 +149,7 @@ public final class IndexInfo {
 
     // ..check if we have terms..
     if (fieldTerms != null) {
-      TermsEnum fieldTermsEnum = fieldTerms.iterator(null);
+      final TermsEnum fieldTermsEnum = fieldTerms.iterator(null);
 
       // ..iterate over them..
       BytesRef bytesRef = fieldTermsEnum.next();
@@ -180,7 +189,8 @@ public final class IndexInfo {
       System.exit(1);
     }
 
-    Shell shell = ShellFactory.createConsoleShell("cmd", "IndexInfo", this);
+    final Shell shell = ShellFactory.createConsoleShell("cmd", "IndexInfo",
+        this);
     if (!this.runCommand.isEmpty()) {
       final String[] command = this.runCommand.toArray(
           new String[this.runCommand.size()]);

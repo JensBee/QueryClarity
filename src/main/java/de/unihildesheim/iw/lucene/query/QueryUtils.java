@@ -40,6 +40,12 @@ public final class QueryUtils {
   private final IndexReader reader;
 
   public QueryUtils(final IndexReader newReader, final Set<String> newFields) {
+    if (newReader == null) {
+      throw new IllegalArgumentException("IndexReader was null.");
+    }
+    if (newFields == null || newFields.isEmpty()) {
+      throw new IllegalArgumentException("Fields list was empty.");
+    }
     this.fields = newFields;
     this.reader = newReader;
   }
@@ -57,7 +63,7 @@ public final class QueryUtils {
   private Collection<ByteArray> extractTerms(final String query)
       throws
       UnsupportedEncodingException, ParseException,
-      Buildable.BuilderConfigurationException {
+      Buildable.ConfigurationException, Buildable.BuildException {
     if (query == null || query.isEmpty()) {
       throw new IllegalArgumentException("Query string was empty.");
     }
@@ -70,8 +76,9 @@ public final class QueryUtils {
       throw new IllegalStateException("Query string returned no terms.");
     }
     final Collection<ByteArray> bwTerms = new ArrayList<>(qTerms.size());
-    for (String qTerm : qTerms) {
-      bwTerms.add(new ByteArray(qTerm.getBytes("UTF-8")));
+    for (final String qTerm : qTerms) {
+      final ByteArray termBa = new ByteArray(qTerm.getBytes("UTF-8"));
+      bwTerms.add(termBa);
     }
     return bwTerms;
   }
@@ -88,7 +95,10 @@ public final class QueryUtils {
    */
   public Set<ByteArray> getUniqueQueryTerms(final String query)
       throws UnsupportedEncodingException, ParseException,
-             Buildable.BuilderConfigurationException {
+             Buildable.ConfigurationException, Buildable.BuildException {
+    if (query == null || query.trim().isEmpty()) {
+      throw new IllegalArgumentException("Query was empty.");
+    }
     return new HashSet<>(extractTerms(query));
   }
 
@@ -104,7 +114,10 @@ public final class QueryUtils {
    */
   public Collection<ByteArray> getAllQueryTerms(final String query)
       throws UnsupportedEncodingException, ParseException,
-             Buildable.BuilderConfigurationException {
+             Buildable.ConfigurationException, Buildable.BuildException {
+    if (query == null || query.trim().isEmpty()) {
+      throw new IllegalArgumentException("Query was empty.");
+    }
     return extractTerms(query);
   }
 }

@@ -42,7 +42,7 @@ public final class FakeIndexDataProvider
   }
 
   @Override
-  public Long getTermFrequency(ByteArray term) {
+  public Long getTermFrequency(final ByteArray term) {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 
@@ -108,12 +108,12 @@ public final class FakeIndexDataProvider
   }
 
   @Override
-  public boolean documentContains(int documentId, ByteArray term) {
+  public boolean documentContains(final int documentId, final ByteArray term) {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
-  public long getLastIndexCommitGeneration() {
+  public Long getLastIndexCommitGeneration() {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 

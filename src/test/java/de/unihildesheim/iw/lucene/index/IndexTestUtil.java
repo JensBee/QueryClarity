@@ -62,6 +62,9 @@ public final class IndexTestUtil {
       Integer, ByteArray, String, Integer>> generateTermData(
       final IndexDataProvider index, final int amount)
       throws UnsupportedEncodingException {
+    if (amount <= 0) {
+      throw new IllegalArgumentException("Amount must be greater than 0.");
+    }
     return generateTermData(index, null, null, amount);
   }
 
@@ -83,9 +86,13 @@ public final class IndexTestUtil {
   generateTermData(final IndexDataProvider index,
       final Integer documentId, String key, final int amount)
       throws UnsupportedEncodingException {
+    if (amount <= 0) {
+      throw new IllegalArgumentException("Amount must be greater than 0.");
+    }
     if (key == null) {
       key = RandomValue.getString(1, 5);
     }
+
     final Collection<Tuple.Tuple3<Integer, ByteArray, String>> unique
         = new HashSet<>(amount); // ensure unique triples
     final Collection<Tuple.Tuple4<
@@ -107,6 +114,7 @@ public final class IndexTestUtil {
       } else {
         docId = documentId;
       }
+      @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
       final ByteArray term = new ByteArray(RandomValue.getString(1, 20).
           getBytes("UTF-8"));
       final int val = RandomValue.getInteger();

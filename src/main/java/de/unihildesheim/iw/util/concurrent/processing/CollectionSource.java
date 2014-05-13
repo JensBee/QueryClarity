@@ -37,7 +37,7 @@ public final class CollectionSource<T>
   /**
    * Iterator over the wrapped source.
    */
-  private volatile Iterator<T> itemsIt = null;
+  private volatile Iterator<T> itemsIt;
   /**
    * Number of provided items.
    */
@@ -50,6 +50,9 @@ public final class CollectionSource<T>
    */
   public CollectionSource(final Collection<T> coll) {
     super();
+    if (coll == null || coll.isEmpty()) {
+      throw new IllegalArgumentException("Empty collection.");
+    }
     this.sourcedItemCount = new AtomicLong(0);
     this.collection = coll;
   }

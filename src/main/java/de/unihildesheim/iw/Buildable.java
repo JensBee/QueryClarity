@@ -29,20 +29,30 @@ public interface Buildable<T> {
    * building.
    *
    * @return New Object instance
-   * @throws Exception Thrown, if building the instance has failed
    */
   T build()
-      throws Exception;
+      throws BuildableException;
 
   /**
    * Validates the builder settings.
    *
-   * @throws Buildable.BuilderConfigurationException Thrown, if the current
-   * builder configuration is not valid.
+   * @throws ConfigurationException Thrown, if the current builder configuration
+   * is not valid.
    * @throws Exception Any exception may be thrown by implementing classes
    */
   void validate()
-      throws Exception;
+      throws ConfigurationException;
+
+  public static abstract class BuildableException
+      extends Exception {
+    BuildableException(final String msg, final Exception e) {
+      super(msg, e);
+    }
+
+    BuildableException(final String msg) {
+      super(msg);
+    }
+  }
 
   /**
    * {@link Exception} {@link Buildable}s to indicate that a mandatory setting
@@ -50,10 +60,35 @@ public interface Buildable<T> {
    *
    * @author Jens Bertram
    */
-  public static final class BuilderConfigurationException
-      extends Exception {
-    public BuilderConfigurationException(final String msg) {
+  public static final class ConfigurationException
+      extends BuildableException {
+    public ConfigurationException(final String msg) {
       super(msg);
+    }
+
+    public ConfigurationException(final String msg, Exception ex) {
+      super(msg, ex);
+    }
+  }
+
+  /**
+   * {@link Exception} {@link Buildable}s to indicate that building the object
+   * has failed.
+   *
+   * @author Jens Bertram
+   */
+  public static final class BuildException
+      extends BuildableException {
+    public BuildException(final Exception ex) {
+      super("Failed to build instance.", ex);
+    }
+
+    public BuildException(final String msg) {
+      super(msg);
+    }
+
+    public BuildException(final String msg, Exception ex) {
+      super(msg, ex);
     }
   }
 }

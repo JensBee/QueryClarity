@@ -25,8 +25,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -54,11 +52,11 @@ public final class DocFieldsTermsEnum {
   /**
    * Currently active enumerator.
    */
-  private TermsEnum currentEnum = null;
+  private TermsEnum currentEnum;
   /**
    * Lucene document-id for the target document to enumerate over.
    */
-  private Integer docId = null;
+  private Integer docId;
 
   /**
    * Current field index the enumerator accesses.
@@ -74,22 +72,6 @@ public final class DocFieldsTermsEnum {
    * Document fields to enumerate over.
    */
   private Fields docFields;
-
-  /**
-   * Generic reusable {@link DocFieldsTermsEnum} instance. To actually reuse
-   * this instance the {@link #setDocument(int)} function must be called before
-   * {@link #next()} can be used, to set the document to operate on.
-   *
-   * @param indexReader {@link IndexReader} instance to use
-   * @param targetFields Lucene index fields to operate on
-   * @throws java.io.IOException Thrown on low-level I/O errors
-   * @deprecated
-   */
-  public DocFieldsTermsEnum(final IndexReader indexReader,
-      final String[] targetFields)
-      throws IOException {
-    this(indexReader, new HashSet<>(Arrays.asList(targetFields)), null);
-  }
 
   /**
    * Generic reusable {@link DocFieldsTermsEnum} instance. To actually reuse
@@ -118,9 +100,8 @@ public final class DocFieldsTermsEnum {
   private DocFieldsTermsEnum(final IndexReader indexReader,
       final Set<String> targetFields, final Integer documentId)
       throws IOException {
-    if (indexReader == null || targetFields == null) {
-      throw new IllegalArgumentException(
-          "IndexReader was null");
+    if (indexReader == null) {
+      throw new IllegalArgumentException("IndexReader was null");
     }
     if (targetFields == null || targetFields.isEmpty()) {
       throw new IllegalArgumentException("No target fields were specified.");
@@ -136,8 +117,8 @@ public final class DocFieldsTermsEnum {
    * Set the id for the document whose terms should be enumerated.
    *
    * @param documentId Lucene document id
-   * @throws java.io.IOException Thrown on low-level I/O errors
    * @return Self reference
+   * @throws java.io.IOException Thrown on low-level I/O errors
    */
   public DocFieldsTermsEnum setDocument(final int documentId)
       throws IOException {
@@ -145,7 +126,7 @@ public final class DocFieldsTermsEnum {
     this.docFields = this.reader.getTermVectors(documentId);
     if (this.docFields == null) {
       throw new IllegalStateException("No term vectors stored. docId="
-                                      + this.docId);
+          + this.docId);
     }
     reset();
     return this;

@@ -26,7 +26,7 @@ import java.util.Properties;
 /**
  * General configuration management class.
  */
-public abstract class Configuration {
+public class Configuration {
 
   /**
    * Logger instance for this class.
@@ -54,6 +54,9 @@ public abstract class Configuration {
    */
   public Configuration(final Map<String, String> initial) {
     this();
+    if (initial == null) {
+      throw new IllegalArgumentException("Initial configuration was null.");
+    }
     addAll(initial);
   }
 
@@ -63,7 +66,7 @@ public abstract class Configuration {
   public final void debugDump() {
     if (LOG.isDebugEnabled()) {
       LOG.debug("Dumping configuration - start");
-      for (Entry<Object, Object> conf : this.data.entrySet()) {
+      for (final Entry<Object, Object> conf : this.data.entrySet()) {
         LOG.debug(" [{}]={}", conf.getKey(), conf.getValue());
       }
       LOG.debug("Dumping configuration - done");
@@ -76,7 +79,10 @@ public abstract class Configuration {
    * @param config Map with configuration settings
    */
   protected final void addAll(final Map<String, String> config) {
-    for (Entry<String, String> confEntry : config.entrySet()) {
+    if (config == null) {
+      throw new IllegalArgumentException("Configuration was null.");
+    }
+    for (final Entry<String, String> confEntry : config.entrySet()) {
       this.data.setProperty(confEntry.getKey(), confEntry.getValue());
     }
   }
@@ -88,6 +94,7 @@ public abstract class Configuration {
    * @param value Value to store
    */
   protected final void add(final String key, final String value) {
+    checkKeyValue(key, value);
     this.data.setProperty(key, value);
   }
 
@@ -98,7 +105,17 @@ public abstract class Configuration {
    * @param value Value to store
    */
   protected final void add(final String key, final Integer value) {
+    checkKeyValue(key, value);
     this.data.setProperty(key, value.toString());
+  }
+
+  private void checkKeyValue(final String key, final Object value) {
+    if (key == null || key.trim().isEmpty()) {
+      throw new IllegalArgumentException("Key was empty.");
+    }
+    if (value == null) {
+      throw new IllegalArgumentException("Value was null.");
+    }
   }
 
   /**
@@ -108,6 +125,7 @@ public abstract class Configuration {
    * @param value Value to store
    */
   protected final void add(final String key, final Double value) {
+    checkKeyValue(key, value);
     this.data.setProperty(key, value.toString());
   }
 
@@ -133,6 +151,9 @@ public abstract class Configuration {
    */
   protected final String getString(final String key,
       final String defaultValue) {
+    if (key == null || key.trim().isEmpty()) {
+      throw new IllegalArgumentException("Key was empty.");
+    }
     return this.data.getProperty(key, defaultValue);
   }
 

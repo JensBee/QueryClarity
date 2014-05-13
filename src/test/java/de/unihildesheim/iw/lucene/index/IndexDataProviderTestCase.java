@@ -70,6 +70,7 @@ public abstract class IndexDataProviderTestCase
    * @param referenceIndex TestIndex to check against
    */
   public IndexDataProviderTestCase(final TestIndexDataProvider referenceIndex) {
+    super();
     assertTrue("TestIndex is not initialized.", TestIndexDataProvider.
         isInitialized());
     this.referenceIndex = referenceIndex;
@@ -87,10 +88,10 @@ public abstract class IndexDataProviderTestCase
     Set<String> fields = null;
     Set<String> stopwords = null;
     if (randFields) {
-      fields = this.referenceIndex.util.getRandomFields();
+      fields = TestIndexDataProvider.util.getRandomFields();
     }
     if (randStopwords) {
-      stopwords = this.referenceIndex.util.getRandomStopWords();
+      stopwords = TestIndexDataProvider.util.getRandomStopWords();
     }
     this.referenceIndex.prepareTestEnvironment(fields, stopwords);
     return createInstance(this.referenceIndex.getDocumentFields(),
@@ -272,31 +273,33 @@ public abstract class IndexDataProviderTestCase
           (docId);
 
       if (!eDocModel.equals(iDocModel)) {
-        for (Entry<ByteArray, Long> e : eDocModel.termFreqMap.entrySet()) {
+        for (final Entry<ByteArray, Long> e : eDocModel.termFreqMap.entrySet
+            ()) {
           LOG.debug("e: {}={}", ByteArrayUtils.utf8ToString(e.getKey()), e.
               getValue());
         }
-        for (Entry<ByteArray, Long> e : iDocModel.termFreqMap.entrySet()) {
+        for (final Entry<ByteArray, Long> e : iDocModel.termFreqMap.entrySet
+            ()) {
           LOG.debug("i: {}={}", ByteArrayUtils.utf8ToString(e.getKey()), e.
               getValue());
         }
-        for (Entry<ByteArray, Long> e : TestIndexDataProvider.reference
+        for (final Entry<ByteArray, Long> e : TestIndexDataProvider.reference
             .getDocumentTermFrequencyMap(docId).entrySet()) {
           LOG.debug("m: {}={}", ByteArrayUtils.utf8ToString(e.getKey()), e.
               getValue());
         }
       }
 
-      assertTrue(
+      assertEquals(
           msg(instance, "Equals failed (stopped: " + excludeStopwords + ") " +
               "for docId=" + docId),
-          eDocModel.equals(iDocModel)
+          eDocModel, iDocModel
       );
 
       if (excludeStopwords) {
         final Collection<ByteArray> stopwords = TestIndexDataProvider
             .reference.getStopwords();
-        for (ByteArray term : iDocModel.termFreqMap.keySet()) {
+        for (final ByteArray term : iDocModel.termFreqMap.keySet()) {
           assertFalse(
               msg(instance, "Found stopword in model."),
               stopwords.contains(term));
@@ -347,7 +350,8 @@ public abstract class IndexDataProviderTestCase
    *
    * @param instance {@link IndexDataProvider} implementation to test
    */
-  private void _testGetUniqueTermsCount(final IndexDataProvider instance) {
+  private void _testGetUniqueTermsCount(final IndexDataProvider instance)
+      throws Exception {
     assertEquals(
         msg(instance, "Unique term count values are different."),
         TestIndexDataProvider.reference.getTermSet().size(),
@@ -370,7 +374,7 @@ public abstract class IndexDataProviderTestCase
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
       final DocumentModel docModel = instance.getDocumentModel(docId);
-      for (ByteArray byteArray : docModel.termFreqMap.keySet()) {
+      for (final ByteArray byteArray : docModel.termFreqMap.keySet()) {
         assertTrue(
             msg(instance, "Document contains term mismatch (stopped: " +
                 excludeStopwords + ")."),
@@ -392,7 +396,8 @@ public abstract class IndexDataProviderTestCase
    *
    * @param instance {@link IndexDataProvider} implementation to test
    */
-  private void _testGetTermsSource(final IndexDataProvider instance) {
+  private void _testGetTermsSource(final IndexDataProvider instance)
+      throws Exception {
     final Processing p = new Processing();
     p.setSource(instance.getTermsSource());
 
@@ -443,7 +448,7 @@ public abstract class IndexDataProviderTestCase
     if (excludeStopwords) {
       final Collection<ByteArray> stopwords = TestIndexDataProvider.reference
           .getStopwords();
-      for (ByteArray term : result) {
+      for (final ByteArray term : result) {
         assertFalse(
             msg(instance, "Stopword found in term list."),
             stopwords.contains(term));
@@ -462,7 +467,7 @@ public abstract class IndexDataProviderTestCase
     final boolean excludeStopwords = TestIndexDataProvider.reference
         .hasStopwords();
 
-    for (ByteArray term : TestIndexDataProvider.reference.getTermSet()) {
+    for (final ByteArray term : TestIndexDataProvider.reference.getTermSet()) {
       assertEquals(
           msg(instance, "Document frequency mismatch (stopped: " +
               excludeStopwords + ") (" + ByteArrayUtils.utf8ToString(term) +
@@ -487,8 +492,8 @@ public abstract class IndexDataProviderTestCase
    * @param instance Prepared instance to test
    */
   private void _testGetFieldId(final AbstractIndexDataProvider instance) {
-    for (String fieldName : this.referenceIndex.getDocumentFields()) {
-      SerializableByte result = instance.getFieldId(fieldName);
+    for (final String fieldName : this.referenceIndex.getDocumentFields()) {
+      final SerializableByte result = instance.getFieldId(fieldName);
       assertNotNull(
           msg(instance, "Field id was null."),
           result);
@@ -1477,7 +1482,7 @@ public abstract class IndexDataProviderTestCase
     if (!isImplementingAbstractIdp()) {
       return;
     }
-    AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
+    final AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
         setupInstanceForTesting(false, false);
     instance.warmUpTerms();
   }
@@ -1495,7 +1500,7 @@ public abstract class IndexDataProviderTestCase
     if (!isImplementingAbstractIdp()) {
       return;
     }
-    AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
+    final AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
         setupInstanceForTesting(false, true);
     instance.warmUpIndexTermFrequencies();
   }
@@ -1512,7 +1517,7 @@ public abstract class IndexDataProviderTestCase
     if (!isImplementingAbstractIdp()) {
       return;
     }
-    AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
+    final AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
         setupInstanceForTesting(false, true);
     instance.warmUpDocumentIds();
   }
@@ -1716,7 +1721,7 @@ public abstract class IndexDataProviderTestCase
         instance.getIdxTerms().isEmpty());
     assertTrue(
         msg(instance, "Index document frequency cache not empty."),
-        instance.idxDfMap.isEmpty());
+        instance.getIdxDfMap().isEmpty());
     assertNull(msg(instance, "Index term frequency cache not empty."),
         instance.getIdxTf());
   }

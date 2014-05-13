@@ -163,7 +163,7 @@ public final class Feedback {
 
     docIds = new HashSet<>(initialDocs.scoreDocs.length);
     // add the matching documents to the list
-    for (ScoreDoc scoreDoc : initialDocs.scoreDocs) {
+    for (final ScoreDoc scoreDoc : initialDocs.scoreDocs) {
       docIds.add(scoreDoc.doc);
     }
     LOG.debug("Getting {} matching feedback documents took {}.", docIds.

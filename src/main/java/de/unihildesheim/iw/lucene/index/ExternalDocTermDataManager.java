@@ -61,6 +61,12 @@ public final class ExternalDocTermDataManager {
    * @param newPrefix Prefix
    */
   public ExternalDocTermDataManager(final DB newDb, final String newPrefix) {
+    if (newDb == null) {
+      throw new IllegalArgumentException("DB was null.");
+    }
+    if (newPrefix == null || newPrefix.trim().isEmpty()) {
+      throw new IllegalArgumentException("Prefix was empty.");
+    }
     this.db = newDb;
     this.prefix = newPrefix;
     getMap(this.prefix);
@@ -93,7 +99,7 @@ public final class ExternalDocTermDataManager {
         = new BTreeKeySerializer.Tuple3KeySerializer<>(null, null,
         Serializer.STRING_INTERN, Serializer.INTEGER,
         ByteArray.SERIALIZER);
-    DB.BTreeMapMaker mapMkr = db.createTreeMap(this.prefix)
+    final DB.BTreeMapMaker mapMkr = db.createTreeMap(this.prefix)
         .keySerializer(mapKeySerializer)
         .valueSerializer(Serializer.BASIC)
         .nodeSize(16)
@@ -110,25 +116,18 @@ public final class ExternalDocTermDataManager {
    * @param value Value to store
    * @return Any previous assigned data, or null, if there was none
    */
-  public Object setData(final int documentId,
-      final ByteArray term, final String key, final Object value) {
+  public Object setData(final int documentId, final ByteArray term,
+      final String key, final Object value) {
     if (term == null) {
       throw new IllegalArgumentException("Term was null.");
     }
-    if (key == null || key.isEmpty()) {
+    if (key == null || key.trim().isEmpty()) {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
     if (value == null) {
       throw new IllegalArgumentException("Null is not allowed as value.");
     }
-    Object returnObj = null;
-    try {
-      returnObj = this.map.put(Fun.t3(key, documentId, term.clone()), value);
-    } catch (Exception ex) {
-      LOG.error("EXCEPTION CATCHED: p={} id={} k={} t={} v={}", prefix,
-          documentId, key, term, value, ex);
-    }
-    return returnObj;
+    return this.map.put(Fun.t3(key, documentId, term.clone()), value);
   }
 
   /**
@@ -142,12 +141,13 @@ public final class ExternalDocTermDataManager {
    */
   public Map<ByteArray, Object> getData(final int documentId,
       final String key) {
-    if (key == null || key.isEmpty()) {
+    if (key == null || key.trim().isEmpty()) {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
     @SuppressWarnings("CollectionWithoutInitialCapacity")
     final Map<ByteArray, Object> retMap = new HashMap<>();
-    for (ByteArray term : Fun.filter(this.map.keySet(), key, documentId)) {
+    for (final ByteArray term : Fun.filter(this.map.keySet(), key,
+        documentId)) {
       retMap.put(term.clone(), this.map.get(Fun.t3(key, documentId, term)));
     }
     return retMap;
@@ -162,12 +162,12 @@ public final class ExternalDocTermDataManager {
    * @return Value stored for the given combination, or null if there was no
    * data stored
    */
-  public Object getData(final int documentId,
-      final ByteArray term, final String key) {
+  public Object getData(final int documentId, final ByteArray term,
+      final String key) {
     if (term == null) {
       throw new IllegalArgumentException("Term was null.");
     }
-    if (key == null || key.isEmpty()) {
+    if (key == null || key.trim().isEmpty()) {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
     return this.map.get(Fun.t3(key, documentId, term));

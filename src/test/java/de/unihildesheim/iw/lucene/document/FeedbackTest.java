@@ -17,7 +17,7 @@
 package de.unihildesheim.iw.lucene.document;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.lucene.AbstractMultiIndexDataProviderTestCase;
+import de.unihildesheim.iw.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.iw.util.ByteArrayUtils;
@@ -43,7 +43,7 @@ import static org.junit.Assert.assertTrue;
  */
 @RunWith(Parameterized.class)
 public final class FeedbackTest
-    extends AbstractMultiIndexDataProviderTestCase {
+    extends MultiIndexDataProviderTestCase {
 
   /**
    * Initialize test with the current parameter.
@@ -53,7 +53,7 @@ public final class FeedbackTest
    */
   public FeedbackTest(
       final DataProviders dataProv,
-      final AbstractMultiIndexDataProviderTestCase.RunType rType) {
+      final MultiIndexDataProviderTestCase.RunType rType) {
     super(dataProv, rType);
   }
 
@@ -107,7 +107,7 @@ public final class FeedbackTest
     final String[] multiTermQuery = new String[RandomValue.getInteger(2,
         docModel.termFreqMap.size() - 1)];
     int termIdx = 0;
-    for (ByteArray term : docModel.termFreqMap.keySet()) {
+    for (final ByteArray term : docModel.termFreqMap.keySet()) {
       multiTermQuery[termIdx] = ByteArrayUtils.utf8ToString(term);
       if (++termIdx >= multiTermQuery.length) {
         break;
@@ -119,9 +119,9 @@ public final class FeedbackTest
     singleTermQuery[0] = ByteArrayUtils.utf8ToString(terms.get(idx));
 
     boolean foundDoc = false;
-    Query query = TestIndexDataProvider.util.getQueryObj(singleTermQuery);
+    final Query query = TestIndexDataProvider.util.getQueryObj(singleTermQuery);
     result = Feedback.get(referenceIndex.getIndexReader(), query, -1);
-    for (Integer docId : result) {
+    for (final Integer docId : result) {
       if (docId.equals(docModel.id)) {
         foundDoc = true;
       }
@@ -134,7 +134,7 @@ public final class FeedbackTest
     result = Feedback.get(referenceIndex.getIndexReader(),
         TestIndexDataProvider.util.getQueryObj(multiTermQuery), -1
     );
-    for (Integer docId : result) {
+    for (final Integer docId : result) {
       if (docId == docModel.id) {
         foundDoc = true;
       }
@@ -196,7 +196,7 @@ public final class FeedbackTest
     final String[] multiTermQuery = new String[RandomValue.getInteger(2,
         docModel.termFreqMap.size())];
     int termIdx = 0;
-    for (ByteArray term : docModel.termFreqMap.keySet()) {
+    for (final ByteArray term : docModel.termFreqMap.keySet()) {
       if (singleTermQuery[0].isEmpty() && RandomValue.getBoolean()) {
         singleTermQuery[0] = ByteArrayUtils.utf8ToString(term);
       }

@@ -38,14 +38,14 @@ import static org.junit.Assert.assertTrue;
 /**
  * Test case utilities for testing with multiple {@link IndexDataProvider}s.
  */
-public abstract class AbstractMultiIndexDataProviderTestCase
+public class MultiIndexDataProviderTestCase
     extends TestCase {
 
   /**
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(
-      AbstractMultiIndexDataProviderTestCase.class);
+      MultiIndexDataProviderTestCase.class);
 
   /**
    * Index configuration type.
@@ -104,8 +104,9 @@ public abstract class AbstractMultiIndexDataProviderTestCase
    * @param dataProv DataProvider
    * @param rType DataProvider configuration
    */
-  protected AbstractMultiIndexDataProviderTestCase(DataProviders dataProv,
+  protected MultiIndexDataProviderTestCase(final DataProviders dataProv,
       final RunType rType) {
+    super();
     this.dpType = dataProv;
     this.runType = rType;
   }
@@ -119,7 +120,7 @@ public abstract class AbstractMultiIndexDataProviderTestCase
   public static final void setUpClass()
       throws Exception {
     referenceIndex = new TestIndexDataProvider(TestIndexDataProvider
-        .IndexSize.SMALL);
+        .DEFAULT_INDEX_SIZE);
     assertTrue("TestIndex is not initialized.", TestIndexDataProvider.
         isInitialized());
   }
@@ -201,12 +202,13 @@ public abstract class AbstractMultiIndexDataProviderTestCase
    * @return Test parameters
    */
   @Parameterized.Parameters
+  @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
   public static final Collection<Object[]> data() {
     final Collection<Object[]> params = new ArrayList<>(DataProviders.values
         ().length);
 
-    for (DataProviders dp : DataProviders.values()) {
-      for (RunType r : RunType.values()) {
+    for (final DataProviders dp : DataProviders.values()) {
+      for (final RunType r : RunType.values()) {
         params.add(new Object[]{dp, r});
       }
     }
@@ -221,8 +223,8 @@ public abstract class AbstractMultiIndexDataProviderTestCase
    * @return Message prepended with testing information
    */
   protected final String msg(final String msg) {
-    return "(" + getDataProviderName() + ", " + this.runType.name() + ") "
-        + msg;
+    return "(" + getDataProviderName() + ", " + this.runType.name() + ", " +
+        TestIndexDataProvider.getIndexConfName() + ") " + msg;
   }
 
   /**
@@ -231,6 +233,6 @@ public abstract class AbstractMultiIndexDataProviderTestCase
    * @return DataProvider name
    */
   protected final String getDataProviderName() {
-    return this.index.getClass().getCanonicalName() + " " + runType.name();
+    return this.index.getClass().getCanonicalName();
   }
 }

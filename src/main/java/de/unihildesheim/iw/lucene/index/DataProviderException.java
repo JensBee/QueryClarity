@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Jens Bertram <code@jens-bertram.net>
+ * Copyright (C) 2014 Jens Bertram <code@jens-bertram.net
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,15 +15,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.lucene.context;
+package de.unihildesheim.iw.lucene.index;
 
 /**
- * @author Jens Bertram
+ * @author bhoerdzn
  */
-final class ContextCreationException
+public class DataProviderException
     extends Exception {
+  public DataProviderException(final String msg, final Exception ex) {
+    super(msg, ex);
+  }
 
-  protected ContextCreationException(final String message) {
-    super("Failed to create context: " + message);
+  public DataProviderException(final String msg) {
+    super(msg);
+  }
+
+  public DataProviderException(final Exception ex) {
+    super(ex);
+  }
+
+  public static final class CacheException
+      extends DataProviderException {
+    public CacheException(final String msg, final Exception ex) {
+      super(msg, ex);
+    }
+
+    public CacheException(final String msg) {
+      super(msg);
+    }
   }
 }

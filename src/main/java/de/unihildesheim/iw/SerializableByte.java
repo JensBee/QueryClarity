@@ -75,7 +75,7 @@ public final class SerializableByte
   @SuppressWarnings("AccessingNonPublicFieldOfAnotherObject")
   public boolean equals(final Object obj) {
     return obj instanceof SerializableByte &&
-           this.value == ((SerializableByte) obj).value;
+        this.value == ((SerializableByte) obj).value;
   }
 
   @Override
@@ -94,8 +94,6 @@ public final class SerializableByte
    * @return Cloned copy
    */
   @Override
-  @SuppressWarnings({"CloneDeclaresCloneNotSupported",
-                     "CloneDoesntCallSuperClone"})
   public SerializableByte clone() {
     return new SerializableByte(this.value);
   }

@@ -23,6 +23,7 @@ import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
+import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.iw.util.concurrent.processing.Source;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
 import org.apache.lucene.index.IndexReader;
@@ -68,25 +69,22 @@ abstract class AbstractIndexDataProvider
   /**
    * Flag indicating, if caches are filled (warmed).
    */
-  @SuppressWarnings({"ProtectedField", "checkstyle:visibilitymodifier"})
-  boolean warmed = false;
+  private boolean warmed = false;
 
   /**
    * Transient cached overall term frequency of the index.
    */
-  private Long idxTf = null;
+  private Long idxTf;
 
   /**
    * Transient cached collection of all (non deleted) document-ids.
    */
-  @SuppressWarnings({"ProtectedField", "checkstyle:visibilitymodifier"})
-  private Set<Integer> idxDocumentIds = null;
+  private Set<Integer> idxDocumentIds;
 
   /**
    * Transient cached document-frequency map for all terms in index.
    */
-  @SuppressWarnings({"ProtectedField", "checkstyle:visibilitymodifier"})
-  ConcurrentNavigableMap<ByteArray, Integer> idxDfMap = null;
+  private ConcurrentNavigableMap<ByteArray, Integer> idxDfMap;
 
   /**
    * List of stop-words to exclude from term frequency calculations.
@@ -103,18 +101,15 @@ abstract class AbstractIndexDataProvider
   /**
    * Transient cached collection of all index terms.
    */
-  @SuppressWarnings({"ProtectedField", "checkstyle:visibilitymodifier"})
-  private Set<ByteArray> idxTerms = null;
+  private Set<ByteArray> idxTerms;
 
   /**
    * Persistent cached collection of all index terms mapped by document field.
    * Mapping is <tt>(Field, Term)</tt> to <tt>Frequency</tt>. Fields are indexed
    * by {@link #cachedFieldsMap}.
    */
-  @SuppressWarnings({"ProtectedField", "checkstyle:visibilitymodifier"})
   private ConcurrentNavigableMap<Fun.Tuple2<
-      SerializableByte, ByteArray>, Long> idxTermsMap
-      = null;
+      SerializableByte, ByteArray>, Long> idxTermsMap;
 
   /**
    * List of fields cached by this instance. Mapping of field name to id value.
@@ -124,14 +119,13 @@ abstract class AbstractIndexDataProvider
   /**
    * Persistent disk backed storage backend.
    */
-  @SuppressWarnings({"ProtectedField", "checkstyle:visibilitymodifier"})
-  private DB db = null;
+  private DB db;
 
   /**
    * Flag indicating, if this instance is temporary (no data is hold
    * persistent).
    */
-  private boolean isTemporary = false;
+  private final boolean isTemporary;
 
   /**
    * {@link IndexReader} to access the Lucene index.
@@ -146,7 +140,7 @@ abstract class AbstractIndexDataProvider
   /**
    * Last commit generation id of the Lucene index.
    */
-  private Long indexLastCommitGeneration = null;
+  private Long indexLastCommitGeneration;
 
   /**
    * Flag indicating, if this instance is closed.
@@ -171,6 +165,9 @@ abstract class AbstractIndexDataProvider
    * @param reader Reader to use
    */
   protected void setIndexReader(final IndexReader reader) {
+    if (reader == null) {
+      throw new IllegalArgumentException("IndexReader was null.");
+    }
     this.idxReader = reader;
   }
 
@@ -184,11 +181,23 @@ abstract class AbstractIndexDataProvider
   }
 
   /**
+   * Get the state information, if caches are pre-loaded (warmed).
+   *
+   * @return True, if caches have been loaded
+   */
+  protected boolean cachesWarmed() {
+    return this.warmed;
+  }
+
+  /**
    * Set the list of document fields to operate on.
    *
    * @param fields List of document field names
    */
   protected void setDocumentFields(final Set<String> fields) {
+    if (fields == null || fields.isEmpty()) {
+      throw new IllegalArgumentException("Field list was empty.");
+    }
     this.documentFields = fields;
   }
 
@@ -206,11 +215,16 @@ abstract class AbstractIndexDataProvider
    */
   protected void setStopwords(final Set<String> words)
       throws UnsupportedEncodingException {
+    if (words == null) {
+      throw new IllegalArgumentException("Stopwords were null.");
+    }
+
     this.stopwordsStr = words;
     this.stopwords = new HashSet<>();
-    for (String word : words) {
+    for (final String word : words) {
       // terms in Lucene are UTF-8 encoded
-      this.stopwords.add(new ByteArray(word.getBytes("UTF-8")));
+      final ByteArray termBa = new ByteArray(word.getBytes("UTF-8"));
+      this.stopwords.add(termBa);
     }
   }
 
@@ -221,14 +235,19 @@ abstract class AbstractIndexDataProvider
 
   /**
    * Set the database to use for persistent storage.
+   *
    * @param newDb
    */
   protected void setDb(final DB newDb) {
+    if (newDb == null) {
+      throw new IllegalArgumentException("DB was null.");
+    }
     this.db = newDb;
   }
 
   /**
    * Get the database used for persistent storage.
+   *
    * @return
    */
   protected DB getDb() {
@@ -237,6 +256,7 @@ abstract class AbstractIndexDataProvider
 
   /**
    * Set the index terms list.
+   *
    * @param newIdxTerms
    */
   protected void setIdxTerms(final Set<ByteArray> newIdxTerms) {
@@ -248,10 +268,23 @@ abstract class AbstractIndexDataProvider
 
   /**
    * Get the index terms list.
+   *
    * @return
    */
   protected Set<ByteArray> getIdxTerms() {
     return this.idxTerms;
+  }
+
+  protected void setIdxDfMap(final ConcurrentNavigableMap<ByteArray,
+      Integer> map) {
+    if (map == null) {
+      throw new IllegalArgumentException("Document frequency map was null.");
+    }
+    this.idxDfMap = map;
+  }
+
+  protected ConcurrentNavigableMap<ByteArray, Integer> getIdxDfMap() {
+    return this.idxDfMap;
   }
 
   protected void setCachedFieldsMap(final Map<String,
@@ -267,10 +300,13 @@ abstract class AbstractIndexDataProvider
   }
 
   protected void addFieldToCacheMap(final String field) {
+    if (field == null || field.trim().isEmpty()) {
+      throw new IllegalArgumentException("Field was empty.");
+    }
+
     final Collection<SerializableByte> keys = new HashSet<>(
         this.cachedFieldsMap.values());
     for (byte i = Byte.MIN_VALUE; i < Byte.MAX_VALUE; i++) {
-      @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
       final SerializableByte sByte = new SerializableByte(i);
       if (!keys.contains(sByte)) {
         getCachedFieldsMap().put(field, sByte);
@@ -280,7 +316,7 @@ abstract class AbstractIndexDataProvider
     }
   }
 
-  protected void setIdxTermsMap(ConcurrentNavigableMap<Fun.Tuple2<
+  protected void setIdxTermsMap(final ConcurrentNavigableMap<Fun.Tuple2<
       SerializableByte, ByteArray>, Long> newIdxTermsMap) {
     if (newIdxTermsMap == null) {
       throw new IllegalArgumentException("Index terms map was null.");
@@ -319,6 +355,9 @@ abstract class AbstractIndexDataProvider
    * @return True, if it's a stopword
    */
   protected boolean isStopword(final ByteArray word) {
+    if (word == null) {
+      throw new IllegalArgumentException("Term was null.");
+    }
     return this.stopwords.contains(word);
   }
 
@@ -330,6 +369,9 @@ abstract class AbstractIndexDataProvider
    */
   protected boolean isStopword(final String word)
       throws UnsupportedEncodingException {
+    if (word == null || word.trim().isEmpty()) {
+      throw new IllegalArgumentException("Term was empty.");
+    }
     return isStopword(new ByteArray(word.getBytes("UTF-8")));
   }
 
@@ -340,6 +382,9 @@ abstract class AbstractIndexDataProvider
    * @return True, if it's a stopword
    */
   protected boolean isStopword(final BytesRef word) {
+    if (word == null) {
+      throw new IllegalArgumentException("Term was null.");
+    }
     return isStopword(BytesRefUtils.toByteArray(word));
   }
 
@@ -349,15 +394,11 @@ abstract class AbstractIndexDataProvider
    * @param cGen Generation id
    */
   protected void setLastIndexCommitGeneration(final Long cGen) {
-    if (cGen == null) {
-      // TODO: Really throw? Enough to go with zero?
-      throw new IllegalArgumentException("Index generation was null.");
-    }
     this.indexLastCommitGeneration = cGen;
   }
 
   @Override
-  public long getLastIndexCommitGeneration() {
+  public Long getLastIndexCommitGeneration() {
     return this.indexLastCommitGeneration;
   }
 
@@ -380,7 +421,8 @@ abstract class AbstractIndexDataProvider
   /**
    * Pre-cache index terms.
    */
-  final void warmUpTerms() {
+  final void warmUpTerms()
+      throws ProcessingException {
     final TimeMeasure tStep = new TimeMeasure();
     // cache all index terms
     if (this.idxTerms == null || this.idxTerms.isEmpty()) {
@@ -445,7 +487,7 @@ abstract class AbstractIndexDataProvider
    * @throws Exception Overriding implementation may thrown an exception
    */
   protected abstract void warmUpDocumentFrequencies()
-      throws Exception;
+      throws DataProviderException;
 
   /**
    * Default warmup method calling all warmUp* methods an tracks their running
@@ -456,7 +498,7 @@ abstract class AbstractIndexDataProvider
   @Override
   @SuppressWarnings("checkstyle:designforextension")
   public void warmUp()
-      throws Exception {
+      throws DataProviderException {
     if (this.warmed) {
       LOG.info("Caches are up to date.");
       return;
@@ -465,7 +507,11 @@ abstract class AbstractIndexDataProvider
     final TimeMeasure tOverAll = new TimeMeasure().start();
 
     // order matters!
-    warmUpTerms(); // should be first
+    try {
+      warmUpTerms(); // should be first
+    } catch (ProcessingException e) {
+      throw new DataProviderException("Failed to warm-up terms.", e);
+    }
     warmUpIndexTermFrequencies(); // may need terms
     warmUpDocumentIds();
     warmUpDocumentFrequencies(); // may need terms and docIds
@@ -481,6 +527,10 @@ abstract class AbstractIndexDataProvider
    * @return Id of the field
    */
   final SerializableByte getFieldId(final String fieldName) {
+    if (fieldName == null || fieldName.trim().isEmpty()) {
+      throw new IllegalArgumentException("Field name was empty.");
+    }
+
     final SerializableByte fieldId = this.cachedFieldsMap.get(fieldName);
     if (fieldId == null) {
       throw new IllegalStateException("Unknown field '" + fieldName
@@ -497,18 +547,16 @@ abstract class AbstractIndexDataProvider
    */
   @SuppressWarnings("checkstyle:methodname")
   final Long _getTermFrequency(final ByteArray term) {
+    if (term == null) {
+      throw new IllegalArgumentException("Term was null.");
+    }
+
     Long tf = 0L;
-    for (String field : this.documentFields) {
-      try {
-        Long fieldTf =
-            this.idxTermsMap.get(Fun.t2(getFieldId(field), term));
-        if (fieldTf != null) {
-          tf += fieldTf;
-        }
-      } catch (Exception ex) {
-        LOG.error("EXCEPTION CAUGHT: f={} fId={} t={}",
-            getFieldId(field),
-            term, ex);
+    for (final String field : this.documentFields) {
+      final Long fieldTf = this.idxTermsMap.get(Fun.t2(getFieldId(field),
+          term));
+      if (fieldTf != null) {
+        tf += fieldTf;
       }
     }
     return tf;
@@ -519,6 +567,10 @@ abstract class AbstractIndexDataProvider
    */
   @Override
   public final Long getTermFrequency(final ByteArray term) {
+    if (term == null) {
+      throw new IllegalArgumentException("Term was null.");
+    }
+
     if (this.stopwords.contains(term)) {
       // skip stop-words
       return 0L;
@@ -536,28 +588,21 @@ abstract class AbstractIndexDataProvider
       this.idxTf = 0L;
 
       SerializableByte fieldId;
-      for (String field : this.documentFields) {
+      for (final String field : this.documentFields) {
         fieldId = getFieldId(field);
         for (final ByteArray bytes : Fun.
             filter(this.idxTermsMap
                     .keySet(),
                 fieldId
             )) {
-          try {
-            this.idxTf +=
-                this.idxTermsMap.get(Fun.t2(fieldId, bytes));
-          } catch (NullPointerException ex) {
-            LOG.error("EXCEPTION NULL: fId={} f={} b={}", fieldId,
-                field,
-                bytes, ex);
-          }
+          this.idxTf += this.idxTermsMap.get(Fun.t2(fieldId, bytes));
         }
       }
 
       // remove term frequencies of stop-words
       if (!this.stopwords.isEmpty()) {
         Long tf;
-        for (ByteArray stopWord : this.stopwords) {
+        for (final ByteArray stopWord : this.stopwords) {
           tf = _getTermFrequency(stopWord);
           if (tf != null) {
             this.idxTf -= tf;
@@ -575,7 +620,8 @@ abstract class AbstractIndexDataProvider
    *
    * @return Unique collection of all terms in index with stopwords removed
    */
-  final Collection<ByteArray> getTerms() {
+  final Collection<ByteArray> getTerms()
+      throws ProcessingException {
     if (this.idxTerms.isEmpty()) {
       LOG.info("Building transient index term cache.");
 
@@ -586,7 +632,7 @@ abstract class AbstractIndexDataProvider
                 this.idxTerms)
         )).process(this.documentFields.size());
       } else {
-        for (String field : this.documentFields) {
+        for (final String field : this.documentFields) {
           for (final ByteArray byteArray : Fun
               .filter(this.idxTermsMap.keySet(),
                   getFieldId(field))) {
@@ -655,12 +701,18 @@ abstract class AbstractIndexDataProvider
   }
 
   @Override
-  public final Iterator<ByteArray> getTermsIterator() {
-    return getTerms().iterator();
+  public final Iterator<ByteArray> getTermsIterator()
+      throws DataProviderException {
+    try {
+      return getTerms().iterator();
+    } catch (ProcessingException e) {
+      throw new DataProviderException("Failed to get terms iterator.", e);
+    }
   }
 
   @Override
-  public final Source<ByteArray> getTermsSource() {
+  public final Source<ByteArray> getTermsSource()
+      throws ProcessingException {
     return new CollectionSource<>(getTerms());
   }
 
@@ -675,12 +727,20 @@ abstract class AbstractIndexDataProvider
   }
 
   @Override
-  public final long getUniqueTermsCount() {
-    return getTerms().size();
+  public final long getUniqueTermsCount()
+      throws DataProviderException {
+    try {
+      return getTerms().size();
+    } catch (ProcessingException e) {
+      throw new DataProviderException("Failed to get unique terms count.", e);
+    }
   }
 
   @Override
   public final boolean hasDocument(final Integer docId) {
+    if (docId == null) {
+      throw new IllegalArgumentException("Document id was null.");
+    }
     if (this.idxDocumentIds == null) {
       throw new IllegalStateException("No document ids set.");
     }
@@ -724,6 +784,10 @@ abstract class AbstractIndexDataProvider
      * @return Maker for {@link #idxTerms}
      */
     static DB.BTreeSetMaker idxTermsMaker(final DB db) {
+      if (db == null) {
+        throw new IllegalArgumentException("DB was null.");
+      }
+
       return db.createTreeSet(Caches.IDX_TERMS.name())
           .serializer(new BTreeKeySerializer.BasicKeySerializer(
               ByteArray.SERIALIZER))
@@ -737,6 +801,10 @@ abstract class AbstractIndexDataProvider
      * @return Maker for {@link #idxDfMap}
      */
     static DB.BTreeMapMaker idxDfMapMaker(final DB db) {
+      if (db == null) {
+        throw new IllegalArgumentException("DB was null.");
+      }
+
       return db.createTreeMap(Caches.IDX_DFMAP.name())
           .keySerializerWrap(ByteArray.SERIALIZER)
           .valueSerializer(Serializer.INTEGER)
@@ -751,6 +819,10 @@ abstract class AbstractIndexDataProvider
      */
     @SuppressWarnings("checkstyle:magicnumber")
     static DB.BTreeMapMaker idxTermsMapMkr(final DB db) {
+      if (db == null) {
+        throw new IllegalArgumentException("DB was null.");
+      }
+
       return db.createTreeMap(Stores.IDX_TERMS_MAP.name())
           .keySerializer(DbMakers.IDX_TERMSMAP_KEYSERIALIZER)
           .valueSerializer(Serializer.LONG)
@@ -764,6 +836,9 @@ abstract class AbstractIndexDataProvider
      * @return Maker for {@link #cachedFieldsMap}
      */
     static DB.BTreeMapMaker cachedFieldsMapMaker(final DB db) {
+      if (db == null) {
+        throw new IllegalArgumentException("DB was null.");
+      }
       return db.createTreeMap(Caches.IDX_FIELDS.name())
           .keySerializer(BTreeKeySerializer.STRING)
           .valueSerializer(SerializableByte.SERIALIZER)
@@ -777,9 +852,13 @@ abstract class AbstractIndexDataProvider
      * @return List of missing {@link Stores}
      */
     static Collection<Stores> checkStores(final DB db) {
+      if (db == null) {
+        throw new IllegalArgumentException("DB was null.");
+      }
+
       final Collection<Stores> miss =
           new ArrayList<>(Stores.values().length);
-      for (Stores s : Stores.values()) {
+      for (final Stores s : Stores.values()) {
         if (!db.exists(s.name())) {
           miss.add(s);
         }
@@ -794,9 +873,13 @@ abstract class AbstractIndexDataProvider
      * @return List of missing {@link Stores}
      */
     static Collection<Caches> checkCaches(final DB db) {
+      if (db == null) {
+        throw new IllegalArgumentException("DB was null.");
+      }
+
       final Collection<Caches> miss =
           new ArrayList<>(Caches.values().length);
-      for (Caches c : Caches.values()) {
+      for (final Caches c : Caches.values()) {
         if (!db.exists(c.name())) {
           miss.add(c);
         }
@@ -867,6 +950,7 @@ abstract class AbstractIndexDataProvider
         final NavigableSet<Fun.Tuple2<
             SerializableByte, ByteArray>> newTerms,
         final Set<ByteArray> newTarget) {
+      super();
       this.terms = newTerms;
       this.target = newTarget;
     }

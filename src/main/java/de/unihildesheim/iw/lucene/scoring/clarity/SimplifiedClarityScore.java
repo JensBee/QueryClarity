@@ -18,6 +18,7 @@ package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.ByteArray;
+import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
@@ -26,7 +27,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Collection;
 
@@ -65,7 +65,7 @@ public final class SimplifiedClarityScore
   /**
    * Provider for general index metrics.
    */
-  protected Metrics metrics;
+  Metrics metrics;
 
   /**
    * Default constructor. Called from builder.
@@ -82,6 +82,9 @@ public final class SimplifiedClarityScore
    */
   protected static SimplifiedClarityScore build(final Builder
       builder) {
+    if (builder == null) {
+      throw new IllegalArgumentException("Builder was null.");
+    }
     final SimplifiedClarityScore instance = new SimplifiedClarityScore();
 
     // set configuration
@@ -93,21 +96,13 @@ public final class SimplifiedClarityScore
   }
 
   /**
-   * Set the {@link IndexDataProvider} to use.
-   *
-   * @param newDataProv Data provider
-   */
-  private void setIndexDataProvider(final IndexDataProvider newDataProv) {
-    this.dataProv = newDataProv;
-  }
-
-  /**
    * Calculate the Simplified Clarity Score for the given query terms.
    *
    * @param queryTerms Query terms to use for calculation
    * @return The calculated score
    */
-  private double calculateScore(final Collection<ByteArray> queryTerms) {
+  private double calculateScore(final Collection<ByteArray> queryTerms)
+      throws DataProviderException {
     // length of the (rewritten) query
     final int queryLength = queryTerms.size();
     // number of unique terms in collection
@@ -119,21 +114,21 @@ public final class SimplifiedClarityScore
     // calculate max likelihood of the query model for each term in the
     // query
     // iterate over all query terms
-    for (ByteArray queryTerm : queryTerms) {
+    for (final ByteArray queryTerm : queryTerms) {
       // number of times a query term appears in the query
       int termCount = 0;
       // count the number of occurrences
-      for (ByteArray aTerm : queryTerms) {
+      for (final ByteArray aTerm : queryTerms) {
         if (aTerm.equals(queryTerm)) {
           termCount++;
         }
       }
-      double pMl =
+      final double pMl =
           Integer.valueOf(termCount).doubleValue() / Integer.valueOf(
               queryLength).doubleValue();
-      double pColl = this.metrics.collection.tf(queryTerm).doubleValue()
+      final double pColl = this.metrics.collection.tf(queryTerm).doubleValue()
           / collTermCount;
-      double log = (Math.log(pMl) / Math.log(2)) - (Math.log(pColl) /
+      final double log = (Math.log(pMl) / Math.log(2)) - (Math.log(pColl) /
           Math.log(2));
       result += pMl * log;
     }
@@ -143,8 +138,8 @@ public final class SimplifiedClarityScore
 
   @Override
   public ClarityScoreResult calculateClarity(final String query)
-      throws ParseException, IOException {
-    if (query == null || query.isEmpty()) {
+      throws ClarityScoreCalculationException {
+    if (query == null || query.trim().isEmpty()) {
       throw new IllegalArgumentException("Query was empty.");
     }
 
@@ -155,12 +150,12 @@ public final class SimplifiedClarityScore
       final QueryUtils queryUtils =
           new QueryUtils(this.idxReader, this.dataProv.getDocumentFields());
       queryTerms = queryUtils.getAllQueryTerms(query);
-    } catch (UnsupportedEncodingException e) {
-      LOG.error("Caught exception while preparing calculation.", e);
-      return null;
-    } catch (Buildable.BuilderConfigurationException e) {
-      LOG.error("Caught exception while building query.", e);
-      return null;
+    } catch (ParseException | UnsupportedEncodingException e) {
+      throw new ClarityScoreCalculationException(
+          "Caught exception while preparing calculation.", e);
+    } catch (Buildable.BuildableException e) {
+      throw new ClarityScoreCalculationException(
+          "Caught exception while building query.", e);
     }
     if (queryTerms == null || queryTerms.isEmpty()) {
       throw new IllegalStateException("No query terms.");
@@ -169,7 +164,12 @@ public final class SimplifiedClarityScore
     LOG.info("Calculating clarity score. query={}", query);
     final TimeMeasure timeMeasure = new TimeMeasure().start();
 
-    final double score = calculateScore(queryTerms);
+    final double score;
+    try {
+      score = calculateScore(queryTerms);
+    } catch (DataProviderException e) {
+      throw new ClarityScoreCalculationException(e);
+    }
 
     LOG.debug("Calculation results: query={} score={}.", query, score);
 
@@ -183,34 +183,27 @@ public final class SimplifiedClarityScore
    * Builder to create a new {@link SimplifiedClarityScore} instance.
    */
   public static final class Builder
-      extends AbstractClarityScoreCalculationBuilder
-                  <Builder, SimplifiedClarityScore> {
-    /**
-     * {@link IndexDataProvider} to use.
-     */
-    protected IndexDataProvider idxDataProvider = null;
+      extends AbstractClarityScoreCalculationBuilder<Builder> {
 
     public Builder() {
       super(IDENTIFIER);
     }
 
-    public Builder indexDataProvider(
-        final IndexDataProvider dataProv) {
-
-      this.idxDataProvider = dataProv;
+    protected Builder getThis() {
       return this;
     }
 
     @Override
     public SimplifiedClarityScore build()
-        throws BuilderConfigurationException {
+        throws ConfigurationException {
       validate();
       return SimplifiedClarityScore.build(this);
     }
 
     @Override
     public void validate()
-        throws BuilderConfigurationException {
+        throws ConfigurationException {
+      super.validate();
     }
   }
 }

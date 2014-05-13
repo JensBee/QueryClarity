@@ -36,7 +36,7 @@ public final class DirectIndexDataProviderTest
    */
   public DirectIndexDataProviderTest()
       throws Exception {
-    super(new TestIndexDataProvider(TestIndexDataProvider.IndexSize.SMALL));
+    super(new TestIndexDataProvider(TestIndexDataProvider.DEFAULT_INDEX_SIZE));
   }
 
   @Override
@@ -52,7 +52,8 @@ public final class DirectIndexDataProviderTest
         .temporary()
         .dataPath(TestIndexDataProvider.reference.getDataDir())
         .documentFields(fields)
-        .indexPath(TestIndexDataProvider.reference.getIndexDir())
+        .indexReader(this.referenceIndex.getIndexReader())
+//        .indexPath(TestIndexDataProvider.reference.getIndexDir())
         .stopwords(stopwords)
         .createCache("test-" + RandomValue.getString(16))
         .warmup()
