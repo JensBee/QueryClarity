@@ -24,7 +24,7 @@ import java.util.concurrent.Callable;
 /**
  * Observer for {@link Source}es, printing status messages to the system log.
  */
-public final class SourceObserver
+public final class SourceObserver<T>
     implements Callable<Double> {
 
   /**
@@ -164,8 +164,7 @@ public final class SourceObserver
         } else if (hasItemCount && step > 0 && lastStatus < status
             && status % step == 0) {
           // max wait time not elapsed, check if we should provide
-          // a status
-          // based on progres
+          // a status based on progress
           this.runTime.stop();
           lastStatus = status;
           showStatus(itemCount, lastStatus);

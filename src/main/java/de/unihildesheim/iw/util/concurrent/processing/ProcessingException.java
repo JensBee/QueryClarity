@@ -56,6 +56,23 @@ public class ProcessingException
     }
   }
 
+  public static final class SourceFailedException
+      extends ProcessingException {
+
+    /**
+     * General exception with custom message.
+     *
+     * @param message Exception message
+     */
+    public SourceFailedException(final String message) {
+      super(message);
+    }
+
+    public SourceFailedException(final String message, final Throwable t) {
+      super(message, t);
+    }
+  }
+
   /**
    * Exception to indicate that the {@link Source} is not ready to serve items.
    */

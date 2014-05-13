@@ -28,6 +28,10 @@ import de.unihildesheim.iw.lucene.query.TermsQueryBuilder;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.RandomValue;
+import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
+import de.unihildesheim.iw.util.concurrent.processing.Processing;
+import de.unihildesheim.iw.util.concurrent.processing.Target;
+import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.Query;
 import org.junit.Assert;
@@ -66,6 +70,16 @@ public final class ImprovedClarityScoreTest
    * Delta allowed in clarity score calculation.
    */
   private static final double ALLOWED_SCORE_DELTA = 0.005;
+
+  /**
+   * Delta allowed in query model calculation.
+   */
+  private static final double ALLOWED_QMODEL_DELTA = 0d;
+
+  /**
+   * Delta allowed in document model calculation.
+   */
+  private static final double ALLOWED_DMODEL_DELTA = 0d;
 
   /**
    * Setup test using a defined {@link IndexDataProvider}.
@@ -191,8 +205,6 @@ public final class ImprovedClarityScoreTest
     }
 
     // extract terms from actually used feedback documents
-//    final Collection<ByteArray> fbTerms = this.index.getDocumentsTermSet(
-//        feedbackDocIds);
     final Collection<ByteArray> fbTerms = this.index.getDocumentsTermSet(
         result.getFeedbackDocuments());
 
@@ -219,6 +231,7 @@ public final class ImprovedClarityScoreTest
     final Collection<ByteArray> qTerms = new QueryUtils(referenceIndex
         .getIndexReader(), this.index.getDocumentFields())
         .getAllQueryTerms(query);
+
     for (final ByteArray fbTerm : fbTerms) {
       final double pqt = calc_pqt(icc, fbTerm, feedbackDocIds, qTerms);
       score += pqt * MathUtils.log2(pqt / metrics.collection.relTf(fbTerm));
@@ -305,7 +318,7 @@ public final class ImprovedClarityScoreTest
       throws Exception {
     final Collection<ByteArray> qTerms = new QueryUtils(referenceIndex
         .getIndexReader(), this.index.getDocumentFields())
-        .getAllQueryTerms(referenceIndex.util.getQueryString());
+        .getAllQueryTerms(TestIndexDataProvider.util.getQueryString());
     @SuppressWarnings("CollectionWithoutInitialCapacity")
     final Collection<Integer> fbDocIds = new ArrayList<>();
     final Iterator<Integer> docIdIt = this.index.getDocumentIdIterator();
@@ -324,12 +337,20 @@ public final class ImprovedClarityScoreTest
     final Collection<ByteArray> fbTerms = this.index.getDocumentsTermSet
         (fbDocIds);
 
-    for (final ByteArray fbTerm : fbTerms) {
-      final double result = instance.calcQueryModel(fbTerm, qTerms, fbDocIds);
-      final double expected = calc_pqt(icc, fbTerm, fbDocIds, qTerms);
-      assertEquals("Query model value differs.", expected, result,
-          ALLOWED_SCORE_DELTA);
-    }
+    LOG.info("Validating query models.");
+    new Processing().setSourceAndTarget(
+        new TargetFuncCall<>(
+            new CollectionSource(fbTerms),
+            new QueryCalculatorTarget(instance, icc, qTerms, fbDocIds)
+        )
+    ).process(fbTerms.size());
+
+//    for (final ByteArray fbTerm : fbTerms) {
+//      final double result = instance.calcQueryModel(fbTerm, qTerms, fbDocIds);
+//      final double expected = calc_pqt(icc, fbTerm, fbDocIds, qTerms);
+//      assertEquals("Query model value differs.", expected, result,
+//          ALLOWED_SCORE_DELTA);
+//    }
   }
 
   /**
@@ -349,23 +370,31 @@ public final class ImprovedClarityScoreTest
         .build();
     instance.preCalcDocumentModels();
 
-    final Iterator<Integer> docIdIt = this.index.getDocumentIdIterator();
-    while (docIdIt.hasNext()) {
-      final int docId = docIdIt.next();
-      final DocumentModel docModel = metrics.getDocumentModel(docId);
+    LOG.info("Validating document models.");
+    new Processing().setSourceAndTarget(
+        new TargetFuncCall<>(
+            this.index.getDocumentIdSource(),
+            new DocModelCalculatorTarget(metrics, instance, icc)
+        )
+    ).process((int) this.index.getDocumentCount());
 
-      final Map<ByteArray, Object> valueMap = instance.testGetExtDocMan()
-          .getData(docId, DefaultClarityScore.DataKeys.DM.name());
-
-      for (final ByteArray term : docModel.termFreqMap.keySet()) {
-        final double expResult = calc_pdt(icc, docModel.id, term);
-        assertEquals(msg("Calculated document model value differs. docId="
-                + docId + " term=" + ByteArrayUtils.utf8ToString(term) +
-                " b=" + term + " v=" + valueMap.get(term)), expResult,
-            (Double) valueMap.get(term), 0d
-        );
-      }
-    }
+//    final Iterator<Integer> docIdIt = this.index.getDocumentIdIterator();
+//    while (docIdIt.hasNext()) {
+//      final int docId = docIdIt.next();
+//      final DocumentModel docModel = metrics.getDocumentModel(docId);
+//
+//      final Map<ByteArray, Object> valueMap = instance.testGetExtDocMan()
+//          .getData(docId, DefaultClarityScore.DataKeys.DM.name());
+//
+//      for (final ByteArray term : docModel.termFreqMap.keySet()) {
+//        final double expResult = calc_pdt(icc, docModel.id, term);
+//        assertEquals(msg("Calculated document model value differs. docId="
+//                + docId + " term=" + ByteArrayUtils.utf8ToString(term) +
+//                " b=" + term + " v=" + valueMap.get(term)), expResult,
+//            (Double) valueMap.get(term), 0d
+//        );
+//      }
+//    }
   }
 
   /**
@@ -379,4 +408,80 @@ public final class ImprovedClarityScoreTest
     final ImprovedClarityScore instance = getInstanceBuilder().build();
     Assert.assertNotNull(instance.testGetExtDocMan());
   }
+
+  /**
+   * {@link Processing} {@link Target} for document model calculation.
+   */
+  private final class QueryCalculatorTarget
+      extends TargetFuncCall.TargetFunc<ByteArray> {
+
+    private final ImprovedClarityScore instance;
+    private final Collection<ByteArray> qTerms;
+    private final Collection<Integer> fbDocIds;
+    private final ImprovedClarityScoreConfiguration icc;
+
+    QueryCalculatorTarget(ImprovedClarityScore ics,
+        ImprovedClarityScoreConfiguration icsConf, Collection<ByteArray>
+        queryTerms, Collection<Integer> feedbackDocIds) {
+      super();
+      this.instance = ics;
+      this.qTerms = queryTerms;
+      this.fbDocIds = feedbackDocIds;
+      this.icc = icsConf;
+    }
+
+    @Override
+    public void call(final ByteArray fbTerm) {
+      if (fbTerm != null) {
+        final double result = instance.calcQueryModel(fbTerm, this.qTerms,
+            this.fbDocIds);
+        final double expected = calc_pqt(this.icc, fbTerm, this.fbDocIds,
+            this.qTerms);
+        assertEquals(msg("(" + getName() + ") Query model value differs."),
+            expected,
+            result, ALLOWED_QMODEL_DELTA);
+      }
+    }
+  }
+
+  /**
+   * {@link Processing} {@link Target} for document model calculation.
+   */
+  private final class DocModelCalculatorTarget
+      extends TargetFuncCall.TargetFunc<Integer> {
+
+    private final Metrics metrics;
+    private final ImprovedClarityScore instance;
+    private final ImprovedClarityScoreConfiguration icc;
+
+    DocModelCalculatorTarget(Metrics m, ImprovedClarityScore ics,
+        ImprovedClarityScoreConfiguration conf) {
+      super();
+      this.metrics = m;
+      this.instance = ics;
+      this.icc = conf;
+    }
+
+    @Override
+    public void call(final Integer docId) {
+      if (docId != null) {
+        final DocumentModel docModel = metrics.getDocumentModel(docId);
+
+        final Map<ByteArray, Object> valueMap = instance.testGetExtDocMan()
+            .getData(docId, DefaultClarityScore.DataKeys.DM.name());
+
+        for (final ByteArray term : docModel.termFreqMap.keySet()) {
+          final double expResult = calc_pdt(icc, docModel.id, term);
+          assertEquals(
+              msg("(" + getName() + ") Calculated document model value " +
+                  "differs. docId=" + docId + " term=" + ByteArrayUtils
+                  .utf8ToString(term) + " b=" + term + " v=" + valueMap.get
+                  (term)),
+              expResult, (Double) valueMap.get(term), ALLOWED_DMODEL_DELTA
+          );
+        }
+      }
+    }
+  }
+
 }

@@ -21,7 +21,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -39,10 +38,11 @@ import java.util.concurrent.TimeoutException;
 public final class Processing {
 
   /**
-   * Default number of target threads to run.
+   * Default number of target threads to run. Defaults to the 1/3 of
+   * available processors.
    */
   public static final int THREADS =
-      Runtime.getRuntime().availableProcessors();
+      Runtime.getRuntime().availableProcessors() / 3;
   /**
    * Logger instance for this class.
    */
@@ -204,14 +204,14 @@ public final class Processing {
 
     initPool();
 
-    final Collection<Target> targets = new ArrayList<>(threadCount);
+    final Collection<Target<Boolean>> targets = new ArrayList<>(threadCount);
     final Collection<Future<Boolean>> targetStates = new ArrayList<>
         (threadCount);
     this.threadTrackingLatch = new CountDownLatch(threadCount);
 
     LOG.debug("Spawning {} Processing-Target threads.", threadCount);
     for (int i = 0; i < threadCount; i++) {
-      final Target aTarget = this.target.newInstance();
+      final Target<Boolean> aTarget = this.target.newInstance();
       aTarget.setLatch(this.threadTrackingLatch);
       targets.add(aTarget);
     }
@@ -227,45 +227,21 @@ public final class Processing {
       targetStates.add(executor.runTarget(aTarget));
     }
 
-    Long processedItems = null;
     try {
       // wait until targets have finished
       this.threadTrackingLatch.await();
-      try {
-        // retrieve result from source
-        processedItems = sourceThread.get(3, TimeUnit.SECONDS);
-      } catch (TimeoutException ex) {
-        throw new ProcessingException.TargetFailedException(
-            "Source finished without result. "
-                + "There may be processing errors."
-        );
-      }
-    } catch (InterruptedException | ExecutionException ex) {
+    } catch (InterruptedException ex) {
       // TODO: ugly skip source finished exception
       if (!(ex.getCause() instanceof ProcessingException
           .SourceHasFinishedException)) {
-        throw new ProcessingException("Caught exception while tracking source" +
-            " state.", ex);
+        throw new ProcessingException.SourceFailedException("Caught " +
+            "exception while tracking source state.", ex.getCause());
       }
     }
 
     // terminate observer
     LOG.trace("Processing-Source finished. Terminating observer.");
     sourceObserver.terminate();
-    try {
-      LOG.debug("Source finished with {} items after {}.", processedItems,
-          TimeMeasure.getTimeString((Double) sourceTime.get(1,
-              TimeUnit.SECONDS))
-      );
-    } catch (InterruptedException | ExecutionException | TimeoutException
-        ex) {
-      // TODO: ugly skip source finished exception
-      if (!(ex.getCause() instanceof ProcessingException
-          .SourceHasFinishedException)) {
-        throw new ProcessingException("Caught exception while tracking source" +
-            " state.", ex);
-      }
-    }
 
     LOG.trace("Processing-Source finished. Terminating Targets.");
     for (final Target aTarget : targets) {
@@ -284,12 +260,40 @@ public final class Processing {
       try {
         state.get();
       } catch (InterruptedException e) {
-        throw new ProcessingException("Target interrupted.", e);
+        throw new ProcessingException.TargetFailedException("Target " +
+            "interrupted.", e.getCause());
       } catch (ExecutionException e) {
-        throw new ProcessingException("Target throwed an exception.",
-            e.getCause());
+        throw new ProcessingException.TargetFailedException(
+            "Target throwed an exception.", e.getCause());
       }
     }
+
+    try {
+      // retrieve result from source
+      LOG.debug("Source finished with {} items after {}.",
+          sourceThread.get(3, TimeUnit.SECONDS),
+          TimeMeasure.getTimeString(sourceTime.get(1, TimeUnit.SECONDS))
+      );
+    } catch (TimeoutException ex) {
+      throw new ProcessingException.TargetFailedException(
+          "Source finished without result. "
+              + "There may be processing errors."
+      );
+    } catch (InterruptedException e) {
+      throw new ProcessingException.SourceFailedException("Source interrupted" +
+          ".", e.getCause());
+    } catch (ExecutionException e) {
+      // TODO: ugly skip source finished exception
+      if (!(e.getCause() instanceof ProcessingException
+          .SourceHasFinishedException)) {
+        throw new ProcessingException.SourceFailedException(
+            "Source throwed an exception.", e.getCause());
+      }
+    }
+
+//    assert executor.threadPool.getActiveCount() == 0 :
+//        "There are (~" + executor.threadPool.getActiveCount() + ") " +
+//            "tasks left in the pool.";
 
     LOG.trace("Processing finished.");
   }
@@ -339,7 +343,7 @@ public final class Processing {
      * @param task Source runnable
      * @return Future to track the state
      */
-    Future<Long> runSource(final Callable<Long> task) {
+    Future<Long> runSource(final Source<Long> task) {
       if (task == null) {
         throw new IllegalArgumentException("Source was null.");
       }
@@ -353,7 +357,7 @@ public final class Processing {
      * @param task Source runnable
      * @return Future to track the state
      */
-    Future<Double> runObserver(final Callable<Double> task) {
+    Future<Double> runObserver(final SourceObserver<Double> task) {
       if (task == null) {
         throw new IllegalArgumentException("Source was null.");
       }
@@ -367,7 +371,7 @@ public final class Processing {
      * @param task Target to run
      * @return Future to track the state
      */
-    Future<Boolean> runTarget(final Callable<Boolean> task) {
+    Future<Boolean> runTarget(final Target<Boolean> task) {
       if (task == null) {
         throw new IllegalArgumentException("Target was null.");
       }

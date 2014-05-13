@@ -726,7 +726,8 @@ public final class ImprovedClarityScore
     }
 
     // do the final calculation for all remaining feedback terms
-    LOG.debug("Using {} feedback documents.", feedbackDocIds.size());
+    LOG.debug("Using {} feedback documents for calculation.",
+        feedbackDocIds.size());
     try {
       new Processing(
           new TargetFuncCall<>(
@@ -844,17 +845,10 @@ public final class ImprovedClarityScore
     ModelCalculatorTarget(final Collection<Integer> fbDocIds,
         final Collection<ByteArray> qTerms, final AtomicDouble result) {
       super();
-      if (fbDocIds == null) {
-        throw new IllegalArgumentException("List of feedback document ids was" +
-            " null.");
-      }
-      if (qTerms == null) {
-        throw new IllegalArgumentException("List of query terms was null.");
-      }
-      if (result == null) {
-        throw new IllegalArgumentException("Calculation result target was " +
-            "null.");
-      }
+      assert fbDocIds != null : "List of feedback document ids was null.";
+      assert qTerms != null : "List of query terms was null.";
+      assert result != null : "Calculation result target was null.";
+
       this.queryTerms = qTerms;
       this.feedbackDocIds = fbDocIds;
       this.score = result;
@@ -875,8 +869,7 @@ public final class ImprovedClarityScore
    * {@link Processing} {@link Target} for document model creation.
    */
   private final class DocumentModelCalculatorTarget
-      extends
-      TargetFuncCall.TargetFunc<Integer> {
+      extends TargetFuncCall.TargetFunc<Integer> {
 
     @Override
     public void call(final Integer docId) {
@@ -941,7 +934,7 @@ public final class ImprovedClarityScore
      *
      * @param score Score result
      */
-    protected void setScore(final double score) {
+    void setScore(final double score) {
       super._setScore(score);
     }
 
@@ -950,7 +943,7 @@ public final class ImprovedClarityScore
      *
      * @param fbDocIds List of feedback documents
      */
-    protected void setFeedbackDocIds(final Collection<Integer> fbDocIds) {
+    void setFeedbackDocIds(final Collection<Integer> fbDocIds) {
       if (fbDocIds == null) {
         throw new IllegalArgumentException("List of feedback documents was " +
             "null.");
@@ -963,7 +956,7 @@ public final class ImprovedClarityScore
      *
      * @param fbTerms List of feedback terms
      */
-    protected void setFeedbackTerms(final Collection<ByteArray> fbTerms) {
+    void setFeedbackTerms(final Collection<ByteArray> fbTerms) {
       if (feedbackTerms == null) {
         throw new IllegalArgumentException("List of feedback terms was null.");
       }
@@ -975,7 +968,7 @@ public final class ImprovedClarityScore
      *
      * @param state True, if simplified
      */
-    protected void setQuerySimplified(final boolean state) {
+    void setQuerySimplified(final boolean state) {
       this.wasQuerySimplified = state;
     }
 
@@ -984,7 +977,7 @@ public final class ImprovedClarityScore
      *
      * @param newConf Configuration used
      */
-    protected void setConf(final ImprovedClarityScoreConfiguration newConf) {
+    void setConf(final ImprovedClarityScoreConfiguration newConf) {
       if (newConf == null) {
         throw new IllegalArgumentException("Configuration was null.");
       }
@@ -996,7 +989,7 @@ public final class ImprovedClarityScore
      *
      * @param query Query to add
      */
-    protected void addQuery(final String query) {
+    void addQuery(final String query) {
       if (query == null || query.trim().isEmpty()) {
         throw new IllegalArgumentException("Query was empty.");
       }

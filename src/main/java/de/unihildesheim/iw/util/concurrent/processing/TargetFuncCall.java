@@ -49,8 +49,7 @@ public final class TargetFuncCall<T>
 
   @Override
   public Target<T> newInstance() {
-    return new de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall<>(
-        getSource(), this.tFunc);
+    return new TargetFuncCall<>(getSource(), this.tFunc);
   }
 
   @Override

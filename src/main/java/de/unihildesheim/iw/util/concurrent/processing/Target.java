@@ -132,14 +132,20 @@ public abstract class Target<T>
 
   public final Boolean call()
       throws Exception {
+    Boolean success = Boolean.FALSE;
     try {
       LOG.trace("({}) Starting.", getName());
       getSource().awaitStart();
       runProcess();
-      return Boolean.TRUE; // simple flag indication success
+      success = Boolean.TRUE;
+      return success; // simple flag indication success
     } finally {
       this.terminate = true;
-      LOG.trace("({}) Terminating.", getName());
+      if (success) {
+        LOG.debug("({}) Terminating normal.", getName());
+      } else {
+        LOG.debug("({}) Terminating with error.", getName());
+      }
       this.latch.countDown();
     }
   }

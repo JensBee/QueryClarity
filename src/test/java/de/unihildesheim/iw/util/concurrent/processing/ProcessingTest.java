@@ -24,9 +24,11 @@ import org.junit.rules.ExpectedException;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 /**
  * Test for {@link Processing}.
@@ -219,6 +221,96 @@ public class ProcessingTest
     );
     assertEquals("Number of processed items differs.", collSize,
         counter.intValue());
+  }
+
+  @Test
+  public void testExceptionThrowing()
+      throws Exception {
+    final List<String> coll;
+    final int collSize = 10000;
+    coll = new ArrayList<>(collSize);
+    for (int i = 0; i < collSize; i++) {
+      coll.add(RandomValue.getString(1, 10));
+    }
+
+    try {
+      new Processing().setSourceAndTarget(
+          new TargetFuncCall<>(
+              new CollectionSource<>(coll),
+              new ExceptionThrowingTarget(coll.get(RandomValue.getInteger(0,
+                  collSize - 1)))
+          )
+      ).process(coll.size());
+      fail("Expected an Exception to be thrown");
+    } catch (ProcessingException.TargetFailedException e) {
+      // pass
+    }
+  }
+
+  @Test
+  public void testAssertThrowing()
+      throws Exception {
+    final List<String> coll;
+    final int collSize = 10000;
+    coll = new ArrayList<>(collSize);
+    for (int i = 0; i < collSize; i++) {
+      coll.add(RandomValue.getString(1, 10));
+    }
+
+    try {
+      new Processing().setSourceAndTarget(
+          new TargetFuncCall<>(
+              new CollectionSource<>(coll),
+              new AssertThrowingTarget(coll.get(RandomValue.getInteger(0,
+                  collSize - 1)))
+          )
+      ).process(coll.size());
+      fail("Expected an Exception to be thrown");
+    } catch (ProcessingException.TargetFailedException e) {
+      // pass
+    }
+  }
+
+  /**
+   * Simple {@link TargetFuncCall.TargetFunc} throwing an {@link Exception} if a
+   * defined string is matched.
+   */
+  private final static class ExceptionThrowingTarget
+      extends TargetFuncCall.TargetFunc<String> {
+
+    private final String throwAt;
+
+    ExceptionThrowingTarget(final String throwAtStr) {
+      this.throwAt = throwAtStr;
+    }
+
+    @Override
+    public void call(final String data) {
+      if (this.throwAt.equals(data)) {
+        throw new IllegalStateException("Fake exception!");
+      }
+    }
+  }
+
+  /**
+   * Simple {@link TargetFuncCall.TargetFunc} throwing an {@link AssertionError}
+   * if a defined string is matched.
+   */
+  private final static class AssertThrowingTarget
+      extends TargetFuncCall.TargetFunc<String> {
+
+    private final String throwAt;
+
+    AssertThrowingTarget(final String throwAtStr) {
+      this.throwAt = throwAtStr;
+    }
+
+    @Override
+    public void call(final String data) {
+      if (this.throwAt.equals(data)) {
+        assert !this.throwAt.equals(data) : "Fake assertion error!";
+      }
+    }
   }
 
 }
