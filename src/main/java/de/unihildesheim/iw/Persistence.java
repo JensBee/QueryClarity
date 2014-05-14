@@ -440,6 +440,7 @@ public final class Persistence {
           .asyncWriteEnable()
           .asyncWriteFlushDelay(DB_ASYNC_WRITEFLUSH_DELAY)
           .mmapFileEnableIfSupported()
+          .compressionEnable()
           .closeOnJvmShutdown();
       return this;
     }

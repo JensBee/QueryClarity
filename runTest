@@ -10,14 +10,17 @@ MAVEN_OPTS="$MAVEN_OPTS $JVM"
 HOST=$(hostname)
 
 if [ "$HOST" == "bigBhoerdzn" ]; then
-	export MAVEN_OPTS="$MAVEN_OPTS -Djava.io.tmpdir=/media/Brain2/tmp"
+	RUNTMP="-Djava.io.tmpdir=/media/Brain2/tmp"
 else
-	export MAVEN_OPTS="$MAVEN_OPTS -Djava.io.tmpdir=/home/bertra/CLEF/test/tmp"
+	RUNTMP="-Djava.io.tmpdir=/home/bertra/CLEF/test/tmp"
 fi
 
+rm -rf ../tmp/mapdb-tmp*
+rm -rf ../tmp/idx*
+
 if [ $# -eq 0 ]; then
-  	mvn test
+  	mvn $RUNTMP test
 else
-	mvn -Dtest="$*" test
+	mvn $RUNTMP -Dtest="$*" test
 fi
 

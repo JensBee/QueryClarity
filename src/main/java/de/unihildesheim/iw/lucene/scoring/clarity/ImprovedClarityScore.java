@@ -113,11 +113,6 @@ public final class ImprovedClarityScore
   private boolean hasCache = false;
 
   /**
-   * Flag indicating, if caches are temporary.
-   */
-  private boolean isTemporary = false;
-
-  /**
    * Cache of default document models.
    */
   private Map<Fun.Tuple2<Integer, ByteArray>, Double> defaultDocModels;
@@ -228,7 +223,7 @@ public final class ImprovedClarityScore
     instance.dataProv = builder.idxDataProvider;
     instance.idxReader = builder.idxReader;
     instance.metrics = new Metrics(builder.idxDataProvider);
-    instance.isTemporary = builder.isTemporary;
+//    instance.isTemporary = builder.isTemporary;
     instance.setConfiguration(builder.configuration);
 
     // initialize
@@ -468,13 +463,11 @@ public final class ImprovedClarityScore
       final double rCollFreq = this.metrics.collection.relTf(term);
       final double termFreq = 0d;
 
-      model = (termFreq + (smoothing * rCollFreq)) / (totalFreq
-          + (smoothing *
+
+      model = (termFreq + (smoothing * rCollFreq)) / (totalFreq + (smoothing *
           uniqueTerms));
-      model = (lambda * ((beta * model) + ((1 - beta) * rCollFreq))) + ((1
-          -
-          lambda) *
-          rCollFreq);
+      model = (lambda * ((beta * model) + ((1 - beta) * rCollFreq))) + ((1 -
+          lambda) * rCollFreq);
 
       this.defaultDocModels.put(Fun.t2(docModel.id, term.clone()), model);
     }
@@ -487,29 +480,26 @@ public final class ImprovedClarityScore
    * @param docModel Document data model
    */
   private void calcDocumentModel(final DocumentModel docModel) {
-    final double smoothing = this.conf.getDocumentModelSmoothingParameter();
-    final double lambda = this.conf.getDocumentModelParamLambda();
-    final double beta = this.conf.getDocumentModelParamBeta();
-    final Metrics.DocumentMetrics dom = docModel.metrics();
-    final double totalFreq = dom.tf().doubleValue();
-    final double uniqueTerms = dom.uniqueTermCount().doubleValue();
-
     for (final ByteArray term : docModel.termFreqMap.keySet()) {
       // term frequency given the document
-      final double termFreq = dom.tf(term).doubleValue();
+      final double termFreq = docModel.metrics().tf(term).doubleValue();
       // relative collection frequency of the term
       final double rCollFreq = this.metrics.collection.relTf(term);
 
-      double model = (termFreq + (smoothing * rCollFreq)) / (totalFreq
-          + (smoothing *
-          uniqueTerms));
-      model = (lambda * ((beta * model) + ((1 - beta) * rCollFreq))) + ((1
-          -
-          lambda) *
-          rCollFreq);
+      final double smoothing = this.conf.getDocumentModelSmoothingParameter();
+      final double lambda = this.conf.getDocumentModelParamLambda();
+      final double beta = this.conf.getDocumentModelParamBeta();
+      final Metrics.DocumentMetrics dom = docModel.metrics();
+      final double totalFreq = dom.tf().doubleValue();
+      final double uniqueTerms = dom.uniqueTermCount().doubleValue();
+
+      double model = (termFreq + (smoothing * rCollFreq)) / (totalFreq +
+          (smoothing * uniqueTerms));
+      double value = (lambda * ((beta * model) + ((1d - beta) * rCollFreq)))
+          + ((1d - lambda) * rCollFreq);
 
       this.extDocMan.setData(docModel.id, term.clone(), DataKeys.DM.name(),
-          model);
+          value);
     }
   }
 
@@ -586,7 +576,6 @@ public final class ImprovedClarityScore
    *
    * @param query Query to calculate for
    * @return Clarity score result object
-   * @throws ParseException Thrown on query parsing errors
    */
   @Override
   public Result calculateClarity(final String query)

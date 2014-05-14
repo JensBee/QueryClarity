@@ -52,7 +52,7 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
   /**
    * Flag indicating, if the new instance will be temporary.
    */
-  protected boolean isTemporary = false;
+  protected boolean isTemporary;
 
   /**
    * File path where the working data will be stored.
