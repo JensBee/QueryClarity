@@ -31,17 +31,17 @@ public final class TimeMeasure {
   /**
    * Overall time elapsed.
    */
-  private long elapsed = 0L;
+  private long elapsed;
 
   /**
    * True, if measurement is paused.
    */
-  private boolean paused = false;
+  private boolean paused;
 
   /**
    * True, if measurement is stopped.
    */
-  private boolean stopped = false;
+  private boolean stopped;
 
   /**
    * Start the time measurement. If the measurement was paused, it will continue

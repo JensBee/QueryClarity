@@ -168,6 +168,7 @@ public final class ImprovedClarityScoreTest
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
+  @Ignore
   public void testCalculateClarity()
       throws Exception {
     final Metrics metrics = new Metrics(this.index);

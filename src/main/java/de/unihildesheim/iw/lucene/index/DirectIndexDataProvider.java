@@ -383,8 +383,8 @@ public final class DirectIndexDataProvider
   @Override
   public DocumentModel getDocumentModel(final int docId) {
     checkDocId(docId);
-    final DocumentModel.DocumentModelBuilder dmBuilder
-        = new DocumentModel.DocumentModelBuilder(docId);
+    final DocumentModel.Builder dmBuilder
+        = new DocumentModel.Builder(docId);
 
     try {
       final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum
@@ -425,7 +425,7 @@ public final class DirectIndexDataProvider
    * @return List of terms from all documents, with stopwords excluded
    */
   @Override
-  public Collection<ByteArray> getDocumentsTermSet(
+  public Set<ByteArray> getDocumentsTermSet(
       final Collection<Integer> docIds)
       throws IOException {
     if (docIds == null || docIds.isEmpty()) {
@@ -434,7 +434,7 @@ public final class DirectIndexDataProvider
 
     final Set<Integer> uniqueDocIds = new HashSet<>(docIds);
     @SuppressWarnings("CollectionWithoutInitialCapacity")
-    final Collection<ByteArray> terms = new HashSet<>();
+    final Set<ByteArray> terms = new HashSet<>();
     final DocFieldsTermsEnum dftEnum =
         new DocFieldsTermsEnum(getIndexReader(), getDocumentFields());
 

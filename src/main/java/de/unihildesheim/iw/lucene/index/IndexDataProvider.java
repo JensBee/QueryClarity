@@ -137,7 +137,7 @@ public interface IndexDataProvider {
    * @param docId Document-id to lookup
    * @return True if a model is known, false otherwise
    */
-  boolean hasDocument(final Integer docId);
+  boolean hasDocument(final int docId);
 
   /**
    * Get a unique set of terms for all documents identified by their id.
@@ -146,7 +146,7 @@ public interface IndexDataProvider {
    * @return List of terms from all documents
    * @throws IOException Thrown on low-level I/O errors
    */
-  Collection<ByteArray> getDocumentsTermSet(final Collection<Integer> docIds)
+  Set<ByteArray> getDocumentsTermSet(final Collection<Integer> docIds)
       throws IOException;
 
   /**

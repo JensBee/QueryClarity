@@ -160,7 +160,7 @@ public final class AbstractIndexDataProviderTest
     }
 
     @Override
-    public Collection<ByteArray> getDocumentsTermSet(
+    public Set<ByteArray> getDocumentsTermSet(
         final Collection<Integer> docIds) {
       throw new UnsupportedOperationException("Not supported yet.");
     }

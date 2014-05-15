@@ -153,8 +153,8 @@ public final class DocumentModelTest
     assertFalse(msg("DocModels should not be the same."),
         firstDocModel.equals(secondDocModel));
 
-    final DocumentModel.DocumentModelBuilder derivedDocModel
-        = new DocumentModel.DocumentModelBuilder(firstDocModel);
+    final DocumentModel.Builder derivedDocModel
+        = new DocumentModel.Builder(firstDocModel);
     // add a new term with it's frequency value, to make this model different
     final byte[] termBytes = "foo#Bar#Value".getBytes();
     derivedDocModel.setTermFrequency(new ByteArray(termBytes), 10);
@@ -195,8 +195,8 @@ public final class DocumentModelTest
     );
 
     // change a model
-    final DocumentModel.DocumentModelBuilder derivedDocModel
-        = new DocumentModel.DocumentModelBuilder(firstDocModel);
+    final DocumentModel.Builder derivedDocModel
+        = new DocumentModel.Builder(firstDocModel);
     // add a new term with it's frequency value, to make this model different
     final byte[] termBytes = "foo#Bar#Value".getBytes();
     derivedDocModel.setTermFrequency(new ByteArray(termBytes), 10);

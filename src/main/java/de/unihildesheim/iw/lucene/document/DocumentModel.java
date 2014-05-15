@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 /**
- * Meta-data model for document related informations.
+ * Meta-data model for document related information.
  *
  * @author Jens Bertram
  */
@@ -68,7 +68,7 @@ public final class DocumentModel {
    *
    * @param builder Builder to use
    */
-  private DocumentModel(final DocumentModelBuilder builder) {
+  private DocumentModel(final Builder builder) {
     if (builder == null) {
       throw new NullPointerException("Builder was null.");
     }
@@ -191,7 +191,7 @@ public final class DocumentModel {
    * Builder to create new {@link DocumentModel}s.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static final class DocumentModelBuilder {
+  public static final class Builder {
 
     /**
      * Default number of terms to expect for a document. Used to initialize data
@@ -209,14 +209,14 @@ public final class DocumentModel {
     /**
      * Overall term frequency of the corresponding document.
      */
-    private long termFreq = 0L;
+    private long termFreq;
 
     /**
      * Builds a new {@link DocumentModel} with the given id.
      *
      * @param documentId Referenced document id
      */
-    public DocumentModelBuilder(final int documentId) {
+    public Builder(final int documentId) {
       this.docId = documentId;
       this.termFreqMap = new HashMap<>(DEFAULT_TERMS_COUNT);
     }
@@ -226,7 +226,7 @@ public final class DocumentModel {
      *
      * @param docModel Model to get the data from
      */
-    public DocumentModelBuilder(final DocumentModel docModel) {
+    public Builder(final DocumentModel docModel) {
       if (docModel == null) {
         throw new IllegalArgumentException("Model was null.");
       }
@@ -243,7 +243,7 @@ public final class DocumentModel {
      * @param documentId Referenced document id
      * @param termsCount Expected number of terms
      */
-    public DocumentModelBuilder(final int documentId,
+    public Builder(final int documentId,
         final int termsCount) {
       this.docId = documentId;
       this.termFreqMap = new HashMap<>(termsCount);
@@ -256,7 +256,7 @@ public final class DocumentModel {
      * @param freq Frequency of term
      * @return Self reference
      */
-    public DocumentModelBuilder setTermFrequency(final ByteArray term,
+    public Builder setTermFrequency(final ByteArray term,
         final long freq) {
       if (term == null) {
         throw new IllegalArgumentException("Term was null.");
@@ -271,7 +271,7 @@ public final class DocumentModel {
      * @param map Map containing <tt>term -> frequency</tt> mapping
      * @return Self reference
      */
-    public DocumentModelBuilder setTermFrequency(
+    public Builder setTermFrequency(
         final Map<ByteArray, Long> map) {
       for (final Entry<ByteArray, Long> entry : map.entrySet()) {
         if (entry.getKey() == null || entry.getValue() == null) {

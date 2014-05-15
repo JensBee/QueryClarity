@@ -29,6 +29,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -356,7 +357,7 @@ public final class Persistence {
      * Flag indicating, if the new instance will be temporary. If it's temporary
      * any data may be deleted on JVM exit.
      */
-    private boolean isTemporary = false;
+    private boolean isTemporary;
 
     /**
      * Random string to prefix a temporary storage with.
@@ -383,7 +384,7 @@ public final class Persistence {
     }
 
     public Builder dataPath(final String newDataPath) {
-      if (newDataPath == null || newDataPath.trim().isEmpty()) {
+      if (Objects.requireNonNull(newDataPath).trim().isEmpty()) {
         throw new IllegalArgumentException("Empty data path.");
       }
       this.dataPath = newDataPath;
@@ -391,7 +392,7 @@ public final class Persistence {
     }
 
     public Builder name(final String newName) {
-      if (newName == null || newName.trim().isEmpty()) {
+      if (Objects.requireNonNull(newName).trim().isEmpty()) {
         throw new IllegalArgumentException("Empty cache name.");
       }
       if (this.isTemporary) {
@@ -465,10 +466,7 @@ public final class Persistence {
      * @param words List of stopwords. May be empty.
      */
     public Builder stopwords(final Set<String> words) {
-      if (words == null) {
-        throw new IllegalArgumentException("Stopwords were null.");
-      }
-      this.stopwords = words;
+      this.stopwords = Objects.requireNonNull(words);
       return this;
     }
 
@@ -484,10 +482,7 @@ public final class Persistence {
      */
     public Builder documentFields(
         final Set<String> fields) {
-      if (fields == null) {
-        throw new IllegalArgumentException("Fields were null.");
-      }
-      this.documentFields = fields;
+      this.documentFields = Objects.requireNonNull(fields);
       return this;
     }
 

@@ -37,7 +37,8 @@ public class AtomicBigDecimal
    *
    * @param initialValue the initial value
    */
-  public AtomicBigDecimal(BigDecimal initialValue) {
+  public AtomicBigDecimal(final BigDecimal initialValue) {
+    super();
     valueHolder.set(initialValue);
   }
 
@@ -45,6 +46,7 @@ public class AtomicBigDecimal
    * Creates a new AtomicBigDecimal with initial value {@code 0}.
    */
   public AtomicBigDecimal() {
+    super();
     valueHolder.set(BigDecimal.ZERO);
   }
 

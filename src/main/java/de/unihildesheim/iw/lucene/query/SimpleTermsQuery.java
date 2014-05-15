@@ -136,8 +136,7 @@ public final class SimpleTermsQuery
             .toString());
       }
     } catch (IOException e) {
-      // not thrown b/c we're using a string reader...
-      throw new RuntimeException(e);
+      // not thrown b/c we're using a string reader
     }
     return result;
   }

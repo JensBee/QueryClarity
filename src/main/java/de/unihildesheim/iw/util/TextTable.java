@@ -35,7 +35,7 @@ public final class TextTable {
   /**
    * Flag indicating, if the global cells have been set.
    */
-  private boolean hasCells = false;
+  private boolean hasCells;
   /**
    * Default string formatting for a row.
    */
@@ -43,7 +43,7 @@ public final class TextTable {
   /**
    * Flag indicating if a default row format is set.
    */
-  private boolean hasRowFormat = false;
+  private boolean hasRowFormat;
 
   /**
    * New text-table instance printing to the defined stream.

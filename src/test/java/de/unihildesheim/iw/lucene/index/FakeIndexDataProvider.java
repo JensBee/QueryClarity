@@ -92,12 +92,12 @@ public final class FakeIndexDataProvider
   }
 
   @Override
-  public boolean hasDocument(final Integer docId) {
+  public boolean hasDocument(final int docId) {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
-  public Collection<ByteArray> getDocumentsTermSet(
+  public Set<ByteArray> getDocumentsTermSet(
       final Collection<Integer> docIds) {
     throw new UnsupportedOperationException("Not supported yet.");
   }

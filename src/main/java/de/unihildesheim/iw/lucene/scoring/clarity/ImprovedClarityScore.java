@@ -55,6 +55,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -110,7 +111,7 @@ public final class ImprovedClarityScore
   /**
    * Flag indicating, if a cache is available.
    */
-  private boolean hasCache = false;
+  private boolean hasCache;
 
   /**
    * Cache of default document models.
@@ -215,9 +216,8 @@ public final class ImprovedClarityScore
   protected static ImprovedClarityScore build(
       final Builder builder)
       throws Buildable.BuildableException, IOException {
-    if (builder == null) {
-      throw new IllegalArgumentException("Builder was null.");
-    }
+    Objects.requireNonNull(builder);
+
     final ImprovedClarityScore instance = new ImprovedClarityScore();
     // set configuration
     instance.dataProv = builder.idxDataProvider;
@@ -544,14 +544,12 @@ public final class ImprovedClarityScore
   protected double calcQueryModel(final ByteArray fbTerm,
       final Collection<ByteArray> qTerms,
       final Collection<Integer> fbDocIds) {
-    if (fbTerm == null) {
-      throw new IllegalArgumentException("Feedback term was null.");
-    }
-    if (fbDocIds == null || fbDocIds.isEmpty()) {
+    Objects.requireNonNull(fbTerm);
+    if (Objects.requireNonNull(fbDocIds).isEmpty()) {
       throw new IllegalArgumentException("List of feedback document ids was " +
           "empty.");
     }
-    if (qTerms == null || qTerms.isEmpty()) {
+    if (Objects.requireNonNull(qTerms).isEmpty()) {
       throw new IllegalArgumentException("List of query terms was empty.");
     }
     double model = 0d;
@@ -580,7 +578,7 @@ public final class ImprovedClarityScore
   @Override
   public Result calculateClarity(final String query)
       throws ClarityScoreCalculationException {
-    if (query == null || query.trim().isEmpty()) {
+    if (Objects.requireNonNull(query).trim().isEmpty()) {
       throw new IllegalArgumentException("Query was empty.");
     }
 
@@ -899,7 +897,7 @@ public final class ImprovedClarityScore
     /**
      * Flag indicating, if the query was simplified.
      */
-    private boolean wasQuerySimplified = false;
+    private boolean wasQuerySimplified;
     /**
      * List of queries issued to get feedback documents.
      */
@@ -933,11 +931,8 @@ public final class ImprovedClarityScore
      * @param fbDocIds List of feedback documents
      */
     void setFeedbackDocIds(final Collection<Integer> fbDocIds) {
-      if (fbDocIds == null) {
-        throw new IllegalArgumentException("List of feedback documents was " +
-            "null.");
-      }
-      this.feedbackDocIds = Collections.unmodifiableCollection(fbDocIds);
+      this.feedbackDocIds = Collections.unmodifiableCollection(
+          Objects.requireNonNull(fbDocIds));
     }
 
     /**
@@ -946,10 +941,8 @@ public final class ImprovedClarityScore
      * @param fbTerms List of feedback terms
      */
     void setFeedbackTerms(final Collection<ByteArray> fbTerms) {
-      if (feedbackTerms == null) {
-        throw new IllegalArgumentException("List of feedback terms was null.");
-      }
-      this.feedbackTerms = Collections.unmodifiableCollection(fbTerms);
+      this.feedbackTerms = Collections.unmodifiableCollection(Objects
+          .requireNonNull(fbTerms));
     }
 
     /**
@@ -967,10 +960,7 @@ public final class ImprovedClarityScore
      * @param newConf Configuration used
      */
     void setConf(final ImprovedClarityScoreConfiguration newConf) {
-      if (newConf == null) {
-        throw new IllegalArgumentException("Configuration was null.");
-      }
-      this.conf = newConf;
+      this.conf = Objects.requireNonNull(newConf);
     }
 
     /**
@@ -979,7 +969,7 @@ public final class ImprovedClarityScore
      * @param query Query to add
      */
     void addQuery(final String query) {
-      if (query == null || query.trim().isEmpty()) {
+      if (Objects.requireNonNull(query).trim().isEmpty()) {
         throw new IllegalArgumentException("Query was empty.");
       }
       this.queries.add(query);
@@ -1058,10 +1048,7 @@ public final class ImprovedClarityScore
      */
     public Builder configuration(
         final ImprovedClarityScoreConfiguration conf) {
-      if (conf == null) {
-        throw new IllegalArgumentException("Configuration was null.");
-      }
-      this.configuration = conf;
+      this.configuration = Objects.requireNonNull(conf);
       return this;
     }
 

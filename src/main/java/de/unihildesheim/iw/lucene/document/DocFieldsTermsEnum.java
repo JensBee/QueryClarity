@@ -66,7 +66,7 @@ public final class DocFieldsTermsEnum {
   /**
    * Indicates whether a enumerator is set.
    */
-  private boolean hasEnum = false;
+  private boolean hasEnum;
 
   /**
    * Document fields to enumerate over.

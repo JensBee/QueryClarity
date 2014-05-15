@@ -19,9 +19,6 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
-import static java.lang.Double.doubleToRawLongBits;
-import static java.lang.Double.longBitsToDouble;
-
 /**
  * A {@code double} value that may be updated atomically. See the {@link
  * java.util.concurrent.atomic} package specification for description of the
@@ -79,7 +76,7 @@ public final class AtomicDouble
    */
   public AtomicDouble(final double initialValue) {
     super();
-    this.value = doubleToRawLongBits(initialValue);
+    this.value = Double.doubleToRawLongBits(initialValue);
   }
 
   /**
@@ -87,7 +84,7 @@ public final class AtomicDouble
    */
   public AtomicDouble() {
     super();
-    assert doubleToRawLongBits(0.0) == 0L;
+    assert Double.doubleToRawLongBits(0.0) == 0L;
   }
 
   /**
@@ -96,7 +93,7 @@ public final class AtomicDouble
    * @return the current value
    */
   public double get() {
-    return longBitsToDouble(this.value);
+    return Double.longBitsToDouble(this.value);
   }
 
   /**
@@ -105,7 +102,7 @@ public final class AtomicDouble
    * @param newValue the new value
    */
   public void set(final double newValue) {
-    this.value = doubleToRawLongBits(newValue);
+    this.value = Double.doubleToRawLongBits(newValue);
   }
 
   /**
@@ -114,7 +111,7 @@ public final class AtomicDouble
    * @param newValue the new value
    */
   public void lazySet(final double newValue) {
-    final long next = doubleToRawLongBits(newValue);
+    final long next = Double.doubleToRawLongBits(newValue);
     AtomicDouble.UPDATER.lazySet(this, next);
   }
 
@@ -125,8 +122,8 @@ public final class AtomicDouble
    * @return the previous value
    */
   public double getAndSet(final double newValue) {
-    final long next = doubleToRawLongBits(newValue);
-    return longBitsToDouble(AtomicDouble.UPDATER.getAndSet(this, next));
+    final long next = Double.doubleToRawLongBits(newValue);
+    return Double.longBitsToDouble(AtomicDouble.UPDATER.getAndSet(this, next));
   }
 
   /**
@@ -141,8 +138,8 @@ public final class AtomicDouble
   public boolean compareAndSet(final double expect,
       final double update) {
     return AtomicDouble.UPDATER.compareAndSet(this,
-        doubleToRawLongBits(expect),
-        doubleToRawLongBits(update));
+        Double.doubleToRawLongBits(expect),
+        Double.doubleToRawLongBits(update));
   }
 
   /**
@@ -162,10 +159,11 @@ public final class AtomicDouble
    */
   public boolean weakCompareAndSet(final double expect,
       final double update) {
-    return AtomicDouble.UPDATER.weakCompareAndSet(this, doubleToRawLongBits(
-            expect),
-        doubleToRawLongBits(update)
-    );
+    return AtomicDouble.UPDATER
+        .weakCompareAndSet(this, Double.doubleToRawLongBits(
+                expect),
+            Double.doubleToRawLongBits(update)
+        );
   }
 
   /**
@@ -177,9 +175,9 @@ public final class AtomicDouble
   public double getAndAdd(final double delta) {
     while (true) {
       final long current = this.value;
-      final double currentVal = longBitsToDouble(current);
+      final double currentVal = Double.longBitsToDouble(current);
       final double nextVal = currentVal + delta;
-      final long next = doubleToRawLongBits(nextVal);
+      final long next = Double.doubleToRawLongBits(nextVal);
       if (AtomicDouble.UPDATER.compareAndSet(this, current, next)) {
         return currentVal;
       }
@@ -195,9 +193,9 @@ public final class AtomicDouble
   public double addAndGet(final double delta) {
     while (true) {
       final long current = this.value;
-      final double currentVal = longBitsToDouble(current);
+      final double currentVal = Double.longBitsToDouble(current);
       final double nextVal = currentVal + delta;
-      final long next = doubleToRawLongBits(nextVal);
+      final long next = Double.doubleToRawLongBits(nextVal);
       if (AtomicDouble.UPDATER.compareAndSet(this, current, next)) {
         return nextVal;
       }

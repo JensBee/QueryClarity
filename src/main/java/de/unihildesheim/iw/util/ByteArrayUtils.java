@@ -25,6 +25,7 @@ import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Utilities for working with byte arrays.
@@ -66,10 +67,7 @@ public final class ByteArrayUtils {
    * @return String created from bytes
    */
   public static String utf8ToString(final byte[] bytes) {
-    if (bytes == null) {
-      throw new IllegalArgumentException("Bytes were null.");
-    }
-    String str = INTERN8.get(bytes);
+    String str = INTERN8.get(Objects.requireNonNull(bytes));
     if (str == null) {
       try {
         str = new String(bytes, "UTF-8");
@@ -90,10 +88,7 @@ public final class ByteArrayUtils {
    * @return String created from bytes
    */
   public static String utf8ToString(final ByteArray bytes) {
-    if (bytes == null) {
-      throw new IllegalArgumentException("Bytes were null.");
-    }
-    return utf8ToString(bytes.bytes);
+    return utf8ToString(Objects.requireNonNull(bytes).bytes);
   }
 
   /**
@@ -105,10 +100,7 @@ public final class ByteArrayUtils {
    * @return String created from bytes
    */
   public static String utf16ToString(final byte[] bytes) {
-    if (bytes == null) {
-      throw new IllegalArgumentException("Bytes were null.");
-    }
-    String str = INTERN16.get(bytes);
+    String str = INTERN16.get(Objects.requireNonNull(bytes));
     if (str == null) {
       try {
         str = new String(bytes, "UTF-16");
@@ -129,9 +121,6 @@ public final class ByteArrayUtils {
    * @return String created from bytes
    */
   public static String utf16ToString(final ByteArray bytes) {
-    if (bytes == null) {
-      throw new IllegalArgumentException("Bytes were null.");
-    }
-    return utf8ToString(bytes.bytes);
+    return utf8ToString(Objects.requireNonNull(bytes).bytes);
   }
 }

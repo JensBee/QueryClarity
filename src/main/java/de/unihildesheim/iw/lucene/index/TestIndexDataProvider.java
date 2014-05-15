@@ -54,12 +54,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Temporary index of random generated documents for testing purposes.
+ * Temporary (slow) index of random generated documents for testing purposes.
  *
  * @author Jens Bertram
  */
@@ -86,12 +87,12 @@ public final class TestIndexDataProvider
   /**
    * Flag indicating, if all static fields have been initialized.
    */
-  private static boolean initialized = false;
+  private static boolean initialized;
 
   /**
    * Temporary Lucene index held in memory.
    */
-  static TempDiskIndex tmpIdx;
+  private static TempDiskIndex tmpIdx;
 
   /**
    * List of stop-words to exclude from term frequency calculations.
@@ -218,9 +219,8 @@ public final class TestIndexDataProvider
    */
   public TestIndexDataProvider(final IndexSize indexSize)
       throws IOException, ProcessingException {
-    if (indexSize == null) {
-      throw new IllegalArgumentException("Index size was null.");
-    }
+    Objects.requireNonNull(indexSize);
+
     if (!TestIndexDataProvider.initialized) {
       reference = new Reference();
       util = new Util();
@@ -235,9 +235,8 @@ public final class TestIndexDataProvider
 
   @Override
   public int getDocumentFrequency(final ByteArray term) {
-    if (term == null) {
-      throw new IllegalArgumentException("Term was null.");
-    }
+    Objects.requireNonNull(term);
+
     if (TestIndexDataProvider.stopWords.contains(term)) {
       return 0;
     }
@@ -375,15 +374,10 @@ public final class TestIndexDataProvider
       final Set<String> newFields,
       final Set<String> newStopwords)
       throws IOException {
-    final String indexDir = tmpIdx.getIndexDir();
 
-//    final String[] activeFields;
     if (newFields == null) {
       enableAllFields();
-//      activeFields = getDocumentFields().toArray(
-//          new String[TestIndexDataProvider.activeFieldState.length]);
     } else {
-//      activeFields = newFields.toArray(new String[newFields.size()]);
       Arrays.fill(TestIndexDataProvider.activeFieldState, 0);
       // activate single fields
       for (final String field : newFields) {
@@ -393,9 +387,9 @@ public final class TestIndexDataProvider
 
     if (newStopwords == null) {
       TestIndexDataProvider.stopWords = Collections.<ByteArray>emptySet();
-      this.reference.setStopwords(Collections.<String>emptySet());
+      reference.setStopwords(Collections.<String>emptySet());
     } else {
-      this.reference.setStopwords(newStopwords);
+      reference.setStopwords(newStopwords);
       TestIndexDataProvider.stopWords = DBMaker.newTempHashSet();
       for (final String stopWord : newStopwords) {
         try {
@@ -483,7 +477,7 @@ public final class TestIndexDataProvider
    */
   private int getDocumentTermFrequency(final int docId) {
     final Map<ByteArray, Long> docTermMap =
-        this.reference.getDocumentTermFrequencyMap(docId);
+        reference.getDocumentTermFrequencyMap(docId);
     int docTermCount = 0;
     for (final Number count : docTermMap.values()) {
       docTermCount += count.intValue();
@@ -519,9 +513,7 @@ public final class TestIndexDataProvider
 
   @Override
   public Long getTermFrequency(final ByteArray term) {
-    if (term == null) {
-      throw new IllegalArgumentException("Term was null.");
-    }
+    Objects.requireNonNull(term);
 
     Long frequency = 0L;
     if (TestIndexDataProvider.stopWords.contains(term)) { // skip stopwords
@@ -546,9 +538,7 @@ public final class TestIndexDataProvider
 
   @Override
   public double getRelativeTermFrequency(final ByteArray term) {
-    if (term == null) {
-      throw new IllegalArgumentException("Term was null.");
-    }
+    Objects.requireNonNull(term);
 
     if (TestIndexDataProvider.stopWords.contains(term)) { // skip stopwords
       return 0d;
@@ -564,12 +554,12 @@ public final class TestIndexDataProvider
 
   @Override
   public Iterator<ByteArray> getTermsIterator() {
-    return this.reference.getTermSet().iterator();
+    return reference.getTermSet().iterator();
   }
 
   @Override
   public Source<ByteArray> getTermsSource() {
-    return new CollectionSource<>(this.reference.getTermSet());
+    return new CollectionSource<>(reference.getTermSet());
   }
 
   @Override
@@ -584,25 +574,23 @@ public final class TestIndexDataProvider
 
   @Override
   public long getUniqueTermsCount() {
-    return this.reference.getTermSet().size();
+    return reference.getTermSet().size();
   }
 
   @Override
   public DocumentModel getDocumentModel(final int docId) {
     checkDocumentId(docId);
     final int docTermFreq = getDocumentTermFrequency(docId);
-    final DocumentModel.DocumentModelBuilder dmBuilder
-        = new DocumentModel.DocumentModelBuilder(docId, docTermFreq);
-    dmBuilder.setTermFrequency(this.reference.getDocumentTermFrequencyMap
+    final DocumentModel.Builder dmBuilder
+        = new DocumentModel.Builder(docId, docTermFreq);
+    dmBuilder.setTermFrequency(reference.getDocumentTermFrequencyMap
         (docId));
     return dmBuilder.getModel();
   }
 
   @Override
-  public boolean hasDocument(final Integer docId) {
-    if (docId == null) {
-      throw new IllegalArgumentException("Document id was null.");
-    }
+  public boolean hasDocument(final int docId) {
+    Objects.requireNonNull(docId);
 
     return !(docId < 0 || docId > (TestIndexDataProvider.documentsCount - 1));
   }
@@ -614,9 +602,8 @@ public final class TestIndexDataProvider
 
   @Override
   public boolean documentContains(final int documentId, final ByteArray term) {
-    if (term == null) {
-      throw new IllegalArgumentException("Term was null.");
-    }
+    Objects.requireNonNull(term);
+
     if (TestIndexDataProvider.stopWords.contains(term)) { // skip stopwords
       return false;
     }
@@ -651,17 +638,18 @@ public final class TestIndexDataProvider
   }
 
   @Override
-  public Collection<ByteArray> getDocumentsTermSet(
+  public Set<ByteArray> getDocumentsTermSet(
       final Collection<Integer> docIds) {
-    if (docIds == null || docIds.isEmpty()) {
+    if (Objects.requireNonNull(docIds).isEmpty()) {
       throw new IllegalArgumentException("Empty document id list.");
     }
     final Set<Integer> uniqueDocIds = new HashSet<>(docIds);
     @SuppressWarnings("CollectionWithoutInitialCapacity")
-    final Collection<ByteArray> terms = new HashSet<>();
+    final Set<ByteArray> terms = new HashSet<>();
 
     for (final Integer docId : uniqueDocIds) {
-      terms.addAll(this.reference.getDocumentTermSet(docId, this));
+      checkDocumentId(docId);
+      terms.addAll(reference.getDocumentTermSet(docId, this));
     }
     return terms;
   }
@@ -759,10 +747,10 @@ public final class TestIndexDataProvider
           TestIndexDataProvider.this.getDocumentFields());
       tqb.setFields(TestIndexDataProvider.this.getDocumentFields());
       if (queryTerms == null) {
-        return tqb.query(TestIndexDataProvider.this.util.getQueryString())
+        return tqb.query(util.getQueryString())
             .build();
       }
-      return tqb.query(TestIndexDataProvider.this.util.getQueryString
+      return tqb.query(util.getQueryString
           (queryTerms)).build();
     }
 
@@ -897,7 +885,7 @@ public final class TestIndexDataProvider
     private Set<String> stopwords;
 
     private Reference setIndexDir(final String dir) {
-      if (dir == null || dir.trim().isEmpty()) {
+      if (Objects.requireNonNull(dir).trim().isEmpty()) {
         throw new IllegalArgumentException("Index dir was empty.");
       }
       this.indexDir = dir;
@@ -914,7 +902,7 @@ public final class TestIndexDataProvider
     }
 
     private Reference setDataDir(final String dir) {
-      if (dir == null || dir.trim().isEmpty()) {
+      if (Objects.requireNonNull(dir).trim().isEmpty()) {
         throw new IllegalArgumentException("Data dir was empty.");
       }
       this.dataDir = dir;
@@ -931,7 +919,7 @@ public final class TestIndexDataProvider
     }
 
     private Reference setDocumentFields(final Collection<String> newFields) {
-      if (newFields == null || newFields.isEmpty()) {
+      if (Objects.requireNonNull(newFields).isEmpty()) {
         throw new IllegalArgumentException("Fields were empty.");
       }
       this.fields = new HashSet<>(newFields.size());
@@ -992,9 +980,7 @@ public final class TestIndexDataProvider
            fieldNum++) {
         if (TestIndexDataProvider.activeFieldState[fieldNum] == 1) {
           final Iterable<ByteArray> docTerms = Fun.filter(TestIndexDataProvider
-                  .idx.
-                      keySet(), fieldNum,
-              docId
+                  .idx.keySet(), fieldNum, docId
           );
           for (final ByteArray term : docTerms) {
             if (TestIndexDataProvider.stopWords
@@ -1094,7 +1080,7 @@ public final class TestIndexDataProvider
     public Collection<ByteArray> getDocumentTermSet(final int docId,
         final TestIndexDataProvider testIndexDataProvider) {
       testIndexDataProvider.checkDocumentId(docId);
-      return testIndexDataProvider.reference.getDocumentTermFrequencyMap(docId)
+      return reference.getDocumentTermFrequencyMap(docId)
           .keySet();
     }
   }

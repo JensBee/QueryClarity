@@ -137,12 +137,12 @@ public final class DefaultClarityScore
   /**
    * Flag indicating, if this instance (it's caches) is temporary.
    */
-  private boolean isTemporary = false;
+  private boolean isTemporary;
 
   /**
    * Flag indicating, if a cache is set.
    */
-  private boolean hasCache = false;
+  private boolean hasCache;
 
   /**
    * Database to use.

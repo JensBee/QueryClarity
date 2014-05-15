@@ -62,7 +62,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * Flag indicating, if the new instance will be temporary. How to handle this
    * state is up to the specific implementation.
    */
-  protected boolean isTemporary = false;
+  protected boolean isTemporary;
 
   /**
    * {@link IndexReader} to use for accessing the Lucene index.
@@ -92,7 +92,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
   /**
    * Warm-up the instance right after building it?
    */
-  protected boolean doWarmUp = false;
+  protected boolean doWarmUp;
 
   /**
    * Last commit generation of the Lucene index (if it's a {@link Directory}

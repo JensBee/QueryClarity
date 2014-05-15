@@ -16,9 +16,13 @@
  */
 package de.unihildesheim.iw.util;
 
+import java.text.BreakIterator;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * Utility class for string operations.
@@ -119,5 +123,56 @@ public final class StringUtils {
     }
     // string is now all lower case
     return new String(inputChars);
+  }
+
+  /**
+   * Counts the occurrence of words in the given string.
+   * <p/>
+   * Based on: http://tutorials.jenkov
+   * .com/java-internationalization/breakiterator.html#word-boundaries
+   *
+   * @param text String to extract words from
+   * @param locale Locale to use
+   * @return Mapping of (all lower-cased) string and count
+   */
+  public static Map<String, Integer> countWords(final String text,
+      final Locale locale) {
+    final Map<String, Integer> wordCounts = new HashMap<>();
+
+    final BreakIterator breakIterator = BreakIterator.getWordInstance(locale);
+    breakIterator.setText(text);
+
+    int wordBoundaryIndex = breakIterator.first();
+    int prevIndex = 0;
+    while (wordBoundaryIndex != BreakIterator.DONE) {
+      final String word = StringUtils.lowerCase(text.substring(prevIndex,
+          wordBoundaryIndex));
+      if (isWord(word)) {
+        Integer wordCount = wordCounts.get(word);
+        if (wordCount == null) {
+          wordCount = 0;
+        }
+        wordCount++;
+        wordCounts.put(word, wordCount);
+      }
+      prevIndex = wordBoundaryIndex;
+      wordBoundaryIndex = breakIterator.next();
+    }
+
+    return wordCounts;
+  }
+
+  /**
+   * Checks, if a given string is a letter or number or a character representing
+   * something else (digit, semicolon, quote,..)
+   *
+   * @param word Word to check
+   * @return True, if it's a character or number
+   */
+  private static boolean isWord(String word) {
+    if (word.length() == 1) {
+      return Character.isLetterOrDigit(word.charAt(0));
+    }
+    return !"".equals(word.trim());
   }
 }

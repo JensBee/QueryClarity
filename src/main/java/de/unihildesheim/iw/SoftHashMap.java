@@ -97,6 +97,7 @@ public class SoftHashMap<K, V>
    * However, setValue still sets the value in the actual SoftHashMap.
    */
   @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
+  @Override
   public Set<Entry<K, V>> entrySet() {
     expungeStaleEntries();
     final Set<Entry<K, V>> result = new LinkedHashSet<Entry<K, V>>();

@@ -55,10 +55,8 @@ public class StopwordsFileReader {
         }
 
         // skip snowball comment lines
-        if (Format.SNOWBALL.equals(format)) {
-          if (line.charAt(0) == '|') {
-            continue;
-          }
+        if (Format.SNOWBALL.equals(format) && line.charAt(0) == '|') {
+          continue;
         }
 
         // add the first word
