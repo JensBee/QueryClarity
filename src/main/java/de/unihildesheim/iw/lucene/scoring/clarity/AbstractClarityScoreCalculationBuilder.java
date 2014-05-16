@@ -25,6 +25,7 @@ import org.apache.lucene.index.IndexReader;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * @author Jens Bertram
@@ -67,7 +68,7 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
    * @param newIdentifier Implementation identifier for the cache
    */
   protected AbstractClarityScoreCalculationBuilder(final String newIdentifier) {
-    if (newIdentifier == null || newIdentifier.trim().isEmpty()) {
+    if (Objects.requireNonNull(newIdentifier).trim().isEmpty()) {
       throw new IllegalArgumentException("Identifier was empty.");
     }
     this.identifier = newIdentifier;
@@ -80,18 +81,12 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
    * @return Self reference
    */
   public T indexDataProvider(final IndexDataProvider dataProv) {
-    if (dataProv == null) {
-      throw new IllegalArgumentException("Data provider was null.");
-    }
-    this.idxDataProvider = dataProv;
+    this.idxDataProvider = Objects.requireNonNull(dataProv);
     return getThis();
   }
 
   public T indexReader(final IndexReader newIdxReader) {
-    if (newIdxReader == null) {
-      throw new IllegalArgumentException("Index reader was null.");
-    }
-    this.idxReader = newIdxReader;
+    this.idxReader = Objects.requireNonNull(newIdxReader);
     return getThis();
   }
 
@@ -114,7 +109,7 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
    * @return Cache name prefixed with current identifier
    */
   private String createCacheName(final String name) {
-    if (name == null || name.isEmpty()) {
+    if (Objects.requireNonNull(name).trim().isEmpty()) {
       throw new IllegalArgumentException("Empty cache name.");
     }
     return this.identifier + "_" + name;
@@ -169,6 +164,7 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
    */
   public final T dataPath(final String filePath)
       throws IOException {
+    Objects.requireNonNull(filePath);
     this.dataPath = null;
     this.dataPath = Persistence.tryCreateDataPath(filePath);
     this.persistenceBuilder.dataPath(FileUtils.getPath(this.dataPath));

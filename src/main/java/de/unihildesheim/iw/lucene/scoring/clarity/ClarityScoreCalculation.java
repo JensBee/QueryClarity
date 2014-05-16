@@ -16,6 +16,8 @@
  */
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
+import java.io.IOException;
+
 /**
  * Generic interface for various clarity score calculation implementations.
  *
@@ -32,7 +34,7 @@ public interface ClarityScoreCalculation {
    * @throws Exception May be thrown by implementing class
    */
   ClarityScoreResult calculateClarity(final String query)
-      throws ClarityScoreCalculationException;
+      throws ClarityScoreCalculationException, IOException;
 
   /**
    * Basic class wrapping errors occurring while calculating the Clarity Score.

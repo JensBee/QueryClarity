@@ -329,10 +329,10 @@ public final class TestIndexDataProvider
         File.separatorChar + "data");
     if (!dataDir.exists() && !dataDir.mkdirs()) {
       throw new IOException("Failed to create data directory: '" + dataDir
-          + "'");
+          + "'.");
     }
 
-    this.reference = new Reference()
+    reference = new Reference()
         .setIndexDir(tmpIdx.getIndexDir())
         .setDataDir(dataDir.getCanonicalPath())
         .setDocumentFields(fields);

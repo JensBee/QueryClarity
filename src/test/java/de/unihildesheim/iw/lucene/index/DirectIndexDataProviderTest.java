@@ -17,6 +17,7 @@
 package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.util.RandomValue;
+import org.apache.lucene.index.IndexReader;
 
 import java.util.Set;
 
@@ -45,14 +46,15 @@ public final class DirectIndexDataProviderTest
   }
 
   @Override
-  protected IndexDataProvider createInstance(final Set<String> fields,
+  protected IndexDataProvider createInstance(final String dataDir,
+      final IndexReader reader, final Set<String> fields,
       final Set<String> stopwords)
       throws Exception {
     return new DirectIndexDataProvider.Builder()
         .temporary()
-        .dataPath(TestIndexDataProvider.reference.getDataDir())
+        .dataPath(dataDir)
         .documentFields(fields)
-        .indexReader(this.referenceIndex.getIndexReader())
+        .indexReader(reader)
 //        .indexPath(TestIndexDataProvider.reference.getIndexDir())
         .stopwords(stopwords)
         .createCache("test-" + RandomValue.getString(16))

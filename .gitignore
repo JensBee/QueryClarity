@@ -12,3 +12,4 @@
 /results.txt
 /contrib/*_output.xml
 /contrib/clef-solr/
+/test/resources/_*.txt

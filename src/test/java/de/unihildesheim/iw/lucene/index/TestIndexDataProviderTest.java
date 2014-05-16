@@ -20,6 +20,7 @@ import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.util.ByteArrayUtils;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.junit.Test;
 
@@ -384,7 +385,8 @@ public final class TestIndexDataProviderTest
   }
 
   @Override
-  protected IndexDataProvider createInstance(final Set<String> fields,
+  protected IndexDataProvider createInstance(final String dataDir,
+      final IndexReader reader, final Set<String> fields,
       final Set<String> stopwords)
       throws Exception {
     return new TestIndexDataProvider(TestIndexDataProvider.DEFAULT_INDEX_SIZE);

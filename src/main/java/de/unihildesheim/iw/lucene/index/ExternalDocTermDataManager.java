@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentNavigableMap;
 
 /**
@@ -61,10 +62,8 @@ public final class ExternalDocTermDataManager {
    * @param newPrefix Prefix
    */
   public ExternalDocTermDataManager(final DB newDb, final String newPrefix) {
-    if (newDb == null) {
-      throw new IllegalArgumentException("DB was null.");
-    }
-    if (newPrefix == null || newPrefix.trim().isEmpty()) {
+    Objects.requireNonNull(newDb);
+    if (Objects.requireNonNull(newPrefix).trim().isEmpty()) {
       throw new IllegalArgumentException("Prefix was empty.");
     }
     this.db = newDb;
@@ -86,7 +85,7 @@ public final class ExternalDocTermDataManager {
    * @param newPrefix Prefix to load
    */
   private void getMap(final String newPrefix) {
-    if (newPrefix == null || newPrefix.length() == 0) {
+    if (Objects.requireNonNull(newPrefix).trim().length() == 0) {
       throw new IllegalArgumentException("No prefix specified.");
     }
     // stored data
@@ -116,18 +115,33 @@ public final class ExternalDocTermDataManager {
    * @param value Value to store
    * @return Any previous assigned data, or null, if there was none
    */
-  public Object setData(final int documentId, final ByteArray term,
-      final String key, final Object value) {
-    if (term == null) {
-      throw new IllegalArgumentException("Term was null.");
-    }
-    if (key == null || key.trim().isEmpty()) {
+  public <T> T setData(final int documentId,
+      final ByteArray term,
+      final String key, final T value) {
+    Objects.requireNonNull(term);
+    Objects.requireNonNull(value);
+
+    if (Objects.requireNonNull(key).trim().isEmpty()) {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
-    if (value == null) {
-      throw new IllegalArgumentException("Null is not allowed as value.");
+    @SuppressWarnings("unchecked")
+    final T ret = (T) this.map.put(Fun.t3(key, documentId, term.clone()),
+        value);
+    return ret;
+  }
+
+  /**
+   * Store a map with term-data to the database.
+   *
+   * @param documentId Document-id the data belongs to
+   * @param key Key to identify the data
+   * @param data Key, value pairs to store
+   */
+  public <T> void setData(final int documentId, final String key, final
+  Map<ByteArray, T> data) {
+    for (Map.Entry<ByteArray, T> d : data.entrySet()) {
+      setData(documentId, d.getKey(), key, d.getValue());
     }
-    return this.map.put(Fun.t3(key, documentId, term.clone()), value);
   }
 
   /**
@@ -139,16 +153,18 @@ public final class ExternalDocTermDataManager {
    * @return Map with stored data for the given combination or null if there is
    * no data
    */
-  public Map<ByteArray, Object> getData(final int documentId,
+  public <T> Map<ByteArray, T> getData(final int documentId,
       final String key) {
-    if (key == null || key.trim().isEmpty()) {
+    if (Objects.requireNonNull(key).trim().isEmpty()) {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
     @SuppressWarnings("CollectionWithoutInitialCapacity")
-    final Map<ByteArray, Object> retMap = new HashMap<>();
+    final Map<ByteArray, T> retMap = new HashMap<>();
     for (final ByteArray term : Fun.filter(this.map.keySet(), key,
         documentId)) {
-      retMap.put(term.clone(), this.map.get(Fun.t3(key, documentId, term)));
+      @SuppressWarnings("unchecked")
+      final T val = (T) this.map.get(Fun.t3(key, documentId, term));
+      retMap.put(term.clone(), val);
     }
     return retMap;
   }
@@ -162,15 +178,15 @@ public final class ExternalDocTermDataManager {
    * @return Value stored for the given combination, or null if there was no
    * data stored
    */
-  public Object getData(final int documentId, final ByteArray term,
+  public <T> T getData(final int documentId, final ByteArray term,
       final String key) {
-    if (term == null) {
-      throw new IllegalArgumentException("Term was null.");
-    }
-    if (key == null || key.trim().isEmpty()) {
+    Objects.requireNonNull(term);
+    if (Objects.requireNonNull(key).trim().isEmpty()) {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
-    return this.map.get(Fun.t3(key, documentId, term));
+    @SuppressWarnings("unchecked")
+    final T ret = (T) this.map.get(Fun.t3(key, documentId, term));
+    return ret;
   }
 
 }

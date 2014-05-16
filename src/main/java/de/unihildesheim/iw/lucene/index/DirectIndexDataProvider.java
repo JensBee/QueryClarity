@@ -435,8 +435,8 @@ public final class DirectIndexDataProvider
     final Set<Integer> uniqueDocIds = new HashSet<>(docIds);
     @SuppressWarnings("CollectionWithoutInitialCapacity")
     final Set<ByteArray> terms = new HashSet<>();
-    final DocFieldsTermsEnum dftEnum =
-        new DocFieldsTermsEnum(getIndexReader(), getDocumentFields());
+    final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(getIndexReader(),
+        getDocumentFields());
 
     for (final Integer docId : uniqueDocIds) {
       checkDocId(docId);

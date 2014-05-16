@@ -17,12 +17,14 @@
 package de.unihildesheim.iw.util;
 
 import java.text.BreakIterator;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Utility class for string operations.
@@ -40,15 +42,24 @@ public final class StringUtils {
    * Joins a string array using a given separator string.
    *
    * @param strings Strings to join
-   * @param seperator Separator char
+   * @param separator Separator char
    * @return Joined string
    */
-  public static String join(final String[] strings, final String seperator) {
-    @SuppressWarnings("StringBufferWithoutInitialCapacity")
-    final StringBuilder joinedStr = new StringBuilder();
+  public static String join(final String[] strings, final String separator) {
+    Objects.requireNonNull(strings);
+    Objects.requireNonNull(separator);
+
+    // estimate final length
+    int approxLength = 0;
+    for (final String s : strings) {
+      approxLength += s.length();
+    }
+    approxLength += separator.length() * strings.length;
+
+    final StringBuilder joinedStr = new StringBuilder(approxLength);
     for (int i = 0, il = strings.length; i < il; i++) {
       if (i > 0) {
-        joinedStr.append(seperator);
+        joinedStr.append(separator);
       }
       joinedStr.append(strings[i]);
     }
@@ -62,21 +73,30 @@ public final class StringUtils {
    * @param separator Separator char
    * @return Joined string
    */
-  public static String join(final List<String> strings,
+  public static String join(final Collection<String> strings,
       final String separator) {
-    if (strings == null || strings.isEmpty()) {
-      throw new IllegalArgumentException("Empty string list.");
+    Objects.requireNonNull(separator);
+    Objects.requireNonNull(strings);
+
+    // short circuit, if list is empty
+    if (strings.isEmpty()) {
+      return "";
     }
-    if (separator == null) {
-      throw new IllegalArgumentException("Separator was null.");
+    final List<String> stringsList = new ArrayList<>(strings);
+
+    // estimate final length
+    int approxLength = 0;
+    for (final String s : stringsList) {
+      approxLength += s.length();
     }
-    @SuppressWarnings("StringBufferWithoutInitialCapacity")
-    final StringBuilder joinedStr = new StringBuilder();
-    for (int i = 0, il = strings.size(); i < il; i++) {
+    approxLength += separator.length() * stringsList.size();
+
+    final StringBuilder joinedStr = new StringBuilder(approxLength);
+    for (int i = 0, il = stringsList.size(); i < il; i++) {
       if (i > 0) {
         joinedStr.append(separator);
       }
-      joinedStr.append(strings.get(i));
+      joinedStr.append(stringsList.get(i));
     }
     return joinedStr.toString();
   }
@@ -90,12 +110,9 @@ public final class StringUtils {
    */
   public static Collection<String> split(final String str,
       final String separator) {
-    if (str == null) {
-      throw new IllegalArgumentException("String was null.");
-    }
-    if (separator == null) {
-      throw new IllegalArgumentException("Separator was null.");
-    }
+    Objects.requireNonNull(str);
+    Objects.requireNonNull(separator);
+
     if (str.isEmpty() || str.length() <= 1) {
       return Arrays.asList(new String[]{str});
     }
@@ -110,9 +127,8 @@ public final class StringUtils {
    * @return Lower-cased input string
    */
   public static String lowerCase(final String input) {
-    if (input == null) {
-      throw new IllegalArgumentException("String was null.");
-    }
+    Objects.requireNonNull(input);
+
     if (input.trim().isEmpty()) {
       return input;
     }
@@ -137,7 +153,15 @@ public final class StringUtils {
    */
   public static Map<String, Integer> countWords(final String text,
       final Locale locale) {
+    Objects.requireNonNull(text);
+    Objects.requireNonNull(locale);
+
     final Map<String, Integer> wordCounts = new HashMap<>();
+
+    // short circuit, if string is empty
+    if (text.trim().isEmpty()) {
+      return wordCounts;
+    }
 
     final BreakIterator breakIterator = BreakIterator.getWordInstance(locale);
     breakIterator.setText(text);
@@ -170,6 +194,8 @@ public final class StringUtils {
    * @return True, if it's a character or number
    */
   private static boolean isWord(String word) {
+    assert word != null;
+
     if (word.length() == 1) {
       return Character.isLetterOrDigit(word.charAt(0));
     }

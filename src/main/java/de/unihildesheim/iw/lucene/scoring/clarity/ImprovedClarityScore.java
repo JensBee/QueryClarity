@@ -577,7 +577,7 @@ public final class ImprovedClarityScore
    */
   @Override
   public Result calculateClarity(final String query)
-      throws ClarityScoreCalculationException {
+      throws ClarityScoreCalculationException, IOException {
     if (Objects.requireNonNull(query).trim().isEmpty()) {
       throw new IllegalArgumentException("Query was empty.");
     }
@@ -668,13 +668,9 @@ public final class ImprovedClarityScore
 
     // collect all unique terms from feedback documents
     final List<ByteArray> fbTerms;
-    try {
-      fbTerms = new ArrayList<>(this.dataProv.getDocumentsTermSet(
-          feedbackDocIds));
-    } catch (IOException e) {
-      throw new ClarityScoreCalculationException("Error collecting feedback " +
-          "terms.", e);
-    }
+    fbTerms = new ArrayList<>(this.dataProv.getDocumentsTermSet(
+        feedbackDocIds));
+
     // get document frequency threshold
     int minDf = (int) (this.metrics.collection.numberOfDocuments()
         * this.conf.getFeedbackTermSelectionThreshold());

@@ -29,8 +29,8 @@ import org.apache.lucene.util.Bits;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Utility class to get feedback documents needed for calculations.
@@ -131,7 +131,7 @@ public final class Feedback {
    * @return List of Lucene document ids
    * @throws IOException Thrown on low-level I/O errors
    */
-  public static Collection<Integer> get(final IndexReader reader,
+  public static Set<Integer> get(final IndexReader reader,
       final Query query, final int docCount)
       throws IOException {
     if (reader == null) {
@@ -157,7 +157,7 @@ public final class Feedback {
       maxRetDocs = getMaxDocs(reader, docCount);
     }
 
-    Collection<Integer> docIds;
+    Set<Integer> docIds;
     // get a set of random documents
     final TopDocs initialDocs = getDocs(reader, query, maxRetDocs);
 
@@ -183,7 +183,7 @@ public final class Feedback {
    * @return List of Lucene document ids
    * @throws java.io.IOException Thrown on low-level I/O errors
    */
-  public static Collection<Integer> getFixed(final IndexReader reader,
+  public static Set<Integer> getFixed(final IndexReader reader,
       final Query query, final int docCount)
       throws IOException {
     if (reader == null) {
@@ -197,7 +197,7 @@ public final class Feedback {
     LOG.debug("Getting {} feedback documents...", docCount);
 
     final int maxRetDocs = getMaxDocs(reader, docCount);
-    final Collection<Integer> docIds = get(reader, query, docCount);
+    final Set<Integer> docIds = get(reader, query, docCount);
 
     // get the amount of random docs to get
     int randDocs = maxRetDocs - docIds.size();

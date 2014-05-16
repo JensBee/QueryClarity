@@ -19,6 +19,7 @@ package de.unihildesheim.iw.lucene.index;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.SerializableByte;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
+import org.apache.lucene.index.IndexReader;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.mapdb.DBMaker;
@@ -75,7 +76,8 @@ public final class AbstractIndexDataProviderTest
   }
 
   @Override
-  protected IndexDataProvider createInstance(final Set<String> fields,
+  protected IndexDataProvider createInstance(final String dataDir,
+      final IndexReader reader, final Set<String> fields,
       final Set<String> stopwords)
       throws UnsupportedEncodingException {
     final AbstractIndexDataProviderTestImpl instance = new
@@ -90,10 +92,9 @@ public final class AbstractIndexDataProviderTest
             Long>()
     );
     instance.setCachedFieldsMap(
-        new HashMap<String, SerializableByte>(this.referenceIndex
-            .getDocumentFields().size())
+        new HashMap<String, SerializableByte>(fields.size())
     );
-    for (final String field : this.referenceIndex.getDocumentFields()) {
+    for (final String field : fields) {
       instance.addFieldToCacheMap(field);
     }
     return instance;

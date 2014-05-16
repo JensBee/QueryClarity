@@ -17,420 +17,356 @@
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.lucene.MultiIndexDataProviderTestCase;
-import de.unihildesheim.iw.lucene.document.DocumentModel;
-import de.unihildesheim.iw.lucene.index.IndexDataProvider;
+import de.unihildesheim.iw.TestCase;
+import de.unihildesheim.iw.Tuple;
+import de.unihildesheim.iw.lucene.index.FixedTestIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.Metrics;
-import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.RandomValue;
-import de.unihildesheim.iw.util.concurrent.AtomicDouble;
-import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
-import de.unihildesheim.iw.util.concurrent.processing.Processing;
-import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
-import de.unihildesheim.iw.util.concurrent.processing.Target;
-import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
+import de.unihildesheim.iw.util.StringUtils;
 import org.junit.Assert;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.mapdb.Fun;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
+import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * Test for {@link DefaultClarityScore}.
+ * <p/>
+ * The tests are run using the {@link FixedTestIndexDataProvider} providing a
+ * static well known index. A fixed {@link DefaultClarityScoreConfiguration} is
+ * used throughout the test to match pre-calculated reference values. Any
+ * changes to those values may need to re-calculate those reference values.
+ * <p/>
+ * Further the whole set of documents in the test-index is to be used as
+ * feedback documents set for all test to match the pre-calculated values.
  *
  * @author Jens Bertram
  */
-@RunWith(Parameterized.class)
 public final class DefaultClarityScoreTest
-    extends MultiIndexDataProviderTestCase {
+    extends TestCase {
 
   /**
-   * Logger instance for this class.
+   * Allowed delta in query model calculation.
    */
-  private static final Logger LOG = LoggerFactory.getLogger(
-      DefaultClarityScoreTest.class);
+  private static final double DELTA_Q_MOD = 0d;
+  /**
+   * Allowed delta in document model calculation.
+   */
+  private static final double DELTA_D_MOD = 0d;
+  /**
+   * Allowed delta in default document model calculation.
+   */
+  private static final double DELTA_N_MOD = 0d;
+  /**
+   * Allowed delta in clarity score calculation.
+   */
+  private static final double DELTA_SCORE = 0d;
 
   /**
-   * Delta allowed in clarity score calculation.
+   * Global singleton instance of the test-index.
    */
-  private static final double ALLOWED_SCORE_DELTA = 0.009;
+  private static final FixedTestIndexDataProvider FIXED_INDEX =
+      FixedTestIndexDataProvider.getInstance();
 
   /**
-   * Initialize test with the current parameter.
-   *
-   * @param dataProv {@link IndexDataProvider} to use
-   * @param rType Data provider configuration
+   * Fixed configuration for clarity calculation.
    */
-  public DefaultClarityScoreTest(
-      final DataProviders dataProv,
-      final MultiIndexDataProviderTestCase.RunType rType) {
-    super(dataProv, rType);
-  }
-
-  private DefaultClarityScore.Builder getInstanceBuilder()
-      throws IOException {
-    return new DefaultClarityScore.Builder()
-        .indexDataProvider(this.index)
-        .dataPath(TestIndexDataProvider.reference.getDataDir())
-        .indexReader(referenceIndex.getIndexReader())
-        .createCache("test-" + RandomValue.getString(16))
-        .temporary();
-  }
+  private static final DefaultClarityScoreConfiguration DCC;
 
   /**
-   * Calculates a default document model (pdt), if the document does not contain
-   * a given term.
-   *
-   * @param langmodelWeight Weight modifier to use
-   * @param term Term to calculate
-   * @return Calculated document model (pdt)
+   * Language model weighting value used for calculation.
    */
-  private double calcDefaultDocumentModel(final double langmodelWeight,
-      final ByteArray term) {
-    final Metrics metrics = new Metrics(this.index);
-    return (1 - langmodelWeight) * metrics.collection.relTf(term);
+  private static final double LANG_MOD_WEIGHT = 0.6d;
+
+  /**
+   * Static initializer for the global {@link DefaultClarityScoreConfiguration}.
+   */
+  static {
+    // static configuration to match pre-calculated values
+    DCC = new DefaultClarityScoreConfiguration();
+    DCC.setFeedbackDocCount(FixedTestIndexDataProvider.KnownData.DOC_COUNT);
+    DCC.setLangModelWeight(LANG_MOD_WEIGHT);
   }
 
   /**
-   * Calculate the document model (pdt) for a given document & term.
-   *
-   * @param langmodelWeight Weight modifier to use
-   * @param docModel Document-model to calculate for
-   * @param term Term to calculate
-   * @return Calculated document model (pdt)
+   * Data dump for (pre-calculated) results.
    */
-  private double calcDocumentModel(final double langmodelWeight,
-      final DocumentModel docModel, final ByteArray term) {
-    double model;
+  private static final class KnownData {
+    /**
+     * Clarity scores pre-calculated for single term queries using a
+     * language-model-weight of {@code 0.6} and {@code 10} feedback documents.
+     */
+    static final Map<String, Double> termScores = new HashMap<>
+        (FixedTestIndexDataProvider.KnownData.TERM_COUNT_UNIQUE);
 
-    if (docModel.contains(term)) {
-      model = (docModel.metrics().relTf(term) * langmodelWeight)
-          + calcDefaultDocumentModel(langmodelWeight, term);
-    } else {
-      fail(msg("Missing term. term=" + ByteArrayUtils.utf8ToString(term)));
-      model = calcDefaultDocumentModel(langmodelWeight, term);
-    }
-    return model;
-  }
+    /**
+     * Collection model values for each term in index.
+     * <p/>
+     * A collection model is simply the relative term frequency.
+     */
+    static final Map<String, Double> C_MODEL;
 
-  /**
-   * Calculate pc(t) - collection distribution for a term, collection model.
-   *
-   * @param term Term to calculate for
-   * @return collection distribution for the given term
-   */
-  private double calc_pc(final ByteArray term) {
-    final Metrics metrics = new Metrics(this.index);
-    return metrics.collection.relTf(term);
-  }
-
-  /**
-   * Calculate pd(t) - document model for a term.
-   *
-   * @param langModelWeight Weight modifier to use
-   * @param docModel Document-model
-   * @param term Term to calculate for
-   * @return document model for the given term
-   */
-  private double calc_pd(final double langModelWeight,
-      final DocumentModel docModel, final ByteArray term) {
-    return (langModelWeight * docModel.metrics().relTf(term))
-        + ((1 - langModelWeight) * calc_pc(term));
-  }
-
-  /**
-   * Calculate pq(t) - query distribution for a term, query model.
-   *
-   * @param langModelWeight Weight modifier to use
-   * @param term Term to calculate for
-   * @param feedbackDocs Sampled feedback documents to use for calculation
-   * @param query Query issued
-   * @return Query distribution model for the given term
-   */
-  private double calc_pq(final double langModelWeight, final ByteArray term,
-      final Collection<DocumentModel> feedbackDocs,
-      final Collection<ByteArray> query) {
-    double pq = 0;
-    // go through all feedback documents
-    for (final DocumentModel docModel : feedbackDocs) {
-      double docValue = calc_pd(langModelWeight, docModel, term);
-      for (final ByteArray qTerm : query) {
-        docValue *= calc_pd(langModelWeight, docModel, qTerm);
+    /**
+     * Static initializer for collection model values.
+     */
+    static {
+      C_MODEL = new HashMap<>(FixedTestIndexDataProvider.KnownData
+          .TERM_COUNT_UNIQUE);
+      for (final Map.Entry<String, Integer> idxTfEntry :
+          FixedTestIndexDataProvider.KnownData.IDX_TERMFREQ.entrySet()) {
+        // term -> ft/F
+        C_MODEL.put(idxTfEntry.getKey(), idxTfEntry.getValue().doubleValue() /
+            FixedTestIndexDataProvider.KnownData.TERM_COUNT);
       }
-      pq += docValue;
-    }
-    return pq;
-  }
-
-  /**
-   * Calculate the clarity score.
-   *
-   * @param langModelWeight Weight modifier to use
-   * @param feedbackDocs Sampled feedback documents to use for calculation
-   * @param query Query issued
-   * @return Clarity score
-   */
-  private double calc_score(final double langModelWeight,
-      final Collection<DocumentModel> feedbackDocs,
-      final Collection<ByteArray> query)
-      throws IOException, ProcessingException {
-    if (langModelWeight <= 0) {
-      throw new IllegalArgumentException("LangModelWeight <= 0.");
-    }
-    if (feedbackDocs.isEmpty()) {
-      throw new IllegalArgumentException("No feedback documents.");
-    }
-    if (query.isEmpty()) {
-      throw new IllegalArgumentException("No query terms.");
     }
 
-    final Iterator<ByteArray> termsIt;
-    double score = 0;
+    /**
+     * Default document model values for documents not containing a specific
+     * term.
+     */
+    static final Map<String, Double> N_MODEL;
 
-    // calculation with terms from feedback documents
-    final Collection<Integer> fbDocIds = new HashSet<>(feedbackDocs.size());
-    for (final DocumentModel docModel : feedbackDocs) {
-      fbDocIds.add(docModel.id);
-    }
-    termsIt = this.index.getDocumentsTermSet(fbDocIds).iterator();
-
-
-    final AtomicDouble pScore = new AtomicDouble(0);
-    final Collection<ByteArray> fbTerms = this.index.getDocumentsTermSet
-        (fbDocIds);
-    new Processing().setSourceAndTarget(
-        new TargetFuncCall<>(
-            new CollectionSource<>(fbTerms),
-            new PartialScoreCalculatorTarget(pScore, langModelWeight,
-                feedbackDocs, query)
-        )
-    ).process(fbTerms.size());
-
-//    // go through all terms
-//    while (termsIt.hasNext()) {
-//      final ByteArray idxTerm = termsIt.next();
-//      final double pq = calc_pq(langModelWeight, idxTerm, feedbackDocs,
-// query);
-//      score += pq * MathUtils.log2(pq / calc_pc(idxTerm));
-//    }
-    return pScore.doubleValue();
-  }
-
-  /**
-   * Test of calcDocumentModels method, of class DefaultClarityScore.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  @SuppressWarnings("checkstyle:magicnumber")
-  public void testCalcDocumentModel()
-      throws Exception {
-    final Metrics metrics = new Metrics(this.index);
-    final DefaultClarityScoreConfiguration dcc
-        = new DefaultClarityScoreConfiguration();
-    final DefaultClarityScore instance = getInstanceBuilder()
-        .configuration(dcc)
-        .build();
-
-    new Processing().setSourceAndTarget(
-        new TargetFuncCall<>(
-            this.index.getDocumentIdSource(),
-            new DocModelCalculatorTarget(metrics, instance, dcc)
-        )
-    ).process((int) this.index.getDocumentCount());
-
-//    final Iterator<Integer> docIdIt = this.index.getDocumentIdIterator();
-//    while (docIdIt.hasNext()) {
-//      final int docId = docIdIt.next();
-//      final DocumentModel docModel = metrics.getDocumentModel(docId);
-//      instance.calcDocumentModel(docModel);
-//
-//      final Map<ByteArray, Object> valueMap = instance.testGetExtDocMan()
-//          .getData(docId, DefaultClarityScore.DataKeys.DM.name());
-//
-//      for (final ByteArray term : docModel.termFreqMap.keySet()) {
-//        final double expResult = calcDocumentModel(dcc.getLangModelWeight(),
-//            docModel, term);
-//        assertEquals(msg("Calculated document model value differs."),
-//            expResult, valueMap.get(term));
-//      }
-//    }
-  }
-
-  /**
-   * Test of preCalcDocumentModels method, of class DefaultClarityScore.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  @SuppressWarnings("checkstyle:magicnumber")
-  public void testPreCalcDocumentModels()
-      throws Exception {
-    final Metrics metrics = new Metrics(this.index);
-    final DefaultClarityScoreConfiguration dcc
-        = new DefaultClarityScoreConfiguration();
-    final DefaultClarityScore instance = getInstanceBuilder()
-        .configuration(dcc)
-        .build();
-    instance.preCalcDocumentModels();
-
-    new Processing().setSourceAndTarget(
-        new TargetFuncCall<>(
-            this.index.getDocumentIdSource(),
-            new DocModelCalculatorTarget(metrics, instance, dcc)
-        )
-    ).process((int) this.index.getDocumentCount());
-
-//    final Iterator<Integer> docIdIt = this.index.getDocumentIdIterator();
-//    while (docIdIt.hasNext()) {
-//      final int docId = docIdIt.next();
-//      final DocumentModel docModel = metrics.getDocumentModel(docId);
-//
-//      final Map<ByteArray, Object> valueMap = instance.testGetExtDocMan()
-//          .getData(docId, DefaultClarityScore.DataKeys.DM.name());
-//
-//      for (final ByteArray term : docModel.termFreqMap.keySet()) {
-//        final double expResult = calcDocumentModel(dcc.getLangModelWeight(),
-//            docModel, term);
-//        assertEquals(msg("Calculated document model value differs. docId="
-//                + docId + " term=" + ByteArrayUtils.utf8ToString(term) +
-//                " b="
-//                + term + " v=" + valueMap.get(term)), expResult,
-//            (Double) valueMap.get(term), 0d
-//        );
-//      }
-//    }
-  }
-
-  /**
-   * Test of calculateClarity method, of class DefaultClarityScore.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testCalculateClarity()
-      throws Exception {
-    final Metrics metrics = new Metrics(this.index);
-    final String queryString = TestIndexDataProvider.util.getQueryString();
-    final DefaultClarityScoreConfiguration dcc
-        = new DefaultClarityScoreConfiguration();
-    final DefaultClarityScore instance = getInstanceBuilder()
-        .configuration(dcc)
-        .build();
-
-    final DefaultClarityScore.Result result
-        = instance.calculateClarity(queryString);
-
-    final Collection<Integer> feedbackDocs = result.getFeedbackDocuments();
-    final Collection<DocumentModel> fbDocModels = new ArrayList<>(
-        feedbackDocs.size());
-    for (final Integer docId : feedbackDocs) {
-      fbDocModels.add(metrics.getDocumentModel(docId));
+    /**
+     * Static initializer for default document model values.
+     */
+    static {
+      N_MODEL = new HashMap<>(FixedTestIndexDataProvider.KnownData
+          .TERM_COUNT_UNIQUE);
+      for (final String term :
+          FixedTestIndexDataProvider.KnownData.IDX_TERMFREQ.keySet()) {
+        N_MODEL.put(term, (1d - LANG_MOD_WEIGHT) * C_MODEL.get(term));
+      }
     }
 
-    final double score = calc_score(dcc.getLangModelWeight(),
-        fbDocModels, result.getQueryTerms());
+    /**
+     * Document model values for each document-term pair.
+     */
+    static final Map<Fun.Tuple2<Integer, String>, Double> D_MODEL;
 
-    final double maxResult = Math.max(score, result.getScore());
-    final double minResult = Math.min(score, result.getScore());
-    LOG.debug(msg("DC-SCORE test={} dcs={} deltaAllow={} delta={}"), score,
-        result.getScore(), ALLOWED_SCORE_DELTA, maxResult - minResult);
+    /**
+     * Static initializer for document model values.
+     */
+    static {
+      D_MODEL = new TreeMap<>();
 
-    assertEquals(msg("Clarity score mismatch."), score,
-        result.getScore(), ALLOWED_SCORE_DELTA);
-  }
+      for (int docId = 0;
+           docId < FixedTestIndexDataProvider.KnownData.DOC_COUNT;
+           docId++) {
+        final Map<String, Integer> tfMap = FixedTestIndexDataProvider.KnownData
+            .getDocumentTfMap(docId);
 
-  /**
-   * Test of testGetExtDocMan method, of class DefaultClarityScore.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testTestGetExtDocMan()
-      throws Exception {
-    final DefaultClarityScore instance = getInstanceBuilder().build();
-    Assert.assertNotNull(instance.testGetExtDocMan());
-  }
+        // number of all terms in document
+        int termsInDoc = 0;
+        for (final Integer freq : tfMap.values()) {
+          termsInDoc += freq;
+        }
 
-  /**
-   * {@link Processing} {@link Target} for document model calculation.
-   */
-  private final class DocModelCalculatorTarget
-      extends TargetFuncCall.TargetFunc<Integer> {
+        for (final Map.Entry<String, Integer> tfMapEntry : tfMap.entrySet()) {
+          // frequency of current term in document
+          final int inDocFreq = tfMapEntry.getValue();
+          final String term = tfMapEntry.getKey();
 
-    private final Metrics metrics;
-    private final DefaultClarityScore instance;
-    private final DefaultClarityScoreConfiguration dcc;
-
-    DocModelCalculatorTarget(Metrics m, DefaultClarityScore dcs,
-        DefaultClarityScoreConfiguration conf) {
-      super();
-      this.metrics = m;
-      this.instance = dcs;
-      this.dcc = conf;
-    }
-
-    @Override
-    public void call(final Integer docId) {
-      if (docId != null) {
-        final DocumentModel docModel = this.metrics.getDocumentModel(docId);
-        this.instance.calcDocumentModel(docModel);
-
-        final Map<ByteArray, Object> valueMap = this.instance.testGetExtDocMan()
-            .getData(docId, DefaultClarityScore.DataKeys.DM.name());
-
-        for (final ByteArray term : docModel.termFreqMap.keySet()) {
-          final double expResult = calcDocumentModel(this.dcc
-              .getLangModelWeight(), docModel, term);
-          assertEquals(msg("Calculated document model value differs."),
-              expResult, valueMap.get(term));
+          // calculate final model
+          double model = (LANG_MOD_WEIGHT * ((double) inDocFreq / termsInDoc))
+              + ((1d - LANG_MOD_WEIGHT) * C_MODEL.get(term));
+          D_MODEL.put(Fun.t2(docId, term), model);
         }
       }
     }
   }
 
   /**
-   * {@link Processing} {@link Target} for calculating parts of the reference
-   * clarity score.
+   * Get an instance builder for the {@link DefaultClarityScore} loaded with
+   * default values.
+   *
+   * @return Builder initialized with default values
+   * @throws IOException Thrown on low-level I/O errors related to the Lucene
+   * index
    */
-  private final class PartialScoreCalculatorTarget
-      extends TargetFuncCall.TargetFunc<ByteArray> {
+  private DefaultClarityScore.Builder getInstanceBuilder()
+      throws IOException {
+    return new DefaultClarityScore.Builder()
+        .indexDataProvider(FIXED_INDEX)
+        .dataPath(FixedTestIndexDataProvider.DATA_DIR.getPath())
+        .indexReader(FixedTestIndexDataProvider.TMP_IDX.getReader())
+        .createCache("test-" + RandomValue.getString(16))
+        .temporary();
+  }
 
-    private final AtomicDouble target;
-    private final double lmw;
-    private final Collection<DocumentModel> fbDocs;
-    private final Collection<ByteArray> q;
+  /**
+   * Get some random terms from the index. The amount of terms returned is the
+   * half of all index terms at maximum.
+   *
+   * @return Tuple containing a set of terms as String and {@link ByteArray}
+   * @throws UnsupportedEncodingException Thrown, if a query term could not be
+   * encoded to {@code UTF-8}
+   */
+  private Tuple.Tuple2<Set<String>, Set<ByteArray>> getRandomIndexTerms()
+      throws UnsupportedEncodingException {
+    final int maxTerm = FixedTestIndexDataProvider.KnownData.IDX_TERMFREQ
+        .size() - 1;
+    final int qTermCount = RandomValue.getInteger(0, maxTerm / 2);
+    final Set<ByteArray> qTerms = new HashSet<>(qTermCount);
+    final Set<String> qTermsStr = new HashSet<>(qTermCount);
+    final List<String> idxTerms = new ArrayList<>(FixedTestIndexDataProvider
+        .KnownData.IDX_TERMFREQ.keySet());
 
-    PartialScoreCalculatorTarget(final AtomicDouble pScore,
-        final double langModelWeight,
-        final Collection<DocumentModel> feedbackDocs,
-        final Collection<ByteArray> query) {
-      super();
-      this.target = pScore;
-      this.lmw = langModelWeight;
-      this.fbDocs = feedbackDocs;
-      this.q = query;
+    for (int i = 0; i < qTermCount; i++) {
+      final String term = idxTerms.get(RandomValue.getInteger(0, maxTerm));
+      qTermsStr.add(term);
+      qTerms.add(new ByteArray(term.getBytes("UTF-8")));
     }
 
-    @Override
-    public void call(final ByteArray idxTerm) {
-      if (idxTerm != null) {
-        final double pq = calc_pq(this.lmw, idxTerm, this.fbDocs, this.q);
-        this.target.addAndGet(pq * MathUtils.log2(pq / calc_pc(idxTerm)));
+    assert !qTerms.isEmpty();
+    assert !qTermsStr.isEmpty();
+
+    return Tuple.tuple2(qTermsStr, qTerms);
+  }
+
+  /**
+   * Calculate the query model for a set of term and feedback documents.
+   *
+   * @param term Term to calculate the model for
+   * @param queryTerms Set of query terms
+   * @param feedbackDocumentIds Ids of documents to use as feedback
+   * @return Model value
+   */
+  private double calculateQueryModel(final String term,
+      final Set<String> queryTerms, final Set<Integer> feedbackDocumentIds) {
+    double modelValue = 1d;
+    final Collection<String> calcTerms = new ArrayList<>();
+    calcTerms.addAll(queryTerms);
+    calcTerms.add(term);
+    for (final Integer docId : feedbackDocumentIds) {
+      for (final String cTerm : calcTerms) {
+        final Fun.Tuple2<Integer, String> dmKey = Fun.t2(docId, cTerm);
+        // check, if term is in document and we should use a specific
+        // document model or a default model
+        if (KnownData.D_MODEL.containsKey(dmKey)) {
+          // specific model
+          modelValue *= KnownData.D_MODEL.get(dmKey);
+        } else {
+          // default model
+          modelValue *= KnownData.N_MODEL.get(cTerm);
+        }
       }
     }
+    return modelValue;
+  }
+
+  @Test
+  public void testGetDefaultDocumentModel()
+      throws Exception {
+    final DefaultClarityScore instance = getInstanceBuilder()
+        .configuration(DCC).build();
+
+    final Iterator<ByteArray> termsIt = FIXED_INDEX.getTermsIterator();
+    while (termsIt.hasNext()) {
+      final ByteArray term = termsIt.next();
+      final double result = instance.getDefaultDocumentModel(term);
+      Assert.assertEquals(
+          "Default document-model value differs.",
+          KnownData.N_MODEL.get(ByteArrayUtils.utf8ToString(term)),
+          result, DELTA_N_MOD
+      );
+    }
+  }
+
+  @Test
+  public void testGetDocumentModel()
+      throws Exception {
+    final DefaultClarityScore instance = getInstanceBuilder()
+        .configuration(DCC).build();
+
+    for (int docId = 0; docId < FixedTestIndexDataProvider.KnownData.DOC_COUNT;
+         docId++) {
+      final Map<ByteArray, Double> models = instance.getDocumentModel(docId);
+
+      for (final Map.Entry<ByteArray, Double> modelEntry : models.entrySet()) {
+        double expected = KnownData.D_MODEL.get(Fun.t2(docId,
+            ByteArrayUtils.utf8ToString(modelEntry.getKey())));
+        Assert.assertEquals("Calculated document model value differs.",
+            expected, modelEntry.getValue(), DELTA_D_MOD);
+      }
+    }
+  }
+
+  @Test
+  public void testGetQueryModel()
+      throws Exception {
+    final DefaultClarityScore instance = getInstanceBuilder()
+        .configuration(DCC).build();
+
+    // use all documents for feedback
+    final Set<Integer> fbDocIds = FIXED_INDEX.getDocumentIds();
+
+    // some random terms from the index will make up a query
+    final Tuple.Tuple2<Set<String>, Set<ByteArray>> randQTerms =
+        getRandomIndexTerms();
+    final Set<ByteArray> qTerms = randQTerms.b;
+    final Set<String> qTermsStr = randQTerms.a;
+
+    // compare calculations for all terms in index
+    final Iterator<ByteArray> termsIt = FIXED_INDEX.getTermsIterator();
+    while (termsIt.hasNext()) {
+      final ByteArray term = termsIt.next();
+      final String termStr = ByteArrayUtils.utf8ToString(term);
+
+      final double result = instance.getQueryModel(term, fbDocIds, qTerms);
+
+      // calculate expected result
+      double expected = calculateQueryModel(termStr, qTermsStr, fbDocIds);
+
+      Assert.assertEquals("Query model value differs.", expected, result,
+          DELTA_Q_MOD);
+    }
+  }
+
+  @Test
+  public void testCalculateClarity()
+      throws Exception {
+    final DefaultClarityScore instance = getInstanceBuilder()
+        .configuration(DCC).build();
+    final Metrics metrics = new Metrics(FIXED_INDEX);
+
+    // some random terms from the index will make up a query
+    final Tuple.Tuple2<Set<String>, Set<ByteArray>> randQTerms =
+        getRandomIndexTerms();
+    final Set<ByteArray> qTerms = randQTerms.b;
+    final Set<String> qTermsStr = randQTerms.a;
+
+    // create a query string from the list of terms
+    final String queryStr = StringUtils.join(qTermsStr, " ");
+
+    // calculate result
+    final DefaultClarityScore.Result result = instance.calculateClarity
+        (queryStr);
+
+    Iterator<ByteArray> idxTermsIt;
+    idxTermsIt = FIXED_INDEX.getTermsIterator();
+    double score = 0d;
+    while (idxTermsIt.hasNext()) {
+      final String idxTerm = ByteArrayUtils.utf8ToString(idxTermsIt.next());
+      final double qMod = calculateQueryModel(idxTerm, qTermsStr,
+          FIXED_INDEX.getDocumentIds());
+      final double relTf =
+          FixedTestIndexDataProvider.KnownData.IDX_TERMFREQ.get(idxTerm)
+              .doubleValue() / FixedTestIndexDataProvider.KnownData.TERM_COUNT;
+      score += qMod * MathUtils.log2(qMod / relTf);
+    }
+
+    Assert.assertEquals(score, result.getScore(), DELTA_SCORE);
   }
 }

@@ -25,10 +25,7 @@ import de.unihildesheim.iw.util.RandomValue;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Map;
 import java.util.Set;
 
 public class FixedTestIndexDataProviderTest
@@ -39,55 +36,6 @@ public class FixedTestIndexDataProviderTest
    */
   private static final FixedTestIndexDataProvider INSTANCE =
       FixedTestIndexDataProvider.getInstance();
-
-  @Test
-  public void testDocumentContains()
-      throws Exception {
-    final Map<Integer, String> words = new HashMap<>(10);
-    // remember: all terms are lower-cased!
-    words.put(0, "lorem");
-    words.put(1, "neque");
-    words.put(2, "mollis");
-    words.put(3, "phasellus");
-    words.put(4, "turpis");
-    words.put(5, "sagittis");
-    words.put(6, "rhoncus");
-    words.put(7, "interdum");
-    words.put(8, "quisque");
-    words.put(9, "molestie");
-
-    // check words that must be there
-    for (Map.Entry<Integer, String> check : words.entrySet()) {
-      Assert.assertTrue(
-          "Term not found. doc=" + check.getKey() + " term=" + check.getValue(),
-          INSTANCE.documentContains(check.getKey(),
-              new ByteArray(check.getValue().getBytes("UTF-8")))
-      );
-    }
-
-    // term not in documents
-    final ByteArray someTerm = new ByteArray("foo".getBytes("UTF-8"));
-
-    // check terms that must not be found
-    for (int i = 0; i < 10; i++) {
-      Assert.assertFalse("Unexpected term found.", INSTANCE.documentContains
-          (i, someTerm));
-    }
-
-    // run out of documents
-    for (int i = 0; i < 10; i++) {
-      try {
-        INSTANCE.documentContains(i, someTerm);
-      } catch (IllegalArgumentException e) {
-        if (i < INSTANCE.getDocumentCount()) {
-          Assert.fail("Unexpected exception caught.");
-        } else {
-          // ok
-          break;
-        }
-      }
-    }
-  }
 
   @Test
   public void testGetStopwords() {
@@ -114,7 +62,7 @@ public class FixedTestIndexDataProviderTest
     final Set<String> fields = INSTANCE.getDocumentFields();
     Assert.assertFalse("Empty fields list.", fields.isEmpty());
     Assert.assertEquals("Field count mismatch.",
-        FixedTestIndexDataProvider.FIELD_COUNT,
+        FixedTestIndexDataProvider.KnownData.FIELD_COUNT,
         fields.size());
   }
 
@@ -127,17 +75,18 @@ public class FixedTestIndexDataProviderTest
   @Test
   public void testGetDocumentCount() {
     Assert.assertEquals("Document count mismatch.",
-        FixedTestIndexDataProvider.DOC_COUNT, INSTANCE.getDocumentCount());
+        FixedTestIndexDataProvider.KnownData.DOC_COUNT,
+        INSTANCE.getDocumentCount());
   }
 
   @Test
   public void testHasDocument() {
     for (int i = -10; ; i++) {
       if (INSTANCE.hasDocument(i) &&
-          (i < 0 || i >= FixedTestIndexDataProvider.DOC_COUNT)) {
+          (i < 0 || i >= FixedTestIndexDataProvider.KnownData.DOC_COUNT)) {
         Assert.fail("Unexpected document id found. id=" + i);
       } else if (!INSTANCE.hasDocument(i) && i >=
-          FixedTestIndexDataProvider.DOC_COUNT) {
+          FixedTestIndexDataProvider.KnownData.DOC_COUNT) {
         break;
       } else if (!INSTANCE.hasDocument(i) && i < 0) {
         continue;
@@ -151,10 +100,10 @@ public class FixedTestIndexDataProviderTest
   @Test
   public void testGetDocumentsTermSet() {
     final Set<Integer> docIds = new HashSet<>(
-        FixedTestIndexDataProvider.DOC_COUNT);
-    for (int i = 0; i < FixedTestIndexDataProvider.DOC_COUNT; i++) {
-      docIds.add(RandomValue.getInteger(0, FixedTestIndexDataProvider
-          .DOC_COUNT - 1));
+        FixedTestIndexDataProvider.KnownData.DOC_COUNT);
+    for (int i = 0; i < FixedTestIndexDataProvider.KnownData.DOC_COUNT; i++) {
+      docIds.add(RandomValue.getInteger(0, FixedTestIndexDataProvider.KnownData.
+          DOC_COUNT - 1));
     }
 
     final Set<ByteArray> docTerms;
@@ -178,32 +127,11 @@ public class FixedTestIndexDataProviderTest
 
   @Test
   public void testGetDocumentModel() {
-    for (int i = 0; i < FixedTestIndexDataProvider.DOC_COUNT; i++) {
+    for (int i = 0; i < FixedTestIndexDataProvider.KnownData.DOC_COUNT; i++) {
       final DocumentModel docModel = INSTANCE.getDocumentModel(i);
       for (ByteArray term : docModel.termFreqMap.keySet()) {
         Assert.assertTrue("Term in model, but not in index.", INSTANCE
             .documentContains(i, term));
-      }
-    }
-  }
-
-  @Test
-  public void testGetTermFrequency_term() {
-    final Iterator<ByteArray> termsIt = INSTANCE.getTermsIterator();
-    while (termsIt.hasNext()) {
-      final ByteArray term = termsIt.next();
-      int matchedDocs = 0;
-      for (int docId = 0; docId < FixedTestIndexDataProvider.DOC_COUNT;
-           docId++) {
-        if (INSTANCE.documentContains(docId, term)) {
-          matchedDocs++;
-        }
-      }
-      final long tf = INSTANCE.getTermFrequency(term);
-      if (matchedDocs > tf) {
-        Assert
-            .fail("Matched docs > term-frequency. md=" + matchedDocs + " tf=" +
-                tf);
       }
     }
   }
