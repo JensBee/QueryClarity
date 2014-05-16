@@ -22,6 +22,7 @@ import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
+import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
@@ -29,6 +30,9 @@ import org.slf4j.LoggerFactory;
 
 import java.io.UnsupportedEncodingException;
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Simplified Clarity Score implementation as described by He, Ben, and Iadh
@@ -53,6 +57,9 @@ public final class SimplifiedClarityScore
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       SimplifiedClarityScore.class);
 
+  /**
+   * Prefix used to identify externally stored data.
+   */
   static final String IDENTIFIER = "SCS";
 
   /**
@@ -60,6 +67,9 @@ public final class SimplifiedClarityScore
    */
   private IndexDataProvider dataProv;
 
+  /**
+   * Reader to access the Lucene index.
+   */
   private IndexReader idxReader;
 
   /**
@@ -82,9 +92,7 @@ public final class SimplifiedClarityScore
    */
   protected static SimplifiedClarityScore build(final Builder
       builder) {
-    if (builder == null) {
-      throw new IllegalArgumentException("Builder was null.");
-    }
+    Objects.requireNonNull(builder);
     final SimplifiedClarityScore instance = new SimplifiedClarityScore();
 
     // set configuration
@@ -105,32 +113,33 @@ public final class SimplifiedClarityScore
       throws DataProviderException {
     // length of the (rewritten) query
     final int queryLength = queryTerms.size();
-    // number of unique terms in collection
-    final double collTermCount = this.metrics.collection.numberOfUniqueTerms().
-        doubleValue();
+    // number of terms in collection
+    final long collTermCount = this.metrics.collection.tf();
+    // create a unique list of query terms
+    final Set<ByteArray> uniqueQueryTerms = new HashSet<>(queryTerms);
 
     double result = 0d;
 
     // calculate max likelihood of the query model for each term in the
     // query
-    // iterate over all query terms
-    for (final ByteArray queryTerm : queryTerms) {
+    // iterate over all unique query terms
+    for (final ByteArray queryTerm : uniqueQueryTerms) {
       // number of times a query term appears in the query
       int termCount = 0;
-      // count the number of occurrences
+      // count the number of occurrences in the non-unique list
       for (final ByteArray aTerm : queryTerms) {
-        if (aTerm.equals(queryTerm)) {
+        if (queryTerm.equals(aTerm)) {
           termCount++;
         }
       }
+      assert termCount > 0;
+
       final double pMl =
           Integer.valueOf(termCount).doubleValue() / Integer.valueOf(
-              queryLength).doubleValue();
+              queryLength);
       final double pColl = this.metrics.collection.tf(queryTerm).doubleValue()
           / collTermCount;
-      final double log = (Math.log(pMl) / Math.log(2)) - (Math.log(pColl) /
-          Math.log(2));
-      result += pMl * log;
+      result += pMl * MathUtils.log2(pMl / pColl);
     }
 
     return result;
@@ -139,7 +148,7 @@ public final class SimplifiedClarityScore
   @Override
   public ClarityScoreResult calculateClarity(final String query)
       throws ClarityScoreCalculationException {
-    if (query == null || query.trim().isEmpty()) {
+    if (Objects.requireNonNull(query).trim().isEmpty()) {
       throw new IllegalArgumentException("Query was empty.");
     }
 

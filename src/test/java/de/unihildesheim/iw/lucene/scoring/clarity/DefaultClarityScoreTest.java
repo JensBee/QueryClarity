@@ -20,7 +20,6 @@ import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.lucene.index.FixedTestIndexDataProvider;
-import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.RandomValue;
@@ -30,13 +29,10 @@ import org.junit.Test;
 import org.mapdb.Fun;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -206,36 +202,6 @@ public final class DefaultClarityScoreTest
   }
 
   /**
-   * Get some random terms from the index. The amount of terms returned is the
-   * half of all index terms at maximum.
-   *
-   * @return Tuple containing a set of terms as String and {@link ByteArray}
-   * @throws UnsupportedEncodingException Thrown, if a query term could not be
-   * encoded to {@code UTF-8}
-   */
-  private Tuple.Tuple2<Set<String>, Set<ByteArray>> getRandomIndexTerms()
-      throws UnsupportedEncodingException {
-    final int maxTerm = FixedTestIndexDataProvider.KnownData.IDX_TERMFREQ
-        .size() - 1;
-    final int qTermCount = RandomValue.getInteger(0, maxTerm / 2);
-    final Set<ByteArray> qTerms = new HashSet<>(qTermCount);
-    final Set<String> qTermsStr = new HashSet<>(qTermCount);
-    final List<String> idxTerms = new ArrayList<>(FixedTestIndexDataProvider
-        .KnownData.IDX_TERMFREQ.keySet());
-
-    for (int i = 0; i < qTermCount; i++) {
-      final String term = idxTerms.get(RandomValue.getInteger(0, maxTerm));
-      qTermsStr.add(term);
-      qTerms.add(new ByteArray(term.getBytes("UTF-8")));
-    }
-
-    assert !qTerms.isEmpty();
-    assert !qTermsStr.isEmpty();
-
-    return Tuple.tuple2(qTermsStr, qTerms);
-  }
-
-  /**
    * Calculate the query model for a set of term and feedback documents.
    *
    * @param term Term to calculate the model for
@@ -266,6 +232,11 @@ public final class DefaultClarityScoreTest
     return modelValue;
   }
 
+  /**
+   * Test of getDefaultDocumentModel method, of class DefaultClarityScore.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
   @Test
   public void testGetDefaultDocumentModel()
       throws Exception {
@@ -284,6 +255,11 @@ public final class DefaultClarityScoreTest
     }
   }
 
+  /**
+   * Test of getDocumentModel method, of class DefaultClarityScore.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
   @Test
   public void testGetDocumentModel()
       throws Exception {
@@ -303,6 +279,11 @@ public final class DefaultClarityScoreTest
     }
   }
 
+  /**
+   * Test of getQueryModel method, of class DefaultClarityScore.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
   @Test
   public void testGetQueryModel()
       throws Exception {
@@ -314,7 +295,7 @@ public final class DefaultClarityScoreTest
 
     // some random terms from the index will make up a query
     final Tuple.Tuple2<Set<String>, Set<ByteArray>> randQTerms =
-        getRandomIndexTerms();
+        FIXED_INDEX.getUniqueRandomIndexTerms();
     final Set<ByteArray> qTerms = randQTerms.b;
     final Set<String> qTermsStr = randQTerms.a;
 
@@ -334,17 +315,20 @@ public final class DefaultClarityScoreTest
     }
   }
 
+  /**
+   * Test of calculateClarity method, of class DefaultClarityScore.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
   @Test
   public void testCalculateClarity()
       throws Exception {
     final DefaultClarityScore instance = getInstanceBuilder()
         .configuration(DCC).build();
-    final Metrics metrics = new Metrics(FIXED_INDEX);
 
     // some random terms from the index will make up a query
     final Tuple.Tuple2<Set<String>, Set<ByteArray>> randQTerms =
-        getRandomIndexTerms();
-    final Set<ByteArray> qTerms = randQTerms.b;
+        FIXED_INDEX.getUniqueRandomIndexTerms();
     final Set<String> qTermsStr = randQTerms.a;
 
     // create a query string from the list of terms
@@ -361,7 +345,7 @@ public final class DefaultClarityScoreTest
       final String idxTerm = ByteArrayUtils.utf8ToString(idxTermsIt.next());
       final double qMod = calculateQueryModel(idxTerm, qTermsStr,
           FIXED_INDEX.getDocumentIds());
-      final double relTf =
+      final double relTf = // relative collection term frequency
           FixedTestIndexDataProvider.KnownData.IDX_TERMFREQ.get(idxTerm)
               .doubleValue() / FixedTestIndexDataProvider.KnownData.TERM_COUNT;
       score += qMod * MathUtils.log2(qMod / relTf);

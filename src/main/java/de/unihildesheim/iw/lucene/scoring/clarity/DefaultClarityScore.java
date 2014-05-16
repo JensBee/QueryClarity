@@ -80,8 +80,7 @@ public final class DefaultClarityScore
       DefaultClarityScore.class);
 
   /**
-   * Prefix to use to store calculated term-data values in cache and access
-   * properties stored in the {@link IndexDataProvider}.
+   * Prefix used to identify externally stored data.
    */
   static final String IDENTIFIER = "DCS";
 

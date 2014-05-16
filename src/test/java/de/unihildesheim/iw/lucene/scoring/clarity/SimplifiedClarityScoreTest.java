@@ -17,59 +17,60 @@
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.lucene.MultiIndexDataProviderTestCase;
-import de.unihildesheim.iw.lucene.index.IndexDataProvider;
-import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
+import de.unihildesheim.iw.TestCase;
+import de.unihildesheim.iw.Tuple;
+import de.unihildesheim.iw.lucene.index.FixedTestIndexDataProvider;
 import de.unihildesheim.iw.util.MathUtils;
+import de.unihildesheim.iw.util.StringUtils;
+import org.junit.Assert;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-
-import static org.junit.Assert.assertEquals;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Test for {@link SimplifiedClarityScore}.
  *
  * @author Jens Bertram
  */
-@RunWith(Parameterized.class)
 public final class SimplifiedClarityScoreTest
-    extends MultiIndexDataProviderTestCase {
+    extends TestCase {
 
   /**
-   * Logger instance for this class.
+   * Allowed delta in clarity score calculation.
    */
-  private static final Logger LOG = LoggerFactory.getLogger(
-      SimplifiedClarityScoreTest.class);
+  private static final double DELTA_SCORE = Double.valueOf("9E-15");
 
   /**
-   * Delta allowed in clarity score calculation.
+   * Global singleton instance of the test-index.
    */
-  private static final double ALLOWED_SCORE_DELTA = 0.0000000001;
-
-  /**
-   * Setup test using a defined {@link IndexDataProvider}.
-   *
-   * @param dataProv Data provider to use
-   * @param rType Data provider configuration
-   */
-  public SimplifiedClarityScoreTest(
-      final DataProviders dataProv,
-      final MultiIndexDataProviderTestCase.RunType rType) {
-    super(dataProv, rType);
-  }
+  private static final FixedTestIndexDataProvider FIXED_INDEX =
+      FixedTestIndexDataProvider.getInstance();
 
   private SimplifiedClarityScore.Builder getInstanceBuilder()
       throws IOException {
     return new SimplifiedClarityScore.Builder()
-        .indexReader(referenceIndex.getIndexReader())
-        .indexDataProvider(this.index);
+        .indexReader(FixedTestIndexDataProvider.TMP_IDX.getReader())
+        .indexDataProvider(FIXED_INDEX);
+  }
+
+  /**
+   * Get the amount of times a string is in a list of strings.
+   * @param coll String collection to search
+   * @param term Term to search for
+   * @return Times the term is found in the collection
+   */
+  private int timesInCollection(final List<String> coll,
+      final String term) {
+    int counter = 0;
+    for (final String aTerm : coll) {
+      if (term.equals(aTerm)) {
+        counter++;
+      }
+    }
+    return counter;
   }
 
   /**
@@ -80,43 +81,30 @@ public final class SimplifiedClarityScoreTest
   @Test
   public void testCalculateClarity()
       throws Exception {
-    final String query = TestIndexDataProvider.util.getQueryString();
     final SimplifiedClarityScore instance = getInstanceBuilder().build();
+    // some random terms from the index will make up a query
+    final Tuple.Tuple2<List<String>, List<ByteArray>> randQTerms =
+        FIXED_INDEX.getRandomIndexTerms();
+    final List<String> qTermsStr = randQTerms.a;
 
-    final Collection<ByteArray> queryTerms = new ArrayList<>(15);
-    for (final String qTerm : query.split("\\s+")) {
-      final ByteArray termBa = new ByteArray(qTerm.getBytes("UTF-8"));
-      queryTerms.add(termBa);
+    // create a query string from the list of terms
+    final String queryStr = StringUtils.join(qTermsStr, " ");
+
+    final ClarityScoreResult result = instance.calculateClarity(queryStr);
+
+    // calculate reference
+    final int ql = qTermsStr.size(); // number of terms in query
+    double score = 0d;
+    final Set<String> uniqueQTerms = new HashSet<>(qTermsStr);
+    for (final String qTerm : uniqueQTerms) {
+      final int times = timesInCollection(qTermsStr, qTerm);
+      assert times > 0;
+      final double qMod = (double) times / ql; // query model
+      final double relTf = // relative collection term frequency
+          FixedTestIndexDataProvider.KnownData.IDX_TERMFREQ.get(qTerm)
+              .doubleValue() / FixedTestIndexDataProvider.KnownData.TERM_COUNT;
+      score += qMod * MathUtils.log2(qMod / relTf);
     }
-
-    final double ql = Integer.valueOf(queryTerms.size()).doubleValue();
-    final double tokenColl = Long.valueOf(referenceIndex
-        .getUniqueTermsCount()).doubleValue();
-
-    double score = 0;
-    for (final ByteArray term : queryTerms) {
-      double qtf = 0;
-      for (final ByteArray aTerm : queryTerms) {
-        if (aTerm.equals(term)) {
-          qtf++;
-        }
-      }
-      final double pml = qtf / ql;
-      final double pcoll = referenceIndex.getTermFrequency(term)
-          .doubleValue()
-          / tokenColl;
-      score += pml * MathUtils.log2(pml / pcoll);
-    }
-
-    final ClarityScoreResult result = instance.calculateClarity(query);
-
-    final double maxResult = Math.max(score, result.getScore());
-    final double minResult = Math.min(score, result.getScore());
-    LOG.debug(msg("SC-SCORE test={} scs={} deltaAllow={} delta={}"), score,
-        result.getScore(), ALLOWED_SCORE_DELTA, maxResult - minResult);
-
-    assertEquals(msg("Score mismatch."), score, result.getScore(),
-        ALLOWED_SCORE_DELTA);
+    Assert.assertEquals(score, result.getScore(), DELTA_SCORE);
   }
-
 }

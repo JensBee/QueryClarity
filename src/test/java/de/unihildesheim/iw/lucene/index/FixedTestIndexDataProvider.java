@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Jens Bertram
+ * Copyright (C) 2014 Jens Bertram <code@jens-bertram.net>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,10 +18,12 @@
 package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.ByteArray;
+import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.util.TempDiskIndex;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.FileUtils;
+import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Source;
 
@@ -1554,6 +1556,53 @@ public final class FixedTestIndexDataProvider
    */
   public Set<ByteArray> getTermSet() {
     return getDocumentsTermSet(getDocumentIds());
+  }
+
+  /**
+   * Get some unique random terms from the index. The amount of terms returned
+   * is the half of all index terms at maximum.
+   *
+   * @return Tuple containing a set of terms as String and {@link ByteArray}
+   * @throws UnsupportedEncodingException Thrown, if a query term could not be
+   * encoded to {@code UTF-8}
+   */
+  public Tuple.Tuple2<Set<String>, Set<ByteArray>>
+  getUniqueRandomIndexTerms()
+      throws UnsupportedEncodingException {
+    final Tuple.Tuple2<List<String>, List<ByteArray>> terms =
+        getRandomIndexTerms();
+    return Tuple.tuple2((Set<String>) new HashSet<>(terms.a),
+        (Set<ByteArray>) new HashSet<>(terms.b));
+  }
+
+  /**
+   * Get some non-unique random terms from the index. The amount of terms
+   * returned is the half of all index terms at maximum.
+   *
+   * @return Tuple containing a set of terms as String and {@link ByteArray}
+   * @throws UnsupportedEncodingException Thrown, if a query term could not be
+   * encoded to {@code UTF-8}
+   */
+  public Tuple.Tuple2<List<String>, List<ByteArray>> getRandomIndexTerms()
+      throws UnsupportedEncodingException {
+    final int maxTerm = FixedTestIndexDataProvider.KnownData.IDX_TERMFREQ
+        .size() - 1;
+    final int qTermCount = RandomValue.getInteger(0, maxTerm / 2);
+    final List<ByteArray> qTerms = new ArrayList<>(qTermCount);
+    final List<String> qTermsStr = new ArrayList<>(qTermCount);
+    final List<String> idxTerms = new ArrayList<>(FixedTestIndexDataProvider
+        .KnownData.IDX_TERMFREQ.keySet());
+
+    for (int i = 0; i < qTermCount; i++) {
+      final String term = idxTerms.get(RandomValue.getInteger(0, maxTerm));
+      qTermsStr.add(term);
+      qTerms.add(new ByteArray(term.getBytes("UTF-8")));
+    }
+
+    assert !qTerms.isEmpty();
+    assert !qTermsStr.isEmpty();
+
+    return Tuple.tuple2(qTermsStr, qTerms);
   }
 
   @Override
