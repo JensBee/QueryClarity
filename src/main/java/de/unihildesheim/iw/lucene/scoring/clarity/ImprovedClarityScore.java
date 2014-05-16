@@ -52,10 +52,12 @@ import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -92,12 +94,15 @@ public final class ImprovedClarityScore
    */
   private IndexDataProvider dataProv;
 
+  /**
+   * Reader to access the Lucene index.
+   */
   private IndexReader idxReader;
 
   /**
    * Configuration object used for all parameters of the calculation.
    */
-  private ImprovedClarityScoreConfiguration conf;
+  private ImprovedClarityScoreConfiguration.Conf conf;
 
   /**
    * Database instance.
@@ -193,7 +198,7 @@ public final class ImprovedClarityScore
   /**
    * Cached storage of Document-id -> Term, model-value.
    */
-  private Map<Integer, Map<ByteArray, Object>> docModelDataCache;
+  private Map<Integer, Map<ByteArray, Double>> docModelDataCache;
 
   /**
    * Provider for general index metrics.
@@ -223,7 +228,6 @@ public final class ImprovedClarityScore
     instance.dataProv = builder.idxDataProvider;
     instance.idxReader = builder.idxReader;
     instance.metrics = new Metrics(builder.idxDataProvider);
-//    instance.isTemporary = builder.isTemporary;
     instance.setConfiguration(builder.configuration);
 
     // initialize
@@ -248,7 +252,6 @@ public final class ImprovedClarityScore
   /**
    * Initializes a cache.
    */
-  @SuppressWarnings("checkstyle:magicnumber")
   private void initCache(final Builder builder)
       throws IOException, Buildable.BuildableException {
     final Persistence.Builder psb = builder.persistenceBuilder;
@@ -274,9 +277,9 @@ public final class ImprovedClarityScore
 
     this.db = persistence.db;
 
-    final Double smoothing = this.conf.getDocumentModelSmoothingParameter();
-    final Double lambda = this.conf.getDocumentModelParamLambda();
-    final Double beta = this.conf.getDocumentModelParamBeta();
+    final Double smoothing = this.conf.smoothing;
+    final Double lambda = this.conf.lambda;
+    final Double beta = this.conf.beta;
 
     if (!createNew) {
       if (this.dataProv.getLastIndexCommitGeneration() == null) {
@@ -340,10 +343,9 @@ public final class ImprovedClarityScore
    */
   private ImprovedClarityScore setConfiguration(
       final ImprovedClarityScoreConfiguration newConf) {
-    this.conf = newConf;
-    this.conf.debugDump();
-    this.docModelDataCache = new ConcurrentHashMap<>(this.conf.
-        getMaxFeedbackDocumentsCount());
+    this.conf = newConf.compile();
+    newConf.debugDump();
+    this.docModelDataCache = new ConcurrentHashMap<>(this.conf.fbMax);
     parseConfig();
     return this;
   }
@@ -352,11 +354,10 @@ public final class ImprovedClarityScore
    * Parse the configuration and do some simple pre-checks.
    */
   private void parseConfig() {
-    if (this.conf.getMinFeedbackDocumentsCount() > this.metrics.collection.
-        numberOfDocuments()) {
+    if (this.conf.fbMin > this.metrics.collection.numberOfDocuments()) {
       throw new IllegalStateException(
           "Required minimum number of feedback documents ("
-              + this.conf.getMinFeedbackDocumentsCount() + ") is larger "
+              + this.conf.fbMin + ") is larger "
               + "or equal compared to the total amount of indexed documents "
               + "(" + this.metrics.collection.numberOfDocuments()
               + "). Unable to provide feedback."
@@ -442,95 +443,88 @@ public final class ImprovedClarityScore
   }
 
   /**
-   * Calculates the default document model, if a term is not found in the
-   * document.
+   * Safe method to get the document model value for a document term. This
+   * method will calculate an additional value, if the term in question is not
+   * contained in the document.
+   * <p/>
+   * A call to this method should only needed, if {@code lambda} in {@link
+   * #conf} is lesser than {@code 1}.
    *
-   * @param docModel Document-model
-   * @param term Term
-   * @return Default model value
-   */
-  private double calcDefaultDocumentModel(final DocumentModel docModel,
-      final ByteArray term) {
-    Double model;
-    model = this.defaultDocModels.get(Fun.t2(docModel.id, term));
-    if (model == null) {
-      final Metrics.DocumentMetrics dom = docModel.metrics();
-      final double smoothing = this.conf.getDocumentModelSmoothingParameter();
-      final double uniqueTerms = dom.uniqueTermCount().doubleValue();
-      final double lambda = this.conf.getDocumentModelParamLambda();
-      final double beta = this.conf.getDocumentModelParamBeta();
-      final double totalFreq = dom.tf().doubleValue();
-      final double rCollFreq = this.metrics.collection.relTf(term);
-      final double termFreq = 0d;
-
-
-      model = (termFreq + (smoothing * rCollFreq)) / (totalFreq + (smoothing *
-          uniqueTerms));
-      model = (lambda * ((beta * model) + ((1 - beta) * rCollFreq))) + ((1 -
-          lambda) * rCollFreq);
-
-      this.defaultDocModels.put(Fun.t2(docModel.id, term.clone()), model);
-    }
-    return model;
-  }
-
-  /**
-   * Calculates the document model.
-   *
-   * @param docModel Document data model
-   */
-  private void calcDocumentModel(final DocumentModel docModel) {
-    for (final ByteArray term : docModel.termFreqMap.keySet()) {
-      // term frequency given the document
-      final double termFreq = docModel.metrics().tf(term).doubleValue();
-      // relative collection frequency of the term
-      final double rCollFreq = this.metrics.collection.relTf(term);
-
-      final double smoothing = this.conf.getDocumentModelSmoothingParameter();
-      final double lambda = this.conf.getDocumentModelParamLambda();
-      final double beta = this.conf.getDocumentModelParamBeta();
-      final Metrics.DocumentMetrics dom = docModel.metrics();
-      final double totalFreq = dom.tf().doubleValue();
-      final double uniqueTerms = dom.uniqueTermCount().doubleValue();
-
-      double model = (termFreq + (smoothing * rCollFreq)) / (totalFreq +
-          (smoothing * uniqueTerms));
-      double value = (lambda * ((beta * model) + ((1d - beta) * rCollFreq)))
-          + ((1d - lambda) * rCollFreq);
-
-      this.extDocMan.setData(docModel.id, term.clone(), DataKeys.DM.name(),
-          value);
-    }
-  }
-
-  /**
-   * Calculate the document model for a given term. The document model is
-   * calculated using Bayesian smoothing using Dirichlet priors.
-   *
-   * @param dm Document-id
+   * @param docId Id of the document whose model to get
    * @param term Term to calculate the model for
-   * @return Calculated document model given the term
+   * @return Model value for document & term
    */
-  private double getDocumentModel(final DocumentModel dm,
-      final ByteArray term) {
-    Double model;
-    if (this.docModelDataCache.containsKey(dm.id)) {
-      model = (Double) this.docModelDataCache.get(dm.id).get(term);
-    } else {
-      Map<ByteArray, Object> td = this.extDocMan.getData(dm.id, DataKeys.DM.
-          name());
-      if (td == null || td.isEmpty()) {
-        calcDocumentModel(dm);
-        td = this.extDocMan.getData(dm.id, DataKeys.DM.name());
-      }
-      model = (Double) td.get(term);
-      this.docModelDataCache.put(dm.id, td);
-    }
-
+  double getDocumentModel(final int docId, final ByteArray term) {
+    Double model = getDocumentModel(docId).get(term);
+    // if term not in document, calculate new value
     if (model == null) {
-      model = calcDefaultDocumentModel(dm, term);
+      // relative collection frequency of the term
+      final double termRelIdxFreq = this.metrics.collection.relTf(term);
+      final DocumentModel docModel = this.metrics.getDocumentModel(docId);
+      final double docTermFreq = docModel.metrics().tf().doubleValue();
+      final double termsInDoc =
+          docModel.metrics().uniqueTermCount().doubleValue();
+
+      final double smoothedTerm =
+          (this.conf.smoothing * termRelIdxFreq) /
+              (docTermFreq + (this.conf.smoothing * termsInDoc));
+      model =
+          (this.conf.lambda *
+              ((this.conf.beta * smoothedTerm) +
+                  ((1d - this.conf.beta) * termRelIdxFreq))
+          ) + ((1d - this.conf.lambda) * termRelIdxFreq);
     }
     return model;
+  }
+
+  /**
+   * Calculate or get the document model (pd) for a specific document.
+   *
+   * @param docId Id of the document whose model to get
+   * @return Mapping of each term in the document to it's model value
+   */
+  Map<ByteArray, Double> getDocumentModel(final int docId) {
+    Map<ByteArray, Double> map;
+    if (this.docModelDataCache.containsKey(docId)) {
+      // get local cached map
+      map = this.docModelDataCache.get(docId);
+    } else {
+      // get external cached map
+      map = this.extDocMan.getData(docId, DataKeys.DM.name());
+
+      // build mapping, if needed
+      if (map == null || map.isEmpty()) {
+        final DocumentModel docModel = this.metrics.getDocumentModel(docId);
+        final double docTermFreq = docModel.metrics().tf().doubleValue();
+        final double termsInDoc =
+            docModel.metrics().uniqueTermCount().doubleValue();
+        final Set<ByteArray> terms = docModel.termFreqMap.keySet();
+
+        map = new HashMap<>(terms.size());
+        for (final ByteArray term : terms) {
+          // relative collection frequency of the term
+          final double termRelIdxFreq = this.metrics.collection.relTf(term);
+          // term frequency given the document
+          final double termInDocFreq =
+              docModel.metrics().tf(term).doubleValue();
+
+          final double smoothedTerm =
+              (termInDocFreq + (this.conf.smoothing * termRelIdxFreq)) /
+                  (docTermFreq + (this.conf.smoothing * termsInDoc));
+          final double value =
+              (this.conf.lambda *
+                  ((this.conf.beta * smoothedTerm) +
+                      ((1d - this.conf.beta) * termRelIdxFreq))
+              ) + ((1d - this.conf.lambda) * termRelIdxFreq);
+          map.put(term, value);
+        }
+        // push data to persistent storage
+        this.extDocMan.setData(docModel.id, DataKeys.DM.name(), map);
+      }
+      // push to local cache
+      this.docModelDataCache.put(docId, map);
+    }
+    return map;
   }
 
   /**
@@ -541,9 +535,9 @@ public final class ImprovedClarityScore
    * @param fbDocIds List of feedback document
    * @return Query model for the current term and set of feedback documents
    */
-  protected double calcQueryModel(final ByteArray fbTerm,
-      final Collection<ByteArray> qTerms,
-      final Collection<Integer> fbDocIds) {
+  double getQueryModel(final ByteArray fbTerm,
+      final List<ByteArray> qTerms,
+      final Set<Integer> fbDocIds) {
     Objects.requireNonNull(fbTerm);
     if (Objects.requireNonNull(fbDocIds).isEmpty()) {
       throw new IllegalArgumentException("List of feedback document ids was " +
@@ -555,14 +549,13 @@ public final class ImprovedClarityScore
     double model = 0d;
 
     for (final Integer fbDocId : fbDocIds) {
-      final DocumentModel dm = this.metrics.getDocumentModel(fbDocId);
       // document model for the given term pD(t)
-      final double docModel = getDocumentModel(dm, fbTerm);
+      final double docModel = getDocumentModel(fbDocId, fbTerm);
       // calculate the product of the document models for all query terms
       // given the current document
       double docModelQtProduct = 1d;
       for (final ByteArray qTerm : qTerms) {
-        docModelQtProduct *= getDocumentModel(dm, qTerm);
+        docModelQtProduct *= getDocumentModel(fbDocId, qTerm);
       }
       model += docModel * docModelQtProduct;
     }
@@ -587,7 +580,7 @@ public final class ImprovedClarityScore
     // final clarity score
     final AtomicDouble score = new AtomicDouble(0);
     // collection of feedback document ids
-    Collection<Integer> feedbackDocIds;
+    Set<Integer> feedbackDocIds;
     // save base data to result object
     result.addQuery(query);
     result.setConf(this.conf);
@@ -608,11 +601,11 @@ public final class ImprovedClarityScore
           "Caught exception while building query.", e);
     }
 
-    feedbackDocIds = new HashSet<>(this.conf.getMaxFeedbackDocumentsCount());
+    feedbackDocIds = new HashSet<>(this.conf.fbMax);
 
     try {
       feedbackDocIds.addAll(Feedback.get(this.idxReader, queryObj,
-          this.conf.getMaxFeedbackDocumentsCount()));
+          this.conf.fbMax));
     } catch (IOException e) {
       throw new ClarityScoreCalculationException("Error while retrieving " +
           "feedback documents.", e);
@@ -621,19 +614,16 @@ public final class ImprovedClarityScore
     // simplify query, if not enough feedback documents are available
     String simplifiedQuery = query;
     int docsToGet;
-    while (feedbackDocIds.size() < this.conf.getMinFeedbackDocumentsCount()) {
+    while (feedbackDocIds.size() < this.conf.fbMin) {
       // set flag indicating we simplified the query
       result.setQuerySimplified(true);
       LOG.info("Minimum number of feedback documents not reached "
               + "({}/{}). Simplifying query using {} policy.",
-          feedbackDocIds.size(), this.conf.
-              getMinFeedbackDocumentsCount(), this.conf.
-              getQuerySimplifyingPolicy()
+          feedbackDocIds.size(), this.conf.fbMin, this.conf.policy
       );
 
       try {
-        simplifiedQuery = simplifyQuery(simplifiedQuery, this.conf.
-            getQuerySimplifyingPolicy());
+        simplifiedQuery = simplifyQuery(simplifiedQuery, this.conf.policy);
       } catch (IOException | ParseException | Buildable.BuildableException
           e) {
         throw new ClarityScoreCalculationException("Error while trying to " +
@@ -647,8 +637,7 @@ public final class ImprovedClarityScore
         );
       }
       result.addQuery(simplifiedQuery);
-      docsToGet = this.conf.getMaxFeedbackDocumentsCount()
-          - feedbackDocIds.size();
+      docsToGet = this.conf.fbMax - feedbackDocIds.size();
 
       try {
         queryObj = termsQueryBuilder.query(simplifiedQuery).build();
@@ -673,13 +662,13 @@ public final class ImprovedClarityScore
 
     // get document frequency threshold
     int minDf = (int) (this.metrics.collection.numberOfDocuments()
-        * this.conf.getFeedbackTermSelectionThreshold());
+        * this.conf.threshold);
     if (minDf <= 0) {
       LOG.debug("Document frequency threshold was {} setting to 1", minDf);
       minDf = 1;
     }
     LOG.debug("Document frequency threshold is {} = {}", minDf,
-        this.conf.getFeedbackTermSelectionThreshold()
+        this.conf.threshold
     );
     LOG.debug("Initial term set size {}", fbTerms.size());
 
@@ -806,13 +795,13 @@ public final class ImprovedClarityScore
       extends TargetFuncCall.TargetFunc<ByteArray> {
 
     /**
-     * Query terms.
+     * Query terms. Must be non-unique!
      */
-    private final Collection<ByteArray> queryTerms;
+    private final List<ByteArray> queryTerms;
     /**
      * Ids of feedback documents to use.
      */
-    private final Collection<Integer> feedbackDocIds;
+    private final Set<Integer> feedbackDocIds;
     /**
      * Final score to add calculation results to.
      */
@@ -825,8 +814,8 @@ public final class ImprovedClarityScore
      * @param qTerms Query terms
      * @param result Result to add to
      */
-    ModelCalculatorTarget(final Collection<Integer> fbDocIds,
-        final Collection<ByteArray> qTerms, final AtomicDouble result) {
+    ModelCalculatorTarget(final Set<Integer> fbDocIds,
+        final List<ByteArray> qTerms, final AtomicDouble result) {
       super();
       assert fbDocIds != null : "List of feedback document ids was null.";
       assert qTerms != null : "List of query terms was null.";
@@ -840,7 +829,7 @@ public final class ImprovedClarityScore
     @Override
     public void call(final ByteArray term) {
       if (term != null) {
-        final double queryModel = calcQueryModel(term, this.queryTerms,
+        final double queryModel = getQueryModel(term, this.queryTerms,
             this.feedbackDocIds);
         score.addAndGet(queryModel * MathUtils.log2(queryModel
             / metrics.collection.relTf(term)));
@@ -857,15 +846,9 @@ public final class ImprovedClarityScore
     @Override
     public void call(final Integer docId) {
       if (docId != null) {
-        final DocumentModel docModel = metrics.getDocumentModel(docId);
-        if (docModel == null) {
-          LOG.warn("({}) Model for document-id {} was null.", this.
-              getName(), docId);
-        } else {
-          // call the calculation method of the main class for each
-          // document and term that is available for processing
-          calcDocumentModel(docModel);
-        }
+        // call the calculation method of the main class for each
+        // document and term that is available for processing
+        getDocumentModel(docId);
       }
     }
   }
@@ -881,7 +864,7 @@ public final class ImprovedClarityScore
     /**
      * Configuration that was used.
      */
-    private ImprovedClarityScoreConfiguration conf;
+    private ImprovedClarityScoreConfiguration.Conf conf;
     /**
      * Ids of feedback documents used for calculation.
      */
@@ -955,7 +938,7 @@ public final class ImprovedClarityScore
      *
      * @param newConf Configuration used
      */
-    void setConf(final ImprovedClarityScoreConfiguration newConf) {
+    void setConf(final ImprovedClarityScoreConfiguration.Conf newConf) {
       this.conf = Objects.requireNonNull(newConf);
     }
 
@@ -976,7 +959,7 @@ public final class ImprovedClarityScore
      *
      * @return Configuration used for this calculation result
      */
-    public ImprovedClarityScoreConfiguration getConfiguration() {
+    public ImprovedClarityScoreConfiguration.Conf getConfiguration() {
       return this.conf;
     }
 

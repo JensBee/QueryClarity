@@ -301,13 +301,13 @@ public final class DefaultClarityScore
     } else {
       // get external cached map
       map = this.extDocMan.getData(docId, DataKeys.DM.name());
-      // build mapping
+      // build mapping, if needed
       if (map == null || map.isEmpty()) {
         final DocumentModel docModel = this.metrics.getDocumentModel(docId);
         final Set<ByteArray> terms = docModel.termFreqMap.keySet();
 
         map = new HashMap<>(terms.size());
-        for (final ByteArray term : docModel.termFreqMap.keySet()) {
+        for (final ByteArray term : terms) {
           final Double model = (this.conf.getLangModelWeight()
               * docModel.metrics().relTf(term))
               + getDefaultDocumentModel(term);
@@ -334,7 +334,7 @@ public final class DefaultClarityScore
    */
   double getQueryModel(final ByteArray term, final Set<Integer> fbDocIds,
       final Set<ByteArray> qTerms) {
-    double model = 1d;
+    double model = 0d;
     // throw all terms together
     final List<ByteArray> terms = new ArrayList<>(qTerms);
     terms.add(term);
@@ -345,14 +345,16 @@ public final class DefaultClarityScore
     for (final Integer docId : fbDocIds) {
       docModMap = getDocumentModel(docId);
       assert docModMap != null;
-
+      double modelPart = 1d;
       for (final ByteArray aTerm : terms) {
         if (docModMap.containsKey(aTerm)) {
-          model *= docModMap.get(aTerm);
+          modelPart *= docModMap.get(aTerm);
         } else {
-          model *= getDefaultDocumentModel(aTerm);
+          modelPart *= getDefaultDocumentModel(aTerm);
         }
       }
+      assert modelPart > 0;
+      model += modelPart;
     }
 
     return model;

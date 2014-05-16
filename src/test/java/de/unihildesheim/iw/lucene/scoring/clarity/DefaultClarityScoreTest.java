@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -56,19 +57,19 @@ public final class DefaultClarityScoreTest
   /**
    * Allowed delta in query model calculation.
    */
-  private static final double DELTA_Q_MOD = 0d;
+  private static final double DELTA_Q_MOD = Double.valueOf("9E-47");
   /**
    * Allowed delta in document model calculation.
    */
-  private static final double DELTA_D_MOD = 0d;
+  private static final double DELTA_D_MOD = Double.valueOf("9E-64");
   /**
    * Allowed delta in default document model calculation.
    */
-  private static final double DELTA_N_MOD = 0d;
+  private static final double DELTA_N_MOD = Double.valueOf("9E-64");
   /**
    * Allowed delta in clarity score calculation.
    */
-  private static final double DELTA_SCORE = 0d;
+  private static final double DELTA_SCORE = Double.valueOf("9E-64");
 
   /**
    * Global singleton instance of the test-index.
@@ -100,13 +101,6 @@ public final class DefaultClarityScoreTest
    * Data dump for (pre-calculated) results.
    */
   private static final class KnownData {
-    /**
-     * Clarity scores pre-calculated for single term queries using a
-     * language-model-weight of {@code 0.6} and {@code 10} feedback documents.
-     */
-    static final Map<String, Double> termScores = new HashMap<>
-        (FixedTestIndexDataProvider.KnownData.TERM_COUNT_UNIQUE);
-
     /**
      * Collection model values for each term in index.
      * <p/>
@@ -158,15 +152,14 @@ public final class DefaultClarityScoreTest
       D_MODEL = new TreeMap<>();
 
       for (int docId = 0;
-           docId < FixedTestIndexDataProvider.KnownData.DOC_COUNT;
-           docId++) {
+           docId < FixedTestIndexDataProvider.KnownData.DOC_COUNT; docId++) {
         final Map<String, Integer> tfMap = FixedTestIndexDataProvider.KnownData
             .getDocumentTfMap(docId);
 
-        // number of all terms in document
-        int termsInDoc = 0;
+        // frequency of all terms in document
+        int docTermFreq = 0;
         for (final Integer freq : tfMap.values()) {
-          termsInDoc += freq;
+          docTermFreq += freq;
         }
 
         for (final Map.Entry<String, Integer> tfMapEntry : tfMap.entrySet()) {
@@ -175,7 +168,7 @@ public final class DefaultClarityScoreTest
           final String term = tfMapEntry.getKey();
 
           // calculate final model
-          double model = (LANG_MOD_WEIGHT * ((double) inDocFreq / termsInDoc))
+          double model = (LANG_MOD_WEIGHT * ((double) inDocFreq / docTermFreq))
               + ((1d - LANG_MOD_WEIGHT) * C_MODEL.get(term));
           D_MODEL.put(Fun.t2(docId, term), model);
         }
@@ -211,29 +204,32 @@ public final class DefaultClarityScoreTest
    */
   private double calculateQueryModel(final String term,
       final Set<String> queryTerms, final Set<Integer> feedbackDocumentIds) {
-    double modelValue = 1d;
+    double modelValue = 0d;
     final Collection<String> calcTerms = new ArrayList<>();
     calcTerms.addAll(queryTerms);
     calcTerms.add(term);
     for (final Integer docId : feedbackDocumentIds) {
+      double modelValuePart = 1d;
       for (final String cTerm : calcTerms) {
         final Fun.Tuple2<Integer, String> dmKey = Fun.t2(docId, cTerm);
         // check, if term is in document and we should use a specific
         // document model or a default model
         if (KnownData.D_MODEL.containsKey(dmKey)) {
           // specific model
-          modelValue *= KnownData.D_MODEL.get(dmKey);
+          modelValuePart *= KnownData.D_MODEL.get(dmKey);
         } else {
           // default model
-          modelValue *= KnownData.N_MODEL.get(cTerm);
+          modelValuePart *= KnownData.N_MODEL.get(cTerm);
         }
       }
+      modelValue += modelValuePart;
     }
     return modelValue;
   }
 
   /**
-   * Test of getDefaultDocumentModel method, of class DefaultClarityScore.
+   * Test of getDefaultDocumentModel method, of class DefaultClarityScore. Test
+   * is run with all valid terms from the index.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
@@ -252,6 +248,33 @@ public final class DefaultClarityScoreTest
           KnownData.N_MODEL.get(ByteArrayUtils.utf8ToString(term)),
           result, DELTA_N_MOD
       );
+    }
+  }
+
+  /**
+   * Test of getDefaultDocumentModel method, of class DefaultClarityScore. Test
+   * is run with random generated terms that may not exist in the index.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public void testGetDefaultDocumentModel_illegalTerms()
+      throws Exception {
+    final DefaultClarityScore instance = getInstanceBuilder()
+        .configuration(DCC).build();
+    final Collection<ByteArray> terms = new HashSet<>(10);
+    for (int i = 0; i < 10; i++) {
+      final ByteArray term = new ByteArray(RandomValue.getString(1,
+          15).getBytes("UTF-8"));
+      if (FIXED_INDEX.getTermFrequency(term) == 0) {
+        terms.add(term);
+      }
+      ;
+    }
+
+    for (final ByteArray term : terms) {
+      Assert.assertEquals("Value should be == 0.", instance
+          .getDefaultDocumentModel(term), 0d, 0d);
     }
   }
 
@@ -276,6 +299,36 @@ public final class DefaultClarityScoreTest
         Assert.assertEquals("Calculated document model value differs.",
             expected, modelEntry.getValue(), DELTA_D_MOD);
       }
+    }
+  }
+
+  /**
+   * Test of getDocumentModel method, of class DefaultClarityScore. Test with
+   * invalid document ids.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public void testGetDocumentModel_invalid()
+      throws Exception {
+    final DefaultClarityScore instance = getInstanceBuilder()
+        .configuration(DCC).build();
+    int docId;
+
+    docId = -10;
+    try {
+      instance.getDocumentModel(docId);
+      Assert.fail("Expected an Exception to be thrown");
+    } catch (IllegalArgumentException e) {
+      // pass
+    }
+
+    docId = FixedTestIndexDataProvider.KnownData.DOC_COUNT + 1;
+    try {
+      instance.getDocumentModel(docId);
+      Assert.fail("Expected an Exception to be thrown");
+    } catch (IllegalArgumentException e) {
+      // pass
     }
   }
 

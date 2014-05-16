@@ -265,4 +265,41 @@ public final class ImprovedClarityScoreConfiguration
   public void setDocumentModelParamBeta(final double beta) {
     add(Keys.docModelParamBeta.name(), beta);
   }
+
+  /**
+   * Compacts the configration into a more accessible Object.
+   *
+   * @return Compact configuration object
+   */
+  public Conf compile() {
+    return new Conf();
+  }
+
+  /**
+   * Compact configuration Object holding all information from the parent
+   * configuration Object.
+   */
+  public class Conf {
+    public final Double beta;
+    public final Double lambda;
+    public final Double smoothing;
+    public final Double threshold;
+    public final Integer fbMax;
+    public final Integer fbMin;
+    public final ImprovedClarityScore.QuerySimplifyPolicy policy;
+
+    protected Conf() {
+      this.beta = getDocumentModelParamBeta();
+      this.lambda = getDocumentModelParamLambda();
+      this.smoothing = getDocumentModelSmoothingParameter();
+      this.threshold = getFeedbackTermSelectionThreshold();
+      this.fbMax = getMaxFeedbackDocumentsCount();
+      this.fbMin = getMinFeedbackDocumentsCount();
+      this.policy = getQuerySimplifyingPolicy();
+    }
+
+    public void debugDump() {
+      ImprovedClarityScoreConfiguration.this.debugDump();
+    }
+  }
 }

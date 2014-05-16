@@ -25,6 +25,7 @@ import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -60,7 +61,7 @@ public final class QueryUtils {
    * @throws org.apache.lucene.queryparser.classic.ParseException Thrown, if
    * query string could not be parsed
    */
-  private Collection<ByteArray> extractTerms(final String query)
+  private List<ByteArray> extractTerms(final String query)
       throws
       UnsupportedEncodingException, ParseException,
       Buildable.ConfigurationException, Buildable.BuildException {
@@ -75,7 +76,7 @@ public final class QueryUtils {
     if (qTerms.isEmpty()) {
       throw new IllegalStateException("Query string returned no terms.");
     }
-    final Collection<ByteArray> bwTerms = new ArrayList<>(qTerms.size());
+    final List<ByteArray> bwTerms = new ArrayList<>(qTerms.size());
     for (final String qTerm : qTerms) {
       final ByteArray termBa = new ByteArray(qTerm.getBytes("UTF-8"));
       bwTerms.add(termBa);
@@ -112,7 +113,7 @@ public final class QueryUtils {
    * @throws org.apache.lucene.queryparser.classic.ParseException Thrown, if
    * query string could not be parsed
    */
-  public Collection<ByteArray> getAllQueryTerms(final String query)
+  public List<ByteArray> getAllQueryTerms(final String query)
       throws UnsupportedEncodingException, ParseException,
              Buildable.ConfigurationException, Buildable.BuildException {
     if (query == null || query.trim().isEmpty()) {
