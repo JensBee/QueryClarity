@@ -65,7 +65,7 @@ public final class Persistence {
    */
   public static final File tryCreateDataPath(final String filePath)
       throws IOException {
-    if (filePath == null || filePath.trim().isEmpty()) {
+    if (Objects.requireNonNull(filePath).trim().isEmpty()) {
       throw new IllegalArgumentException("Data path was empty.");
     }
 
@@ -89,9 +89,8 @@ public final class Persistence {
 
   protected static final Persistence build(final Builder builder,
       final boolean empty) {
-    if (builder == null) {
-      throw new IllegalArgumentException("Builder was null.");
-    }
+    Objects.requireNonNull(builder);
+
     final Persistence instance = new Persistence();
     instance.db = builder.getMaker().make();
     instance.meta = new StorageMeta();
@@ -139,15 +138,9 @@ public final class Persistence {
    */
   public void updateMetaData(final Set<String> fields,
       final Set<String> stopwords) {
-    if (fields == null) {
-      throw new IllegalArgumentException("Fields were null.");
-    }
-    if (stopwords == null) {
-      throw new IllegalArgumentException("Stopwords were null.");
-    }
     LOG.debug("Updating meta-data.");
-    meta.setFields(fields);
-    meta.setStopWords(stopwords);
+    meta.setFields(Objects.requireNonNull(fields));
+    meta.setStopWords(Objects.requireNonNull(stopwords));
   }
 
   /**
@@ -211,9 +204,8 @@ public final class Persistence {
      * @param newFields Fields list
      */
     protected void setFields(final Set<String> newFields) {
-      if (newFields == null) {
-        throw new IllegalArgumentException("Fields were null.");
-      }
+      Objects.requireNonNull(newFields);
+
       this.fields.clear();
       this.fields.addAll(newFields);
     }
@@ -224,9 +216,8 @@ public final class Persistence {
      * @param newStopwords List of stopwords
      */
     protected void setStopWords(final Set<String> newStopwords) {
-      if (newStopwords == null) {
-        throw new IllegalArgumentException("Stopwords were null.");
-      }
+      Objects.requireNonNull(newStopwords);
+
       this.stopWords.clear();
       this.stopWords.addAll(newStopwords);
     }
@@ -239,11 +230,10 @@ public final class Persistence {
      * @return True, if both contain the same field names.
      */
     public boolean fieldsCurrent(final Set<String> currentFields) {
+      Objects.requireNonNull(currentFields);
+
       if (this.fields == null) {
         throw new IllegalStateException("Fields meta information not set.");
-      }
-      if (currentFields == null) {
-        throw new IllegalArgumentException("Fields were null.");
       }
       return this.fields.size() == currentFields.size() &&
           this.fields.containsAll(
@@ -258,11 +248,10 @@ public final class Persistence {
      * @return True, if both contain the same list of stopwords.
      */
     public boolean stopWordsCurrent(final Set<String> currentWords) {
+      Objects.requireNonNull(currentWords);
+
       if (this.stopWords == null) {
         throw new IllegalStateException("Stopword meta information not set.");
-      }
-      if (currentWords == null) {
-        throw new IllegalArgumentException("Stopwords were null.");
       }
       return this.stopWords.size() == currentWords.size()
           && this.stopWords.containsAll(currentWords);
@@ -275,9 +264,8 @@ public final class Persistence {
      * @return True, if both generation numbers are the same.
      */
     public boolean generationCurrent(final Long currentGen) {
-      if (currentGen == null) {
-        throw new IllegalArgumentException("Index commit generation was null.");
-      }
+      Objects.requireNonNull(currentGen);
+
       if (this.indexCommitGen == null) {
         throw new IllegalStateException("Commit generation "
             + "meta information not set.");

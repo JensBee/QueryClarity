@@ -58,6 +58,7 @@ public final class SimplifiedClarityScoreTest
 
   /**
    * Get the amount of times a string is in a list of strings.
+   *
    * @param coll String collection to search
    * @param term Term to search for
    * @return Times the term is found in the collection
@@ -82,6 +83,7 @@ public final class SimplifiedClarityScoreTest
   public void testCalculateClarity()
       throws Exception {
     final SimplifiedClarityScore instance = getInstanceBuilder().build();
+
     // some random terms from the index will make up a query
     final Tuple.Tuple2<List<String>, List<ByteArray>> randQTerms =
         FIXED_INDEX.getRandomIndexTerms();

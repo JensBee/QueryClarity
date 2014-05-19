@@ -86,9 +86,7 @@ public final class IndexTestUtil {
   generateTermData(final IndexDataProvider index,
       final Integer documentId, String key, final int amount)
       throws UnsupportedEncodingException {
-    if (amount <= 0) {
-      throw new IllegalArgumentException("Amount must be greater than 0.");
-    }
+    assert amount > 0;
     if (key == null) {
       key = RandomValue.getString(1, 5);
     }

@@ -22,6 +22,7 @@ import org.apache.lucene.index.MultiFields;
 import java.text.MessageFormat;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -42,9 +43,7 @@ public final class IndexUtils {
    * @return Fields list
    */
   public static Collection<String> getFields(final IndexReader reader) {
-    if (reader == null) {
-      throw new IllegalArgumentException("IndexReader was null.");
-    }
+    Objects.requireNonNull(reader);
     return MultiFields.getIndexedFields(reader);
   }
 
@@ -57,23 +56,21 @@ public final class IndexUtils {
    */
   public static void checkFields(final IndexReader reader,
       final Set<String> fields) {
-    if (fields == null || fields.isEmpty()) {
+    Objects.requireNonNull(reader);
+    if (Objects.requireNonNull(fields).isEmpty()) {
       throw new IllegalArgumentException("No fields specified.");
-    }
-    if (reader == null) {
-      throw new IllegalArgumentException("IndexReader was null.");
     }
 
     // get all indexed fields from index - other fields are not of
     // interest here
     final Collection<String> indexedFields = MultiFields.getIndexedFields(
-          reader);
+        reader);
 
     // check if all requested fields are available
     if (!indexedFields.containsAll(fields)) {
       throw new IllegalStateException(MessageFormat.format(
           "Not all requested fields ({0}) are available in the " +
-          "current index ({1}) or are not indexed.",
+              "current index ({1}) or are not indexed.",
           fields,
           Arrays.toString(indexedFields.toArray(
               new String[indexedFields.size()]

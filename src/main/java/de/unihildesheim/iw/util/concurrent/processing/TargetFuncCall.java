@@ -17,6 +17,8 @@
 
 package de.unihildesheim.iw.util.concurrent.processing;
 
+import java.util.Objects;
+
 /**
  * Simple processing target calling a single function on each object.
  *
@@ -41,10 +43,7 @@ public final class TargetFuncCall<T>
    */
   public TargetFuncCall(final Source<T> newSource, final TargetFunc<T> func) {
     super(newSource);
-    if (func == null) {
-      throw new IllegalArgumentException("Target function was null.");
-    }
-    this.tFunc = func;
+    this.tFunc = Objects.requireNonNull(func);
   }
 
   @Override
@@ -80,7 +79,8 @@ public final class TargetFuncCall<T>
      *
      * @param data Current item
      */
-    public abstract void call(final T data);
+    public abstract void call(final T data)
+        throws Exception;
 
     /**
      * Get the name of this class.

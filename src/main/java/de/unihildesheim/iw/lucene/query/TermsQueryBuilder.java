@@ -24,6 +24,7 @@ import org.apache.lucene.queryparser.classic.QueryParser;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -61,10 +62,8 @@ public final class TermsQueryBuilder
 
   public TermsQueryBuilder(final IndexReader reader,
       final Set<String> newFields) {
-    if (reader == null) {
-      throw new IllegalArgumentException("IndexReader was null.");
-    }
-    if (newFields == null || newFields.isEmpty()) {
+    Objects.requireNonNull(reader);
+    if (Objects.requireNonNull(newFields).isEmpty()) {
       throw new IllegalArgumentException("Empty fields.");
     }
     this.idxReader = reader;
@@ -78,10 +77,7 @@ public final class TermsQueryBuilder
    * @return Self reference
    */
   public TermsQueryBuilder setStopwords(final Set<String> newStopwords) {
-    if (newStopwords == null) {
-      throw new IllegalArgumentException("Stopwords was null.");
-    }
-    this.stopwords = new HashSet<>(newStopwords);
+    this.stopwords = new HashSet<>(Objects.requireNonNull(newStopwords));
     return this;
   }
 
@@ -92,7 +88,7 @@ public final class TermsQueryBuilder
    * @return Self reference
    */
   public TermsQueryBuilder setFields(final Set<String> newFields) {
-    if (newFields == null || newFields.isEmpty()) {
+    if (Objects.requireNonNull(newFields).isEmpty()) {
       throw new IllegalArgumentException("Empty fields.");
     }
     IndexUtils.checkFields(this.idxReader, newFields);
@@ -108,10 +104,7 @@ public final class TermsQueryBuilder
    */
   public TermsQueryBuilder setBoolOperator(
       final QueryParser.Operator newOperator) {
-    if (newOperator == null) {
-      throw new IllegalArgumentException("Operator was null.");
-    }
-    this.operator = newOperator;
+    this.operator = Objects.requireNonNull(newOperator);
     return this;
   }
 
@@ -122,7 +115,7 @@ public final class TermsQueryBuilder
    * @return Self reference
    */
   public TermsQueryBuilder query(final String queryStr) {
-    if (queryStr == null || queryStr.trim().isEmpty()) {
+    if (Objects.requireNonNull(queryStr).trim().isEmpty()) {
       throw new IllegalArgumentException("Empty query string.");
     }
     this.query = queryStr;

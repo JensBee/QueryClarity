@@ -19,6 +19,7 @@ package de.unihildesheim.iw.util;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * @author Jens Bertram
@@ -41,9 +42,7 @@ public final class FileUtils {
    */
   public static String getPath(final File file)
       throws IOException {
-    if (file == null) {
-      throw new IllegalArgumentException("File was null.");
-    }
+    Objects.requireNonNull(file);
     return makePath(file.getCanonicalPath());
   }
 
@@ -54,7 +53,7 @@ public final class FileUtils {
    * @return Given path with a trailing separator char
    */
   public static String makePath(final String path) {
-    if (path == null || path.trim().isEmpty()) {
+    if (Objects.requireNonNull(path).trim().isEmpty()) {
       throw new IllegalArgumentException("Path was empty.");
     }
     if (path.charAt(path.length() - 1) != File.separatorChar) {

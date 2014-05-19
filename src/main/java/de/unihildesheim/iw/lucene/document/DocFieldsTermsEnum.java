@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -100,10 +101,8 @@ public final class DocFieldsTermsEnum {
   private DocFieldsTermsEnum(final IndexReader indexReader,
       final Set<String> targetFields, final Integer documentId)
       throws IOException {
-    if (indexReader == null) {
-      throw new IllegalArgumentException("IndexReader was null");
-    }
-    if (targetFields == null || targetFields.isEmpty()) {
+    Objects.requireNonNull(indexReader);
+    if (Objects.requireNonNull(targetFields).isEmpty()) {
       throw new IllegalArgumentException("No target fields were specified.");
     }
     this.fields = targetFields.toArray(new String[targetFields.size()]);

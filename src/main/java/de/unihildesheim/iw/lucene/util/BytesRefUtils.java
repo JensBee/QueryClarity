@@ -20,6 +20,7 @@ import de.unihildesheim.iw.ByteArray;
 import org.apache.lucene.util.BytesRef;
 
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * Utilities for working with {@link BytesRef}s.
@@ -44,9 +45,7 @@ public final class BytesRefUtils {
    * BytesRef}
    */
   public static ByteArray toByteArray(final BytesRef br) {
-    if (br == null) {
-      throw new IllegalArgumentException("BytesRef was null.");
-    }
+    Objects.requireNonNull(br);
     return new ByteArray(br.bytes, br.offset, br.length);
   }
 
@@ -59,12 +58,9 @@ public final class BytesRefUtils {
    * @return True, if both byte arrays are equal
    */
   public static boolean bytesEquals(final BytesRef br, final ByteArray ba) {
-    if (br == null) {
-      throw new IllegalArgumentException("BytesRef was null.");
-    }
-    if (ba == null) {
-      throw new IllegalArgumentException("ByteArray was null.");
-    }
+    Objects.requireNonNull(br);
+    Objects.requireNonNull(ba);
+
     return ba.compareBytes(Arrays.copyOfRange(br.bytes, br.offset,
         br.length)) == 0;
   }

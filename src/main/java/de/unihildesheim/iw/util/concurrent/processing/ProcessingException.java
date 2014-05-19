@@ -39,6 +39,10 @@ public class ProcessingException
     super(message, t);
   }
 
+  ProcessingException(final Throwable t) {
+    super(t);
+  }
+
   public static final class TargetFailedException
       extends ProcessingException {
 
@@ -70,6 +74,10 @@ public class ProcessingException
 
     public SourceFailedException(final String message, final Throwable t) {
       super(message, t);
+    }
+
+    public SourceFailedException(final Throwable t) {
+      super(t);
     }
   }
 

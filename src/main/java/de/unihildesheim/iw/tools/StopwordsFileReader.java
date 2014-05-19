@@ -22,6 +22,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -73,7 +74,7 @@ public class StopwordsFileReader {
    * @return Format or null, if none is matching
    */
   public static Format getFormatFromString(final String format) {
-    if (format == null || format.trim().isEmpty()) {
+    if (Objects.requireNonNull(format).trim().isEmpty()) {
       throw new IllegalArgumentException("Format type string was empty.");
     }
     if (Format.PLAIN.name().equalsIgnoreCase(format)) {

@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.Objects;
 
 /**
  * Testing index that keeps all data temporary on disk and provides utility
@@ -79,8 +80,8 @@ public final class TempDiskIndex {
   public TempDiskIndex(final String[] fields,
       final Collection<String[]> documents)
       throws IOException {
-    this(fields);
-    if (documents == null || documents.isEmpty()) {
+    this(Objects.requireNonNull(fields));
+    if (Objects.requireNonNull(documents).isEmpty()) {
       throw new IllegalArgumentException("Documents were empty.");
     }
     addDocs(documents);
@@ -94,7 +95,7 @@ public final class TempDiskIndex {
    */
   public TempDiskIndex(final String[] fields)
       throws IOException {
-    if (fields == null || fields.length == 0) {
+    if (Objects.requireNonNull(fields).length == 0) {
       throw new IllegalArgumentException("Fields were empty.");
     }
     final Analyzer analyzer = new StandardAnalyzer(LuceneDefaults.VERSION,
@@ -172,7 +173,7 @@ public final class TempDiskIndex {
    */
   public void addDoc(final String[] content)
       throws IOException {
-    if (content == null || content.length == 0) {
+    if (Objects.requireNonNull(content).length == 0) {
       throw new IllegalArgumentException("Empty content.");
     }
     addDoc(this.writer, content);
@@ -186,7 +187,7 @@ public final class TempDiskIndex {
    */
   public void addDocs(final Collection<String[]> documents)
       throws IOException {
-    if (documents == null || documents.isEmpty()) {
+    if (Objects.requireNonNull(documents).isEmpty()) {
       throw new IllegalArgumentException("Empty documents list.");
     }
     // index documents

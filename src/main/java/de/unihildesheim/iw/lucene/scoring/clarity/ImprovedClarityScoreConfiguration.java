@@ -20,6 +20,7 @@ import de.unihildesheim.iw.util.Configuration;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Configuration for {@link ImprovedClarityScore}.
@@ -185,9 +186,7 @@ public final class ImprovedClarityScoreConfiguration
    */
   public void setQuerySimplifyingPolicy(
       final ImprovedClarityScore.QuerySimplifyPolicy policy) {
-    if (policy == null) {
-      throw new IllegalArgumentException("Policy was null.");
-    }
+    Objects.requireNonNull(policy);
     add(Keys.querySimplifyingPolicy.name(), policy.name());
   }
 

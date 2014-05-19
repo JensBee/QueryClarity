@@ -18,6 +18,7 @@ package de.unihildesheim.iw.util.concurrent.processing;
 
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -50,7 +51,7 @@ public final class CollectionSource<T>
    */
   public CollectionSource(final Collection<T> coll) {
     super();
-    if (coll == null || coll.isEmpty()) {
+    if (Objects.requireNonNull(coll).isEmpty()) {
       throw new IllegalArgumentException("Empty collection.");
     }
     this.sourcedItemCount = new AtomicLong(0);

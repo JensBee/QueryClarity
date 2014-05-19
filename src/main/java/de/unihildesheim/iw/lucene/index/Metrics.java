@@ -25,6 +25,7 @@ import de.unihildesheim.iw.util.MathUtils;
 
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.WeakHashMap;
 
 /**
@@ -48,18 +49,12 @@ public final class Metrics {
   private final Map<Integer, DocumentModel> docModelCache = new SoftHashMap<>();
 
   public Metrics(final IndexDataProvider dataProvider) {
-    if (dataProvider == null) {
-      throw new IllegalArgumentException("Data provider was null.");
-    }
-    this.dataProv = dataProvider;
+    this.dataProv = Objects.requireNonNull(dataProvider);
     this.collection = new CollectionMetrics();
   }
 
   public DocumentMetrics document(final DocumentModel docModel) {
-    if (docModel == null) {
-      throw new IllegalArgumentException("Document model was null.");
-    }
-    return new DocumentMetrics(docModel);
+    return new DocumentMetrics(Objects.requireNonNull(docModel));
   }
 
   public DocumentMetrics document(final int docId) {
@@ -115,10 +110,7 @@ public final class Metrics {
      * @return Document frequency of the given term
      */
     public Integer df(final ByteArray term) {
-      if (term == null) {
-        throw new IllegalArgumentException("Term was null.");
-      }
-      return dataProv.getDocumentFrequency(term);
+      return dataProv.getDocumentFrequency(Objects.requireNonNull(term));
     }
 
     /**
@@ -128,10 +120,7 @@ public final class Metrics {
      * @return Collection frequency of the given term
      */
     public Long tf(final ByteArray term) {
-      if (term == null) {
-        throw new IllegalArgumentException("Term was null.");
-      }
-      return dataProv.getTermFrequency(term);
+      return dataProv.getTermFrequency(Objects.requireNonNull(term));
     }
 
     /**
@@ -152,10 +141,7 @@ public final class Metrics {
      * @return Relative collection frequency of the given term
      */
     public Double relTf(final ByteArray term) {
-      if (term == null) {
-        throw new IllegalArgumentException("Term was null.");
-      }
-      return dataProv.getRelativeTermFrequency(term);
+      return dataProv.getRelativeTermFrequency(Objects.requireNonNull(term));
     }
 
     /**
@@ -178,9 +164,7 @@ public final class Metrics {
      * @return Inverse document frequency (logN)
      */
     public Double idf(final ByteArray term, final double logBase) {
-      if (term == null) {
-        throw new IllegalArgumentException("Term was null.");
-      }
+      Objects.requireNonNull(term);
       return MathUtils.logN(logBase, 1 + (numberOfDocuments() / df(term)));
     }
 
@@ -204,10 +188,7 @@ public final class Metrics {
      * @return Inverse document frequency BM25 (logN)
      */
     public Double idfBM25(final ByteArray term, final double logBase) {
-      if (term == null) {
-        throw new IllegalArgumentException("Term was null.");
-      }
-      final int docFreq = df(term);
+      final int docFreq = df(Objects.requireNonNull(term));
       return MathUtils.logN(logBase, (numberOfDocuments() - docFreq + 0.5)
           / (docFreq + 0.5));
     }
@@ -254,10 +235,7 @@ public final class Metrics {
     private final DocumentModel docModel;
 
     public DocumentMetrics(final DocumentModel documentModel) {
-      if (documentModel == null) {
-        throw new IllegalArgumentException("Document model was null.");
-      }
-      this.docModel = documentModel;
+      this.docModel = Objects.requireNonNull(documentModel);
     }
 
     /**
@@ -267,9 +245,7 @@ public final class Metrics {
      * @return Frequency value
      */
     public double wdf(final ByteArray term) {
-      if (term == null) {
-        throw new IllegalArgumentException("Term was null.");
-      }
+      Objects.requireNonNull(term);
       return MathUtils.log2(tf(term).doubleValue() + 1) /
           MathUtils.log2(tf().doubleValue());
     }
@@ -290,9 +266,7 @@ public final class Metrics {
      * @return Frequency of the given term in the given document
      */
     public Long tf(final ByteArray term) {
-      if (term == null) {
-        throw new IllegalArgumentException("Term was null.");
-      }
+      Objects.requireNonNull(term);
       final Long freq = this.docModel.termFreqMap.get(term);
       if (freq == null) {
         return 0L;
@@ -318,9 +292,7 @@ public final class Metrics {
      * @return Relative frequency. Zero if term is not in document.
      */
     public Double relTf(final ByteArray term) {
-      if (term == null) {
-        throw new IllegalArgumentException("Term was null.");
-      }
+      Objects.requireNonNull(term);
       final Long tf = this.docModel.tf(term);
       if (tf == 0) {
         return 0.0;
@@ -336,10 +308,7 @@ public final class Metrics {
      * @return True, if term is in document
      */
     public boolean contains(final ByteArray term) {
-      if (term == null) {
-        throw new IllegalArgumentException("Term was null.");
-      }
-      return this.docModel.contains(term);
+      return this.docModel.contains(Objects.requireNonNull(term));
     }
 
     /**
@@ -353,9 +322,7 @@ public final class Metrics {
      */
     public double smoothedRelativeTermFrequency(final ByteArray term,
         final double smoothing) {
-      if (term == null) {
-        throw new IllegalArgumentException("Term was null.");
-      }
+      Objects.requireNonNull(term);
       final double termFreq = this.docModel.tf(term).doubleValue();
       final double relCollFreq = relTf(term);
       return ((termFreq + smoothing) * relCollFreq) / (termFreq + (Integer.

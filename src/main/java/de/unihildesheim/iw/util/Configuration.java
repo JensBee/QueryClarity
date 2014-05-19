@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Properties;
 
 /**
@@ -54,10 +55,7 @@ public class Configuration {
    */
   public Configuration(final Map<String, String> initial) {
     this();
-    if (initial == null) {
-      throw new IllegalArgumentException("Initial configuration was null.");
-    }
-    addAll(initial);
+    addAll(Objects.requireNonNull(initial));
   }
 
   /**
@@ -79,9 +77,7 @@ public class Configuration {
    * @param config Map with configuration settings
    */
   protected final void addAll(final Map<String, String> config) {
-    if (config == null) {
-      throw new IllegalArgumentException("Configuration was null.");
-    }
+    Objects.requireNonNull(config);
     for (final Entry<String, String> confEntry : config.entrySet()) {
       this.data.setProperty(confEntry.getKey(), confEntry.getValue());
     }
@@ -110,12 +106,10 @@ public class Configuration {
   }
 
   private void checkKeyValue(final String key, final Object value) {
-    if (key == null || key.trim().isEmpty()) {
+    if (Objects.requireNonNull(key).trim().isEmpty()) {
       throw new IllegalArgumentException("Key was empty.");
     }
-    if (value == null) {
-      throw new IllegalArgumentException("Value was null.");
-    }
+    Objects.requireNonNull(value);
   }
 
   /**
@@ -151,7 +145,7 @@ public class Configuration {
    */
   protected final String getString(final String key,
       final String defaultValue) {
-    if (key == null || key.trim().isEmpty()) {
+    if (Objects.requireNonNull(key).trim().isEmpty()) {
       throw new IllegalArgumentException("Key was empty.");
     }
     return this.data.getProperty(key, defaultValue);

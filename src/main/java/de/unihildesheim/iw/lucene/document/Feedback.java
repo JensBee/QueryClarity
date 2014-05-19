@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -134,12 +135,8 @@ public final class Feedback {
   public static Set<Integer> get(final IndexReader reader,
       final Query query, final int docCount)
       throws IOException {
-    if (reader == null) {
-      throw new IllegalArgumentException("Reader was null.");
-    }
-    if (query == null) {
-      throw new IllegalArgumentException("Query was null.");
-    }
+    Objects.requireNonNull(reader);
+    Objects.requireNonNull(query);
 
     final TimeMeasure timeMeasure = new TimeMeasure().start();
     if (LOG.isDebugEnabled()) {

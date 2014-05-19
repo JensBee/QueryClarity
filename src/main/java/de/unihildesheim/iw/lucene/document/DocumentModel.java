@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 
 /**
  * Meta-data model for document related information.
@@ -69,9 +70,8 @@ public final class DocumentModel {
    * @param builder Builder to use
    */
   private DocumentModel(final Builder builder) {
-    if (builder == null) {
-      throw new NullPointerException("Builder was null.");
-    }
+    assert builder != null;
+
     this.id = builder.docId;
     this.termFrequency = builder.termFreq;
     this.termFreqMap = new HashMap<>(builder.termFreqMap.size());
@@ -86,10 +86,7 @@ public final class DocumentModel {
    * @return True if known
    */
   public boolean contains(final ByteArray term) {
-    if (term == null) {
-      throw new IllegalArgumentException("Term was null.");
-    }
-    return this.termFreqMap.containsKey(term);
+    return this.termFreqMap.containsKey(Objects.requireNonNull(term));
   }
 
   /**
@@ -99,10 +96,7 @@ public final class DocumentModel {
    * @return Frequency in the associated document or <tt>0</tt>, if unknown
    */
   public Long tf(final ByteArray term) {
-    if (term == null) {
-      throw new IllegalArgumentException("Term was null.");
-    }
-    final Long tFreq = this.termFreqMap.get(term);
+    final Long tFreq = this.termFreqMap.get(Objects.requireNonNull(term));
     if (tFreq == null) {
       return 0L;
     }
@@ -227,9 +221,8 @@ public final class DocumentModel {
      * @param docModel Model to get the data from
      */
     public Builder(final DocumentModel docModel) {
-      if (docModel == null) {
-        throw new IllegalArgumentException("Model was null.");
-      }
+      Objects.requireNonNull(docModel);
+
       this.docId = docModel.id;
       this.termFreqMap = new HashMap<>(docModel.termFreqMap.size());
       this.termFreqMap.putAll(docModel.termFreqMap);
@@ -258,10 +251,7 @@ public final class DocumentModel {
      */
     public Builder setTermFrequency(final ByteArray term,
         final long freq) {
-      if (term == null) {
-        throw new IllegalArgumentException("Term was null.");
-      }
-      this.termFreqMap.put(term, freq);
+      this.termFreqMap.put(Objects.requireNonNull(term), freq);
       return this;
     }
 

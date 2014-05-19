@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -38,8 +39,8 @@ import java.util.concurrent.TimeoutException;
 public final class Processing {
 
   /**
-   * Default number of target threads to run. Defaults to the 1/3 of
-   * available processors.
+   * Default number of target threads to run. Defaults to the 1/3 of available
+   * processors.
    */
   public static final int THREADS =
       Runtime.getRuntime().availableProcessors() / 3;
@@ -73,14 +74,8 @@ public final class Processing {
    * @param newTarget Processing {@link Target}
    */
   public Processing(final Source newSource, final Target newTarget) {
-    if (newSource == null) {
-      throw new IllegalArgumentException("Source was null.");
-    }
-    if (newTarget == null) {
-      throw new IllegalArgumentException("Target was null.");
-    }
-    this.source = newSource;
-    this.target = newTarget;
+    this.source = Objects.requireNonNull(newSource);
+    this.target = Objects.requireNonNull(newTarget);
     initPool();
   }
 
@@ -120,10 +115,7 @@ public final class Processing {
    * @param newSource New source to use
    */
   public void setSource(final Source newSource) {
-    if (newSource == null) {
-      throw new IllegalArgumentException("Source was null.");
-    }
-    this.source = newSource;
+    this.source = Objects.requireNonNull(newSource);
   }
 
   /**
@@ -135,14 +127,8 @@ public final class Processing {
    */
   public Processing setSourceAndTarget(final Target
       newTarget) {
-    if (newTarget == null) {
-      throw new IllegalArgumentException("Target was null.");
-    }
-    if (newTarget.getSource() == null) {
-      throw new IllegalArgumentException("Source was null.");
-    }
-    this.source = newTarget.getSource();
-    this.target = newTarget;
+    this.target = Objects.requireNonNull(newTarget);
+    this.source = Objects.requireNonNull(newTarget.getSource());
     return this;
   }
 
@@ -152,10 +138,7 @@ public final class Processing {
    * @param newTarget New target to use
    */
   public void setTarget(final Target newTarget) {
-    if (newTarget == null) {
-      throw new IllegalArgumentException("Target was null.");
-    }
-    this.target = newTarget;
+    this.target = Objects.requireNonNull(newTarget);
   }
 
   /**
@@ -219,7 +202,8 @@ public final class Processing {
     LOG.trace("Starting Processing-Source.");
     final Future<Long> sourceThread = executor.runSource(this.source);
     LOG.trace("Starting Processing-Observer.");
-    final SourceObserver sourceObserver = new SourceObserver(this.source);
+    final SourceObserver sourceObserver = new SourceObserver(threadCount,
+        this.source);
     final Future<Double> sourceTime = executor.runObserver(sourceObserver);
 
     LOG.trace("Starting Processing-Target threads.");
@@ -291,10 +275,6 @@ public final class Processing {
       }
     }
 
-//    assert executor.threadPool.getActiveCount() == 0 :
-//        "There are (~" + executor.threadPool.getActiveCount() + ") " +
-//            "tasks left in the pool.";
-
     LOG.trace("Processing finished.");
   }
 
@@ -344,10 +324,7 @@ public final class Processing {
      * @return Future to track the state
      */
     Future<Long> runSource(final Source<Long> task) {
-      if (task == null) {
-        throw new IllegalArgumentException("Source was null.");
-      }
-      return threadPool.submit(task);
+      return threadPool.submit(Objects.requireNonNull(task));
     }
 
     /**
@@ -358,10 +335,7 @@ public final class Processing {
      * @return Future to track the state
      */
     Future<Double> runObserver(final SourceObserver<Double> task) {
-      if (task == null) {
-        throw new IllegalArgumentException("Source was null.");
-      }
-      return threadPool.submit(task);
+      return threadPool.submit(Objects.requireNonNull(task));
     }
 
     /**
@@ -372,10 +346,7 @@ public final class Processing {
      * @return Future to track the state
      */
     Future<Boolean> runTarget(final Target<Boolean> task) {
-      if (task == null) {
-        throw new IllegalArgumentException("Target was null.");
-      }
-      return threadPool.submit(task);
+      return threadPool.submit(Objects.requireNonNull(task));
     }
 
     /**

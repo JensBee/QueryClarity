@@ -57,6 +57,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -455,6 +456,8 @@ public final class ImprovedClarityScore
    * @return Model value for document & term
    */
   double getDocumentModel(final int docId, final ByteArray term) {
+    Objects.requireNonNull(term);
+
     Double model = getDocumentModel(docId).get(term);
     // if term not in document, calculate new value
     if (model == null) {
@@ -656,9 +659,8 @@ public final class ImprovedClarityScore
     }
 
     // collect all unique terms from feedback documents
-    final List<ByteArray> fbTerms;
-    fbTerms = new ArrayList<>(this.dataProv.getDocumentsTermSet(
-        feedbackDocIds));
+    final Set<ByteArray> fbTerms = this.dataProv.getDocumentsTermSet(
+        feedbackDocIds);
 
     // get document frequency threshold
     int minDf = (int) (this.metrics.collection.numberOfDocuments()
@@ -681,7 +683,8 @@ public final class ImprovedClarityScore
       new Processing(
           new TargetFuncCall<>(
               new CollectionSource<>(fbTerms),
-              new FbTermReducerTarget(minDf, reducedFbTerms)
+              new FbTermReducerTarget(this.metrics.collection, minDf,
+                  reducedFbTerms)
           )
       ).process(fbTerms.size());
     } catch (ProcessingException e) {
@@ -715,7 +718,7 @@ public final class ImprovedClarityScore
 
     result.setScore(score.get());
     result.setFeedbackDocIds(feedbackDocIds);
-    result.setFeedbackTerms(fbTerms);
+    result.setFeedbackTerms(new HashSet<>(reducedFbTerms));
 
     timeMeasure.stop();
     LOG.debug("Calculating improved clarity score for query {} "
@@ -754,17 +757,21 @@ public final class ImprovedClarityScore
   /**
    * {@link Processing} {@link Target} to reduce feedback terms.
    */
-  private final class FbTermReducerTarget
+  final static class FbTermReducerTarget
       extends TargetFuncCall.TargetFunc<ByteArray> {
 
     /**
      * Target to store terms passing through the reducing process.
      */
-    private final ConcurrentLinkedQueue<ByteArray> reducedTermsTarget;
+    private final Queue<ByteArray> reducedTermsTarget;
     /**
      * Minimum document frequency for a term to pass.
      */
     private final int minDf;
+    /**
+     * Access collection metrics.
+     */
+    private final Metrics.CollectionMetrics collectionMetrics;
 
     /**
      * Creates a new {@link Processing} {@link Target} for reducing query
@@ -773,16 +780,19 @@ public final class ImprovedClarityScore
      * @param minDocFreq Minimum document frequency
      * @param reducedFbTerms Target for reduced terms
      */
-    FbTermReducerTarget(final int minDocFreq,
-        final ConcurrentLinkedQueue<ByteArray> reducedFbTerms) {
+    FbTermReducerTarget(
+        final Metrics.CollectionMetrics metrics,
+        final int minDocFreq,
+        final Queue<ByteArray> reducedFbTerms) {
       super();
       this.reducedTermsTarget = reducedFbTerms;
       this.minDf = minDocFreq;
+      this.collectionMetrics = metrics;
     }
 
     @Override
     public void call(final ByteArray term) {
-      if (term != null && metrics.collection.df(term) >= this.minDf) {
+      if (term != null && (this.collectionMetrics.df(term) >= this.minDf)) {
         this.reducedTermsTarget.add(term);
       }
     }
@@ -868,11 +878,11 @@ public final class ImprovedClarityScore
     /**
      * Ids of feedback documents used for calculation.
      */
-    private Collection<Integer> feedbackDocIds;
+    private Set<Integer> feedbackDocIds;
     /**
      * Terms from feedback documents used for calculation.
      */
-    private Collection<ByteArray> feedbackTerms;
+    private Set<ByteArray> feedbackTerms;
     /**
      * Flag indicating, if the query was simplified.
      */
@@ -891,8 +901,8 @@ public final class ImprovedClarityScore
     public Result(final Class<? extends ClarityScoreCalculation> cscType) {
       super(cscType);
       this.queries = new ArrayList<>();
-      this.feedbackDocIds = Collections.<Integer>emptyList();
-      this.feedbackTerms = Collections.<ByteArray>emptyList();
+      this.feedbackDocIds = Collections.<Integer>emptySet();
+      this.feedbackTerms = Collections.<ByteArray>emptySet();
     }
 
     /**
@@ -909,8 +919,8 @@ public final class ImprovedClarityScore
      *
      * @param fbDocIds List of feedback documents
      */
-    void setFeedbackDocIds(final Collection<Integer> fbDocIds) {
-      this.feedbackDocIds = Collections.unmodifiableCollection(
+    void setFeedbackDocIds(final Set<Integer> fbDocIds) {
+      this.feedbackDocIds = Collections.unmodifiableSet(
           Objects.requireNonNull(fbDocIds));
     }
 
@@ -919,8 +929,8 @@ public final class ImprovedClarityScore
      *
      * @param fbTerms List of feedback terms
      */
-    void setFeedbackTerms(final Collection<ByteArray> fbTerms) {
-      this.feedbackTerms = Collections.unmodifiableCollection(Objects
+    void setFeedbackTerms(final Set<ByteArray> fbTerms) {
+      this.feedbackTerms = Collections.unmodifiableSet(Objects
           .requireNonNull(fbTerms));
     }
 
@@ -968,8 +978,8 @@ public final class ImprovedClarityScore
      *
      * @return Feedback documents used for calculation
      */
-    public Collection<Integer> getFeedbackDocuments() {
-      return Collections.unmodifiableCollection(this.feedbackDocIds);
+    public Set<Integer> getFeedbackDocuments() {
+      return this.feedbackDocIds;
     }
 
     /**
@@ -977,8 +987,8 @@ public final class ImprovedClarityScore
      *
      * @return Feedback terms used for calculation
      */
-    public Collection<ByteArray> getFeedbackTerms() {
-      return Collections.unmodifiableCollection(this.feedbackTerms);
+    public Set<ByteArray> getFeedbackTerms() {
+      return this.feedbackTerms;
     }
 
     /**

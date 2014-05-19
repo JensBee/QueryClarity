@@ -67,6 +67,19 @@ public class FixedTestIndexDataProviderTest
   }
 
   @Test
+  public void testGetDocumentFrequency()
+      throws Exception {
+    for (final String term : FixedTestIndexDataProvider.KnownData.IDX_TERMFREQ
+        .keySet()) {
+      Assert.assertEquals("Document frequency mismatch. t=" + term,
+          FixedTestIndexDataProvider.KnownData
+              .IDX_DOCFREQ.get(term).intValue(),
+          INSTANCE.getDocumentFrequency(new ByteArray(term.getBytes("UTF-8")))
+      );
+    }
+  }
+
+  @Test
   public void testGetLastIndexCommitGeneration() {
     Assert.assertEquals("Commit generation should be zero.",
         0L, INSTANCE.getLastIndexCommitGeneration().longValue());
@@ -102,8 +115,9 @@ public class FixedTestIndexDataProviderTest
     final Set<Integer> docIds = new HashSet<>(
         FixedTestIndexDataProvider.KnownData.DOC_COUNT);
     for (int i = 0; i < FixedTestIndexDataProvider.KnownData.DOC_COUNT; i++) {
-      docIds.add(RandomValue.getInteger(0, FixedTestIndexDataProvider.KnownData.
-          DOC_COUNT - 1));
+      docIds
+          .add(RandomValue.getInteger(0, FixedTestIndexDataProvider.KnownData.
+              DOC_COUNT - 1));
     }
 
     final Set<ByteArray> docTerms;

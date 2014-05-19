@@ -18,6 +18,7 @@ package de.unihildesheim.iw.util.concurrent.processing;
 
 import org.slf4j.LoggerFactory;
 
+import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 
@@ -54,10 +55,7 @@ public abstract class Target<T>
    * @param newSource <tt>Source</tt> to use
    */
   public Target(final Source<T> newSource) {
-    if (newSource == null) {
-      throw new IllegalArgumentException("Source was null.");
-    }
-    this.source = newSource;
+    this.source = Objects.requireNonNull(newSource);
     this.terminate = false;
   }
 
@@ -107,10 +105,7 @@ public abstract class Target<T>
    * @param newLatch Shared latch to track running threads.
    */
   public final void setLatch(final CountDownLatch newLatch) {
-    if (newLatch == null) {
-      throw new IllegalArgumentException("Latch was null.");
-    }
-    this.latch = newLatch;
+    this.latch = Objects.requireNonNull(newLatch);
   }
 
   /**

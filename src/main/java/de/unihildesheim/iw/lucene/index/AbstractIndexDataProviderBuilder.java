@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -171,10 +172,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * @return self reference
    */
   public final T stopwords(final Set<String> words) {
-    if (words == null) {
-      throw new IllegalArgumentException("Stopwords were null.");
-    }
-    this.stopwords = words;
+    this.stopwords = Objects.requireNonNull(words);
     this.persistenceBuilder.stopwords(stopwords);
     return getThis();
   }
@@ -216,7 +214,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    */
   public final T indexPath(final String filePath)
       throws IOException {
-    if (filePath == null || filePath.trim().isEmpty()) {
+    if (Objects.requireNonNull(filePath).trim().isEmpty()) {
       throw new IllegalArgumentException("Index path was empty.");
     }
 
@@ -273,10 +271,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * @return Self reference
    */
   public T indexReader(final IndexReader reader) {
-    if (reader == null) {
-      throw new IllegalArgumentException("IndexReader was null.");
-    }
-    this.idxReader = reader;
+    this.idxReader = Objects.requireNonNull(reader);
     return getThis();
   }
 

@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Objects;
 
 /**
  * Wrapper object for byte arrays implementing equals, clone and serialization.
@@ -56,7 +57,7 @@ public final class ByteArray
    * @param existingBytes Bytes to copy
    */
   public ByteArray(final byte[] existingBytes) {
-    if ((existingBytes == null) || (existingBytes.length == 0)) {
+    if (Objects.requireNonNull(existingBytes).length == 0) {
       throw new IllegalArgumentException("Empty bytes given.");
     }
 
@@ -74,7 +75,7 @@ public final class ByteArray
    */
   public ByteArray(final byte[] existingBytes, final int offset,
       final int length) {
-    if ((existingBytes == null) || (existingBytes.length == 0)) {
+    if (Objects.requireNonNull(existingBytes).length == 0) {
       throw new IllegalArgumentException("Empty bytes given.");
     }
     if (existingBytes.length < (offset + length)) {
@@ -130,7 +131,7 @@ public final class ByteArray
   @Override
   public boolean equals(final Object o) {
     return this == o || !((o == null) || !(o instanceof ByteArray)) &&
-                        compareTo((ByteArray) o) == 0;
+        compareTo((ByteArray) o) == 0;
 
   }
 

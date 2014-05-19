@@ -39,7 +39,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -501,8 +500,8 @@ public final class FixedTestIndexDataProvider
 
     static {
       IDX_DOCFREQ = new HashMap(171);
-      IDX_DOCFREQ.put("a", 10);
-      IDX_DOCFREQ.put("ac", 9);
+      IDX_DOCFREQ.put("a", 9);
+      IDX_DOCFREQ.put("ac", 7);
       IDX_DOCFREQ.put("accumsan", 4);
       IDX_DOCFREQ.put("adipiscing", 6);
       IDX_DOCFREQ.put("aenean", 6);
@@ -511,7 +510,7 @@ public final class FixedTestIndexDataProvider
       IDX_DOCFREQ.put("amet", 7);
       IDX_DOCFREQ.put("ante", 6);
       IDX_DOCFREQ.put("arcu", 5);
-      IDX_DOCFREQ.put("at", 10);
+      IDX_DOCFREQ.put("at", 4);
       IDX_DOCFREQ.put("auctor", 5);
       IDX_DOCFREQ.put("augue", 6);
       IDX_DOCFREQ.put("bibendum", 2);
@@ -524,15 +523,15 @@ public final class FixedTestIndexDataProvider
       IDX_DOCFREQ.put("convallis", 3);
       IDX_DOCFREQ.put("cras", 4);
       IDX_DOCFREQ.put("cubilia", 3);
-      IDX_DOCFREQ.put("cum", 5);
+      IDX_DOCFREQ.put("cum", 1);
       IDX_DOCFREQ.put("curabitur", 4);
       IDX_DOCFREQ.put("curae", 3);
       IDX_DOCFREQ.put("cursus", 4);
       IDX_DOCFREQ.put("dapibus", 3);
       IDX_DOCFREQ.put("diam", 2);
-      IDX_DOCFREQ.put("dictum", 4);
+      IDX_DOCFREQ.put("dictum", 2);
       IDX_DOCFREQ.put("dictumst", 2);
-      IDX_DOCFREQ.put("dis", 3);
+      IDX_DOCFREQ.put("dis", 1);
       IDX_DOCFREQ.put("dolor", 7);
       IDX_DOCFREQ.put("donec", 8);
       IDX_DOCFREQ.put("dui", 7);
@@ -541,14 +540,14 @@ public final class FixedTestIndexDataProvider
       IDX_DOCFREQ.put("eget", 8);
       IDX_DOCFREQ.put("eleifend", 5);
       IDX_DOCFREQ.put("elementum", 2);
-      IDX_DOCFREQ.put("elit", 6);
+      IDX_DOCFREQ.put("elit", 3);
       IDX_DOCFREQ.put("enim", 5);
-      IDX_DOCFREQ.put("erat", 4);
+      IDX_DOCFREQ.put("erat", 3);
       IDX_DOCFREQ.put("eros", 5);
-      IDX_DOCFREQ.put("est", 8);
+      IDX_DOCFREQ.put("est", 3);
       IDX_DOCFREQ.put("et", 10);
       IDX_DOCFREQ.put("etiam", 3);
-      IDX_DOCFREQ.put("eu", 10);
+      IDX_DOCFREQ.put("eu", 7);
       IDX_DOCFREQ.put("euismod", 4);
       IDX_DOCFREQ.put("facilisis", 2);
       IDX_DOCFREQ.put("fames", 2);
@@ -564,7 +563,7 @@ public final class FixedTestIndexDataProvider
       IDX_DOCFREQ.put("hac", 2);
       IDX_DOCFREQ.put("hendrerit", 5);
       IDX_DOCFREQ.put("iaculis", 3);
-      IDX_DOCFREQ.put("id", 9);
+      IDX_DOCFREQ.put("id", 7);
       IDX_DOCFREQ.put("imperdiet", 4);
       IDX_DOCFREQ.put("in", 10);
       IDX_DOCFREQ.put("integer", 2);
@@ -589,24 +588,24 @@ public final class FixedTestIndexDataProvider
       IDX_DOCFREQ.put("mattis", 3);
       IDX_DOCFREQ.put("mauris", 5);
       IDX_DOCFREQ.put("metus", 7);
-      IDX_DOCFREQ.put("mi", 7);
+      IDX_DOCFREQ.put("mi", 5);
       IDX_DOCFREQ.put("molestie", 2);
       IDX_DOCFREQ.put("mollis", 6);
       IDX_DOCFREQ.put("montes", 1);
       IDX_DOCFREQ.put("morbi", 4);
-      IDX_DOCFREQ.put("mus", 2);
+      IDX_DOCFREQ.put("mus", 1);
       IDX_DOCFREQ.put("nam", 3);
       IDX_DOCFREQ.put("nascetur", 1);
       IDX_DOCFREQ.put("natoque", 1);
-      IDX_DOCFREQ.put("nec", 10);
+      IDX_DOCFREQ.put("nec", 9);
       IDX_DOCFREQ.put("neque", 6);
       IDX_DOCFREQ.put("netus", 2);
       IDX_DOCFREQ.put("nibh", 4);
       IDX_DOCFREQ.put("nisi", 8);
       IDX_DOCFREQ.put("nisl", 4);
-      IDX_DOCFREQ.put("non", 7);
+      IDX_DOCFREQ.put("non", 6);
       IDX_DOCFREQ.put("nonummy", 3);
-      IDX_DOCFREQ.put("nulla", 9);
+      IDX_DOCFREQ.put("nulla", 6);
       IDX_DOCFREQ.put("nullam", 7);
       IDX_DOCFREQ.put("nunc", 9);
       IDX_DOCFREQ.put("odio", 4);
@@ -629,8 +628,8 @@ public final class FixedTestIndexDataProvider
       IDX_DOCFREQ.put("proin", 2);
       IDX_DOCFREQ.put("pulvinar", 3);
       IDX_DOCFREQ.put("purus", 5);
-      IDX_DOCFREQ.put("quam", 8);
-      IDX_DOCFREQ.put("quis", 10);
+      IDX_DOCFREQ.put("quam", 6);
+      IDX_DOCFREQ.put("quis", 8);
       IDX_DOCFREQ.put("quisque", 4);
       IDX_DOCFREQ.put("rhoncus", 3);
       IDX_DOCFREQ.put("ridiculus", 1);
@@ -640,7 +639,7 @@ public final class FixedTestIndexDataProvider
       IDX_DOCFREQ.put("sapien", 6);
       IDX_DOCFREQ.put("scelerisque", 2);
       IDX_DOCFREQ.put("sed", 9);
-      IDX_DOCFREQ.put("sem", 6);
+      IDX_DOCFREQ.put("sem", 5);
       IDX_DOCFREQ.put("semper", 4);
       IDX_DOCFREQ.put("senectus", 2);
       IDX_DOCFREQ.put("sit", 7);
@@ -660,10 +659,10 @@ public final class FixedTestIndexDataProvider
       IDX_DOCFREQ.put("ultrices", 4);
       IDX_DOCFREQ.put("ultricies", 4);
       IDX_DOCFREQ.put("urna", 4);
-      IDX_DOCFREQ.put("ut", 10);
+      IDX_DOCFREQ.put("ut", 9);
       IDX_DOCFREQ.put("varius", 4);
       IDX_DOCFREQ.put("vehicula", 2);
-      IDX_DOCFREQ.put("vel", 9);
+      IDX_DOCFREQ.put("vel", 6);
       IDX_DOCFREQ.put("velit", 5);
       IDX_DOCFREQ.put("venenatis", 4);
       IDX_DOCFREQ.put("vestibulum", 7);
@@ -1618,6 +1617,7 @@ public final class FixedTestIndexDataProvider
 
   @Override
   public Long getTermFrequency(final ByteArray term) {
+    assert term != null;
     final Integer tf = KnownData.IDX_TERMFREQ.get(ByteArrayUtils.utf8ToString
         (term));
     if (tf == null) {
@@ -1628,6 +1628,7 @@ public final class FixedTestIndexDataProvider
 
   @Override
   public int getDocumentFrequency(final ByteArray term) {
+    assert term != null;
     int freq = 0;
     for (int docId = 0; docId < DOC_COUNT; docId++) {
       if (documentContains(docId, term)) {
@@ -1639,6 +1640,7 @@ public final class FixedTestIndexDataProvider
 
   @Override
   public double getRelativeTermFrequency(final ByteArray term) {
+    assert term != null;
     final Long termFrequency = getTermFrequency(term);
     if (termFrequency == null) {
       return 0;
@@ -1707,7 +1709,8 @@ public final class FixedTestIndexDataProvider
   @Override
   public Set<ByteArray> getDocumentsTermSet(
       final Collection<Integer> docIds) {
-    if (Objects.requireNonNull(docIds).isEmpty()) {
+    assert docIds != null;
+    if (docIds.isEmpty()) {
       throw new IllegalArgumentException("Empty document id list.");
     }
     final Set<Integer> uniqueDocIds = new HashSet<>(docIds);
@@ -1734,7 +1737,7 @@ public final class FixedTestIndexDataProvider
 
   @Override
   public boolean documentContains(final int documentId, final ByteArray term) {
-    Objects.requireNonNull(term);
+    assert term != null;
     checkDocumentId(documentId);
     final String termStr = ByteArrayUtils.utf8ToString(term);
     return KnownData.getDocumentTfMap(documentId).containsKey(termStr);

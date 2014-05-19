@@ -20,8 +20,11 @@ import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.lucene.index.FixedTestIndexDataProvider;
+import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.util.ByteArrayUtils;
+import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.RandomValue;
+import de.unihildesheim.iw.util.StringUtils;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mapdb.Fun;
@@ -29,7 +32,9 @@ import org.mapdb.Fun;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -54,7 +59,7 @@ public final class ImprovedClarityScoreTest
   /**
    * Allowed delta in clarity score calculation.
    */
-  private static final double DELTA_SCORE = 0d;
+  private static final double DELTA_SCORE = Double.valueOf("9E-40");
 
   /**
    * Global singleton instance of the test-index.
@@ -76,12 +81,11 @@ public final class ImprovedClarityScoreTest
     ICC_CONF = new ImprovedClarityScoreConfiguration();
     ICC_CONF.setMaxFeedbackDocumentsCount(
         FixedTestIndexDataProvider.KnownData.DOC_COUNT);
-    ICC_CONF.setFeedbackTermSelectionThreshold(0.1);
+    ICC_CONF.setFeedbackTermSelectionThreshold(0); // includes all
     ICC_CONF.setDocumentModelParamBeta(0.6);
     ICC_CONF.setDocumentModelParamLambda(1);
     ICC_CONF.setDocumentModelSmoothingParameter(100);
-    ICC_CONF.setMinFeedbackDocumentsCount(
-        FixedTestIndexDataProvider.KnownData.DOC_COUNT);
+    ICC_CONF.setMinFeedbackDocumentsCount(1);
     ICC_CONF.setQuerySimplifyingPolicy(
         ImprovedClarityScore.QuerySimplifyPolicy.HIGHEST_DOCFREQ);
   }
@@ -163,16 +167,18 @@ public final class ImprovedClarityScoreTest
 
   /**
    * Calculate the document model for a term not contained in a document.
+   *
    * @param docId Id of the document whose model to get
    * @param term Term to calculate the model for
    * @return Model value for document & term
    */
   private double calculateMissingDocumentModel(final int docId, final String
-      term) {
+      term)
+      throws Exception {
     // relative term index frequency
-    double termRelIdxFreq = FixedTestIndexDataProvider.KnownData
-        .IDX_TERMFREQ.get(term).doubleValue() /
-        FixedTestIndexDataProvider.KnownData.TERM_COUNT;
+    double termRelIdxFreq = FIXED_INDEX.getRelativeTermFrequency(new
+        ByteArray(term.getBytes("UTF-8")));
+
     final Map<String, Integer> tfMap = FixedTestIndexDataProvider.KnownData
         .getDocumentTfMap(docId);
     final int termsInDoc = tfMap.size();
@@ -206,7 +212,8 @@ public final class ImprovedClarityScoreTest
    * @return Model value
    */
   private double calculateQueryModel(final String term,
-      final List<String> queryTerms, final Set<Integer> feedbackDocumentIds) {
+      final List<String> queryTerms, final Set<Integer> feedbackDocumentIds)
+      throws Exception {
     double modelValue = 0d;
     final Collection<String> calcTerms = new ArrayList<>();
     calcTerms.addAll(queryTerms);
@@ -227,7 +234,7 @@ public final class ImprovedClarityScoreTest
   }
 
   /**
-   * Test of getDefaultDocumentModel method, of class ImprovedClarityScore.
+   * Test of {@link ImprovedClarityScore#getDocumentModel(int)}.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
@@ -251,8 +258,8 @@ public final class ImprovedClarityScoreTest
   }
 
   /**
-   * Test of getDocumentModel method, of class ImprovedClarityScore. Test with
-   * invalid document ids.
+   * Test of {@link ImprovedClarityScore#getDocumentModel}. Test with invalid
+   * document ids.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
@@ -281,7 +288,7 @@ public final class ImprovedClarityScoreTest
   }
 
   /**
-   * Test of getQueryModel method, of class ImprovedClarityScore.
+   * Test of {@link ImprovedClarityScore#getQueryModel(ByteArray, List, Set)}.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
@@ -314,5 +321,114 @@ public final class ImprovedClarityScoreTest
       Assert.assertEquals("Query model value differs.", expected, result,
           DELTA_Q_MOD);
     }
+  }
+
+  /**
+   * Test of {@link ImprovedClarityScore.FbTermReducerTarget}.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public void testTermReducerTarget()
+      throws Exception {
+    final Metrics metrics = new Metrics(FIXED_INDEX);
+    LinkedList<ByteArray> reducedFbTerms;
+    ImprovedClarityScore.FbTermReducerTarget trTarget;
+    Iterator<ByteArray> idxTermsIt;
+
+    // all terms should be included (minDocFreq == 0)
+    reducedFbTerms = new LinkedList<>();
+    trTarget = new ImprovedClarityScore.FbTermReducerTarget(metrics
+        .collection, 0, reducedFbTerms);
+    idxTermsIt = FIXED_INDEX.getTermsIterator();
+    while (idxTermsIt.hasNext()) {
+      final ByteArray term = idxTermsIt.next();
+      trTarget.call(term);
+    }
+
+    idxTermsIt = FIXED_INDEX.getTermsIterator();
+    while (idxTermsIt.hasNext()) {
+      Assert.assertTrue("Term should be in reduced set with threshold == 0.",
+          reducedFbTerms.contains(idxTermsIt.next()));
+    }
+
+    // test for each known document frequency value
+    final Set<Integer> docFreqs =
+        new HashSet<>(FixedTestIndexDataProvider.KnownData
+            .IDX_DOCFREQ.values());
+    for (final Integer filterDocFreq : docFreqs) {
+      reducedFbTerms = new LinkedList<>();
+      trTarget = new ImprovedClarityScore.FbTermReducerTarget(metrics
+          .collection, filterDocFreq, reducedFbTerms);
+
+      idxTermsIt = FIXED_INDEX.getTermsIterator();
+      while (idxTermsIt.hasNext()) {
+        final ByteArray term = idxTermsIt.next();
+        trTarget.call(term);
+      }
+
+      for (Map.Entry<String, Integer> docFreqEntry : FixedTestIndexDataProvider
+          .KnownData.IDX_DOCFREQ.entrySet()) {
+        final int freq = docFreqEntry.getValue();
+        final ByteArray termBytes = new ByteArray(docFreqEntry.getKey()
+            .getBytes("UTF-8"));
+        if (freq >= filterDocFreq) {
+          Assert.assertTrue(
+              "DocFreq (" + freq + ", " + metrics.collection.df(termBytes) +
+                  ") " +
+                  "over or equal to threshold " +
+                  "(" + filterDocFreq + "). Term (" + docFreqEntry.getKey() +
+                  ") should  be in reduced set.",
+              reducedFbTerms.contains(termBytes)
+          );
+        } else {
+          Assert.assertFalse("DocFreq (" + freq + ") below threshold " +
+                  "(" + filterDocFreq + "). Term (" + docFreqEntry.getKey() +
+                  ") should not be in reduced set.",
+              reducedFbTerms.contains(termBytes)
+          );
+        }
+      }
+    }
+  }
+
+  /**
+   * Test of {@link ImprovedClarityScore#calculateClarity(String)}.
+   *
+   * @throws Exception
+   */
+  @Test
+  public void testCalculateClarity()
+      throws Exception {
+    final ImprovedClarityScore instance = getInstanceBuilder()
+        .configuration(ICC_CONF).build();
+
+    // use all documents for feedback
+    final Set<Integer> fbDocIds = FIXED_INDEX.getDocumentIds();
+
+    // some random terms from the index will make up a query
+    final Tuple.Tuple2<List<String>, List<ByteArray>> randQTerms =
+        FIXED_INDEX.getRandomIndexTerms();
+    final List<ByteArray> qTerms = randQTerms.b;
+    final List<String> qTermsStr = randQTerms.a;
+
+    // create a query string from the list of terms
+    final String queryStr = StringUtils.join(qTermsStr, " ");
+
+    final ImprovedClarityScore.Result result = instance.calculateClarity
+        (queryStr);
+
+    final Set<ByteArray> fbTerms = result.getFeedbackTerms();
+
+    double score = 0d;
+    for (final ByteArray term : fbTerms) {
+      final String termStr = ByteArrayUtils.utf8ToString(term);
+      final double pq = calculateQueryModel(termStr, qTermsStr,
+          result.getFeedbackDocuments());
+      score += pq * MathUtils.log2(pq / FIXED_INDEX.getRelativeTermFrequency
+          (term));
+    }
+    Assert.assertEquals("Clarity score mismatch.", score, result.getScore(),
+        DELTA_SCORE);
   }
 }

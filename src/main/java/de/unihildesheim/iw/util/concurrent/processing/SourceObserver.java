@@ -19,6 +19,7 @@ package de.unihildesheim.iw.util.concurrent.processing;
 import de.unihildesheim.iw.util.TimeMeasure;
 import org.slf4j.LoggerFactory;
 
+import java.util.Objects;
 import java.util.concurrent.Callable;
 
 /**
@@ -63,18 +64,21 @@ public final class SourceObserver<T>
   private volatile boolean terminate;
 
   /**
+   * Number of threads running.
+   */
+  private final int numberOfThreads;
+
+  /**
    * Attach a status observer to a specified {@link Source}.
    *
    * @param newSource Source whose process to observe
    */
-  public SourceObserver(final Source newSource) {
-    if (newSource == null) {
-      throw new IllegalArgumentException("Source was null.");
-    }
+  public SourceObserver(final int threadCount, final Source newSource) {
     this.terminate = false;
-    this.source = newSource;
+    this.source = Objects.requireNonNull(newSource);
     this.overallTime = new TimeMeasure();
     this.runTime = new TimeMeasure();
+    this.numberOfThreads = threadCount;
   }
 
   /**
@@ -83,7 +87,7 @@ public final class SourceObserver<T>
   public void terminate() {
     synchronized (this) {
       this.terminate = true;
-      this.notifyAll(); // awake from sleep, if neccessary
+      this.notifyAll(); // awake from sleep, if necessary
     }
   }
 
@@ -91,8 +95,8 @@ public final class SourceObserver<T>
    * Show a timed status message.
    */
   private void showStatus() {
-    LOG.info("Processing {} of {} items after {}s, running for {}.",
-        this.source.hashCode(), this.source.getSourcedItemCount(),
+    LOG.info("Processed {} items after {}s, running for {}.",
+        this.source.getSourcedItemCount(),
         this.runTime.getElapsedSeconds(),
         this.overallTime.getTimeString());
   }
@@ -107,14 +111,28 @@ public final class SourceObserver<T>
     final long estimate = (long) ((itemCount - lastStatus) / (lastStatus
         / overallTime
         .getElapsedSeconds()));
-    LOG.info("Processing {} of {} items ({}%). "
-            + "{}s since last status. Running for {}. "
-            + "Time left {}.", lastStatus, itemCount,
-        (lastStatus * 100) / itemCount,
-        runTime.stop().getElapsedSeconds(),
-        overallTime.getTimeString(),
-        TimeMeasure.getTimeString(estimate)
-    );
+
+    if (numberOfThreads > 1) {
+      // multi process info
+      LOG.info("Processing {} of {} items ({}%). "
+              + "{}s since last status. Running for {}. "
+              + "Time left {}.", lastStatus, itemCount,
+          (lastStatus * 100) / itemCount,
+          runTime.stop().getElapsedSeconds(),
+          overallTime.getTimeString(),
+          TimeMeasure.getTimeString(estimate)
+      );
+    } else {
+      // single process info
+      LOG.info("Processing {} item. "
+              + "{}s since last status. Running for {}. "
+              + "Time left {}.",
+          itemCount,
+          runTime.stop().getElapsedSeconds(),
+          overallTime.getTimeString(),
+          TimeMeasure.getTimeString(estimate)
+      );
+    }
   }
 
   @Override
@@ -137,9 +155,14 @@ public final class SourceObserver<T>
       // it will provide
       boolean hasItemCount;
       if (this.source.getItemCount() != null) {
-        hasItemCount = true;
         itemCount = this.source.getItemCount();
-        step = (int) (itemCount * STEP_SIZE);
+        if (itemCount != numberOfThreads) {
+          hasItemCount = true;
+          step = (int) (itemCount * STEP_SIZE);
+        } else {
+          hasItemCount = false;
+          step = 0;
+        }
       } else {
         hasItemCount = false;
         step = 0;

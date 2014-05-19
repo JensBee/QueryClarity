@@ -105,7 +105,8 @@ public abstract class Source<T>
       throws ProcessingException, InterruptedException;
 
   /**
-   * Get the number of items to process.
+   * Get the number of items to process. May return {@code null} if no such
+   * information is provided.
    *
    * @return Number of items to process
    * @throws ProcessingException Thrown, if source has not been started or

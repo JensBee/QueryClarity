@@ -69,7 +69,7 @@ public final class DefaultClarityScoreTest
   /**
    * Allowed delta in clarity score calculation.
    */
-  private static final double DELTA_SCORE = Double.valueOf("9E-64");
+  private static final double DELTA_SCORE = Double.valueOf("9E-40");
 
   /**
    * Global singleton instance of the test-index.

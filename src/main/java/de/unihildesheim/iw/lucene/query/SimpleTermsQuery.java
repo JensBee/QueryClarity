@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -86,15 +87,13 @@ public final class SimpleTermsQuery
       final Set<String> stopwords)
       throws ParseException {
     super();
-    if (fields == null || fields.isEmpty()) {
+    if (Objects.requireNonNull(fields).isEmpty()) {
       throw new IllegalArgumentException("Empty fields list.");
     }
-    if (query == null || query.trim().isEmpty()) {
+    if (Objects.requireNonNull(query).trim().isEmpty()) {
       throw new IllegalArgumentException("Empty query.");
     }
-    if (stopwords == null) {
-      throw new IllegalArgumentException("Stopwords were null.");
-    }
+    Objects.requireNonNull(stopwords);
 
     LOG.debug("STQ q({})={} op={} f={} s({})={}", query.split(" ").length,
         query, operator, fields, stopwords.size(), stopwords);
@@ -161,7 +160,7 @@ public final class SimpleTermsQuery
 
   @Override
   public String toString(final String field) {
-    if (field == null || field.trim().isEmpty()) {
+    if (Objects.requireNonNull(field).trim().isEmpty()) {
       throw new IllegalArgumentException("Field name was empty.");
     }
     return "SimpleTermQuery: " + queryObj.toString(field);
@@ -175,10 +174,7 @@ public final class SimpleTermsQuery
   @Override
   public Weight createWeight(final IndexSearcher searcher)
       throws IOException {
-    if (searcher == null) {
-      throw new IllegalArgumentException("IndexSearcher was null.");
-    }
-    return new SimpleTermQueryWeight(searcher);
+    return new SimpleTermQueryWeight(Objects.requireNonNull(searcher));
   }
 
   /**
@@ -202,9 +198,7 @@ public final class SimpleTermsQuery
     public SimpleTermQueryWeight(final IndexSearcher searcher)
         throws IOException {
       super();
-      if (searcher == null) {
-        throw new IllegalArgumentException("IndexSearcher was null.");
-      }
+      Objects.requireNonNull(searcher);
       stqWeight = getQueryObj().createWeight(searcher);
     }
 
@@ -236,9 +230,7 @@ public final class SimpleTermsQuery
         final boolean scoreDocsInOrder,
         final boolean topScorer, final Bits acceptDocs)
         throws IOException {
-      if (context == null) {
-        throw new IllegalArgumentException("Context was null.");
-      }
+      Objects.requireNonNull(context);
       return stqWeight.scorer(context, scoreDocsInOrder, topScorer, acceptDocs);
     }
   }

@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -41,10 +42,8 @@ public final class QueryUtils {
   private final IndexReader reader;
 
   public QueryUtils(final IndexReader newReader, final Set<String> newFields) {
-    if (newReader == null) {
-      throw new IllegalArgumentException("IndexReader was null.");
-    }
-    if (newFields == null || newFields.isEmpty()) {
+    Objects.requireNonNull(newReader);
+    if (Objects.requireNonNull(newFields).isEmpty()) {
       throw new IllegalArgumentException("Fields list was empty.");
     }
     this.fields = newFields;
@@ -65,9 +64,7 @@ public final class QueryUtils {
       throws
       UnsupportedEncodingException, ParseException,
       Buildable.ConfigurationException, Buildable.BuildException {
-    if (query == null || query.isEmpty()) {
-      throw new IllegalArgumentException("Query string was empty.");
-    }
+    assert query != null && !query.isEmpty();
 
     final Collection<String> qTerms =
         new TermsQueryBuilder(this.reader, this.fields).query(query).build()
@@ -97,7 +94,7 @@ public final class QueryUtils {
   public Set<ByteArray> getUniqueQueryTerms(final String query)
       throws UnsupportedEncodingException, ParseException,
              Buildable.ConfigurationException, Buildable.BuildException {
-    if (query == null || query.trim().isEmpty()) {
+    if (Objects.requireNonNull(query).trim().isEmpty()) {
       throw new IllegalArgumentException("Query was empty.");
     }
     return new HashSet<>(extractTerms(query));
@@ -116,7 +113,7 @@ public final class QueryUtils {
   public List<ByteArray> getAllQueryTerms(final String query)
       throws UnsupportedEncodingException, ParseException,
              Buildable.ConfigurationException, Buildable.BuildException {
-    if (query == null || query.trim().isEmpty()) {
+    if (Objects.requireNonNull(query).trim().isEmpty()) {
       throw new IllegalArgumentException("Query was empty.");
     }
     return extractTerms(query);
