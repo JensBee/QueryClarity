@@ -15,33 +15,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.lucene.index;
+package de.unihildesheim.iw.util;
+
+import org.junit.Test;
 
 /**
+ * Test for {@link ConfigurationFile}.
+ *
  * @author Jens Bertram
  */
-public class DataProviderException
-    extends Exception {
-  public DataProviderException(final String msg, final Exception ex) {
-    super(msg, ex);
-  }
+public class ConfigurationFileTest {
 
-  public DataProviderException(final String msg) {
-    super(msg);
-  }
-
-  public DataProviderException(final Exception ex) {
-    super(ex);
-  }
-
-  public static final class CacheException
-      extends DataProviderException {
-    public CacheException(final String msg, final Exception ex) {
-      super(msg, ex);
-    }
-
-    public CacheException(final String msg) {
-      super(msg);
-    }
+  @Test
+  public void testSave()
+      throws Exception {
+    final ConfigurationFile cf = new ConfigurationFile("testconf.properties");
+    cf.getAndAddString("foo", "bar");
+    cf.save();
   }
 }

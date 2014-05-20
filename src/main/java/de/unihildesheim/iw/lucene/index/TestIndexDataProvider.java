@@ -644,7 +644,6 @@ public final class TestIndexDataProvider
       throw new IllegalArgumentException("Empty document id list.");
     }
     final Set<Integer> uniqueDocIds = new HashSet<>(docIds);
-    @SuppressWarnings("CollectionWithoutInitialCapacity")
     final Set<ByteArray> terms = new HashSet<>();
 
     for (final Integer docId : uniqueDocIds) {

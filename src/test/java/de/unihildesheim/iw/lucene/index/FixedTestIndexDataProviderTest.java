@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 bhoerdzn
+ * Copyright (C) 2014 Jens Bertram <code@jens-bertram.net>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,6 +28,11 @@ import org.junit.Test;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * Test for {@link FixedTestIndexDataProvider}.
+ *
+ * @author Jens Bertram
+ */
 public class FixedTestIndexDataProviderTest
     extends TestCase {
 

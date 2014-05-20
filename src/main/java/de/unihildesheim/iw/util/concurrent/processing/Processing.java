@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.iw.util.concurrent.processing;
 
+import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.util.TimeMeasure;
 import org.slf4j.LoggerFactory;
 
@@ -39,28 +40,48 @@ import java.util.concurrent.TimeoutException;
 public final class Processing {
 
   /**
-   * Default number of target threads to run. Defaults to the 1/3 of available
-   * processors.
+   * Prefix used to store configuration.
    */
-  public static final int THREADS =
-      Runtime.getRuntime().availableProcessors() / 3;
+  private static final String IDENTIFIER = "Persistence";
+
+  /**
+   * Default number of target threads to run. Defaults to the number of
+   * available processors.
+   */
+  public static final int THREADS;
+
+  static {
+    final Integer maxThreads = GlobalConfiguration.conf().getInteger
+        (IDENTIFIER + "_max-threads");
+    final int processors = Runtime.getRuntime().availableProcessors();
+    if (maxThreads == null) {
+      THREADS = processors;
+    } else {
+      THREADS = Math.min(processors, maxThreads);
+    }
+  }
+
   /**
    * Logger instance for this class.
    */
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       Processing.class);
+
   /**
    * Thread pool handling thread execution.
    */
   private static volatile ProcessingThreadPoolExecutor executor;
+
   /**
    * Processing {@link Source}.
    */
   private Source source;
+
   /**
    * Processing {@link Target}.
    */
   private Target target;
+
   /**
    * Latch that tracks the running threads.
    */
@@ -194,7 +215,13 @@ public final class Processing {
 
     LOG.debug("Spawning {} Processing-Target threads.", threadCount);
     for (int i = 0; i < threadCount; i++) {
-      final Target<Boolean> aTarget = this.target.newInstance();
+      final Target<Boolean> aTarget;
+      try {
+        aTarget = this.target.newInstance();
+      } catch (Exception e) {
+        throw new ProcessingException.TargetFailedException(
+            "Target throwed an exception.", e.getCause());
+      }
       aTarget.setLatch(this.threadTrackingLatch);
       targets.add(aTarget);
     }

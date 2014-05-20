@@ -122,6 +122,16 @@ public final class TimeMeasure {
   }
 
   /**
+   * Get the elapsed milliseconds of the current measurement.
+   *
+   * @return elapsed milliseconds, or <tt>0</tt> if no time was recorded
+   */
+  public double getElapsedMillis() {
+    final double nanos = getElapsedNanos();
+    return nanos > 0 ? nanos / 1000000.0 : 0d;
+  }
+
+  /**
    * Get a string representation of the elapsed time formatted as <tt>DDd
    * HH:MM:SS</tt> string.
    *

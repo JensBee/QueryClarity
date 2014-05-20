@@ -114,6 +114,14 @@ abstract class AbstractIndexDataProvider
       SerializableByte, ByteArray>, Long> idxTermsMap;
 
   /**
+   * Persistent cached collection of all index terms mapped by document-field
+   * and document-id. Mapping is {@code(Field, Document, Term)} to {@code
+   * Frequency}. Fields are indexed by {@link #cachedFieldsMap}.
+   */
+  private ConcurrentNavigableMap<Fun.Tuple3<
+      SerializableByte, Integer, ByteArray>, Integer> idxDocTermsMap;
+
+  /**
    * List of fields cached by this instance. Mapping of field name to id value.
    */
   private Map<String, SerializableByte> cachedFieldsMap;
@@ -307,6 +315,16 @@ abstract class AbstractIndexDataProvider
   protected ConcurrentNavigableMap<Fun.Tuple2<
       SerializableByte, ByteArray>, Long> getIdxTermsMap() {
     return this.idxTermsMap;
+  }
+
+  protected void setIdxDocTermsMap(final ConcurrentNavigableMap<Fun.Tuple3<
+      SerializableByte, Integer, ByteArray>, Integer> newIdxDocTermsMap) {
+    this.idxDocTermsMap = Objects.requireNonNull(newIdxDocTermsMap);
+  }
+
+  protected ConcurrentNavigableMap<Fun.Tuple3<
+      SerializableByte, Integer, ByteArray>, Integer> getIdxDocTermsMap() {
+    return this.idxDocTermsMap;
   }
 
   protected void setIdxDocumentIds(final Set<Integer> docIds) {
@@ -554,10 +572,7 @@ abstract class AbstractIndexDataProvider
       for (final String field : this.documentFields) {
         fieldId = getFieldId(field);
         for (final ByteArray bytes : Fun.
-            filter(this.idxTermsMap
-                    .keySet(),
-                fieldId
-            )) {
+            filter(this.idxTermsMap.keySet(), fieldId)) {
           this.idxTf += this.idxTermsMap.get(Fun.t2(fieldId, bytes));
         }
       }
@@ -729,6 +744,14 @@ abstract class AbstractIndexDataProvider
         ByteArray.SERIALIZER);
 
     /**
+     * Serializer to use for {@link #idxDocTermsMap}.
+     */
+    static final BTreeKeySerializer IDX_DOCTERMSMAP_KEYSERIALIZER
+        = new BTreeKeySerializer.Tuple3KeySerializer<>(
+        SerializableByte.COMPARATOR, null, SerializableByte.SERIALIZER,
+        Serializer.INTEGER, ByteArray.SERIALIZER);
+
+    /**
      * Private empty constructor for utility class.
      */
     private DbMakers() { // empty
@@ -768,12 +791,25 @@ abstract class AbstractIndexDataProvider
      * @param db Database reference
      * @return Maker for {@link #idxTermsMap}
      */
-    @SuppressWarnings("checkstyle:magicnumber")
     static DB.BTreeMapMaker idxTermsMapMkr(final DB db) {
       return Objects.requireNonNull(db)
           .createTreeMap(Stores.IDX_TERMS_MAP.name())
           .keySerializer(DbMakers.IDX_TERMSMAP_KEYSERIALIZER)
           .valueSerializer(Serializer.LONG)
+          .nodeSize(100);
+    }
+
+    /**
+     * Get a maker for {@link #idxTermsMap}.
+     *
+     * @param db Database reference
+     * @return Maker for {@link #idxTermsMap}
+     */
+    static DB.BTreeMapMaker idxDocTermsMapMkr(final DB db) {
+      return Objects.requireNonNull(db)
+          .createTreeMap(Stores.IDX_DOC_TERMS_MAP.name())
+          .keySerializer(DbMakers.IDX_DOCTERMSMAP_KEYSERIALIZER)
+          .valueSerializer(Serializer.INTEGER)
           .nodeSize(100);
     }
 
@@ -832,7 +868,10 @@ abstract class AbstractIndexDataProvider
      * Ids of persistent data held in the database.
      */
     public enum Stores {
-
+      /**
+       * Mapping of all document terms.
+       */
+      IDX_DOC_TERMS_MAP,
       /**
        * Mapping of all index terms.
        */

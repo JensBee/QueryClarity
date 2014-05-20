@@ -97,7 +97,8 @@ public abstract class Target<T>
    *
    * @return New {@link Target} instance
    */
-  public abstract Target<T> newInstance();
+  public abstract Target<T> newInstance()
+      throws Exception;
 
   /**
    * Set the thread tracking latch.

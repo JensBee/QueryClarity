@@ -55,7 +55,6 @@ public final class DirectIndexDataProviderTest
         .dataPath(dataDir)
         .documentFields(fields)
         .indexReader(reader)
-//        .indexPath(TestIndexDataProvider.reference.getIndexDir())
         .stopwords(stopwords)
         .createCache("test-" + RandomValue.getString(16))
         .warmup()

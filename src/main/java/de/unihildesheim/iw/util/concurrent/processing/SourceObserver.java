@@ -68,6 +68,12 @@ public final class SourceObserver<T>
    */
   private final int numberOfThreads;
 
+  private enum LoopType {
+    ITEM_COUNTER,
+    PLAIN,
+    SINGLE
+  }
+
   /**
    * Attach a status observer to a specified {@link Source}.
    *
@@ -94,11 +100,17 @@ public final class SourceObserver<T>
   /**
    * Show a timed status message.
    */
-  private void showStatus() {
-    LOG.info("Processed {} items after {}s, running for {}.",
-        this.source.getSourcedItemCount(),
-        this.runTime.getElapsedSeconds(),
-        this.overallTime.getTimeString());
+  private void showStatus(final boolean isSingle) {
+    if (isSingle) {
+      LOG.info("Processing {} items since {}.",
+          this.source.getSourcedItemCount(),
+          this.overallTime.getTimeString());
+    } else {
+      LOG.info("Processed {} items after {}s, running since {}.",
+          this.source.getSourcedItemCount(),
+          this.runTime.getElapsedSeconds(),
+          this.overallTime.getTimeString());
+    }
   }
 
   /**
@@ -115,20 +127,17 @@ public final class SourceObserver<T>
     if (numberOfThreads > 1) {
       // multi process info
       LOG.info("Processing {} of {} items ({}%). "
-              + "{}s since last status. Running for {}. "
-              + "Time left {}.", lastStatus, itemCount,
-          (lastStatus * 100) / itemCount,
+              + "{}s since last status. Running for {}. Time left {}.",
+          lastStatus, itemCount, (lastStatus * 100) / itemCount,
           runTime.stop().getElapsedSeconds(),
           overallTime.getTimeString(),
           TimeMeasure.getTimeString(estimate)
       );
     } else {
       // single process info
-      LOG.info("Processing {} item. "
-              + "{}s since last status. Running for {}. "
+      LOG.info("Processing {} item. {}s since last status. Running for {}. "
               + "Time left {}.",
-          itemCount,
-          runTime.stop().getElapsedSeconds(),
+          itemCount, runTime.stop().getElapsedSeconds(),
           overallTime.getTimeString(),
           TimeMeasure.getTimeString(estimate)
       );
@@ -142,6 +151,9 @@ public final class SourceObserver<T>
     if (this.source.isFinished()) {
       return 0d;
     }
+
+    LoopType type;
+
     this.overallTime.start();
     try {
       this.source.awaitStart();
@@ -154,46 +166,60 @@ public final class SourceObserver<T>
       // flag indicating if Source provides the number of items
       // it will provide
       boolean hasItemCount;
+
       if (this.source.getItemCount() != null) {
         itemCount = this.source.getItemCount();
         if (itemCount != numberOfThreads) {
           hasItemCount = true;
+          type = LoopType.ITEM_COUNTER;
           step = (int) (itemCount * STEP_SIZE);
         } else {
+          type = LoopType.SINGLE;
           hasItemCount = false;
           step = 0;
         }
       } else {
+        type = LoopType.PLAIN;
         hasItemCount = false;
         step = 0;
         itemCount = 0L;
       }
 
       while (!this.terminate) {
-        if (hasItemCount) {
-          status = this.source.getSourcedItemCount();
+        switch (type) {
+          case PLAIN:
+            if (this.runTime.getElapsedSeconds() > INTERVAL) {
+              this.runTime.stop();
+              showStatus(false);
+              this.runTime.start();
+            }
+            break;
+          case ITEM_COUNTER:
+            status = this.source.getSourcedItemCount();
+            // check if max wait time elapsed
+            if (this.runTime.getElapsedSeconds() > INTERVAL) {
+              this.runTime.stop();
+              lastStatus = status;
+              showStatus(itemCount, lastStatus);
+              this.runTime.start();
+            } else
+              // max wait time not elapsed, check if we should provide
+              // a status based on progress
+              if (lastStatus < status && status % step == 0) {
+                this.runTime.stop();
+                lastStatus = status;
+                showStatus(itemCount, lastStatus);
+                this.runTime.start();
+              }
+            break;
+          case SINGLE:
+            if (this.runTime.getElapsedSeconds() > INTERVAL) {
+              this.runTime.stop();
+              showStatus(true);
+              this.runTime.start();
+            }
+            break;
         }
-
-        // check if max wait time elapsed
-        if (this.runTime.getElapsedSeconds() > INTERVAL) {
-          this.runTime.stop();
-          if (hasItemCount) {
-            lastStatus = status;
-            showStatus(itemCount, lastStatus);
-          } else {
-            showStatus();
-          }
-          this.runTime.start();
-        } else if (hasItemCount && step > 0 && lastStatus < status
-            && status % step == 0) {
-          // max wait time not elapsed, check if we should provide
-          // a status based on progress
-          this.runTime.stop();
-          lastStatus = status;
-          showStatus(itemCount, lastStatus);
-          this.runTime.start();
-        }
-
         // wait a bit, till next update
         synchronized (this) {
           if (!this.terminate) {
@@ -201,6 +227,39 @@ public final class SourceObserver<T>
           }
         }
       }
+
+//      while (!this.terminate) {
+//        if (hasItemCount) {
+//          status = this.source.getSourcedItemCount();
+//        }
+//
+//        // check if max wait time elapsed
+//        if (this.runTime.getElapsedSeconds() > INTERVAL) {
+//          this.runTime.stop();
+//          if (hasItemCount) {
+//            lastStatus = status;
+//            showStatus(itemCount, lastStatus);
+//          } else {
+//            showStatus();
+//          }
+//          this.runTime.start();
+//        } else if (hasItemCount && step > 0 && lastStatus < status
+//            && status % step == 0) {
+//          // max wait time not elapsed, check if we should provide
+//          // a status based on progress
+//          this.runTime.stop();
+//          lastStatus = status;
+//          showStatus(itemCount, lastStatus);
+//          this.runTime.start();
+//        }
+//
+//        // wait a bit, till next update
+//        synchronized (this) {
+//          if (!this.terminate) {
+//            this.wait(UPDATE_INTERVAL);
+//          }
+//        }
+//      }
     } catch (ProcessingException ex) {
       LOG.error("Caught exception while running observer.", ex);
     } catch (InterruptedException ex) {

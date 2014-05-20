@@ -193,7 +193,7 @@ public final class StringUtils {
    * @param word Word to check
    * @return True, if it's a character or number
    */
-  private static boolean isWord(String word) {
+  private static boolean isWord(final String word) {
     assert word != null;
 
     if (word.length() == 1) {

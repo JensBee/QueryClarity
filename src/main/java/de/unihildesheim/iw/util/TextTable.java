@@ -144,8 +144,6 @@ public final class TextTable {
    *
    * @param newCells Cells specified by their width
    */
-  @SuppressWarnings({"ConfusingArrayVararg",
-      "PrimitiveArrayArgumentToVariableArgMethod"})
   public void hLine(final int... newCells) {
     hLine(true, newCells);
   }

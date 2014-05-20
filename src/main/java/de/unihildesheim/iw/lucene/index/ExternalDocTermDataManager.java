@@ -184,9 +184,7 @@ public final class ExternalDocTermDataManager {
     if (Objects.requireNonNull(key).trim().isEmpty()) {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
-    @SuppressWarnings("unchecked")
-    final T ret = (T) this.map.get(Fun.t3(key, documentId, term));
-    return ret;
+    return (T) this.map.get(Fun.t3(key, documentId, term));
   }
 
 }

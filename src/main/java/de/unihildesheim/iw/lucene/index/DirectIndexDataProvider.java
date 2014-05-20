@@ -18,20 +18,24 @@ package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.ByteArray;
+import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.Persistence;
 import de.unihildesheim.iw.SerializableByte;
 import de.unihildesheim.iw.lucene.document.DocFieldsTermsEnum;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
+import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
+import de.unihildesheim.iw.util.concurrent.processing.Source;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
 import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.DocsEnum;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
@@ -52,8 +56,9 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ConcurrentNavigableMap;
 
 /**
  * {@link IndexDataProvider} implementation directly accessing the Lucene index
@@ -68,6 +73,7 @@ public final class DirectIndexDataProvider
    * Prefix used to store configuration.
    */
   public static final String IDENTIFIER = "DirectIDP";
+
   /**
    * Logger instance for this class.
    */
@@ -80,9 +86,16 @@ public final class DirectIndexDataProvider
   private Persistence persistence;
 
   /**
-   * List of current stopwords.
+   * Wrapper for externally configurable options.
    */
-  private Collection<String> stopwords;
+  private static final class UserConf {
+    private static final String key(final String name) {
+      return IDENTIFIER + "_" + name;
+    }
+
+    static final int AUTOCOMMIT_DELAY = GlobalConfiguration.conf()
+        .getAndAddInteger(key("db-autocommit-delay"), 60000);
+  }
 
   /**
    * Default constructor.
@@ -189,6 +202,9 @@ public final class DirectIndexDataProvider
     LOG.debug("Fields: cached={} active={}", getCachedFieldsMap().keySet(),
         getDocumentFields());
 
+    setIdxDocTermsMap(DbMakers.idxDocTermsMapMkr(getDb())
+        .<Fun.Tuple3<SerializableByte, Integer, ByteArray>,
+            Integer>makeOrGet());
     setIdxTermsMap(DbMakers.idxTermsMapMkr(getDb())
         .<Fun.Tuple2<SerializableByte, ByteArray>, Long>makeOrGet());
 
@@ -204,8 +220,7 @@ public final class DirectIndexDataProvider
         );
 
         // try load overall term frequency
-        setIdxTf(getDb().getAtomicLong(DbMakers.Caches.IDX_TF.name())
-            .get());
+        setIdxTf(getDb().getAtomicLong(DbMakers.Caches.IDX_TF.name()).get());
         if (getIdxTf() == 0L) {
           setIdxTf(null);
         }
@@ -257,36 +272,21 @@ public final class DirectIndexDataProvider
     if (getIdxDfMap().isEmpty()) {
       final TimeMeasure tStep = new TimeMeasure().start();
       LOG.info("Cache warming: document frequencies..");
-      final List<AtomicReaderContext> arContexts = getIndexReader().getContext()
-          .leaves();
 
-      try {
-        if (arContexts.size() == 1 && getDocumentFields().size() > 1) {
-          LOG.debug("WarmUp strategy: concurrent fields");
-          // we have only one segment, process each field concurrently
-          new Processing(
-              new TargetFuncCall<>(
-                  new CollectionSource<>(getDocumentFields()),
-                  new IndexFieldDocFreqCalcTarget(arContexts
-                      .get(0).reader(), getIdxDfMap(),
-                      getIdxDocumentIds().size(), getIdxTerms()
-                  )
-              )
-          ).process(getDocumentFields().size());
-        } else {
-          new Processing(
-              new TargetFuncCall<>(
-                  new CollectionSource<>(arContexts),
-                  new IndexSegmentDocFreqCalcTarget(getIdxDfMap(),
-                      getIdxDocumentIds().size(),
-                      getIdxTerms(),
-                      getDocumentFields())
-              )
-          ).process(arContexts.size());
+      for (final ByteArray term : getIdxTerms()) {
+        final Set<Integer> matchedDocs = new HashSet<>();
+        for (final String field : getDocumentFields()) {
+          final SerializableByte fieldId = getFieldId(field);
+          for (final Integer docId : getDocumentIds()) {
+            if (getIdxDocTermsMap().containsKey(Fun.t3(fieldId, docId, term))) {
+              matchedDocs.add(docId);
+            }
+          }
         }
-      } catch (ProcessingException e) {
-        throw new DataProviderException.CacheException("Failed to warmUp " +
-            "document frequencies.", e);
+
+        if (!matchedDocs.isEmpty()) {
+          getIdxDfMap().put(term, matchedDocs.size());
+        }
       }
       LOG.info("Cache warming: calculating document frequencies "
               + "for {} documents and {} terms took {}.",
@@ -344,33 +344,74 @@ public final class DirectIndexDataProvider
           updatingFields);
     }
 
+    // pre-check, if field has the information we need
+    for (String field : getDocumentFields()) {
+      if (FieldInfo.IndexOptions.DOCS_ONLY.equals(MultiFields
+          .getMergedFieldInfos(getIndexReader()).fieldInfo(field)
+          .getIndexOptions())) {
+        throw new IllegalStateException("Field '" + field + "' indexed with " +
+            "DOCS_ONLY option. No term frequencies and position information " +
+            "available.");
+      }
+    }
+
     final List<AtomicReaderContext> arContexts =
         getIndexReader().getContext().leaves();
 
+    final Processing processing = new Processing();
+    final TimedCommit autoCommit = new TimedCommit(UserConf.AUTOCOMMIT_DELAY);
     if (arContexts.size() == 1 && updatingFields.size() > 1) {
       LOG.debug("Build strategy: concurrent fields");
-      // we have only one segment, process each field concurrently
-      new Processing(
-          new TargetFuncCall<>(
-              new CollectionSource<>(updatingFields),
-              new IndexFieldTermsCollectorTarget(arContexts
-                  .get(0).reader(), getIdxTermsMap())
-          )
-      ).process(updatingFields.size());
+
+      final AtomicReader reader = arContexts.get(0).reader();
+      Set<ByteArray> termSet;
+      Terms terms;
+      TermsEnum termsEnum = TermsEnum.EMPTY;
+      BytesRef term;
+      SerializableByte fieldId;
+
+      for (final String field : updatingFields) {
+        fieldId = getFieldId(field);
+        termSet = new HashSet<>();
+        terms = reader.terms(field);
+        if (terms == null) {
+          LOG.warn("No terms. field={}", field);
+        } else {
+          termsEnum = terms.iterator(termsEnum);
+          term = termsEnum.next();
+          while (term != null) {
+            if (termsEnum.seekExact(term)) {
+              termSet.add(BytesRefUtils.toByteArray(term));
+            }
+            term = termsEnum.next();
+          }
+        }
+        assert !termSet.isEmpty();
+
+        autoCommit.start();
+        processing.setSourceAndTarget(
+            new IndexTermsCollectorTarget(new CollectionSource<>(termSet),
+                field, fieldId, arContexts.get(0), getIdxTermsMap(),
+                getIdxDocTermsMap())
+        ).process(termSet.size());
+        autoCommit.stop();
+      }
     } else {
-      LOG.debug("Build strategy: segment");
+      LOG.debug("Build strategy: segments ({})", arContexts.size());
       // we have multiple index segments, process every segment separately
-      new Processing(
+      autoCommit.start();
+      processing.setSourceAndTarget(
           new TargetFuncCall<>(
               new CollectionSource<>(arContexts),
               new IndexSegmentTermsCollectorTarget(
-                  getIdxTermsMap(), updatingFields)
+                  getIdxTermsMap(), getIdxDocTermsMap(), updatingFields)
           )
       ).process(arContexts.size());
+      autoCommit.stop();
     }
+    autoCommit.stop();
 
-    LOG.info("Writing data.");
-
+    LOG.info("Updating database.");
     getDb().commit();
   }
 
@@ -564,14 +605,13 @@ public final class DirectIndexDataProvider
             docsEnum = reader.termDocsEnum(termObj);
             if (docsEnum == null) {
               LOG.trace("Field or term does not exist. field={}" +
-                      " term={}", field,
-                  termBr.utf8ToString()
+                      " term={}", field, termBr.utf8ToString()
               );
             } else {
               docId = docsEnum.nextDoc();
               while (docId != DocsEnum.NO_MORE_DOCS) {
                 if (docsEnum.freq() > 0) {
-                  matchedDocs.add(docId);
+                  matchedDocs.add(docId + aReader.docBase);
                 }
                 docId = docsEnum.nextDoc();
               }
@@ -593,260 +633,207 @@ public final class DirectIndexDataProvider
   }
 
   /**
-   * Shared function for {@link Processing} {@link TargetFuncCall} classes.
+   * Collect the terms from an {@link TermsEnum} instance.
    */
-  private static final class TargetFuncShared {
-    /**
-     * Collect the terms from an {@link TermsEnum} instance.
-     *
-     * @param fieldId Id of the fields the terms belong to
-     * @param termsEnum The enum proiding field terms
-     * @param targetMap Target to store results
-     * @throws IOException Thrown on low-level I/O errors
-     */
-    static void collectTerms(final SerializableByte fieldId,
-        final TermsEnum termsEnum,
-        final ConcurrentMap<Fun.Tuple2<SerializableByte, ByteArray>,
-            Long> targetMap)
-        throws IOException {
-      BytesRef br = termsEnum.next();
-      while (br != null) {
-        if (termsEnum.seekExact(br)) {
+  private void targetFuncCollectTerms(
+      final AtomicReaderContext rContext,
+      final String fieldName,
+      final ConcurrentMap<Fun.Tuple2<SerializableByte, ByteArray>,
+          Long> targetIdxTerms,
+      final ConcurrentMap<Fun.Tuple3<SerializableByte, Integer, ByteArray>,
+          Integer> targetDocTerms)
+      throws IOException {
+
+
+    TermsEnum termsEnum = TermsEnum.EMPTY;
+    DocsEnum docsEnum;
+    Terms terms;
+    final SerializableByte fieldId = getFieldId(fieldName);
+    final AtomicReader reader = rContext.reader();
+    terms = reader.terms(fieldName);
+
+    if (terms == null) {
+      LOG.warn("No terms. field={}", fieldName);
+    } else {
+      termsEnum = terms.iterator(termsEnum);
+      BytesRef term = termsEnum.next();
+
+      while (term != null) {
+        if (termsEnum.seekExact(term)) {
+          docsEnum = reader.termDocsEnum(new Term(fieldName, term));
+
+          // this should never happen (values are pre-checked already)
+          if (docsEnum == null) {
+            throw new IllegalStateException("Term or field does not exist.");
+          }
+
           // get the total term frequency of the current term
           // across all documents and the current field
           final long ttf = termsEnum.totalTermFreq();
-          // add value up for all fields
-          final Fun.Tuple2<SerializableByte, ByteArray> fieldTerm =
-              Fun.t2(fieldId, BytesRefUtils.toByteArray(br));
 
-          Long oldValue = targetMap.putIfAbsent(fieldTerm, ttf);
-          if (oldValue != null) {
-            for (; ; ) {
-              if (targetMap.replace(fieldTerm, oldValue,
-                  oldValue + ttf)) {
-                break;
-              }
-              oldValue = targetMap.get(fieldTerm);
-            }
-          }
-        }
-        br = termsEnum.next();
-      }
-    }
+          // initialize the document iterator
+          int docId = docsEnum.nextDoc();
 
-    /**
-     * @param reader Reader to access the Lucene index
-     * @param idxTerms Set of index terms
-     * @param docCount Number of documents in index
-     * @param field Field to index
-     * @param map Target map for storing results
-     */
-    static void calcDocFreq(final AtomicReader reader, final Set<ByteArray>
-        idxTerms, int docCount, final String field,
-        ConcurrentMap<ByteArray, Integer> map) {
-      // step through all terms in index
-      for (final ByteArray term : idxTerms) {
-        final BytesRef termBr = new BytesRef(term.bytes);
-        final Set<Integer> matchedDocs = new HashSet<>(docCount);
-        // step through all document fields using the current term
-        try {
-          // get all documents containing
-          // the current term in the current field
-          final Term termObj = new Term(field, termBr);
-          final DocsEnum docsEnum = reader.termDocsEnum(termObj);
-          if (docsEnum == null) {
-            LOG.trace(
-                "Field or term does not exist. field={} term={}",
-                field, termBr.utf8ToString());
-          } else {
-            int docId = docsEnum.nextDoc();
-            while (docId != DocsEnum.NO_MORE_DOCS) {
-              if (docsEnum.freq() > 0) {
-                matchedDocs.add(docId);
+          // build term frequency map for each document
+          while (docId != DocsEnum.NO_MORE_DOCS) {
+            docId += rContext.docBase;
+            final int docTermFreq = docsEnum.freq();
+
+            final Fun.Tuple3<SerializableByte, Integer, ByteArray>
+                idxDocTfMapKey =
+                Fun.t3(fieldId, docId, BytesRefUtils.toByteArray(term));
+            Integer oldValue = targetDocTerms.putIfAbsent(idxDocTfMapKey,
+                docTermFreq);
+            if (oldValue != null) {
+              Integer newValue = oldValue + docTermFreq;
+              while (!targetDocTerms.replace(idxDocTfMapKey, oldValue,
+                  newValue)) {
+                oldValue = targetDocTerms.get(idxDocTfMapKey);
+                newValue = oldValue + docTermFreq;
               }
-              docId = docsEnum.nextDoc();
             }
+
+            docId = docsEnum.nextDoc();
           }
-        } catch (IOException ex) {
-          LOG.error(
-              "Error enumerating documents. field={} term={}",
-              field, termBr.utf8ToString(), ex);
-        }
-        // now all documents containing the current term are collected
-        // store/update documents count for the current term, if any
-        if (!matchedDocs.isEmpty()) {
-          Integer oldValue =
-              map.putIfAbsent(term.clone(), matchedDocs.size());
+
+          // add whole index term frequency map
+          final Fun.Tuple2<SerializableByte, ByteArray> idxTfMapKey =
+              Fun.t2(fieldId, BytesRefUtils.toByteArray(term));
+          Long oldValue = targetIdxTerms.putIfAbsent(idxTfMapKey, ttf);
           if (oldValue != null) {
-            final int newValue = matchedDocs.size();
-            for (; ; ) {
-              if (map.replace(term, oldValue,
-                  oldValue + newValue)) {
-                break;
-              }
-              oldValue = map.get(term);
+            Long newValue = oldValue + ttf;
+            while (!targetIdxTerms.replace(idxTfMapKey, oldValue, newValue)) {
+              oldValue = targetIdxTerms.get(idxTfMapKey);
+              newValue = oldValue + ttf;
             }
           }
         }
+        term = termsEnum.next();
       }
     }
   }
 
-  private static final class IndexFieldDocFreqCalcTarget
-      extends TargetFuncCall.TargetFunc<String> {
+  private static void collectTerms(
+      final ByteArray term, final SerializableByte fieldId,
+      final ConcurrentMap<Fun.Tuple2<SerializableByte,
+          ByteArray>, Long> targetIdxTerms,
+      final ConcurrentMap<Fun.Tuple3<SerializableByte, Integer,
+          ByteArray>, Integer> targetDocTerms, final DocsEnum docsEnum,
+      final long ttf, final int docBase)
+      throws IOException {
+    // initialize the document iterator
+    int docId = docsEnum.nextDoc();
 
-    /**
-     * Target map to put results into.
-     */
-    private final ConcurrentMap<ByteArray, Integer> map;
-    /**
-     * Set of terms available in the index.
-     */
-    private final Set<ByteArray> idxTerms;
-    /**
-     * Number of documents in index.
-     */
-    private final int docCount;
+    // build term frequency map for each document
+    while (docId != DocsEnum.NO_MORE_DOCS) {
+      docId += docBase;
+      final int docTermFreq = docsEnum.freq();
 
-    private final AtomicReader reader;
+      final Fun.Tuple3<SerializableByte, Integer, ByteArray>
+          idxDocTfMapKey = Fun.t3(fieldId, docId, term);
+      Integer oldValue = targetDocTerms.putIfAbsent(idxDocTfMapKey,
+          docTermFreq);
+      if (oldValue != null) {
+        Integer newValue = oldValue + docTermFreq;
+        while (!targetDocTerms.replace(idxDocTfMapKey, oldValue, newValue)) {
+          oldValue = targetDocTerms.get(idxDocTfMapKey);
+          newValue = oldValue + docTermFreq;
+        }
+      }
 
-    /**
-     * Create a new document frequency calculation target.
-     *
-     * @param targetMap Map to put results into
-     * @param idxDocCount Number of documents in index
-     * @param idxTermSet Set of terms in index
-     */
-    private IndexFieldDocFreqCalcTarget(
-        final AtomicReader newReader,
-        final ConcurrentNavigableMap<ByteArray, Integer> targetMap,
-        final int idxDocCount,
-        final Set<ByteArray> idxTermSet) {
-      super();
-      this.map = targetMap;
-      this.docCount = idxDocCount;
-      this.idxTerms = idxTermSet;
-      this.reader = newReader;
+      docId = docsEnum.nextDoc();
+    }
+
+    // add whole index term frequency map
+    final Fun.Tuple2<SerializableByte, ByteArray> idxTfMapKey =
+        Fun.t2(fieldId, term);
+    Long oldValue = targetIdxTerms.putIfAbsent(idxTfMapKey, ttf);
+    if (oldValue != null) {
+      Long newValue = oldValue + ttf;
+      while (!targetIdxTerms.replace(idxTfMapKey, oldValue, newValue)) {
+        oldValue = targetIdxTerms.get(idxTfMapKey);
+        newValue = oldValue + ttf;
+      }
+    }
+  }
+
+  private static final class IndexTermsCollectorTarget
+      extends Target<ByteArray> {
+
+    private static ConcurrentMap<Fun.Tuple2<SerializableByte,
+        ByteArray>, Long> targetIdxTerms;
+    private static ConcurrentMap<Fun.Tuple3<SerializableByte, Integer,
+        ByteArray>, Integer> targetDocTerms;
+    private static AtomicReader reader;
+    private static String field;
+    private TermsEnum termsEnum;
+    private static int docBase;
+    private static SerializableByte fieldId;
+    private DocsEnum docsEnum;
+    private Bits bits;
+
+    IndexTermsCollectorTarget(
+        final Source<ByteArray> newSource,
+        final String newField, final SerializableByte newFieldId,
+        final AtomicReaderContext context,
+        final ConcurrentMap<Fun.Tuple2<SerializableByte, ByteArray>,
+            Long> idxTermsMap,
+        final ConcurrentMap<Fun.Tuple3<SerializableByte, Integer, ByteArray>,
+            Integer> idxDocTermsMap)
+        throws IOException {
+      super(newSource);
+      targetIdxTerms = idxTermsMap;
+      targetDocTerms = idxDocTermsMap;
+      field = newField;
+      fieldId = newFieldId;
+      reader = context.reader();
+      docBase = context.docBase;
+    }
+
+    private IndexTermsCollectorTarget(final Source<ByteArray> source)
+        throws IOException {
+      super(source);
+      this.termsEnum = reader.terms(field).iterator(TermsEnum.EMPTY);
+      this.bits = reader.getDocsWithField(field);
+      this.docsEnum = null;
     }
 
     @Override
-    public void call(final String fieldName)
+    public Target<ByteArray> newInstance()
+        throws IOException {
+      return new IndexTermsCollectorTarget(getSource());
+    }
+
+    @Override
+    public void runProcess()
         throws Exception {
-      if (fieldName != null) {
-        TargetFuncShared.calcDocFreq(this.reader, this.idxTerms,
-            this.docCount, fieldName, this.map);
+      while (!isTerminating()) {
+        final ByteArray term;
+        try {
+          term = getSource().next();
+        } catch (ProcessingException.SourceHasFinishedException ex) {
+          break;
+        }
+
+        if (term != null) {
+          if (!this.termsEnum.seekExact(new BytesRef(term.bytes))) {
+            return;
+          }
+
+          this.docsEnum = this.termsEnum.docs(bits, this.docsEnum);
+//          final DocsEnum docsEnum = reader.termDocsEnum(new Term
+//              (field, termBr));
+
+          if (this.docsEnum == null) {
+            // field or term does not exist
+            LOG.warn("Field or term does not exist. f={} t={}", field,
+                ByteArrayUtils.utf8ToString(term));
+          } else {
+            collectTerms(term, fieldId, targetIdxTerms, targetDocTerms,
+                this.docsEnum, this.termsEnum.totalTermFreq(), docBase);
+          }
+        }
       }
-    }
-  }
-
-  /**
-   * {@link Processing} {@link Target} for document term-frequency calculation.
-   */
-  private static final class IndexSegmentDocFreqCalcTarget
-      extends TargetFuncCall.TargetFunc<AtomicReaderContext> {
-
-    /**
-     * Fields to index.
-     */
-    private final Set<String> currentFields;
-    /**
-     * Target map to put results into.
-     */
-    private final ConcurrentMap<ByteArray, Integer> map;
-    /**
-     * Set of terms available in the index.
-     */
-    private final Set<ByteArray> idxTerms;
-    /**
-     * Number of documents in index.
-     */
-    private final int docCount;
-
-    /**
-     * Create a new document frequency calculation target.
-     *
-     * @param targetMap Map to put results into
-     * @param idxDocCount Number of documents in index
-     * @param idxTermSet Set of terms in index
-     * @param fields List of document fields to iterate over
-     */
-    private IndexSegmentDocFreqCalcTarget(
-        final ConcurrentNavigableMap<ByteArray, Integer> targetMap,
-        final int idxDocCount,
-        final Set<ByteArray> idxTermSet,
-        final Set<String> fields) {
-      super();
-      this.currentFields = fields;
-      this.map = targetMap;
-      this.docCount = idxDocCount;
-      this.idxTerms = idxTermSet;
-    }
-
-    @Override
-    public void call(final AtomicReaderContext rContext) {
-      if (rContext == null) {
-        return;
-      }
-
-//      final AtomicReader reader = rContext.reader();
-//      DocsEnum docsEnum;
-//      BytesRef termBr;
-//      Set<Integer> matchedDocs;
-//      int docId;
-
-      for (final String field : this.currentFields) {
-        TargetFuncShared.calcDocFreq(rContext.reader(), this.idxTerms,
-            this.docCount, field, this.map);
-      }
-
-//      // step through all terms in index
-//      for (final ByteArray term : this.idxTerms) {
-//        termBr = new BytesRef(term.bytes);
-//        matchedDocs = new HashSet<>(this.docCount);
-//        // step through all document fields using the current term
-//        for (final String field : this.currentFields) {
-//          try {
-//            // get all documents containing
-//            // the current term in the current field
-//            final Term termObj = new Term(field, termBr);
-//            docsEnum = reader.termDocsEnum(termObj);
-//            if (docsEnum == null) {
-//              LOG.trace(
-//                  "Field or term does not exist. field={} term={}",
-//                  field, termBr.utf8ToString());
-//            } else {
-//              docId = docsEnum.nextDoc();
-//              while (docId != DocsEnum.NO_MORE_DOCS) {
-//                if (docsEnum.freq() > 0) {
-//                  matchedDocs.add(docId);
-//                }
-//                docId = docsEnum.nextDoc();
-//              }
-//            }
-//          } catch (IOException ex) {
-//            LOG.error(
-//                "Error enumerating documents. field={} term={}",
-//                field,
-//                termBr.utf8ToString(), ex);
-//          }
-//        }
-//        // now all documents containing the current term are collected
-//        // store/update documents count for the current term, if any
-//        if (!matchedDocs.isEmpty()) {
-//          Integer oldValue =
-//              this.map.putIfAbsent(term.clone(), matchedDocs.size());
-//          if (oldValue != null) {
-//            final int newValue = matchedDocs.size();
-//            for (; ; ) {
-//              if (this.map.replace(term, oldValue,
-//                  oldValue + newValue)) {
-//                break;
-//              }
-//              oldValue = this.map.get(term);
-//            }
-//          }
-//        }
-//      }
     }
   }
 
@@ -858,39 +845,31 @@ public final class DirectIndexDataProvider
   private final class IndexFieldTermsCollectorTarget
       extends TargetFuncCall.TargetFunc<String> {
 
-    private final AtomicReader reader;
-    private final ConcurrentNavigableMap<Fun.Tuple2<SerializableByte,
-        ByteArray>, Long> target;
-    private final TermsEnum termsEnum = TermsEnum.EMPTY;
+    private final AtomicReaderContext arContext;
+    private final ConcurrentMap<Fun.Tuple2<SerializableByte,
+        ByteArray>, Long> targetIdxTerms;
+    private final ConcurrentMap<Fun.Tuple3<SerializableByte, Integer,
+        ByteArray>, Integer> targetDocTerms;
 
-
-    public IndexFieldTermsCollectorTarget(final AtomicReader newReader,
-        final ConcurrentNavigableMap<Fun.Tuple2<SerializableByte, ByteArray>,
-            Long> idxTermsMap) {
+    public IndexFieldTermsCollectorTarget(
+        final AtomicReaderContext newArContext,
+        final ConcurrentMap<Fun.Tuple2<SerializableByte, ByteArray>,
+            Long> idxTermsMap,
+        final ConcurrentMap<Fun.Tuple3<SerializableByte, Integer, ByteArray>,
+            Integer> idxDocTermsMap) {
       super();
-      this.reader = newReader;
-      this.target = idxTermsMap;
+      this.arContext = newArContext;
+      this.targetIdxTerms = idxTermsMap;
+      this.targetDocTerms = idxDocTermsMap;
     }
 
     @Override
     public void call(final String fieldName)
         throws IOException {
-      if (fieldName != null) {
-        final SerializableByte fieldId = getFieldId(fieldName);
-        final Terms terms = this.reader.terms(fieldName);
-        if (terms == null) {
-          LOG.warn("({}) No terms. field={}", getName(), fieldName);
-        } else {
-          try {
-            TargetFuncShared.collectTerms(fieldId, terms.iterator(termsEnum),
-                this.target);
-          } catch (IOException ex) {
-            LOG.error("({}) Failed to parse terms. field={}.", getName(),
-                fieldName);
-            throw ex;
-          }
-        }
 
+      if (fieldName != null) {
+        targetFuncCollectTerms(this.arContext, fieldName, this.targetIdxTerms,
+            this.targetDocTerms);
       }
     }
   }
@@ -910,24 +889,29 @@ public final class DirectIndexDataProvider
     /**
      * Target map to store results.
      */
-    private final ConcurrentNavigableMap<Fun.Tuple2<
-        SerializableByte, ByteArray>, Long> map;
+    private final ConcurrentMap<Fun.Tuple2<SerializableByte, ByteArray>,
+        Long> targetIdxTerms;
+    private final ConcurrentMap<Fun.Tuple3<SerializableByte, Integer,
+        ByteArray>, Integer> targetDocTerms;
 
     /**
      * Create a new collector for index terms.
      *
-     * @param targetMap Map to put results into
      * @param newFields Lucene index segment provider
      */
-    IndexSegmentTermsCollectorTarget(final ConcurrentNavigableMap<Fun.Tuple2<
-        SerializableByte, ByteArray>, Long> targetMap,
+    IndexSegmentTermsCollectorTarget(
+        final ConcurrentMap<Fun.Tuple2<SerializableByte, ByteArray>,
+            Long> idxTermsMap,
+        final ConcurrentMap<Fun.Tuple3<SerializableByte, Integer, ByteArray>,
+            Integer> idxDocTermsMap,
         final Collection<String> newFields) {
       super();
-      assert targetMap != null;
+      assert idxDocTermsMap != null;
       assert newFields != null && !newFields.isEmpty();
 
       this.fields = newFields;
-      this.map = targetMap;
+      this.targetIdxTerms = idxTermsMap;
+      this.targetDocTerms = idxDocTermsMap;
     }
 
     @Override
@@ -937,27 +921,9 @@ public final class DirectIndexDataProvider
         return;
       }
 
-      TermsEnum termsEnum = TermsEnum.EMPTY;
-      final String name = Integer.toString(rContext.hashCode());
-
-      Terms terms;
-      BytesRef br;
       for (final String field : this.fields) {
-        final SerializableByte fieldId = getFieldId(field);
-        terms = rContext.reader().terms(field);
-        if (terms == null) {
-          LOG.warn("({}) No terms. field={}", getName(), field);
-        } else {
-          try {
-            TargetFuncShared
-                .collectTerms(fieldId, terms.iterator(termsEnum), this.map);
-          } catch (IOException ex) {
-            LOG.error("({}) Failed to parse terms. field={}.", getName(),
-                field);
-            throw ex;
-          }
-        }
-
+        targetFuncCollectTerms(rContext, field, this.targetIdxTerms,
+            this.targetDocTerms);
       }
     }
   }
@@ -992,6 +958,95 @@ public final class DirectIndexDataProvider
         throws ConfigurationException {
       super.validate();
       validatePersistenceBuilder();
+    }
+  }
+
+  private final class TimedCommitRunner
+      extends TimerTask {
+    private boolean finished = true;
+    private TimeMeasure tm = new TimeMeasure().start();
+    private final int period;
+
+    TimedCommitRunner(final int newPeriod) {
+      this.period = newPeriod;
+    }
+
+    @Override
+    public void run() {
+      if (this.finished && tm.getElapsedMillis() >= this.period) {
+        this.finished = false;
+        LOG.info("Updating database.");
+        getDb().commit();
+        LOG.info("Updating database done.");
+        this.finished = true;
+        tm.start();
+      } else {
+        LOG.debug("Skip commit. f={} p={} e={}", this.finished,
+            this.period, tm.getElapsedMillis());
+      }
+    }
+  }
+
+  /**
+   * Auto-commit database on long running processes.
+   */
+  private final class TimedCommit {
+
+    private Timer timer = new Timer();
+    private final int period;
+    private TimedCommitRunner task;
+
+    /**
+     * Initializes the timer and starts it after the given delay, repeating the
+     * commit in the given period.
+     *
+     * @param delay delay in milliseconds before task is to be executed.
+     * @param newPeriod time in milliseconds between successive task executions
+     */
+    TimedCommit(final int delay, final int newPeriod) {
+      this.period = newPeriod;
+      this.timer = new Timer();
+      this.task = new TimedCommitRunner(this.period);
+      this.timer.schedule(task, delay, this.period);
+    }
+
+    /**
+     * Initialize the timer. This will not start the timer. You need to call
+     * {@link #start(int)} separately.
+     *
+     * @param newPeriod time in milliseconds between successive task executions
+     */
+    TimedCommit(final int newPeriod) {
+      this.period = newPeriod;
+      this.task = new TimedCommitRunner(this.period);
+    }
+
+    /**
+     * Stop the timer.
+     */
+    void stop() {
+      this.timer.cancel();
+    }
+
+    /**
+     * Start the timer using a new period time.
+     *
+     * @param newPeriod time in milliseconds between successive task executions
+     */
+    void start(final int newPeriod) {
+      this.timer.cancel();
+      this.timer = new Timer();
+      this.task = new TimedCommitRunner(this.period);
+      this.timer.schedule(task, 0, newPeriod);
+    }
+
+    /**
+     * Start the timer again.
+     */
+    void start() {
+      this.timer.cancel();
+      this.timer = new Timer();
+      this.timer.schedule(task, 0, this.period);
     }
   }
 }
