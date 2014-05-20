@@ -45,7 +45,7 @@ public final class BytesRefUtils {
    * BytesRef}
    */
   public static ByteArray toByteArray(final BytesRef br) {
-    Objects.requireNonNull(br);
+    Objects.requireNonNull(br, "BytesRef was null.");
     return new ByteArray(br.bytes, br.offset, br.length);
   }
 
@@ -58,8 +58,8 @@ public final class BytesRefUtils {
    * @return True, if both byte arrays are equal
    */
   public static boolean bytesEquals(final BytesRef br, final ByteArray ba) {
-    Objects.requireNonNull(br);
-    Objects.requireNonNull(ba);
+    Objects.requireNonNull(br, "BytesRef was null.");
+    Objects.requireNonNull(ba, "ByteArray was null.");
 
     return ba.compareBytes(Arrays.copyOfRange(br.bytes, br.offset,
         br.length)) == 0;

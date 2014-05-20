@@ -42,7 +42,7 @@ public final class FileUtils {
    */
   public static String getPath(final File file)
       throws IOException {
-    Objects.requireNonNull(file);
+    Objects.requireNonNull(file, "File was null.");
     return makePath(file.getCanonicalPath());
   }
 
@@ -53,7 +53,7 @@ public final class FileUtils {
    * @return Given path with a trailing separator char
    */
   public static String makePath(final String path) {
-    if (Objects.requireNonNull(path).trim().isEmpty()) {
+    if (Objects.requireNonNull(path, "Path was null.").trim().isEmpty()) {
       throw new IllegalArgumentException("Path was empty.");
     }
     if (path.charAt(path.length() - 1) != File.separatorChar) {

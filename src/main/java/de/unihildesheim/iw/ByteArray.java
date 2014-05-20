@@ -57,7 +57,7 @@ public final class ByteArray
    * @param existingBytes Bytes to copy
    */
   public ByteArray(final byte[] existingBytes) {
-    if (Objects.requireNonNull(existingBytes).length == 0) {
+    if (Objects.requireNonNull(existingBytes, "Bytes were null.").length == 0) {
       throw new IllegalArgumentException("Empty bytes given.");
     }
 
@@ -75,7 +75,7 @@ public final class ByteArray
    */
   public ByteArray(final byte[] existingBytes, final int offset,
       final int length) {
-    if (Objects.requireNonNull(existingBytes).length == 0) {
+    if (Objects.requireNonNull(existingBytes, "Bytes were null.").length == 0) {
       throw new IllegalArgumentException("Empty bytes given.");
     }
     if (existingBytes.length < (offset + length)) {

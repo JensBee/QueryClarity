@@ -67,7 +67,7 @@ public final class ByteArrayUtils {
    * @return String created from bytes
    */
   public static String utf8ToString(final byte[] bytes) {
-    String str = INTERN8.get(Objects.requireNonNull(bytes));
+    String str = INTERN8.get(Objects.requireNonNull(bytes, "Bytes were null."));
     if (str == null) {
       try {
         str = new String(bytes, "UTF-8");
@@ -88,7 +88,8 @@ public final class ByteArrayUtils {
    * @return String created from bytes
    */
   public static String utf8ToString(final ByteArray bytes) {
-    return utf8ToString(Objects.requireNonNull(bytes).bytes);
+    return utf8ToString(Objects.requireNonNull(bytes,
+        "Bytes were null.").bytes);
   }
 
   /**
@@ -100,7 +101,8 @@ public final class ByteArrayUtils {
    * @return String created from bytes
    */
   public static String utf16ToString(final byte[] bytes) {
-    String str = INTERN16.get(Objects.requireNonNull(bytes));
+    String str = INTERN16.get(Objects.requireNonNull(bytes,
+        "Bytes were null."));
     if (str == null) {
       try {
         str = new String(bytes, "UTF-16");
@@ -121,6 +123,7 @@ public final class ByteArrayUtils {
    * @return String created from bytes
    */
   public static String utf16ToString(final ByteArray bytes) {
-    return utf8ToString(Objects.requireNonNull(bytes).bytes);
+    return utf8ToString(Objects.requireNonNull(bytes,
+        "Bytes were null.").bytes);
   }
 }

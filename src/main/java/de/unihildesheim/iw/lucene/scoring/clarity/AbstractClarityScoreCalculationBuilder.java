@@ -68,7 +68,8 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
    * @param newIdentifier Implementation identifier for the cache
    */
   protected AbstractClarityScoreCalculationBuilder(final String newIdentifier) {
-    if (Objects.requireNonNull(newIdentifier).trim().isEmpty()) {
+    if (Objects.requireNonNull(newIdentifier, "Identifier was null.").trim()
+        .isEmpty()) {
       throw new IllegalArgumentException("Identifier was empty.");
     }
     this.identifier = newIdentifier;
@@ -81,12 +82,14 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
    * @return Self reference
    */
   public T indexDataProvider(final IndexDataProvider dataProv) {
-    this.idxDataProvider = Objects.requireNonNull(dataProv);
+    this.idxDataProvider = Objects.requireNonNull(dataProv,
+        "IndexDataProvider was null.");
     return getThis();
   }
 
   public T indexReader(final IndexReader newIdxReader) {
-    this.idxReader = Objects.requireNonNull(newIdxReader);
+    this.idxReader = Objects.requireNonNull(newIdxReader,
+        "IndexReader was null.");
     return getThis();
   }
 
@@ -109,7 +112,7 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
    * @return Cache name prefixed with current identifier
    */
   private String createCacheName(final String name) {
-    if (Objects.requireNonNull(name).trim().isEmpty()) {
+    if (Objects.requireNonNull(name, "Cache name was null.").trim().isEmpty()) {
       throw new IllegalArgumentException("Empty cache name.");
     }
     return this.identifier + "_" + name;
@@ -164,7 +167,7 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
    */
   public final T dataPath(final String filePath)
       throws IOException {
-    Objects.requireNonNull(filePath);
+    Objects.requireNonNull(filePath, "Data-path was null.");
     this.dataPath = null;
     this.dataPath = Persistence.tryCreateDataPath(filePath);
     this.persistenceBuilder.dataPath(FileUtils.getPath(this.dataPath));

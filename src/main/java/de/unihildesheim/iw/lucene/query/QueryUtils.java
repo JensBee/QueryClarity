@@ -42,8 +42,8 @@ public final class QueryUtils {
   private final IndexReader reader;
 
   public QueryUtils(final IndexReader newReader, final Set<String> newFields) {
-    Objects.requireNonNull(newReader);
-    if (Objects.requireNonNull(newFields).isEmpty()) {
+    Objects.requireNonNull(newReader, "IndexReader was null.");
+    if (Objects.requireNonNull(newFields, "Fields were null.").isEmpty()) {
       throw new IllegalArgumentException("Fields list was empty.");
     }
     this.fields = newFields;
@@ -94,7 +94,7 @@ public final class QueryUtils {
   public Set<ByteArray> getUniqueQueryTerms(final String query)
       throws UnsupportedEncodingException, ParseException,
              Buildable.ConfigurationException, Buildable.BuildException {
-    if (Objects.requireNonNull(query).trim().isEmpty()) {
+    if (Objects.requireNonNull(query, "Query was null.").trim().isEmpty()) {
       throw new IllegalArgumentException("Query was empty.");
     }
     return new HashSet<>(extractTerms(query));
@@ -113,7 +113,7 @@ public final class QueryUtils {
   public List<ByteArray> getAllQueryTerms(final String query)
       throws UnsupportedEncodingException, ParseException,
              Buildable.ConfigurationException, Buildable.BuildException {
-    if (Objects.requireNonNull(query).trim().isEmpty()) {
+    if (Objects.requireNonNull(query, "Query was null.").trim().isEmpty()) {
       throw new IllegalArgumentException("Query was empty.");
     }
     return extractTerms(query);

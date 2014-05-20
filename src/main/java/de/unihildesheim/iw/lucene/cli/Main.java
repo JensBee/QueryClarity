@@ -19,7 +19,7 @@ package de.unihildesheim.iw.lucene.cli;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
-import de.unihildesheim.iw.lucene.document.DocumentModelException;
+import de.unihildesheim.iw.lucene.document.DocumentModel;
 import org.apache.lucene.search.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,8 +60,8 @@ public final class Main {
    * @throws IOException If index could not be read
    * @throws org.apache.lucene.queryparser.classic.ParseException If the query
    * could not be parsed
-   * @throws DocumentModelException If a requested document model needed for
-   * calculation could not be created
+   * @throws DocumentModel.DocumentModelException If a requested document model
+   * needed for calculation could not be created
    */
   private void runMain()
       throws Exception {
@@ -108,8 +108,8 @@ public final class Main {
    * @throws IOException If index could not be read
    * @throws org.apache.lucene.queryparser.classic.ParseException If the {@link
    * Query} could not be parsed
-   * @throws DocumentModelException If a requested document model needed for
-   * calculation could not be created
+   * @throws DocumentModel.DocumentModelException If a requested document model
+   * needed for calculation could not be created
    */
   public static void main(final String[] args)
       throws Exception {

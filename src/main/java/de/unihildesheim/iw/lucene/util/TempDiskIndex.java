@@ -80,8 +80,8 @@ public final class TempDiskIndex {
   public TempDiskIndex(final String[] fields,
       final Collection<String[]> documents)
       throws IOException {
-    this(Objects.requireNonNull(fields));
-    if (Objects.requireNonNull(documents).isEmpty()) {
+    this(Objects.requireNonNull(fields, "Fields were null."));
+    if (Objects.requireNonNull(documents, "Documents were null.").isEmpty()) {
       throw new IllegalArgumentException("Documents were empty.");
     }
     addDocs(documents);
@@ -95,7 +95,7 @@ public final class TempDiskIndex {
    */
   public TempDiskIndex(final String[] fields)
       throws IOException {
-    if (Objects.requireNonNull(fields).length == 0) {
+    if (Objects.requireNonNull(fields, "Fields were null.").length == 0) {
       throw new IllegalArgumentException("Fields were empty.");
     }
     final Analyzer analyzer = new StandardAnalyzer(LuceneDefaults.VERSION,
@@ -173,7 +173,7 @@ public final class TempDiskIndex {
    */
   public void addDoc(final String[] content)
       throws IOException {
-    if (Objects.requireNonNull(content).length == 0) {
+    if (Objects.requireNonNull(content, "Content was null.").length == 0) {
       throw new IllegalArgumentException("Empty content.");
     }
     addDoc(this.writer, content);
@@ -187,7 +187,7 @@ public final class TempDiskIndex {
    */
   public void addDocs(final Collection<String[]> documents)
       throws IOException {
-    if (Objects.requireNonNull(documents).isEmpty()) {
+    if (Objects.requireNonNull(documents, "Documents were null.").isEmpty()) {
       throw new IllegalArgumentException("Empty documents list.");
     }
     // index documents

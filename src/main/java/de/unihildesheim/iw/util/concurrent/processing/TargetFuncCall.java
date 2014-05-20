@@ -43,7 +43,7 @@ public final class TargetFuncCall<T>
    */
   public TargetFuncCall(final Source<T> newSource, final TargetFunc<T> func) {
     super(newSource);
-    this.tFunc = Objects.requireNonNull(func);
+    this.tFunc = Objects.requireNonNull(func, "Function was null.");
   }
 
   @Override

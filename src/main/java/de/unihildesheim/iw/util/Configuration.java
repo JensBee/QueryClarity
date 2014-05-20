@@ -50,6 +50,7 @@ public class Configuration {
   /**
    * Constructor for overriding classes, to pass in an already created {@link
    * Properties} object.
+   *
    * @param prop Properties provided by overriding class
    */
   protected Configuration(final Properties prop) {
@@ -64,7 +65,7 @@ public class Configuration {
    */
   public Configuration(final Map<String, String> initial) {
     this();
-    addAll(Objects.requireNonNull(initial));
+    addAll(Objects.requireNonNull(initial, "Initial map was null."));
   }
 
   protected void setProperties(final Properties prop) {
@@ -90,7 +91,7 @@ public class Configuration {
    * @param config Map with configuration settings
    */
   public final void addAll(final Map<String, String> config) {
-    Objects.requireNonNull(config);
+    Objects.requireNonNull(config, "Configuration map was null.");
     for (final Entry<String, String> confEntry : config.entrySet()) {
       this.data.setProperty(confEntry.getKey(), confEntry.getValue());
     }
@@ -119,10 +120,10 @@ public class Configuration {
   }
 
   protected void checkKeyValue(final String key, final Object value) {
-    if (Objects.requireNonNull(key).trim().isEmpty()) {
+    if (Objects.requireNonNull(key, "Key was null.").trim().isEmpty()) {
       throw new IllegalArgumentException("Key was empty.");
     }
-    Objects.requireNonNull(value);
+    Objects.requireNonNull(value, "Value was null.");
   }
 
   /**
@@ -158,15 +159,16 @@ public class Configuration {
    */
   public final String getString(final String key,
       final String defaultValue) {
-    if (Objects.requireNonNull(key).trim().isEmpty()) {
+    if (Objects.requireNonNull(key, "Key was null.").trim().isEmpty()) {
       throw new IllegalArgumentException("Key was empty.");
     }
     return this.data.getProperty(key, defaultValue);
   }
 
   /**
-   * Tries to get a String value associated with the given key. Adds the
-   * default value as new entry to the configuration, if no value is present.
+   * Tries to get a String value associated with the given key. Adds the default
+   * value as new entry to the configuration, if no value is present.
+   *
    * @param key Configuration item key
    * @param defaultValue Default value to use, if no data for the given key was
    * found
@@ -222,6 +224,7 @@ public class Configuration {
   /**
    * Tries to get a Integer value associated with the given key. Adds the
    * default value as new entry to the configuration, if no value is present.
+   *
    * @param key Configuration item key
    * @param defaultValue Default value to use, if no data for the given key was
    * found
@@ -232,6 +235,7 @@ public class Configuration {
   public final Integer getAndAddInteger(final String key,
       final Integer defaultValue) {
     if (getString(key) == null) {
+      LOG.debug("No config-data for {}.", key);
       add(key, defaultValue);
       return defaultValue;
     }

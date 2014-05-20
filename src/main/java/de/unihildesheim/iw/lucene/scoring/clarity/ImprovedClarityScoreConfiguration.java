@@ -186,7 +186,7 @@ public final class ImprovedClarityScoreConfiguration
    */
   public void setQuerySimplifyingPolicy(
       final ImprovedClarityScore.QuerySimplifyPolicy policy) {
-    Objects.requireNonNull(policy);
+    Objects.requireNonNull(policy, "Policy was null.");
     add(Keys.querySimplifyingPolicy.name(), policy.name());
   }
 

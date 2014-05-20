@@ -42,7 +42,7 @@ public final class Processing {
   /**
    * Prefix used to store configuration.
    */
-  private static final String IDENTIFIER = "Persistence";
+  private static final String IDENTIFIER = "Processing";
 
   /**
    * Default number of target threads to run. Defaults to the number of
@@ -51,10 +51,10 @@ public final class Processing {
   public static final int THREADS;
 
   static {
-    final Integer maxThreads = GlobalConfiguration.conf().getInteger
-        (IDENTIFIER + "_max-threads");
+    final Integer maxThreads = GlobalConfiguration.conf().getAndAddInteger
+        (IDENTIFIER + "_max-threads", 0);
     final int processors = Runtime.getRuntime().availableProcessors();
-    if (maxThreads == null) {
+    if (maxThreads == null || maxThreads == 0) {
       THREADS = processors;
     } else {
       THREADS = Math.min(processors, maxThreads);
@@ -95,8 +95,8 @@ public final class Processing {
    * @param newTarget Processing {@link Target}
    */
   public Processing(final Source newSource, final Target newTarget) {
-    this.source = Objects.requireNonNull(newSource);
-    this.target = Objects.requireNonNull(newTarget);
+    this.source = Objects.requireNonNull(newSource, "Source was null.");
+    this.target = Objects.requireNonNull(newTarget, "Target was null.");
     initPool();
   }
 
@@ -136,7 +136,7 @@ public final class Processing {
    * @param newSource New source to use
    */
   public void setSource(final Source newSource) {
-    this.source = Objects.requireNonNull(newSource);
+    this.source = Objects.requireNonNull(newSource, "Source was null.");
   }
 
   /**
@@ -148,8 +148,9 @@ public final class Processing {
    */
   public Processing setSourceAndTarget(final Target
       newTarget) {
-    this.target = Objects.requireNonNull(newTarget);
-    this.source = Objects.requireNonNull(newTarget.getSource());
+    this.target = Objects.requireNonNull(newTarget, "Target was null.");
+    this.source = Objects.requireNonNull(newTarget.getSource(),
+        "Source was null.");
     return this;
   }
 
@@ -159,7 +160,7 @@ public final class Processing {
    * @param newTarget New target to use
    */
   public void setTarget(final Target newTarget) {
-    this.target = Objects.requireNonNull(newTarget);
+    this.target = Objects.requireNonNull(newTarget, "Target was null.");
   }
 
   /**
@@ -331,18 +332,6 @@ public final class Processing {
           new SynchronousQueue<Runnable>());
     }
 
-//    /**
-//     * Here we add our jobs to working queue.
-//     *
-//     * @param task a Runnable task
-//     */
-//    void runTask(final Runnable task) {
-//      if (task == null) {
-//        throw new IllegalArgumentException("Task was null.");
-//      }
-//      threadPool.execute(task);
-//    }
-
     /**
      * Submit the {@link Source} to the thread queue, returning a {@link Future}
      * to track it's state.
@@ -351,7 +340,7 @@ public final class Processing {
      * @return Future to track the state
      */
     Future<Long> runSource(final Source<Long> task) {
-      return threadPool.submit(Objects.requireNonNull(task));
+      return threadPool.submit(Objects.requireNonNull(task, "Task was null."));
     }
 
     /**
@@ -362,7 +351,7 @@ public final class Processing {
      * @return Future to track the state
      */
     Future<Double> runObserver(final SourceObserver<Double> task) {
-      return threadPool.submit(Objects.requireNonNull(task));
+      return threadPool.submit(Objects.requireNonNull(task, "Task was null."));
     }
 
     /**
@@ -373,7 +362,7 @@ public final class Processing {
      * @return Future to track the state
      */
     Future<Boolean> runTarget(final Target<Boolean> task) {
-      return threadPool.submit(Objects.requireNonNull(task));
+      return threadPool.submit(Objects.requireNonNull(task, "Task was null."));
     }
 
     /**

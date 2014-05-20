@@ -222,7 +222,7 @@ public final class ImprovedClarityScore
   protected static ImprovedClarityScore build(
       final Builder builder)
       throws Buildable.BuildableException, IOException {
-    Objects.requireNonNull(builder);
+    Objects.requireNonNull(builder, "Builder was null.");
 
     final ImprovedClarityScore instance = new ImprovedClarityScore();
     // set configuration
@@ -239,15 +239,6 @@ public final class ImprovedClarityScore
     instance.initCache(builder);
 
     return instance;
-  }
-
-  /**
-   * Debug access to the internal store for extended document meta information.
-   *
-   * @return Internal document information manager
-   */
-  protected ExternalDocTermDataManager testGetExtDocMan() {
-    return this.extDocMan;
   }
 
   /**
@@ -456,7 +447,7 @@ public final class ImprovedClarityScore
    * @return Model value for document & term
    */
   double getDocumentModel(final int docId, final ByteArray term) {
-    Objects.requireNonNull(term);
+    assert term != null;
 
     Double model = getDocumentModel(docId).get(term);
     // if term not in document, calculate new value
@@ -541,6 +532,10 @@ public final class ImprovedClarityScore
   double getQueryModel(final ByteArray fbTerm,
       final List<ByteArray> qTerms,
       final Set<Integer> fbDocIds) {
+    assert fbTerm != null;
+    assert qTerms != null && !qTerms.isEmpty();
+    assert fbDocIds != null && !fbDocIds.isEmpty();
+
     Objects.requireNonNull(fbTerm);
     if (Objects.requireNonNull(fbDocIds).isEmpty()) {
       throw new IllegalArgumentException("List of feedback document ids was " +
@@ -574,7 +569,7 @@ public final class ImprovedClarityScore
   @Override
   public Result calculateClarity(final String query)
       throws ClarityScoreCalculationException, IOException {
-    if (Objects.requireNonNull(query).trim().isEmpty()) {
+    if (Objects.requireNonNull(query, "Query was null.").trim().isEmpty()) {
       throw new IllegalArgumentException("Query was empty.");
     }
 
@@ -785,6 +780,9 @@ public final class ImprovedClarityScore
         final int minDocFreq,
         final Queue<ByteArray> reducedFbTerms) {
       super();
+      assert metrics != null;
+      assert reducedFbTerms != null;
+
       this.reducedTermsTarget = reducedFbTerms;
       this.minDf = minDocFreq;
       this.collectionMetrics = metrics;
@@ -921,7 +919,7 @@ public final class ImprovedClarityScore
      */
     void setFeedbackDocIds(final Set<Integer> fbDocIds) {
       this.feedbackDocIds = Collections.unmodifiableSet(
-          Objects.requireNonNull(fbDocIds));
+          Objects.requireNonNull(fbDocIds, "Feedback documents were null."));
     }
 
     /**
@@ -931,7 +929,7 @@ public final class ImprovedClarityScore
      */
     void setFeedbackTerms(final Set<ByteArray> fbTerms) {
       this.feedbackTerms = Collections.unmodifiableSet(Objects
-          .requireNonNull(fbTerms));
+          .requireNonNull(fbTerms, "Feedback terms were null"));
     }
 
     /**
@@ -949,7 +947,7 @@ public final class ImprovedClarityScore
      * @param newConf Configuration used
      */
     void setConf(final ImprovedClarityScoreConfiguration.Conf newConf) {
-      this.conf = Objects.requireNonNull(newConf);
+      this.conf = Objects.requireNonNull(newConf, "Configuration was null.");
     }
 
     /**
@@ -958,7 +956,7 @@ public final class ImprovedClarityScore
      * @param query Query to add
      */
     void addQuery(final String query) {
-      if (Objects.requireNonNull(query).trim().isEmpty()) {
+      if (Objects.requireNonNull(query, "Query was null.").trim().isEmpty()) {
         throw new IllegalArgumentException("Query was empty.");
       }
       this.queries.add(query);
@@ -1037,7 +1035,8 @@ public final class ImprovedClarityScore
      */
     public Builder configuration(
         final ImprovedClarityScoreConfiguration conf) {
-      this.configuration = Objects.requireNonNull(conf);
+      this.configuration = Objects.requireNonNull(conf,
+          "Configuration was null.");
       return this;
     }
 

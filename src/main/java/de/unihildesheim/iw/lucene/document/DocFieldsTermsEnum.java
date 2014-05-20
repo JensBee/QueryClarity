@@ -101,8 +101,9 @@ public final class DocFieldsTermsEnum {
   private DocFieldsTermsEnum(final IndexReader indexReader,
       final Set<String> targetFields, final Integer documentId)
       throws IOException {
-    Objects.requireNonNull(indexReader);
-    if (Objects.requireNonNull(targetFields).isEmpty()) {
+    Objects.requireNonNull(indexReader, "IndexReader was null.");
+    if (Objects.requireNonNull(targetFields, "TargetFields were null").isEmpty
+        ()) {
       throw new IllegalArgumentException("No target fields were specified.");
     }
     this.fields = targetFields.toArray(new String[targetFields.size()]);
@@ -150,9 +151,7 @@ public final class DocFieldsTermsEnum {
    */
   public BytesRef next()
       throws IOException {
-    if (this.docId == null) {
-      throw new IllegalArgumentException("No document-id was specified.");
-    }
+    Objects.requireNonNull(this.docId, "No document-id was specified.");
 
     if (!this.hasEnum) {
       updateCurrentEnum();

@@ -25,8 +25,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -42,12 +40,6 @@ import java.util.Set;
 public abstract class AbstractIndexDataProviderBuilder<T extends
     AbstractIndexDataProviderBuilder<T>>
     implements Buildable {
-
-  /**
-   * Logger instance for this class.
-   */
-  private static final Logger LOG = LoggerFactory.getLogger(
-      AbstractIndexDataProviderBuilder.class);
 
   /**
    * List of stopwords to use.
@@ -109,7 +101,8 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * @param newIdentifier Implementation identifier for the cache
    */
   protected AbstractIndexDataProviderBuilder(final String newIdentifier) {
-    if (newIdentifier == null || newIdentifier.isEmpty()) {
+    if (Objects.requireNonNull(newIdentifier, "Identifier was null.").isEmpty
+        ()) {
       throw new IllegalArgumentException("Empty identifier name.");
     }
     this.identifier = newIdentifier;
@@ -123,7 +116,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * @return Cache name prefixed with current identifier
    */
   private String createCacheName(final String name) {
-    if (name == null || name.isEmpty()) {
+    if (Objects.requireNonNull(name, "Cache name was null.").isEmpty()) {
       throw new IllegalArgumentException("Empty cache name.");
     }
     return this.identifier + "_" + name;
@@ -185,9 +178,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    */
   public final T documentFields(
       final Set<String> fields) {
-    if (fields == null) {
-      throw new IllegalArgumentException("Fields were null.");
-    }
+    Objects.requireNonNull(fields, "Field were null.");
     this.documentFields = fields;
     this.persistenceBuilder.documentFields(fields);
     return getThis();
@@ -214,7 +205,8 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    */
   public final T indexPath(final String filePath)
       throws IOException {
-    if (Objects.requireNonNull(filePath).trim().isEmpty()) {
+    if (Objects.requireNonNull(filePath, "Index path was null").trim().isEmpty
+        ()) {
       throw new IllegalArgumentException("Index path was empty.");
     }
 
@@ -271,7 +263,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * @return Self reference
    */
   public T indexReader(final IndexReader reader) {
-    this.idxReader = Objects.requireNonNull(reader);
+    this.idxReader = Objects.requireNonNull(reader, "IndexReader was null.");
     return getThis();
   }
 

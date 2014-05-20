@@ -27,6 +27,8 @@ import java.util.Set;
 
 /**
  * Simple utilities for working with a Lucene index.
+ *
+ * @author Jens Bertram
  */
 public final class IndexUtils {
 
@@ -43,7 +45,7 @@ public final class IndexUtils {
    * @return Fields list
    */
   public static Collection<String> getFields(final IndexReader reader) {
-    Objects.requireNonNull(reader);
+    Objects.requireNonNull(reader, "IndexReader was null.");
     return MultiFields.getIndexedFields(reader);
   }
 
@@ -56,8 +58,8 @@ public final class IndexUtils {
    */
   public static void checkFields(final IndexReader reader,
       final Set<String> fields) {
-    Objects.requireNonNull(reader);
-    if (Objects.requireNonNull(fields).isEmpty()) {
+    Objects.requireNonNull(reader, "IndexReader was null.");
+    if (Objects.requireNonNull(fields, "Fields were null.").isEmpty()) {
       throw new IllegalArgumentException("No fields specified.");
     }
 

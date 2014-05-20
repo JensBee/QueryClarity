@@ -38,20 +38,20 @@ public final class DocumentModel {
    */
   private static final Logger LOG = LoggerFactory.getLogger(
       DocumentModel.class);
+
   /**
    * Referenced Lucene document id.
    */
-  @SuppressWarnings("checkstyle:visibilitymodifier")
   public final int id;
+
   /**
    * Overall frequency of all terms in the document.
    */
-  @SuppressWarnings("checkstyle:visibilitymodifier")
   public final long termFrequency;
+
   /**
    * Term->document-frequency mapping for every known term in the document.
    */
-  @SuppressWarnings("checkstyle:visibilitymodifier")
   public final Map<ByteArray, Long> termFreqMap;
 
   /**
@@ -86,7 +86,8 @@ public final class DocumentModel {
    * @return True if known
    */
   public boolean contains(final ByteArray term) {
-    return this.termFreqMap.containsKey(Objects.requireNonNull(term));
+    return this.termFreqMap.containsKey(Objects.requireNonNull(term,
+        "Term was null."));
   }
 
   /**
@@ -96,7 +97,8 @@ public final class DocumentModel {
    * @return Frequency in the associated document or <tt>0</tt>, if unknown
    */
   public Long tf(final ByteArray term) {
-    final Long tFreq = this.termFreqMap.get(Objects.requireNonNull(term));
+    final Long tFreq = this.termFreqMap.get(Objects.requireNonNull(term,
+        "Term was null."));
     if (tFreq == null) {
       return 0L;
     }
@@ -150,7 +152,6 @@ public final class DocumentModel {
     }
 
     if (!other.termFreqMap.keySet().containsAll(this.termFreqMap.keySet())) {
-      LOG.debug("FAIL 2");
       return false;
     }
 
@@ -221,7 +222,7 @@ public final class DocumentModel {
      * @param docModel Model to get the data from
      */
     public Builder(final DocumentModel docModel) {
-      Objects.requireNonNull(docModel);
+      Objects.requireNonNull(docModel, "DocumentModel was null.");
 
       this.docId = docModel.id;
       this.termFreqMap = new HashMap<>(docModel.termFreqMap.size());
@@ -251,7 +252,8 @@ public final class DocumentModel {
      */
     public Builder setTermFrequency(final ByteArray term,
         final long freq) {
-      this.termFreqMap.put(Objects.requireNonNull(term), freq);
+      this.termFreqMap.put(Objects.requireNonNull(term, "Term was null."),
+          freq);
       return this;
     }
 
@@ -263,12 +265,14 @@ public final class DocumentModel {
      */
     public Builder setTermFrequency(
         final Map<ByteArray, Long> map) {
+      Objects.requireNonNull(map, "Term frequency map was null.");
       for (final Entry<ByteArray, Long> entry : map.entrySet()) {
-        if (entry.getKey() == null || entry.getValue() == null) {
-          throw new NullPointerException("Encountered null value in "
-              + "termFreqMap.");
-        }
-        this.termFreqMap.put(entry.getKey(), entry.getValue());
+        this.termFreqMap.put(
+            Objects.requireNonNull(entry.getKey(),
+                "Null as key is not allowed."),
+            Objects.requireNonNull(entry.getValue(),
+                "Null as value is not allowed.")
+        );
       }
       return this;
     }
@@ -283,6 +287,32 @@ public final class DocumentModel {
         this.termFreq += tf;
       }
       return new DocumentModel(this);
+    }
+  }
+
+  /**
+   * Wrapper for {@link Exception}s thrown while working with document models.
+   *
+   * @author Jens Bertram
+   */
+  public static class DocumentModelException
+      extends Exception {
+
+    /**
+     * Serialization id.
+     */
+    private static final long serialVersionUID = -3614607208971266570L;
+
+    /**
+     * Create a new generic {@link DocumentModelException} to indicate that
+     * model creation has failed.
+     *
+     * @param exception Originating exception
+     */
+    public DocumentModelException(
+        final ReflectiveOperationException exception) {
+      super("Error instantiating requested document model type.",
+          exception.getCause());
     }
   }
 }

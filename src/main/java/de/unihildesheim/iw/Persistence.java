@@ -65,7 +65,7 @@ public final class Persistence {
    */
   public static final File tryCreateDataPath(final String filePath)
       throws IOException {
-    if (Objects.requireNonNull(filePath).trim().isEmpty()) {
+    if (Objects.requireNonNull(filePath, "Path was null.").trim().isEmpty()) {
       throw new IllegalArgumentException("Data path was empty.");
     }
 
@@ -89,7 +89,7 @@ public final class Persistence {
 
   protected static final Persistence build(final Builder builder,
       final boolean empty) {
-    Objects.requireNonNull(builder);
+    Objects.requireNonNull(builder, "Builder was null.");
 
     final Persistence instance = new Persistence();
     instance.db = builder.getMaker().make();
@@ -139,8 +139,9 @@ public final class Persistence {
   public void updateMetaData(final Set<String> fields,
       final Set<String> stopwords) {
     LOG.debug("Updating meta-data.");
-    meta.setFields(Objects.requireNonNull(fields));
-    meta.setStopWords(Objects.requireNonNull(stopwords));
+    meta.setFields(Objects.requireNonNull(fields, "Fields were null."));
+    meta.setStopWords(Objects.requireNonNull(stopwords,
+        "Stopwords were null."));
   }
 
   /**
@@ -204,7 +205,7 @@ public final class Persistence {
      * @param newFields Fields list
      */
     protected void setFields(final Set<String> newFields) {
-      Objects.requireNonNull(newFields);
+      Objects.requireNonNull(newFields, "Fields were null.");
 
       this.fields.clear();
       this.fields.addAll(newFields);
@@ -216,7 +217,7 @@ public final class Persistence {
      * @param newStopwords List of stopwords
      */
     protected void setStopWords(final Set<String> newStopwords) {
-      Objects.requireNonNull(newStopwords);
+      Objects.requireNonNull(newStopwords, "Stopwords were null.");
 
       this.stopWords.clear();
       this.stopWords.addAll(newStopwords);
@@ -230,7 +231,7 @@ public final class Persistence {
      * @return True, if both contain the same field names.
      */
     public boolean fieldsCurrent(final Set<String> currentFields) {
-      Objects.requireNonNull(currentFields);
+      Objects.requireNonNull(currentFields, "Fields were null.");
 
       if (this.fields == null) {
         throw new IllegalStateException("Fields meta information not set.");
@@ -248,7 +249,7 @@ public final class Persistence {
      * @return True, if both contain the same list of stopwords.
      */
     public boolean stopWordsCurrent(final Set<String> currentWords) {
-      Objects.requireNonNull(currentWords);
+      Objects.requireNonNull(currentWords, "Stopwords were null.");
 
       if (this.stopWords == null) {
         throw new IllegalStateException("Stopword meta information not set.");
@@ -264,7 +265,7 @@ public final class Persistence {
      * @return True, if both generation numbers are the same.
      */
     public boolean generationCurrent(final Long currentGen) {
-      Objects.requireNonNull(currentGen);
+      Objects.requireNonNull(currentGen, "Commit generation was null.");
 
       if (this.indexCommitGen == null) {
         throw new IllegalStateException("Commit generation "
@@ -372,7 +373,8 @@ public final class Persistence {
     }
 
     public Builder dataPath(final String newDataPath) {
-      if (Objects.requireNonNull(newDataPath).trim().isEmpty()) {
+      if (Objects.requireNonNull(newDataPath, "Path was null.").trim().isEmpty
+          ()) {
         throw new IllegalArgumentException("Empty data path.");
       }
       this.dataPath = newDataPath;
@@ -380,7 +382,7 @@ public final class Persistence {
     }
 
     public Builder name(final String newName) {
-      if (Objects.requireNonNull(newName).trim().isEmpty()) {
+      if (Objects.requireNonNull(newName, "Name was null.").trim().isEmpty()) {
         throw new IllegalArgumentException("Empty cache name.");
       }
       if (this.isTemporary) {
@@ -426,9 +428,8 @@ public final class Persistence {
       this.dbMkr
           .transactionDisable()
           .commitFileSyncDisable()
-          .asyncWriteEnable()
-          .asyncWriteFlushDelay(DB_ASYNC_WRITEFLUSH_DELAY)
           .mmapFileEnableIfSupported()
+          .commitFileSyncDisable()
           .compressionEnable()
           .closeOnJvmShutdown();
       return this;
@@ -454,7 +455,7 @@ public final class Persistence {
      * @param words List of stopwords. May be empty.
      */
     public Builder stopwords(final Set<String> words) {
-      this.stopwords = Objects.requireNonNull(words);
+      this.stopwords = Objects.requireNonNull(words, "Stopwords were null.");
       return this;
     }
 
@@ -470,7 +471,7 @@ public final class Persistence {
      */
     public Builder documentFields(
         final Set<String> fields) {
-      this.documentFields = Objects.requireNonNull(fields);
+      this.documentFields = Objects.requireNonNull(fields, "Fields were null.");
       return this;
     }
 

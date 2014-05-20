@@ -49,12 +49,14 @@ public final class Metrics {
   private final Map<Integer, DocumentModel> docModelCache = new SoftHashMap<>();
 
   public Metrics(final IndexDataProvider dataProvider) {
-    this.dataProv = Objects.requireNonNull(dataProvider);
+    this.dataProv = Objects.requireNonNull(dataProvider,
+        "IndexDataProvider was null.");
     this.collection = new CollectionMetrics();
   }
 
   public DocumentMetrics document(final DocumentModel docModel) {
-    return new DocumentMetrics(Objects.requireNonNull(docModel));
+    return new DocumentMetrics(Objects.requireNonNull(docModel,
+        "Document-model was null."));
   }
 
   public DocumentMetrics document(final int docId) {
@@ -110,7 +112,8 @@ public final class Metrics {
      * @return Document frequency of the given term
      */
     public Integer df(final ByteArray term) {
-      return dataProv.getDocumentFrequency(Objects.requireNonNull(term));
+      return dataProv.getDocumentFrequency(Objects.requireNonNull(term,
+          "Term was null."));
     }
 
     /**
@@ -120,7 +123,8 @@ public final class Metrics {
      * @return Collection frequency of the given term
      */
     public Long tf(final ByteArray term) {
-      return dataProv.getTermFrequency(Objects.requireNonNull(term));
+      return dataProv.getTermFrequency(Objects.requireNonNull(term,
+          "Term was null."));
     }
 
     /**
@@ -141,7 +145,8 @@ public final class Metrics {
      * @return Relative collection frequency of the given term
      */
     public Double relTf(final ByteArray term) {
-      return dataProv.getRelativeTermFrequency(Objects.requireNonNull(term));
+      return dataProv.getRelativeTermFrequency(Objects.requireNonNull(term,
+          "Term was null."));
     }
 
     /**
@@ -164,7 +169,7 @@ public final class Metrics {
      * @return Inverse document frequency (logN)
      */
     public Double idf(final ByteArray term, final double logBase) {
-      Objects.requireNonNull(term);
+      Objects.requireNonNull(term, "Term was null.");
       return MathUtils.logN(logBase, 1 + (numberOfDocuments() / df(term)));
     }
 
@@ -188,7 +193,7 @@ public final class Metrics {
      * @return Inverse document frequency BM25 (logN)
      */
     public Double idfBM25(final ByteArray term, final double logBase) {
-      final int docFreq = df(Objects.requireNonNull(term));
+      final int docFreq = df(Objects.requireNonNull(term, "Term was null."));
       return MathUtils.logN(logBase, (numberOfDocuments() - docFreq + 0.5)
           / (docFreq + 0.5));
     }
@@ -235,7 +240,8 @@ public final class Metrics {
     private final DocumentModel docModel;
 
     public DocumentMetrics(final DocumentModel documentModel) {
-      this.docModel = Objects.requireNonNull(documentModel);
+      this.docModel = Objects.requireNonNull(documentModel,
+          "Document-model was null.");
     }
 
     /**
@@ -245,7 +251,7 @@ public final class Metrics {
      * @return Frequency value
      */
     public double wdf(final ByteArray term) {
-      Objects.requireNonNull(term);
+      Objects.requireNonNull(term, "Term was null.");
       return MathUtils.log2(tf(term).doubleValue() + 1) /
           MathUtils.log2(tf().doubleValue());
     }
@@ -266,7 +272,7 @@ public final class Metrics {
      * @return Frequency of the given term in the given document
      */
     public Long tf(final ByteArray term) {
-      Objects.requireNonNull(term);
+      Objects.requireNonNull(term, "Term was null.");
       final Long freq = this.docModel.termFreqMap.get(term);
       if (freq == null) {
         return 0L;
@@ -292,7 +298,7 @@ public final class Metrics {
      * @return Relative frequency. Zero if term is not in document.
      */
     public Double relTf(final ByteArray term) {
-      Objects.requireNonNull(term);
+      Objects.requireNonNull(term, "Term was null.");
       final Long tf = this.docModel.tf(term);
       if (tf == 0) {
         return 0.0;
@@ -308,7 +314,8 @@ public final class Metrics {
      * @return True, if term is in document
      */
     public boolean contains(final ByteArray term) {
-      return this.docModel.contains(Objects.requireNonNull(term));
+      return this.docModel.contains(Objects.requireNonNull(term,
+          "Term was null."));
     }
 
     /**
@@ -322,7 +329,7 @@ public final class Metrics {
      */
     public double smoothedRelativeTermFrequency(final ByteArray term,
         final double smoothing) {
-      Objects.requireNonNull(term);
+      Objects.requireNonNull(term, "Term was null.");
       final double termFreq = this.docModel.tf(term).doubleValue();
       final double relCollFreq = relTf(term);
       return ((termFreq + smoothing) * relCollFreq) / (termFreq + (Integer.

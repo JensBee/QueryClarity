@@ -107,6 +107,8 @@ public class MultiIndexDataProviderTestCase
   protected MultiIndexDataProviderTestCase(final DataProviders dataProv,
       final RunType rType) {
     super();
+    assert dataProv != null;
+    assert rType != null;
     this.dpType = dataProv;
     this.runType = rType;
   }

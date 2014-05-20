@@ -21,9 +21,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Objects;
 import java.util.Properties;
 
 /**
@@ -64,14 +65,16 @@ public class ConfigurationFile
   public ConfigurationFile(final String newFileName)
       throws IOException {
     super();
+    if (Objects.requireNonNull(newFileName, "Filename was null.").trim()
+        .isEmpty()) {
+      throw new IllegalArgumentException("Empty filename.");
+    }
     this.fileName = newFileName;
     this.prop = new Properties();
-    final InputStream pIn = getClass().getClassLoader().getResourceAsStream
-        (this.fileName);
-    if (pIn != null) {
-      prop.load(pIn);
-      pIn.close();
+    try (FileReader reader = new FileReader(this.fileName)) {
+      this.prop.load(reader);
     }
+    LOG.info("Configuration loaded from '{}'", this.fileName);
     setProperties(prop);
   }
 

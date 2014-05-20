@@ -92,7 +92,7 @@ public final class SimplifiedClarityScore
    */
   protected static SimplifiedClarityScore build(final Builder
       builder) {
-    Objects.requireNonNull(builder);
+    Objects.requireNonNull(builder, "Builder was null.");
     final SimplifiedClarityScore instance = new SimplifiedClarityScore();
 
     // set configuration
@@ -148,7 +148,7 @@ public final class SimplifiedClarityScore
   @Override
   public ClarityScoreResult calculateClarity(final String query)
       throws ClarityScoreCalculationException {
-    if (Objects.requireNonNull(query).trim().isEmpty()) {
+    if (Objects.requireNonNull(query, "Query was null.").trim().isEmpty()) {
       throw new IllegalArgumentException("Query was empty.");
     }
 

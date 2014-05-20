@@ -116,7 +116,7 @@ public final class DirectIndexDataProvider
   protected static DirectIndexDataProvider build(final Builder builder)
       throws IOException, Buildable.BuildableException, DataProviderException,
              ProcessingException {
-    Objects.requireNonNull(builder);
+    Objects.requireNonNull(builder, "Builder was null.");
 
     final DirectIndexDataProvider instance = new DirectIndexDataProvider
         (builder.isTemporary);
@@ -413,6 +413,8 @@ public final class DirectIndexDataProvider
 
     LOG.info("Updating database.");
     getDb().commit();
+    LOG.info("Compacting database.");
+    getDb().compact();
   }
 
   /**
@@ -495,12 +497,11 @@ public final class DirectIndexDataProvider
   public Set<ByteArray> getDocumentsTermSet(
       final Collection<Integer> docIds)
       throws IOException {
-    if (Objects.requireNonNull(docIds).isEmpty()) {
+    if (Objects.requireNonNull(docIds, "Document ids were null.").isEmpty()) {
       throw new IllegalArgumentException("Document id list was empty.");
     }
 
     final Set<Integer> uniqueDocIds = new HashSet<>(docIds);
-    @SuppressWarnings("CollectionWithoutInitialCapacity")
     final Set<ByteArray> terms = new HashSet<>();
     final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(getIndexReader(),
         getDocumentFields());
@@ -538,7 +539,7 @@ public final class DirectIndexDataProvider
    */
   @Override
   public boolean documentContains(final int documentId, final ByteArray term) {
-    Objects.requireNonNull(term);
+    Objects.requireNonNull(term, "Term was null.");
 
     if (isStopword(term)) {
       // skip stop-words
@@ -573,7 +574,7 @@ public final class DirectIndexDataProvider
    */
   @Override
   public int getDocumentFrequency(final ByteArray term) {
-    Objects.requireNonNull(term);
+    Objects.requireNonNull(term, "Term was null.");
     if (isStopword(term)) {
       // skip stop-words
       return 0;
@@ -821,8 +822,6 @@ public final class DirectIndexDataProvider
           }
 
           this.docsEnum = this.termsEnum.docs(bits, this.docsEnum);
-//          final DocsEnum docsEnum = reader.termDocsEnum(new Term
-//              (field, termBr));
 
           if (this.docsEnum == null) {
             // field or term does not exist
@@ -975,14 +974,12 @@ public final class DirectIndexDataProvider
     public void run() {
       if (this.finished && tm.getElapsedMillis() >= this.period) {
         this.finished = false;
+        tm.stop().start();
         LOG.info("Updating database.");
         getDb().commit();
-        LOG.info("Updating database done.");
+        LOG.info("Database updated. ({})", tm.stop().getTimeString());
         this.finished = true;
         tm.start();
-      } else {
-        LOG.debug("Skip commit. f={} p={} e={}", this.finished,
-            this.period, tm.getElapsedMillis());
       }
     }
   }

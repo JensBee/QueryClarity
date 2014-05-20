@@ -81,7 +81,7 @@ public final class SourceObserver<T>
    */
   public SourceObserver(final int threadCount, final Source newSource) {
     this.terminate = false;
-    this.source = Objects.requireNonNull(newSource);
+    this.source = Objects.requireNonNull(newSource, "Source was null.");
     this.overallTime = new TimeMeasure();
     this.runTime = new TimeMeasure();
     this.numberOfThreads = threadCount;
@@ -227,39 +227,6 @@ public final class SourceObserver<T>
           }
         }
       }
-
-//      while (!this.terminate) {
-//        if (hasItemCount) {
-//          status = this.source.getSourcedItemCount();
-//        }
-//
-//        // check if max wait time elapsed
-//        if (this.runTime.getElapsedSeconds() > INTERVAL) {
-//          this.runTime.stop();
-//          if (hasItemCount) {
-//            lastStatus = status;
-//            showStatus(itemCount, lastStatus);
-//          } else {
-//            showStatus();
-//          }
-//          this.runTime.start();
-//        } else if (hasItemCount && step > 0 && lastStatus < status
-//            && status % step == 0) {
-//          // max wait time not elapsed, check if we should provide
-//          // a status based on progress
-//          this.runTime.stop();
-//          lastStatus = status;
-//          showStatus(itemCount, lastStatus);
-//          this.runTime.start();
-//        }
-//
-//        // wait a bit, till next update
-//        synchronized (this) {
-//          if (!this.terminate) {
-//            this.wait(UPDATE_INTERVAL);
-//          }
-//        }
-//      }
     } catch (ProcessingException ex) {
       LOG.error("Caught exception while running observer.", ex);
     } catch (InterruptedException ex) {

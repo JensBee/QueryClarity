@@ -87,13 +87,13 @@ public final class SimpleTermsQuery
       final Set<String> stopwords)
       throws ParseException {
     super();
-    if (Objects.requireNonNull(fields).isEmpty()) {
+    if (Objects.requireNonNull(fields, "Fields were null.").isEmpty()) {
       throw new IllegalArgumentException("Empty fields list.");
     }
-    if (Objects.requireNonNull(query).trim().isEmpty()) {
+    if (Objects.requireNonNull(query, "Query was null.").trim().isEmpty()) {
       throw new IllegalArgumentException("Empty query.");
     }
-    Objects.requireNonNull(stopwords);
+    Objects.requireNonNull(stopwords, "Stopwords were null.");
 
     LOG.debug("STQ q({})={} op={} f={} s({})={}", query.split(" ").length,
         query, operator, fields, stopwords.size(), stopwords);
@@ -160,7 +160,7 @@ public final class SimpleTermsQuery
 
   @Override
   public String toString(final String field) {
-    if (Objects.requireNonNull(field).trim().isEmpty()) {
+    if (Objects.requireNonNull(field, "Field was null.").trim().isEmpty()) {
       throw new IllegalArgumentException("Field name was empty.");
     }
     return "SimpleTermQuery: " + queryObj.toString(field);
@@ -174,7 +174,8 @@ public final class SimpleTermsQuery
   @Override
   public Weight createWeight(final IndexSearcher searcher)
       throws IOException {
-    return new SimpleTermQueryWeight(Objects.requireNonNull(searcher));
+    return new SimpleTermQueryWeight(Objects.requireNonNull(searcher,
+        "Searcher was null."));
   }
 
   /**
@@ -198,7 +199,7 @@ public final class SimpleTermsQuery
     public SimpleTermQueryWeight(final IndexSearcher searcher)
         throws IOException {
       super();
-      Objects.requireNonNull(searcher);
+      Objects.requireNonNull(searcher, "Searcher was null.");
       stqWeight = getQueryObj().createWeight(searcher);
     }
 
@@ -230,7 +231,7 @@ public final class SimpleTermsQuery
         final boolean scoreDocsInOrder,
         final boolean topScorer, final Bits acceptDocs)
         throws IOException {
-      Objects.requireNonNull(context);
+      Objects.requireNonNull(context, "Context was null.");
       return stqWeight.scorer(context, scoreDocsInOrder, topScorer, acceptDocs);
     }
   }

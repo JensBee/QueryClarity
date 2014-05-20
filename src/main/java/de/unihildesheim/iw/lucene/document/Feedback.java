@@ -56,7 +56,7 @@ public final class Feedback {
   /**
    * Get a number of feedback documents matching a query.
    *
-   * @param reader Reader to access Lucene's index
+   * @param reader Reader to access the Lucene index
    * @param query Query to get matching documents
    * @param maxDocCount Maximum number of documents to get. The number of
    * results may be lower, if there were less matching documents. If <tt>-1</tt>
@@ -126,7 +126,7 @@ public final class Feedback {
   /**
    * Get a number of feedback documents matching a query.
    *
-   * @param reader Reader to access Lucene's index
+   * @param reader Reader to access the Lucene index
    * @param query Query to get matching documents
    * @param docCount Number of documents to return
    * @return List of Lucene document ids
@@ -135,8 +135,8 @@ public final class Feedback {
   public static Set<Integer> get(final IndexReader reader,
       final Query query, final int docCount)
       throws IOException {
-    Objects.requireNonNull(reader);
-    Objects.requireNonNull(query);
+    Objects.requireNonNull(reader, "IndexReader was null.");
+    Objects.requireNonNull(query, "Query was null.");
 
     final TimeMeasure timeMeasure = new TimeMeasure().start();
     if (LOG.isDebugEnabled()) {
@@ -183,12 +183,8 @@ public final class Feedback {
   public static Set<Integer> getFixed(final IndexReader reader,
       final Query query, final int docCount)
       throws IOException {
-    if (reader == null) {
-      throw new IllegalArgumentException("Reader was null.");
-    }
-    if (query == null) {
-      throw new IllegalArgumentException("Query was null.");
-    }
+    Objects.requireNonNull(reader, "IndexReader was null.");
+    Objects.requireNonNull(query, "Query was null.");
 
     final TimeMeasure timeMeasure = new TimeMeasure().start();
     LOG.debug("Getting {} feedback documents...", docCount);

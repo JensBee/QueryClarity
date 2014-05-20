@@ -46,8 +46,8 @@ public final class StringUtils {
    * @return Joined string
    */
   public static String join(final String[] strings, final String separator) {
-    Objects.requireNonNull(strings);
-    Objects.requireNonNull(separator);
+    Objects.requireNonNull(strings, "Strings were null.");
+    Objects.requireNonNull(separator, "Separator was null.");
 
     // estimate final length
     int approxLength = 0;
@@ -75,8 +75,8 @@ public final class StringUtils {
    */
   public static String join(final Collection<String> strings,
       final String separator) {
-    Objects.requireNonNull(separator);
-    Objects.requireNonNull(strings);
+    Objects.requireNonNull(separator, "Separator was null.");
+    Objects.requireNonNull(strings, "Strings were null.");
 
     // short circuit, if list is empty
     if (strings.isEmpty()) {
@@ -110,8 +110,8 @@ public final class StringUtils {
    */
   public static Collection<String> split(final String str,
       final String separator) {
-    Objects.requireNonNull(str);
-    Objects.requireNonNull(separator);
+    Objects.requireNonNull(str, "String was null.");
+    Objects.requireNonNull(separator, "Seperator was null.");
 
     if (str.isEmpty() || str.length() <= 1) {
       return Arrays.asList(new String[]{str});
@@ -127,7 +127,7 @@ public final class StringUtils {
    * @return Lower-cased input string
    */
   public static String lowerCase(final String input) {
-    Objects.requireNonNull(input);
+    Objects.requireNonNull(input, "String was null.");
 
     if (input.trim().isEmpty()) {
       return input;
@@ -153,8 +153,8 @@ public final class StringUtils {
    */
   public static Map<String, Integer> countWords(final String text,
       final Locale locale) {
-    Objects.requireNonNull(text);
-    Objects.requireNonNull(locale);
+    Objects.requireNonNull(text, "String was null.");
+    Objects.requireNonNull(locale, "Locale was null.");
 
     final Map<String, Integer> wordCounts = new HashMap<>();
 

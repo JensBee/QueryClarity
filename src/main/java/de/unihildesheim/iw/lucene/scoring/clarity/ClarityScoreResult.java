@@ -42,7 +42,7 @@ public class ClarityScoreResult
   ClarityScoreResult(final Class<? extends ClarityScoreCalculation> cscType,
       final double clarityScore) {
     super();
-    this.type = Objects.requireNonNull(cscType);
+    this.type = Objects.requireNonNull(cscType, "Score type was null.");
     _setScore(clarityScore);
   }
 
@@ -53,7 +53,7 @@ public class ClarityScoreResult
    */
   ClarityScoreResult(final Class<? extends ClarityScoreCalculation> cscType) {
     super();
-    this.type = Objects.requireNonNull(cscType);
+    this.type = Objects.requireNonNull(cscType, "Score type was null.");
   }
 
   /**

@@ -55,7 +55,7 @@ public abstract class Target<T>
    * @param newSource <tt>Source</tt> to use
    */
   public Target(final Source<T> newSource) {
-    this.source = Objects.requireNonNull(newSource);
+    this.source = Objects.requireNonNull(newSource, "Source was null.");
     this.terminate = false;
   }
 
@@ -106,7 +106,7 @@ public abstract class Target<T>
    * @param newLatch Shared latch to track running threads.
    */
   public final void setLatch(final CountDownLatch newLatch) {
-    this.latch = Objects.requireNonNull(newLatch);
+    this.latch = Objects.requireNonNull(newLatch, "Latch was null.");
   }
 
   /**

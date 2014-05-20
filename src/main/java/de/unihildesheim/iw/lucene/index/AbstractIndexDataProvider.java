@@ -64,11 +64,6 @@ abstract class AbstractIndexDataProvider
       AbstractIndexDataProvider.class);
 
   /**
-   * Write flush delay for async writes of database data.
-   */
-  private static final int DB_ANSYNC_WRITEFLUSH_DELAY = 100;
-
-  /**
    * Flag indicating, if caches are filled (warmed).
    */
   private boolean warmed;
@@ -175,7 +170,7 @@ abstract class AbstractIndexDataProvider
    * @param reader Reader to use
    */
   protected void setIndexReader(final IndexReader reader) {
-    this.idxReader = Objects.requireNonNull(reader);
+    this.idxReader = Objects.requireNonNull(reader, "IndexReader was null.");
   }
 
   /**
@@ -202,7 +197,7 @@ abstract class AbstractIndexDataProvider
    * @param fields List of document field names
    */
   protected void setDocumentFields(final Set<String> fields) {
-    if (Objects.requireNonNull(fields).isEmpty()) {
+    if (Objects.requireNonNull(fields, "Fields were null.").isEmpty()) {
       throw new IllegalArgumentException("Field list was empty.");
     }
     this.documentFields = fields;
@@ -222,7 +217,7 @@ abstract class AbstractIndexDataProvider
    */
   protected void setStopwords(final Set<String> words)
       throws UnsupportedEncodingException {
-    this.stopwordsStr = Objects.requireNonNull(words);
+    this.stopwordsStr = Objects.requireNonNull(words, "Stopwords were null.");
     this.stopwords = new HashSet<>();
     for (final String word : words) {
       // terms in Lucene are UTF-8 encoded
@@ -242,7 +237,7 @@ abstract class AbstractIndexDataProvider
    * @param newDb
    */
   protected void setDb(final DB newDb) {
-    this.db = Objects.requireNonNull(newDb);
+    this.db = Objects.requireNonNull(newDb, "DB was null.");
   }
 
   /**
@@ -260,7 +255,8 @@ abstract class AbstractIndexDataProvider
    * @param newIdxTerms
    */
   protected void setIdxTerms(final Set<ByteArray> newIdxTerms) {
-    this.idxTerms = Objects.requireNonNull(newIdxTerms);
+    this.idxTerms = Objects.requireNonNull(newIdxTerms,
+        "Index term set was null.");
   }
 
   /**
@@ -274,7 +270,8 @@ abstract class AbstractIndexDataProvider
 
   protected void setIdxDfMap(final ConcurrentNavigableMap<ByteArray,
       Integer> map) {
-    this.idxDfMap = Objects.requireNonNull(map);
+    this.idxDfMap = Objects.requireNonNull(map, "Index document-frequency map" +
+        " was null.");
   }
 
   protected ConcurrentNavigableMap<ByteArray, Integer> getIdxDfMap() {
@@ -283,7 +280,8 @@ abstract class AbstractIndexDataProvider
 
   protected void setCachedFieldsMap(final Map<String,
       SerializableByte> newFieldsMap) {
-    this.cachedFieldsMap = Objects.requireNonNull(newFieldsMap);
+    this.cachedFieldsMap = Objects.requireNonNull(newFieldsMap,
+        "Cached fields map was null.");
   }
 
   protected Map<String, SerializableByte> getCachedFieldsMap() {
@@ -291,7 +289,7 @@ abstract class AbstractIndexDataProvider
   }
 
   protected void addFieldToCacheMap(final String field) {
-    if (Objects.requireNonNull(field).trim().isEmpty()) {
+    if (Objects.requireNonNull(field, "Field was null.").trim().isEmpty()) {
       throw new IllegalArgumentException("Field was empty.");
     }
 
@@ -309,7 +307,8 @@ abstract class AbstractIndexDataProvider
 
   protected void setIdxTermsMap(final ConcurrentNavigableMap<Fun.Tuple2<
       SerializableByte, ByteArray>, Long> newIdxTermsMap) {
-    this.idxTermsMap = Objects.requireNonNull(newIdxTermsMap);
+    this.idxTermsMap = Objects.requireNonNull(newIdxTermsMap,
+        "Index terms map was null.");
   }
 
   protected ConcurrentNavigableMap<Fun.Tuple2<
@@ -319,7 +318,8 @@ abstract class AbstractIndexDataProvider
 
   protected void setIdxDocTermsMap(final ConcurrentNavigableMap<Fun.Tuple3<
       SerializableByte, Integer, ByteArray>, Integer> newIdxDocTermsMap) {
-    this.idxDocTermsMap = Objects.requireNonNull(newIdxDocTermsMap);
+    this.idxDocTermsMap = Objects.requireNonNull(newIdxDocTermsMap,
+        "Index document term-frequency map was null.");
   }
 
   protected ConcurrentNavigableMap<Fun.Tuple3<
@@ -328,7 +328,8 @@ abstract class AbstractIndexDataProvider
   }
 
   protected void setIdxDocumentIds(final Set<Integer> docIds) {
-    this.idxDocumentIds = Objects.requireNonNull(docIds);
+    this.idxDocumentIds = Objects.requireNonNull(docIds,
+        "Document ids were null.");
   }
 
   protected Set<Integer> getIdxDocumentIds() {
@@ -336,7 +337,7 @@ abstract class AbstractIndexDataProvider
   }
 
   protected void setIdxTf(final Long tf) {
-    this.idxTf = tf;
+    this.idxTf = Objects.requireNonNull(tf, "Term frequency value was null.");
   }
 
   protected Long getIdxTf() {
@@ -350,7 +351,8 @@ abstract class AbstractIndexDataProvider
    * @return True, if it's a stopword
    */
   protected boolean isStopword(final ByteArray word) {
-    return this.stopwords.contains(Objects.requireNonNull(word));
+    return this.stopwords.contains(Objects.requireNonNull(word,
+        "Term was null."));
   }
 
   /**
@@ -361,7 +363,7 @@ abstract class AbstractIndexDataProvider
    */
   protected boolean isStopword(final String word)
       throws UnsupportedEncodingException {
-    if (Objects.requireNonNull(word).trim().isEmpty()) {
+    if (Objects.requireNonNull(word, "Term was null.").trim().isEmpty()) {
       throw new IllegalArgumentException("Term was empty.");
     }
     return isStopword(new ByteArray(word.getBytes("UTF-8")));
@@ -374,7 +376,8 @@ abstract class AbstractIndexDataProvider
    * @return True, if it's a stopword
    */
   protected boolean isStopword(final BytesRef word) {
-    return isStopword(BytesRefUtils.toByteArray(Objects.requireNonNull(word)));
+    return isStopword(BytesRefUtils.toByteArray(Objects.requireNonNull(word,
+        "Term was null.")));
   }
 
   /**
@@ -383,7 +386,8 @@ abstract class AbstractIndexDataProvider
    * @param cGen Generation id
    */
   protected void setLastIndexCommitGeneration(final Long cGen) {
-    this.indexLastCommitGeneration = cGen;
+    this.indexLastCommitGeneration = Objects.requireNonNull(cGen,
+        "Commit generation was null.");
   }
 
   @Override
@@ -534,7 +538,7 @@ abstract class AbstractIndexDataProvider
    */
   @SuppressWarnings("checkstyle:methodname")
   final Long _getTermFrequency(final ByteArray term) {
-    Objects.requireNonNull(term);
+    Objects.requireNonNull(term, "Term was null.");
 
     Long tf = 0L;
     for (final String field : this.documentFields) {
@@ -552,7 +556,8 @@ abstract class AbstractIndexDataProvider
    */
   @Override
   public final Long getTermFrequency(final ByteArray term) {
-    if (this.stopwords.contains(Objects.requireNonNull(term))) {
+    if (this.stopwords.contains(Objects.requireNonNull(term,
+        "Term was null."))) {
       // skip stop-words
       return 0L;
     }
@@ -651,7 +656,8 @@ abstract class AbstractIndexDataProvider
    */
   @Override
   public final double getRelativeTermFrequency(final ByteArray term) {
-    if (this.stopwords.contains(Objects.requireNonNull(term))) {
+    if (this.stopwords.contains(Objects.requireNonNull(term,
+        "Term was null."))) {
       // skip stop-words
       return 0d;
     }
@@ -764,7 +770,7 @@ abstract class AbstractIndexDataProvider
      * @return Maker for {@link #idxTerms}
      */
     static DB.BTreeSetMaker idxTermsMaker(final DB db) {
-      return Objects.requireNonNull(db)
+      return Objects.requireNonNull(db, "DB was null.")
           .createTreeSet(Caches.IDX_TERMS.name())
           .serializer(new BTreeKeySerializer.BasicKeySerializer(
               ByteArray.SERIALIZER))
@@ -778,7 +784,7 @@ abstract class AbstractIndexDataProvider
      * @return Maker for {@link #idxDfMap}
      */
     static DB.BTreeMapMaker idxDfMapMaker(final DB db) {
-      return Objects.requireNonNull(db)
+      return Objects.requireNonNull(db, "DB was null.")
           .createTreeMap(Caches.IDX_DFMAP.name())
           .keySerializerWrap(ByteArray.SERIALIZER)
           .valueSerializer(Serializer.INTEGER)
@@ -792,7 +798,7 @@ abstract class AbstractIndexDataProvider
      * @return Maker for {@link #idxTermsMap}
      */
     static DB.BTreeMapMaker idxTermsMapMkr(final DB db) {
-      return Objects.requireNonNull(db)
+      return Objects.requireNonNull(db, "DB was null.")
           .createTreeMap(Stores.IDX_TERMS_MAP.name())
           .keySerializer(DbMakers.IDX_TERMSMAP_KEYSERIALIZER)
           .valueSerializer(Serializer.LONG)
@@ -806,7 +812,7 @@ abstract class AbstractIndexDataProvider
      * @return Maker for {@link #idxTermsMap}
      */
     static DB.BTreeMapMaker idxDocTermsMapMkr(final DB db) {
-      return Objects.requireNonNull(db)
+      return Objects.requireNonNull(db, "DB was null.")
           .createTreeMap(Stores.IDX_DOC_TERMS_MAP.name())
           .keySerializer(DbMakers.IDX_DOCTERMSMAP_KEYSERIALIZER)
           .valueSerializer(Serializer.INTEGER)
@@ -820,7 +826,7 @@ abstract class AbstractIndexDataProvider
      * @return Maker for {@link #cachedFieldsMap}
      */
     static DB.BTreeMapMaker cachedFieldsMapMaker(final DB db) {
-      return Objects.requireNonNull(db)
+      return Objects.requireNonNull(db, "DB was null.")
           .createTreeMap(Caches.IDX_FIELDS.name())
           .keySerializer(BTreeKeySerializer.STRING)
           .valueSerializer(SerializableByte.SERIALIZER)
@@ -834,7 +840,7 @@ abstract class AbstractIndexDataProvider
      * @return List of missing {@link Stores}
      */
     static Collection<Stores> checkStores(final DB db) {
-      Objects.requireNonNull(db);
+      Objects.requireNonNull(db, "DB was null.");
 
       final Collection<Stores> miss = new ArrayList<>(Stores.values().length);
       for (final Stores s : Stores.values()) {
@@ -852,7 +858,7 @@ abstract class AbstractIndexDataProvider
      * @return List of missing {@link Stores}
      */
     static Collection<Caches> checkCaches(final DB db) {
-      Objects.requireNonNull(db);
+      Objects.requireNonNull(db, "DB was null.");
 
       final Collection<Caches> miss =
           new ArrayList<>(Caches.values().length);

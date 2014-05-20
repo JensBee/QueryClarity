@@ -177,7 +177,7 @@ public final class DefaultClarityScore
    */
   protected static DefaultClarityScore build(final Builder builder)
       throws IOException, Buildable.BuildableException {
-    Objects.requireNonNull(builder);
+    Objects.requireNonNull(builder, "Builder was null.");
     final DefaultClarityScore instance = new DefaultClarityScore();
 
     // set configuration
@@ -276,7 +276,8 @@ public final class DefaultClarityScore
    * @return The calculated default model value
    */
   double getDefaultDocumentModel(final ByteArray term) {
-    assert (this.defaultDocModels != null); // must be initialized
+    assert this.defaultDocModels != null; // must be initialized
+    assert term != null;
 
     Double model = this.defaultDocModels.get(term);
     if (model == null) {
@@ -334,6 +335,10 @@ public final class DefaultClarityScore
    */
   double getQueryModel(final ByteArray term, final Set<Integer> fbDocIds,
       final Set<ByteArray> qTerms) {
+    assert term != null;
+    assert fbDocIds != null && !fbDocIds.isEmpty();
+    assert qTerms != null && !qTerms.isEmpty();
+
     double model = 0d;
     // throw all terms together
     final List<ByteArray> terms = new ArrayList<>(qTerms);
@@ -468,7 +473,7 @@ public final class DefaultClarityScore
   @Override
   public Result calculateClarity(final String query)
       throws ClarityScoreCalculationException {
-    if (Objects.requireNonNull(query).trim().isEmpty()) {
+    if (Objects.requireNonNull(query, "Query was null.").trim().isEmpty()) {
       throw new IllegalArgumentException("Query was empty.");
     }
 
@@ -776,7 +781,8 @@ public final class DefaultClarityScore
      * @return Self reference
      */
     public Builder configuration(final DefaultClarityScoreConfiguration conf) {
-      this.configuration = Objects.requireNonNull(conf);
+      this.configuration = Objects.requireNonNull(conf,
+          "Configuration was null.");
       return this;
     }
 

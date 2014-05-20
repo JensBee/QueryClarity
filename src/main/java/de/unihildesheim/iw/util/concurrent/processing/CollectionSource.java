@@ -51,7 +51,7 @@ public final class CollectionSource<T>
    */
   public CollectionSource(final Collection<T> coll) {
     super();
-    if (Objects.requireNonNull(coll).isEmpty()) {
+    if (Objects.requireNonNull(coll, "Collection was null.").isEmpty()) {
       throw new IllegalArgumentException("Empty collection.");
     }
     this.sourcedItemCount = new AtomicLong(0);

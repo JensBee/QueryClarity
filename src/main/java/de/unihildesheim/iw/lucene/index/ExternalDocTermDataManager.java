@@ -62,8 +62,9 @@ public final class ExternalDocTermDataManager {
    * @param newPrefix Prefix
    */
   public ExternalDocTermDataManager(final DB newDb, final String newPrefix) {
-    Objects.requireNonNull(newDb);
-    if (Objects.requireNonNull(newPrefix).trim().isEmpty()) {
+    Objects.requireNonNull(newDb, "DB was null.");
+    if (Objects.requireNonNull(newPrefix, "Prefix was null.").trim().isEmpty
+        ()) {
       throw new IllegalArgumentException("Prefix was empty.");
     }
     this.db = newDb;
@@ -85,7 +86,8 @@ public final class ExternalDocTermDataManager {
    * @param newPrefix Prefix to load
    */
   private void getMap(final String newPrefix) {
-    if (Objects.requireNonNull(newPrefix).trim().length() == 0) {
+    if (Objects.requireNonNull(newPrefix, "Prefix was null.").trim().length()
+        == 0) {
       throw new IllegalArgumentException("No prefix specified.");
     }
     // stored data
@@ -118,10 +120,10 @@ public final class ExternalDocTermDataManager {
   public <T> T setData(final int documentId,
       final ByteArray term,
       final String key, final T value) {
-    Objects.requireNonNull(term);
-    Objects.requireNonNull(value);
+    Objects.requireNonNull(term, "Term was null.");
+    Objects.requireNonNull(value, "Value was null.");
 
-    if (Objects.requireNonNull(key).trim().isEmpty()) {
+    if (Objects.requireNonNull(key, "Key was null.").trim().isEmpty()) {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
     @SuppressWarnings("unchecked")
@@ -155,7 +157,7 @@ public final class ExternalDocTermDataManager {
    */
   public <T> Map<ByteArray, T> getData(final int documentId,
       final String key) {
-    if (Objects.requireNonNull(key).trim().isEmpty()) {
+    if (Objects.requireNonNull(key, "Key was null.").trim().isEmpty()) {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
     @SuppressWarnings("CollectionWithoutInitialCapacity")
@@ -180,8 +182,8 @@ public final class ExternalDocTermDataManager {
    */
   public <T> T getData(final int documentId, final ByteArray term,
       final String key) {
-    Objects.requireNonNull(term);
-    if (Objects.requireNonNull(key).trim().isEmpty()) {
+    Objects.requireNonNull(term, "Term was null.");
+    if (Objects.requireNonNull(key, "Key was null.").trim().isEmpty()) {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
     return (T) this.map.get(Fun.t3(key, documentId, term));

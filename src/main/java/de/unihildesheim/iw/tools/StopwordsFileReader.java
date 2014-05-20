@@ -40,6 +40,11 @@ public class StopwordsFileReader {
 
   public static Set<String> readWords(final Format format, final String source)
       throws IOException {
+    Objects.requireNonNull(format, "Format was null.");
+    if (Objects.requireNonNull(source, "Source was null.").trim().isEmpty()) {
+      throw new IllegalArgumentException("Empty source.");
+    }
+
     Set<String> words;
     try (BufferedReader reader = new BufferedReader(
         new InputStreamReader(new FileInputStream(source)))) {
@@ -74,7 +79,7 @@ public class StopwordsFileReader {
    * @return Format or null, if none is matching
    */
   public static Format getFormatFromString(final String format) {
-    if (Objects.requireNonNull(format).trim().isEmpty()) {
+    if (Objects.requireNonNull(format, "Format was null.").trim().isEmpty()) {
       throw new IllegalArgumentException("Format type string was empty.");
     }
     if (Format.PLAIN.name().equalsIgnoreCase(format)) {
