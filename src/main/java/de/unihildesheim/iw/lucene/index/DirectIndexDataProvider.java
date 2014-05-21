@@ -352,7 +352,13 @@ public final class DirectIndexDataProvider
       if (getIdxTf() == null || getIdxTf() == 0) {
         throw new IllegalStateException("Zero term frequency.");
       }
-      this.db.getAtomicLong(DbMakers.Caches.IDX_TF.name()).set(getIdxTf());
+
+      if (this.db.exists(DbMakers.Caches.IDX_TF.name())) {
+        this.db.getAtomicLong(DbMakers.Caches.IDX_TF.name()).set(getIdxTf());
+      } else {
+        this.db.createAtomicLong(DbMakers.Caches.IDX_TF.name(), getIdxTf());
+      }
+
 
       if (getIdxDocumentIds().isEmpty()) {
         throw new IllegalStateException("Zero document ids.");
@@ -585,6 +591,8 @@ public final class DirectIndexDataProvider
   @Override
   protected Collection<Integer> getDocumentIds() {
     Collection<Integer> ret;
+
+    // cache initially, if needed
     if (getIdxDocumentIds() == null) {
       final int maxDoc = getIndexReader().maxDoc();
       setIdxDocumentIds(new HashSet<Integer>(maxDoc));
@@ -740,56 +748,10 @@ public final class DirectIndexDataProvider
       return 0;
     }
 
-    final Integer freq;
-
-    // if map is not pre-cached, try to calculate the value on-the-fly
-    if (getIdxDfMap().get(term) == null) {
-      final List<AtomicReaderContext> arContexts;
-      arContexts = getIndexReader().leaves();
-
-      final Collection<Integer> matchedDocs;
-      if (getIdxDocumentIds() == null) {
-        matchedDocs = new HashSet<>();
-      } else {
-        matchedDocs = new HashSet<>(getIdxDocumentIds().size());
-      }
-
-      final BytesRef termBr = new BytesRef(term.bytes);
-      AtomicReader reader;
-      DocsEnum docsEnum;
-      int docId;
-      for (final AtomicReaderContext aReader : arContexts) {
-        reader = aReader.reader();
-        for (final String field : getDocumentFields()) {
-          try {
-            final Term termObj = new Term(field, termBr);
-            docsEnum = reader.termDocsEnum(termObj);
-            if (docsEnum == null) {
-              LOG.trace("Field or term does not exist. field={}" +
-                      " term={}", field, termBr.utf8ToString()
-              );
-            } else {
-              docId = docsEnum.nextDoc();
-              while (docId != DocsEnum.NO_MORE_DOCS) {
-                if (docsEnum.freq() > 0) {
-                  matchedDocs.add(docId + aReader.docBase);
-                }
-                docId = docsEnum.nextDoc();
-              }
-            }
-          } catch (IOException ex) {
-            LOG.error(
-                "Error enumerating documents. field={} term={}", field,
-                termBr.utf8ToString(), ex);
-          }
-        }
-      }
-      getIdxDfMap().put(term.clone(), matchedDocs.size());
-      freq = matchedDocs.size();
-    } else {
-      freq = getIdxDfMap().get(term);
+    Integer freq = getIdxDfMap().get(term);
+    if (freq == null) {
+      return 0;
     }
-
     return freq;
   }
 
