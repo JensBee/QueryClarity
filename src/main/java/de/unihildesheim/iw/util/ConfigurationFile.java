@@ -20,6 +20,8 @@ package de.unihildesheim.iw.util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
@@ -47,14 +49,41 @@ public class ConfigurationFile
   private final Properties prop;
 
   /**
-   * Name of the properties file.
+   * File holding our properties.
    */
-  private final String fileName;
+  private final File confFile;
 
   /**
    * Flag indicating, if a ShutdownHook is already set.
    */
   private boolean hasShutdownHook = false;
+
+  public ConfigurationFile(final String newFileName, final boolean create)
+      throws IOException {
+    super();
+    if (Objects.requireNonNull(newFileName, "Filename was null.").trim()
+        .isEmpty()) {
+      throw new IllegalArgumentException("Empty filename.");
+    }
+
+    this.prop = new Properties();
+    this.confFile = new File(newFileName);
+
+    if (confFile.exists()) {
+      try (FileReader reader = new FileReader(confFile)) {
+        this.prop.load(reader);
+        LOG.info("Configuration loaded from '{}'", newFileName);
+      }
+    } else if (create) {
+      confFile.createNewFile();
+      LOG.info("New configuration created '{}'", newFileName);
+    } else {
+      throw new FileNotFoundException("Configuration file '" + this.confFile
+          .getPath() + "' not found.");
+    }
+
+    setProperties(prop);
+  }
 
   /**
    * Creates a new file-backed configuration storage with the given name.
@@ -64,18 +93,7 @@ public class ConfigurationFile
    */
   public ConfigurationFile(final String newFileName)
       throws IOException {
-    super();
-    if (Objects.requireNonNull(newFileName, "Filename was null.").trim()
-        .isEmpty()) {
-      throw new IllegalArgumentException("Empty filename.");
-    }
-    this.fileName = newFileName;
-    this.prop = new Properties();
-    try (FileReader reader = new FileReader(this.fileName)) {
-      this.prop.load(reader);
-    }
-    LOG.info("Configuration loaded from '{}'", this.fileName);
-    setProperties(prop);
+    this(newFileName, true);
   }
 
   /**
@@ -85,7 +103,7 @@ public class ConfigurationFile
    */
   public void save()
       throws IOException {
-    try (OutputStream output = new FileOutputStream(this.fileName)) {
+    try (OutputStream output = new FileOutputStream(this.confFile)) {
       prop.store(output, null);
       output.close();
     }
