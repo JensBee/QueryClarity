@@ -22,7 +22,6 @@ import de.unihildesheim.iw.lucene.document.DocumentModel;
 import org.apache.lucene.index.IndexReader;
 import org.junit.Ignore;
 import org.junit.Test;
-import org.mapdb.DBMaker;
 import org.mapdb.Fun;
 
 import java.io.UnsupportedEncodingException;
@@ -86,7 +85,6 @@ public final class AbstractIndexDataProviderTest
     instance.setDocumentFields(fields);
     instance.setIdxTerms(Collections.<ByteArray>emptySet());
     instance.setIdxTf(1L);
-    instance.setDb(DBMaker.newTempFileDB().make());
     instance.setIdxTermsMap(
         new ConcurrentSkipListMap<Fun.Tuple2<SerializableByte, ByteArray>,
             Long>()
@@ -148,6 +146,11 @@ public final class AbstractIndexDataProviderTest
     @Override
     public int getDocumentFrequency(final ByteArray term) {
       throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public void dispose() {
+      // NOP
     }
 
     @Override

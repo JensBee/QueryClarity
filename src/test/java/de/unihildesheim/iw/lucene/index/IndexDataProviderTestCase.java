@@ -44,7 +44,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -106,7 +105,7 @@ public abstract class IndexDataProviderTestCase
   protected abstract IndexDataProvider createInstance(final String dataDir,
       final IndexReader reader, final Set<String> fields,
       final Set<String> stopwords)
-  throws Exception;
+      throws Exception;
 
   /**
    * Setup the testing environment to test against the {@link
@@ -201,7 +200,7 @@ public abstract class IndexDataProviderTestCase
   @SuppressWarnings("null")
   private void runTestGetTermFrequency_ByteArray(
       final IndexDataProvider instance)
-  throws Exception {
+      throws Exception {
     final boolean excludeStopwords = TestIndexDataProvider.reference
         .hasStopwords();
     final Iterator<ByteArray> idxTermsIt = this.referenceIndex
@@ -234,7 +233,7 @@ public abstract class IndexDataProviderTestCase
    */
   @SuppressWarnings("null")
   private void runTestGetRelativeTermFrequency(final IndexDataProvider instance)
-  throws Exception {
+      throws Exception {
     final boolean excludeStopwords = TestIndexDataProvider.reference
         .hasStopwords();
     final Iterator<ByteArray> idxTermsIt = this.referenceIndex
@@ -268,7 +267,7 @@ public abstract class IndexDataProviderTestCase
    */
   @SuppressWarnings("null")
   private void runTestGetTermsIterator(final IndexDataProvider instance)
-  throws Exception {
+      throws Exception {
     final boolean excludeStopwords = TestIndexDataProvider.reference
         .hasStopwords();
     final Iterator<ByteArray> result = instance.getTermsIterator();
@@ -317,7 +316,7 @@ public abstract class IndexDataProviderTestCase
    */
   @SuppressWarnings("null")
   private void runTestGetDocumentModel(final IndexDataProvider instance)
-  throws Exception {
+      throws Exception {
     final boolean excludeStopwords = TestIndexDataProvider.reference
         .hasStopwords();
     final Iterator<Integer> docIdIt = this.referenceIndex
@@ -390,7 +389,7 @@ public abstract class IndexDataProviderTestCase
    * @param instance {@link IndexDataProvider} implementation to test
    */
   private void runTestGetDocumentIdSource(final IndexDataProvider instance)
-  throws Exception {
+      throws Exception {
 
     final AtomicLong counter = new AtomicLong(0);
     new Processing(
@@ -413,7 +412,7 @@ public abstract class IndexDataProviderTestCase
    * @param instance {@link IndexDataProvider} implementation to test
    */
   private void runTestGetUniqueTermsCount(final IndexDataProvider instance)
-  throws Exception {
+      throws Exception {
     assertEquals(
         msg(instance, "Unique term count values are different."),
         TestIndexDataProvider.reference.getTermSet().size(),
@@ -428,7 +427,7 @@ public abstract class IndexDataProviderTestCase
    */
   @SuppressWarnings("null")
   private void runTestDocumentContains(final IndexDataProvider instance)
-  throws Exception {
+      throws Exception {
     final boolean excludeStopwords = TestIndexDataProvider.reference
         .hasStopwords();
     final Iterator<Integer> docIdIt = instance.getDocumentIdIterator();
@@ -459,7 +458,7 @@ public abstract class IndexDataProviderTestCase
    * @param instance {@link IndexDataProvider} implementation to test
    */
   private void runTestGetTermsSource(final IndexDataProvider instance)
-  throws Exception {
+      throws Exception {
 
     final AtomicLong counter = new AtomicLong(0);
     new Processing(
@@ -484,7 +483,7 @@ public abstract class IndexDataProviderTestCase
    * @throws Exception Any exception thrown indicates an error
    */
   private void runTestGetDocumentsTermSet(final IndexDataProvider instance)
-  throws Exception {
+      throws Exception {
     final boolean excludeStopwords = TestIndexDataProvider.reference
         .hasStopwords();
     final int docAmount = RandomValue.getInteger(2, (int) this.referenceIndex.
@@ -531,7 +530,7 @@ public abstract class IndexDataProviderTestCase
    * @throws Exception Any exception thrown indicates an error
    */
   private void runTestGetDocumentFrequency(final IndexDataProvider instance)
-  throws Exception {
+      throws Exception {
     final boolean excludeStopwords = TestIndexDataProvider.reference
         .hasStopwords();
 
@@ -642,8 +641,8 @@ public abstract class IndexDataProviderTestCase
   }
 
   /**
-   * Test method for getTermFrequency method.
-   * Testing against {@link FixedTestIndexDataProvider}.
+   * Test method for getTermFrequency method. Testing against {@link
+   * FixedTestIndexDataProvider}.
    *
    * @throws Exception Any exception thrown indicates an error
    */
@@ -741,8 +740,8 @@ public abstract class IndexDataProviderTestCase
   }
 
   /**
-   * Test of getTermFrequency method.
-   * Testing against {@link FixedTestIndexDataProvider}.
+   * Test of getTermFrequency method. Testing against {@link
+   * FixedTestIndexDataProvider}.
    *
    * @throws Exception Any exception thrown indicates an error
    */
@@ -825,8 +824,8 @@ public abstract class IndexDataProviderTestCase
   }
 
   /**
-   * Test of getRelativeTermFrequency method.
-   * Testing against {@link FixedTestIndexDataProvider}.
+   * Test of getRelativeTermFrequency method. Testing against {@link
+   * FixedTestIndexDataProvider}.
    *
    * @throws Exception Any exception thrown indicates an error
    */
@@ -912,8 +911,8 @@ public abstract class IndexDataProviderTestCase
   }
 
   /**
-   * Test of getTermsIterator method.
-   * Testing against {@link FixedTestIndexDataProvider}.
+   * Test of getTermsIterator method. Testing against {@link
+   * FixedTestIndexDataProvider}.
    *
    * @throws Exception Any exception thrown indicates an error
    */
@@ -1082,8 +1081,8 @@ public abstract class IndexDataProviderTestCase
   }
 
   /**
-   * Test of getDocumentModel method.
-   * Testing against {@link FixedTestIndexDataProvider}.
+   * Test of getDocumentModel method. Testing against {@link
+   * FixedTestIndexDataProvider}.
    *
    * @throws Exception Any exception thrown indicates an error
    */
@@ -1269,8 +1268,8 @@ public abstract class IndexDataProviderTestCase
   }
 
   /**
-   * Test of getDocumentIdSource method.
-   * Testing against {@link FixedTestIndexDataProvider}.
+   * Test of getDocumentIdSource method. Testing against {@link
+   * FixedTestIndexDataProvider}.
    *
    * @throws Exception Any exception thrown indicates an error
    */
@@ -1358,8 +1357,8 @@ public abstract class IndexDataProviderTestCase
   }
 
   /**
-   * Test of getUniqueTermsCount method.
-   * Testing against {@link FixedTestIndexDataProvider}.
+   * Test of getUniqueTermsCount method. Testing against {@link
+   * FixedTestIndexDataProvider}.
    *
    * @throws Exception Any exception thrown indicates an error
    */
@@ -1438,8 +1437,8 @@ public abstract class IndexDataProviderTestCase
   }
 
   /**
-   * Test of hasDocument method.
-   * Testing against {@link FixedTestIndexDataProvider}.
+   * Test of hasDocument method. Testing against {@link
+   * FixedTestIndexDataProvider}.
    *
    * @throws Exception Any exception thrown indicates an error
    */
@@ -1555,8 +1554,8 @@ public abstract class IndexDataProviderTestCase
   }
 
   /**
-   * Test of getTermsSource method.
-   * Testing against {@link FixedTestIndexDataProvider}.
+   * Test of getTermsSource method. Testing against {@link
+   * FixedTestIndexDataProvider}.
    *
    * @throws Exception Any exception thrown indicates an error
    */
@@ -2056,8 +2055,8 @@ public abstract class IndexDataProviderTestCase
   }
 
   /**
-   * Test of getTerms method, of class AbstractIndexDataProvider.
-   * Testing against {@link FixedTestIndexDataProvider}.
+   * Test of getTerms method, of class AbstractIndexDataProvider. Testing
+   * against {@link FixedTestIndexDataProvider}.
    *
    * @throws Exception Any exception thrown indicates an error
    */
@@ -2145,29 +2144,5 @@ public abstract class IndexDataProviderTestCase
     final AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
         setupInstanceForTesting(true, true);
     runTestGetTerms(instance);
-  }
-
-  /**
-   * Test of clearCache method, of class AbstractIndexDataProvider.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  @Test
-  public final void testClearCache__plain()
-      throws Exception {
-    if (!isImplementingAbstractIdp()) {
-      return;
-    }
-    final AbstractIndexDataProvider instance = (AbstractIndexDataProvider)
-        setupInstanceForTesting(false, false);
-    instance.clearCache();
-    assertTrue(
-        msg(instance, "Index terms cache not empty."),
-        instance.getIdxTerms().isEmpty());
-    assertTrue(
-        msg(instance, "Index document frequency cache not empty."),
-        instance.getIdxDfMap().isEmpty());
-    assertNull(msg(instance, "Index term frequency cache not empty."),
-        instance.getIdxTf());
   }
 }

@@ -42,11 +42,15 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.mapdb.BTreeKeySerializer;
+import org.mapdb.DB;
 import org.mapdb.Fun;
+import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -79,6 +83,11 @@ public final class DirectIndexDataProvider
    */
   private static final Logger LOG = LoggerFactory.getLogger(
       DirectIndexDataProvider.class);
+
+  /**
+   * Persistent disk backed storage backend.
+   */
+  DB db;
 
   /**
    * Wrapper for persistent data storage.
@@ -165,13 +174,11 @@ public final class DirectIndexDataProvider
         break;
     }
 
-
-    setDb(this.persistence.db);
-
+    this.db = persistence.db;
     final Persistence.StorageMeta dbMeta = this.persistence.getMetaData();
 
     if (!clearCache) {
-      if (!getDb().exists(DbMakers.Stores.IDX_TERMS_MAP.name())) {
+      if (!this.db.exists(DbMakers.Stores.IDX_TERMS_MAP.name())) {
         throw new IllegalStateException(
             "Invalid database state. 'idxTermsMap' does not exist.");
       }
@@ -195,17 +202,17 @@ public final class DirectIndexDataProvider
       setCachedFieldsMap(
           new HashMap<String, SerializableByte>(getDocumentFields().size()));
     } else {
-      setCachedFieldsMap(DbMakers.cachedFieldsMapMaker(getDb()).<String,
+      setCachedFieldsMap(DbMakers.cachedFieldsMapMaker(this.db).<String,
           SerializableByte>makeOrGet());
     }
 
     LOG.debug("Fields: cached={} active={}", getCachedFieldsMap().keySet(),
         getDocumentFields());
 
-    setIdxDocTermsMap(DbMakers.idxDocTermsMapMkr(getDb())
+    setIdxDocTermsMap(DbMakers.idxDocTermsMapMkr(this.db)
         .<Fun.Tuple3<SerializableByte, Integer, ByteArray>,
             Integer>makeOrGet());
-    setIdxTermsMap(DbMakers.idxTermsMapMkr(getDb())
+    setIdxTermsMap(DbMakers.idxTermsMapMkr(this.db)
         .<Fun.Tuple2<SerializableByte, ByteArray>, Long>makeOrGet());
 
     if (clearCache) {
@@ -216,7 +223,7 @@ public final class DirectIndexDataProvider
         LOG.info("Stopwords unchanged.");
 
         // load terms index
-        setIdxTerms(DbMakers.idxTermsMaker(getDb()).<ByteArray>makeOrGet());
+        setIdxTerms(DbMakers.idxTermsMaker(this.db).<ByteArray>makeOrGet());
         final int idxTermsSize = getIdxTerms().size();
         if (idxTermsSize == 0) {
           LOG.info("Index terms cache is empty. Will be rebuild on warm-up.");
@@ -226,26 +233,26 @@ public final class DirectIndexDataProvider
         }
 
         // try load overall term frequency
-        setIdxTf(getDb().getAtomicLong(DbMakers.Caches.IDX_TF.name()).get());
+        setIdxTf(this.db.getAtomicLong(DbMakers.Caches.IDX_TF.name()).get());
         if (getIdxTf() == 0L) {
           clearIdxTf();
         }
       } else {
         // reset terms index
         LOG.info("Stopwords changed. Deleting index terms cache.");
-        getDb().delete(DbMakers.Caches.IDX_TERMS.name());
-        setIdxTerms(DbMakers.idxTermsMaker(getDb()).<ByteArray>make());
+        this.db.delete(DbMakers.Caches.IDX_TERMS.name());
+        setIdxTerms(DbMakers.idxTermsMaker(this.db).<ByteArray>make());
 
         // reset overall term frequency
         setIdxTf(null);
       }
 
-      setIdxDfMap(DbMakers.idxDfMapMaker(getDb()).<ByteArray,
+      setIdxDfMap(DbMakers.idxDfMapMaker(this.db).<ByteArray,
           Integer>makeOrGet());
     }
 
     this.persistence.updateMetaData(getDocumentFields(), getStopwords());
-    getDb().commit();
+    this.db.commit();
   }
 
   @Override
@@ -257,16 +264,19 @@ public final class DirectIndexDataProvider
       if (getIdxTf() == null || getIdxTf() == 0) {
         throw new IllegalStateException("Zero term frequency.");
       }
+      this.db.getAtomicLong(DbMakers.Caches.IDX_TF.name()).set(getIdxTf());
+
       if (getIdxDocumentIds().isEmpty()) {
         throw new IllegalStateException("Zero document ids.");
       }
+
       if (getIdxTerms().isEmpty()) {
         throw new IllegalStateException("Zero terms.");
       }
 
       LOG.info("Writing data.");
       this.persistence.updateMetaData(getDocumentFields(), getStopwords());
-      getDb().commit();
+      this.db.commit();
       LOG.debug("Writing data - done.");
     }
   }
@@ -281,6 +291,28 @@ public final class DirectIndexDataProvider
       throw new IllegalArgumentException("No document with id '" + docId
           + "' found.");
     }
+  }
+
+  /**
+   * Clear all dynamic caches. This must be called, if the fields or stop-words
+   * have changed.
+   */
+  void clearCache() {
+    LOG.info("Clearing temporary caches.");
+    // index terms cache (content depends on current fields & stopwords)
+    if (this.db.exists(DbMakers.Caches.IDX_TERMS.name())) {
+      this.db.delete(DbMakers.Caches.IDX_TERMS.name());
+    }
+    setIdxTerms(DbMakers.idxTermsMaker(this.db).<ByteArray>make());
+
+    // document term-frequency map
+    // (content depends on current fields)
+    if (this.db.exists(DbMakers.Caches.IDX_DFMAP.name())) {
+      this.db.delete(DbMakers.Caches.IDX_DFMAP.name());
+    }
+    setIdxDfMap(DbMakers.idxDfMapMaker(this.db).<ByteArray, Integer>make());
+
+    clearIdxTf();
   }
 
   /**
@@ -382,9 +414,9 @@ public final class DirectIndexDataProvider
     autoCommit.stop();
 
     LOG.info("Updating database.");
-    getDb().commit();
+    this.db.commit();
     LOG.info("Compacting database.");
-    getDb().compact();
+    this.db.compact();
   }
 
   /**
@@ -601,6 +633,17 @@ public final class DirectIndexDataProvider
     }
 
     return freq;
+  }
+
+  @Override
+  public void dispose() {
+    if (this.db != null && !this.db.isClosed()) {
+      LOG.info("Closing database.");
+      this.db.commit();
+      this.db.compact();
+      this.db.close();
+    }
+    setDisposed();
   }
 
   /**
@@ -946,7 +989,7 @@ public final class DirectIndexDataProvider
         this.finished = false;
         tm.stop().start();
         LOG.info("Updating database.");
-        getDb().commit();
+        DirectIndexDataProvider.this.db.commit();
         LOG.info("Database updated. ({})", tm.stop().getTimeString());
         this.finished = true;
         tm.start();
@@ -1014,6 +1057,179 @@ public final class DirectIndexDataProvider
       this.timer.cancel();
       this.timer = new Timer();
       this.timer.schedule(task, 0, this.period);
+    }
+  }
+
+  /**
+   * DBMaker helpers to create storage objects on the database.
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public static final class DbMakers {
+
+    /**
+     * Serializer to use for {@link #idxTermsMap}.
+     */
+    static final BTreeKeySerializer IDX_TERMSMAP_KEYSERIALIZER
+        = new BTreeKeySerializer.Tuple2KeySerializer<>(
+        SerializableByte.COMPARATOR, SerializableByte.SERIALIZER,
+        ByteArray.SERIALIZER);
+
+    /**
+     * Serializer to use for {@link #idxDocTermsMap}.
+     */
+    static final BTreeKeySerializer IDX_DOCTERMSMAP_KEYSERIALIZER
+        = new BTreeKeySerializer.Tuple3KeySerializer<>(
+        SerializableByte.COMPARATOR, null, SerializableByte.SERIALIZER,
+        Serializer.INTEGER, ByteArray.SERIALIZER);
+
+    /**
+     * Private empty constructor for utility class.
+     */
+    private DbMakers() { // empty
+    }
+
+    /**
+     * Get a maker for {@link #idxTerms}.
+     *
+     * @param db Database reference
+     * @return Maker for {@link #idxTerms}
+     */
+    static DB.BTreeSetMaker idxTermsMaker(final DB db) {
+      return Objects.requireNonNull(db, "DB was null.")
+          .createTreeSet(Caches.IDX_TERMS.name())
+          .serializer(new BTreeKeySerializer.BasicKeySerializer(
+              ByteArray.SERIALIZER))
+          .counterEnable();
+    }
+
+    /**
+     * Get a maker for {@link #idxDfMap}.
+     *
+     * @param db Database reference
+     * @return Maker for {@link #idxDfMap}
+     */
+    static DB.BTreeMapMaker idxDfMapMaker(final DB db) {
+      return Objects.requireNonNull(db, "DB was null.")
+          .createTreeMap(Caches.IDX_DFMAP.name())
+          .keySerializerWrap(ByteArray.SERIALIZER)
+          .valueSerializer(Serializer.INTEGER)
+          .counterEnable();
+    }
+
+    /**
+     * Get a maker for {@link #idxTermsMap}.
+     *
+     * @param db Database reference
+     * @return Maker for {@link #idxTermsMap}
+     */
+    static DB.BTreeMapMaker idxTermsMapMkr(final DB db) {
+      return Objects.requireNonNull(db, "DB was null.")
+          .createTreeMap(Stores.IDX_TERMS_MAP.name())
+          .keySerializer(DbMakers.IDX_TERMSMAP_KEYSERIALIZER)
+          .valueSerializer(Serializer.LONG)
+          .nodeSize(100);
+    }
+
+    /**
+     * Get a maker for {@link #idxTermsMap}.
+     *
+     * @param db Database reference
+     * @return Maker for {@link #idxTermsMap}
+     */
+    static DB.BTreeMapMaker idxDocTermsMapMkr(final DB db) {
+      return Objects.requireNonNull(db, "DB was null.")
+          .createTreeMap(Stores.IDX_DOC_TERMS_MAP.name())
+          .keySerializer(DbMakers.IDX_DOCTERMSMAP_KEYSERIALIZER)
+          .valueSerializer(Serializer.INTEGER)
+          .nodeSize(100);
+    }
+
+    /**
+     * Get a maker for {@link #cachedFieldsMap}.
+     *
+     * @param db Database reference
+     * @return Maker for {@link #cachedFieldsMap}
+     */
+    static DB.BTreeMapMaker cachedFieldsMapMaker(final DB db) {
+      return Objects.requireNonNull(db, "DB was null.")
+          .createTreeMap(Caches.IDX_FIELDS.name())
+          .keySerializer(BTreeKeySerializer.STRING)
+          .valueSerializer(SerializableByte.SERIALIZER)
+          .counterEnable();
+    }
+
+    /**
+     * Checks all {@link Stores} against the DB, collecting missing ones.
+     *
+     * @param db Database reference
+     * @return List of missing {@link Stores}
+     */
+    static Collection<Stores> checkStores(final DB db) {
+      Objects.requireNonNull(db, "DB was null.");
+
+      final Collection<Stores> miss = new ArrayList<>(Stores.values().length);
+      for (final Stores s : Stores.values()) {
+        if (!db.exists(s.name())) {
+          miss.add(s);
+        }
+      }
+      return miss;
+    }
+
+    /**
+     * Checks all {@link Stores} against the DB, collecting missing ones.
+     *
+     * @param db Database reference
+     * @return List of missing {@link Stores}
+     */
+    static Collection<Caches> checkCaches(final DB db) {
+      Objects.requireNonNull(db, "DB was null.");
+
+      final Collection<Caches> miss =
+          new ArrayList<>(Caches.values().length);
+      for (final Caches c : Caches.values()) {
+        if (!db.exists(c.name())) {
+          miss.add(c);
+        }
+      }
+      return miss;
+    }
+
+    /**
+     * Ids of persistent data held in the database.
+     */
+    public enum Stores {
+      /**
+       * Mapping of all document terms.
+       */
+      IDX_DOC_TERMS_MAP,
+      /**
+       * Mapping of all index terms.
+       */
+      IDX_TERMS_MAP
+    }
+
+    /**
+     * Ids of temporary data caches held in the database.
+     */
+    public enum Caches {
+
+      /**
+       * Set of all terms.
+       */
+      IDX_TERMS,
+      /**
+       * Document term-frequency map.
+       */
+      IDX_DFMAP,
+      /**
+       * Fields mapping.
+       */
+      IDX_FIELDS,
+      /**
+       * Overall term frequency.
+       */
+      IDX_TF
     }
   }
 }

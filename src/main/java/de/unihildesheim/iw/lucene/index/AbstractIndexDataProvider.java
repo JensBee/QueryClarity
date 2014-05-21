@@ -30,15 +30,11 @@ import de.unihildesheim.iw.util.concurrent.processing.Target;
 import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.BytesRef;
-import org.mapdb.BTreeKeySerializer;
-import org.mapdb.DB;
 import org.mapdb.Fun;
-import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -121,11 +117,6 @@ abstract class AbstractIndexDataProvider
    * List of fields cached by this instance. Mapping of field name to id value.
    */
   private Map<String, SerializableByte> cachedFieldsMap;
-
-  /**
-   * Persistent disk backed storage backend.
-   */
-  private DB db;
 
   /**
    * Flag indicating, if this instance is temporary (no data is hold
@@ -233,24 +224,6 @@ abstract class AbstractIndexDataProvider
   }
 
   /**
-   * Set the database to use for persistent storage.
-   *
-   * @param newDb
-   */
-  protected void setDb(final DB newDb) {
-    this.db = Objects.requireNonNull(newDb, "DB was null.");
-  }
-
-  /**
-   * Get the database used for persistent storage.
-   *
-   * @return
-   */
-  protected DB getDb() {
-    return this.db;
-  }
-
-  /**
    * Set the index terms list.
    *
    * @param newIdxTerms
@@ -287,6 +260,10 @@ abstract class AbstractIndexDataProvider
 
   protected Map<String, SerializableByte> getCachedFieldsMap() {
     return this.cachedFieldsMap;
+  }
+
+  protected void setDisposed() {
+    this.isDisposed = true;
   }
 
   protected void addFieldToCacheMap(final String field) {
@@ -624,7 +601,6 @@ abstract class AbstractIndexDataProvider
           }
         }
       }
-      this.db.getAtomicLong(DbMakers.Caches.IDX_TF.name()).set(this.idxTf);
     }
     return this.idxTf;
   }
@@ -659,29 +635,6 @@ abstract class AbstractIndexDataProvider
   }
 
   /**
-   * Clear all dynamic caches. This must be called, if the fields or stop-words
-   * have changed.
-   */
-  @SuppressWarnings("checkstyle:designforextension")
-  void clearCache() {
-    LOG.info("Clearing temporary caches.");
-    // index terms cache (content depends on current fields & stopwords)
-    if (this.db.exists(DbMakers.Caches.IDX_TERMS.name())) {
-      this.db.delete(DbMakers.Caches.IDX_TERMS.name());
-    }
-    this.idxTerms = DbMakers.idxTermsMaker(this.db).make();
-
-    // document term-frequency map
-    // (content depends on current fields)
-    if (this.db.exists(DbMakers.Caches.IDX_DFMAP.name())) {
-      this.db.delete(DbMakers.Caches.IDX_DFMAP.name());
-    }
-    this.idxDfMap = DbMakers.idxDfMapMaker(this.db).make();
-
-    this.idxTf = null;
-  }
-
-  /**
    * {@inheritDoc} Stop-words will be skipped (their value is <tt>0</tt>).
    */
   @Override
@@ -699,17 +652,16 @@ abstract class AbstractIndexDataProvider
     return tf / Long.valueOf(getTermFrequency()).doubleValue();
   }
 
-  @Override
-  @SuppressWarnings("checkstyle:designforextension")
-  public void dispose() {
-    if (this.db != null && !this.db.isClosed()) {
-      LOG.info("Closing database.");
-      this.db.commit();
-      this.db.compact();
-      this.db.close();
-    }
-    this.isDisposed = true;
-  }
+//  @Override
+//  public void dispose() {
+//    if (this.db != null && !this.db.isClosed()) {
+//      LOG.info("Closing database.");
+//      this.db.commit();
+//      this.db.compact();
+//      this.db.close();
+//    }
+//    this.isDisposed = true;
+//  }
 
   @Override
   public final Iterator<ByteArray> getTermsIterator()
@@ -766,181 +718,8 @@ abstract class AbstractIndexDataProvider
   }
 
   /**
-   * DBMaker helpers to create storage objects on the database.
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public static final class DbMakers {
-
-    /**
-     * Serializer to use for {@link #idxTermsMap}.
-     */
-    static final BTreeKeySerializer IDX_TERMSMAP_KEYSERIALIZER
-        = new BTreeKeySerializer.Tuple2KeySerializer<>(
-        SerializableByte.COMPARATOR, SerializableByte.SERIALIZER,
-        ByteArray.SERIALIZER);
-
-    /**
-     * Serializer to use for {@link #idxDocTermsMap}.
-     */
-    static final BTreeKeySerializer IDX_DOCTERMSMAP_KEYSERIALIZER
-        = new BTreeKeySerializer.Tuple3KeySerializer<>(
-        SerializableByte.COMPARATOR, null, SerializableByte.SERIALIZER,
-        Serializer.INTEGER, ByteArray.SERIALIZER);
-
-    /**
-     * Private empty constructor for utility class.
-     */
-    private DbMakers() { // empty
-    }
-
-    /**
-     * Get a maker for {@link #idxTerms}.
-     *
-     * @param db Database reference
-     * @return Maker for {@link #idxTerms}
-     */
-    static DB.BTreeSetMaker idxTermsMaker(final DB db) {
-      return Objects.requireNonNull(db, "DB was null.")
-          .createTreeSet(Caches.IDX_TERMS.name())
-          .serializer(new BTreeKeySerializer.BasicKeySerializer(
-              ByteArray.SERIALIZER))
-          .counterEnable();
-    }
-
-    /**
-     * Get a maker for {@link #idxDfMap}.
-     *
-     * @param db Database reference
-     * @return Maker for {@link #idxDfMap}
-     */
-    static DB.BTreeMapMaker idxDfMapMaker(final DB db) {
-      return Objects.requireNonNull(db, "DB was null.")
-          .createTreeMap(Caches.IDX_DFMAP.name())
-          .keySerializerWrap(ByteArray.SERIALIZER)
-          .valueSerializer(Serializer.INTEGER)
-          .counterEnable();
-    }
-
-    /**
-     * Get a maker for {@link #idxTermsMap}.
-     *
-     * @param db Database reference
-     * @return Maker for {@link #idxTermsMap}
-     */
-    static DB.BTreeMapMaker idxTermsMapMkr(final DB db) {
-      return Objects.requireNonNull(db, "DB was null.")
-          .createTreeMap(Stores.IDX_TERMS_MAP.name())
-          .keySerializer(DbMakers.IDX_TERMSMAP_KEYSERIALIZER)
-          .valueSerializer(Serializer.LONG)
-          .nodeSize(100);
-    }
-
-    /**
-     * Get a maker for {@link #idxTermsMap}.
-     *
-     * @param db Database reference
-     * @return Maker for {@link #idxTermsMap}
-     */
-    static DB.BTreeMapMaker idxDocTermsMapMkr(final DB db) {
-      return Objects.requireNonNull(db, "DB was null.")
-          .createTreeMap(Stores.IDX_DOC_TERMS_MAP.name())
-          .keySerializer(DbMakers.IDX_DOCTERMSMAP_KEYSERIALIZER)
-          .valueSerializer(Serializer.INTEGER)
-          .nodeSize(100);
-    }
-
-    /**
-     * Get a maker for {@link #cachedFieldsMap}.
-     *
-     * @param db Database reference
-     * @return Maker for {@link #cachedFieldsMap}
-     */
-    static DB.BTreeMapMaker cachedFieldsMapMaker(final DB db) {
-      return Objects.requireNonNull(db, "DB was null.")
-          .createTreeMap(Caches.IDX_FIELDS.name())
-          .keySerializer(BTreeKeySerializer.STRING)
-          .valueSerializer(SerializableByte.SERIALIZER)
-          .counterEnable();
-    }
-
-    /**
-     * Checks all {@link Stores} against the DB, collecting missing ones.
-     *
-     * @param db Database reference
-     * @return List of missing {@link Stores}
-     */
-    static Collection<Stores> checkStores(final DB db) {
-      Objects.requireNonNull(db, "DB was null.");
-
-      final Collection<Stores> miss = new ArrayList<>(Stores.values().length);
-      for (final Stores s : Stores.values()) {
-        if (!db.exists(s.name())) {
-          miss.add(s);
-        }
-      }
-      return miss;
-    }
-
-    /**
-     * Checks all {@link Stores} against the DB, collecting missing ones.
-     *
-     * @param db Database reference
-     * @return List of missing {@link Stores}
-     */
-    static Collection<Caches> checkCaches(final DB db) {
-      Objects.requireNonNull(db, "DB was null.");
-
-      final Collection<Caches> miss =
-          new ArrayList<>(Caches.values().length);
-      for (final Caches c : Caches.values()) {
-        if (!db.exists(c.name())) {
-          miss.add(c);
-        }
-      }
-      return miss;
-    }
-
-    /**
-     * Ids of persistent data held in the database.
-     */
-    public enum Stores {
-      /**
-       * Mapping of all document terms.
-       */
-      IDX_DOC_TERMS_MAP,
-      /**
-       * Mapping of all index terms.
-       */
-      IDX_TERMS_MAP
-    }
-
-    /**
-     * Ids of temporary data caches held in the database.
-     */
-    public enum Caches {
-
-      /**
-       * Set of all terms.
-       */
-      IDX_TERMS,
-      /**
-       * Document term-frequency map.
-       */
-      IDX_DFMAP,
-      /**
-       * Fields mapping.
-       */
-      IDX_FIELDS,
-      /**
-       * Overall term frequency.
-       */
-      IDX_TF
-    }
-  }
-
-  /**
-   * {@link Processing} {@link Target} for collecting document frequency
-   * values based on terms.
+   * {@link Processing} {@link Target} for collecting document frequency values
+   * based on terms.
    */
   private final class DocumentFrequencyCollectorTarget
       extends TargetFuncCall.TargetFunc<ByteArray> {
