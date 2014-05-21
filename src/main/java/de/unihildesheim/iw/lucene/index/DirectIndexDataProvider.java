@@ -213,16 +213,22 @@ public final class DirectIndexDataProvider
       buildCache(getDocumentFields());
     } else {
       if (dbMeta.stopWordsCurrent(getStopwords())) {
+        LOG.info("Stopwords unchanged.");
+
         // load terms index
         setIdxTerms(DbMakers.idxTermsMaker(getDb()).<ByteArray>makeOrGet());
-        LOG.info("Stopwords unchanged. Loaded index terms cache with {} " +
-                "entries.", getIdxTerms().size()
-        );
+        final int idxTermsSize = getIdxTerms().size();
+        if (idxTermsSize == 0) {
+          LOG.info("Index terms cache is empty. Will be rebuild on warm-up.");
+        } else {
+          LOG.info("Loaded index terms cache with {} entries.",
+              idxTermsSize);
+        }
 
         // try load overall term frequency
         setIdxTf(getDb().getAtomicLong(DbMakers.Caches.IDX_TF.name()).get());
         if (getIdxTf() == 0L) {
-          setIdxTf(null);
+          clearIdxTf();
         }
       } else {
         // reset terms index
@@ -262,42 +268,6 @@ public final class DirectIndexDataProvider
       this.persistence.updateMetaData(getDocumentFields(), getStopwords());
       getDb().commit();
       LOG.debug("Writing data - done.");
-    }
-  }
-
-  @Override
-  protected void warmUpDocumentFrequencies()
-      throws DataProviderException.CacheException {
-    // cache document frequency values for each term
-    if (getIdxDfMap().isEmpty()) {
-      final TimeMeasure tStep = new TimeMeasure().start();
-      LOG.info("Cache warming: document frequencies..");
-
-      for (final ByteArray term : getIdxTerms()) {
-        final Set<Integer> matchedDocs = new HashSet<>();
-        for (final String field : getDocumentFields()) {
-          final SerializableByte fieldId = getFieldId(field);
-          for (final Integer docId : getDocumentIds()) {
-            if (getIdxDocTermsMap().containsKey(Fun.t3(fieldId, docId, term))) {
-              matchedDocs.add(docId);
-            }
-          }
-        }
-
-        if (!matchedDocs.isEmpty()) {
-          getIdxDfMap().put(term, matchedDocs.size());
-        }
-      }
-      LOG.info("Cache warming: calculating document frequencies "
-              + "for {} documents and {} terms took {}.",
-          getIdxDocumentIds().size(), getIdxTerms().size(),
-          tStep.stop().getTimeString()
-      );
-    } else {
-      LOG.info("Cache warming: Document frequencies "
-              + "for {} documents and {} terms already loaded.",
-          getIdxDocumentIds().size(), getIdxTerms().size()
-      );
     }
   }
 

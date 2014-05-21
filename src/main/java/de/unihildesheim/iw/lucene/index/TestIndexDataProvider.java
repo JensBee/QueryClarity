@@ -495,8 +495,7 @@ public final class TestIndexDataProvider
         for (int docId = 0; docId < TestIndexDataProvider.documentsCount;
              docId++) {
           final Iterable<ByteArray> docTerms = Fun.filter(TestIndexDataProvider
-              .idx.
-                  keySet(), fieldNum, docId);
+              .idx.keySet(), fieldNum, docId);
           for (final ByteArray docTerm : docTerms) {
             if (TestIndexDataProvider.stopWords.contains(docTerm)) {
               // skip stopwords
@@ -1015,8 +1014,7 @@ public final class TestIndexDataProvider
           for (int docId = 0; docId < TestIndexDataProvider.documentsCount;
                docId++) {
             final Iterable<ByteArray> docTerms = Fun.filter
-                (TestIndexDataProvider.idx.
-                    keySet(), fieldNum, docId);
+                (TestIndexDataProvider.idx.keySet(), fieldNum, docId);
             for (final ByteArray docTerm : docTerms) {
               if (TestIndexDataProvider.stopWords
                   .contains(docTerm)) { // skip stopwords
@@ -1049,8 +1047,7 @@ public final class TestIndexDataProvider
           for (int docId = 0; docId < TestIndexDataProvider.documentsCount;
                docId++) {
             final Iterable<ByteArray> docTerms = Fun.filter
-                (TestIndexDataProvider.idx.
-                    keySet(), fieldNum, docId);
+                (TestIndexDataProvider.idx.keySet(), fieldNum, docId);
             for (final ByteArray docTerm : docTerms) {
               if (TestIndexDataProvider.stopWords
                   .contains(docTerm)) { // skip stopwords

@@ -21,6 +21,7 @@ import de.unihildesheim.iw.Persistence;
 import de.unihildesheim.iw.SerializableByte;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
+import de.unihildesheim.iw.util.TupleSetFilter;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
@@ -340,6 +341,10 @@ abstract class AbstractIndexDataProvider
     this.idxTf = Objects.requireNonNull(tf, "Term frequency value was null.");
   }
 
+  protected void clearIdxTf() {
+    this.idxTf = null;
+  }
+
   protected Long getIdxTf() {
     return this.idxTf;
   }
@@ -477,8 +482,30 @@ abstract class AbstractIndexDataProvider
   /**
    * Pre-cache term-document frequencies.
    */
-  protected abstract void warmUpDocumentFrequencies()
-      throws DataProviderException;
+  final void warmUpDocumentFrequencies()
+      throws ProcessingException {
+    // cache document frequency values for each term
+    if (getIdxDfMap().isEmpty()) {
+      final TimeMeasure tStep = new TimeMeasure().start();
+      LOG.info("Cache warming: document frequencies..");
+
+      new Processing(new TargetFuncCall<>(
+          new CollectionSource<>(getIdxTerms()),
+          new DocumentFrequencyCollectorTarget()
+      )).process(getIdxTerms().size());
+
+      LOG.info("Cache warming: calculating document frequencies "
+              + "for {} documents and {} terms took {}.",
+          getIdxDocumentIds().size(), getIdxTerms().size(),
+          tStep.stop().getTimeString()
+      );
+    } else {
+      LOG.info("Cache warming: Document frequencies "
+              + "for {} documents and {} terms already loaded.",
+          getIdxDocumentIds().size(), getIdxTerms().size()
+      );
+    }
+  }
 
   /**
    * Default warm-up method calling all warmUp* methods an tracks their running
@@ -505,7 +532,12 @@ abstract class AbstractIndexDataProvider
     }
     warmUpIndexTermFrequencies(); // may need terms
     warmUpDocumentIds();
-    warmUpDocumentFrequencies(); // may need terms and docIds
+    try {
+      warmUpDocumentFrequencies(); // need terms
+    } catch (ProcessingException e) {
+      throw new DataProviderException(
+          "Failed to warm-up document frequencies.", e);
+    }
 
     LOG.info("Cache warmed. Took {}.", tOverAll.stop().getTimeString());
     this.warmed = true;
@@ -611,14 +643,12 @@ abstract class AbstractIndexDataProvider
       if (this.documentFields.size() > 1) {
         new Processing(new TargetFuncCall<>(
             new CollectionSource<>(this.documentFields),
-            new TermCollectorTarget(this.idxTermsMap.keySet(),
-                this.idxTerms)
+            new TermCollectorTarget()
         )).process(this.documentFields.size());
       } else {
         for (final String field : this.documentFields) {
-          for (final ByteArray byteArray : Fun
-              .filter(this.idxTermsMap.keySet(),
-                  getFieldId(field))) {
+          for (final ByteArray byteArray : Fun.filter(this.idxTermsMap.keySet(),
+              getFieldId(field))) {
             this.idxTerms.add(byteArray.clone());
           }
         }
@@ -909,6 +939,46 @@ abstract class AbstractIndexDataProvider
   }
 
   /**
+   * {@link Processing} {@link Target} for collecting document frequency
+   * values based on terms.
+   */
+  private final class DocumentFrequencyCollectorTarget
+      extends TargetFuncCall.TargetFunc<ByteArray> {
+
+    private final Collection<Integer> docIds;
+    private final Collection<String> docFields;
+    private final NavigableSet<Fun.Tuple3<SerializableByte,
+        Integer, ByteArray>> docFieldTermSet;
+
+    DocumentFrequencyCollectorTarget() {
+      this.docIds = getDocumentIds();
+      this.docFields = getDocumentFields();
+      this.docFieldTermSet = getIdxDocTermsMap().keySet();
+    }
+
+    @Override
+    public void call(final ByteArray term)
+        throws Exception {
+      if (term != null) {
+        int matchedDocs = 0;
+        for (final String field : this.docFields) {
+          final SerializableByte fieldId = getFieldId(field);
+          // get all documents which have the current term in the current field
+          final Iterable<Integer> docIdIt = TupleSetFilter.filterB
+              (this.docFieldTermSet, fieldId, term);
+
+          for (final Integer ignored : docIdIt) {
+            matchedDocs++;
+          }
+        }
+
+        assert matchedDocs > 0;
+        getIdxDfMap().put(term, matchedDocs);
+      }
+    }
+  }
+
+  /**
    * {@link Processing} {@link Target} for collecting currently available index
    * terms.
    */
@@ -920,24 +990,14 @@ abstract class AbstractIndexDataProvider
      */
     private final NavigableSet<Fun.Tuple2<SerializableByte, ByteArray>>
         terms;
-    /**
-     * Target set for results.
-     */
-    private final Set<ByteArray> target;
 
     /**
      * Create a new {@link Processing} {@link Target} for collecting index
      * terms.
-     *
-     * @param newTerms Set of all index terms
-     * @param newTarget Target set to collect currently visible terms
      */
-    private TermCollectorTarget(
-        final NavigableSet<Fun.Tuple2<SerializableByte, ByteArray>> newTerms,
-        final Set<ByteArray> newTarget) {
+    private TermCollectorTarget() {
       super();
-      this.terms = newTerms;
-      this.target = newTarget;
+      this.terms = getIdxTermsMap().keySet();
     }
 
     @Override
@@ -945,7 +1005,7 @@ abstract class AbstractIndexDataProvider
       if (fieldName != null) {
         for (final ByteArray byteArray : Fun.filter(this.terms, getFieldId(
             fieldName))) {
-          this.target.add(byteArray.clone());
+          getIdxTerms().add(byteArray.clone());
         }
       }
     }

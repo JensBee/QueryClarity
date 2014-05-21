@@ -146,11 +146,6 @@ public final class AbstractIndexDataProviderTest
     }
 
     @Override
-    public void warmUpDocumentFrequencies() {
-      // NOP
-    }
-
-    @Override
     public int getDocumentFrequency(final ByteArray term) {
       throw new UnsupportedOperationException("Not supported yet.");
     }
