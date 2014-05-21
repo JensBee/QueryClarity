@@ -667,17 +667,6 @@ abstract class AbstractIndexDataProvider
     return tf / Long.valueOf(getTermFrequency()).doubleValue();
   }
 
-//  @Override
-//  public void dispose() {
-//    if (this.db != null && !this.db.isClosed()) {
-//      LOG.info("Closing database.");
-//      this.db.commit();
-//      this.db.compact();
-//      this.db.close();
-//    }
-//    this.isDisposed = true;
-//  }
-
   @Override
   public final Iterator<ByteArray> getTermsIterator()
       throws DataProviderException {

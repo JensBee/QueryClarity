@@ -26,7 +26,9 @@ import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Objects;
+import java.util.SortedSet;
 import java.util.concurrent.ConcurrentNavigableMap;
 
 /**
@@ -160,13 +162,17 @@ public final class ExternalDocTermDataManager {
     if (Objects.requireNonNull(key, "Key was null.").trim().isEmpty()) {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
-    @SuppressWarnings("CollectionWithoutInitialCapacity")
-    final Map<ByteArray, T> retMap = new HashMap<>();
-    for (final ByteArray term : Fun.filter(this.map.keySet(), key,
-        documentId)) {
+
+    final SortedSet<Fun.Tuple3<String, Integer, ByteArray>> subSet =
+        ((NavigableSet) this.map.keySet()).subSet(
+            Fun.t3(key, documentId, null),
+            Fun.t3(key, documentId, Fun.<ByteArray>HI())
+        );
+    final Map<ByteArray, T> retMap = new HashMap<>(subSet.size());
+    for (final Fun.Tuple3<String, Integer, ByteArray> t3 : subSet) {
       @SuppressWarnings("unchecked")
-      final T val = (T) this.map.get(Fun.t3(key, documentId, term));
-      retMap.put(term.clone(), val);
+      final T val = (T) this.map.get(Fun.t3(key, documentId, t3.c));
+      retMap.put(t3.c, val);
     }
     return retMap;
   }
