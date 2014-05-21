@@ -205,7 +205,7 @@ public final class SourceObserver<T>
             } else
               // max wait time not elapsed, check if we should provide
               // a status based on progress
-              if (lastStatus < status && status % step == 0) {
+              if (lastStatus < status && step > 0 && status % step == 0) {
                 this.runTime.stop();
                 lastStatus = status;
                 showStatus(itemCount, lastStatus);
