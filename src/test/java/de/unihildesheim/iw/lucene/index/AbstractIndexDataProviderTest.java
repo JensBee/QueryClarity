@@ -144,6 +144,30 @@ public final class AbstractIndexDataProviderTest
     }
 
     @Override
+    protected void warmUpTerms()
+        throws DataProviderException {
+      // NOP
+    }
+
+    @Override
+    protected void warmUpIndexTermFrequencies()
+        throws DataProviderException {
+      // NOP
+    }
+
+    @Override
+    protected void warmUpDocumentIds()
+        throws DataProviderException {
+      // NOP
+    }
+
+    @Override
+    void warmUpDocumentFrequencies()
+        throws DataProviderException {
+      // NOP
+    }
+
+    @Override
     public int getDocumentFrequency(final ByteArray term) {
       throw new UnsupportedOperationException("Not supported yet.");
     }

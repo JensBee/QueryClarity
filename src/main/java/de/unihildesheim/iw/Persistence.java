@@ -53,6 +53,11 @@ public final class Persistence {
    */
   private StorageMeta meta;
 
+  /**
+   * Flag indicating, if the {@link DB} instance uses transactions.
+   */
+  private boolean supportsTransaction;
+
   private Persistence() {
   }
 
@@ -96,12 +101,14 @@ public final class Persistence {
     final Persistence instance = new Persistence();
     instance.db = builder.getMaker().make();
     instance.meta = new StorageMeta();
+    instance.supportsTransaction = builder.getMaker().supportsTransaction();
 
     if (empty) {
       instance.getMetaData(true);
       instance.updateMetaData(builder.getDocumentFields(),
           builder.getStopwords());
       if (builder.getLastCommitGeneration() != null) {
+        LOG.debug("LCG={}", builder.getLastCommitGeneration());
         instance.meta.setIndexCommitGen(builder.getLastCommitGeneration());
       }
     } else {
@@ -118,8 +125,14 @@ public final class Persistence {
    * returning the data.
    */
   private void getMetaData(final boolean create) {
-    meta.indexCommitGen = this.db.getAtomicLong(
-        Storage.PERSISTENCE_IDX_COMMIT_GEN.name());
+    if (this.db.exists(Storage.PERSISTENCE_IDX_COMMIT_GEN.name())) {
+      meta.indexCommitGen = this.db.getAtomicLong(
+          Storage.PERSISTENCE_IDX_COMMIT_GEN.name());
+    } else {
+      meta.indexCommitGen = this.db.createAtomicLong(Storage
+          .PERSISTENCE_IDX_COMMIT_GEN.name(), -1);
+    }
+
     if (create && this.db.exists(Storage.PERSISTENCE_FIELDS.name())) {
       this.db.delete(Storage.PERSISTENCE_FIELDS.name());
     }
@@ -140,18 +153,14 @@ public final class Persistence {
    */
   public void updateMetaData(final Set<String> fields,
       final Set<String> stopwords) {
-    LOG.debug("Updating meta-data.");
+    LOG.info("Updating meta-data.");
     meta.setFields(Objects.requireNonNull(fields, "Fields were null."));
     meta.setStopWords(Objects.requireNonNull(stopwords,
         "Stopwords were null."));
   }
 
-  /**
-   * Update the commit-generation meta-data records. This does not commit data
-   * to the database.
-   */
-  public void updateMetaData(final long commitGen) {
-    meta.setIndexCommitGen(commitGen);
+  public boolean supportsTransaction() {
+    return this.supportsTransaction;
   }
 
   /**
@@ -182,7 +191,8 @@ public final class Persistence {
   }
 
   /**
-   * Object wrapping storage meta-information.
+   * Object wrapping storage meta-information. Values are initialized by
+   * {@link #getMetaData(boolean)}.
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class StorageMeta {
@@ -269,6 +279,10 @@ public final class Persistence {
           && this.stopWords.containsAll(currentWords);
     }
 
+    public boolean hasGenerationValue() {
+      return this.indexCommitGen.get() != -1;
+    }
+
     /**
      * Checks the current index commit generation against the version stored in
      * the meta-information.
@@ -315,7 +329,7 @@ public final class Persistence {
     /**
      * Instruction on how to handle the cache.
      */
-    private LoadInstruction cacheInstruction = LoadInstruction.MAKE_OR_GET;
+    private LoadInstruction cacheInstruction;
 
     /**
      * Database async write flush delay.
@@ -330,7 +344,7 @@ public final class Persistence {
     /**
      * Builder used to create a new database.
      */
-    private final ExtDBMaker dbMkr = new ExtDBMaker();
+    private final ExtDBMaker dbMkr;
 
     /**
      * Name of the database to create.
@@ -342,12 +356,12 @@ public final class Persistence {
     /**
      * List of stopwords to use.
      */
-    private Set<String> stopwords = Collections.<String>emptySet();
+    private Set<String> stopwords;
 
     /**
      * List of document fields to use.
      */
-    private Set<String> documentFields = Collections.<String>emptySet();
+    private Set<String> documentFields;
 
     /**
      * Last commit generation id of the Lucene index.
@@ -363,7 +377,7 @@ public final class Persistence {
     /**
      * Random string to prefix a temporary storage with.
      */
-    private final String randNameSuffix = RandomValue.getString(32);
+    private final String randNameSuffix;
 
     /**
      * Simple extension of MapDB's {@link DBMaker} to allow specifying the
@@ -375,6 +389,21 @@ public final class Persistence {
         super();
       }
 
+      private void debugDump() {
+        for (final Object k : props.keySet()) {
+          LOG.debug("Prop k={} v={}", k.toString(), props.get(k));
+        }
+      }
+
+      /**
+       * Check, if this db instance uses transactions.
+       *
+       * @return
+       */
+      public boolean supportsTransaction() {
+        return !this.TRUE.equals(this.props.get(Keys.transactionDisable));
+      }
+
       private ExtDBMaker dbFile(final File file) {
         props.setProperty(Keys.file, file.getPath());
         return this;
@@ -382,6 +411,19 @@ public final class Persistence {
     }
 
     public Builder() {
+      this.dbMkr = new ExtDBMaker();
+      this.dbMkr
+          .transactionDisable()
+          .commitFileSyncDisable()
+          .mmapFileEnableIfSupported()
+          .commitFileSyncDisable()
+          .compressionEnable()
+          .strictDBGet()
+          .closeOnJvmShutdown();
+      this.cacheInstruction = LoadInstruction.MAKE_OR_GET;
+      this.stopwords = Collections.<String>emptySet();
+      this.documentFields = Collections.<String>emptySet();
+      this.randNameSuffix = RandomValue.getString(32);
     }
 
     public Builder dataPath(final String newDataPath) {
@@ -410,7 +452,7 @@ public final class Persistence {
      *
      * @return Maker instance
      */
-    public DBMaker getMaker() {
+    public ExtDBMaker getMaker() {
       return this.dbMkr;
     }
 
@@ -428,23 +470,6 @@ public final class Persistence {
           this.name += "-" + this.randNameSuffix;
         }
       }
-      return this;
-    }
-
-    /**
-     * Initializes the internal {@link DBMaker} with default settings.
-     *
-     * @return Self reference
-     */
-    public Builder setDbDefaults() {
-      this.dbMkr
-          .transactionDisable()
-          .commitFileSyncDisable()
-          .mmapFileEnableIfSupported()
-          .commitFileSyncDisable()
-          .compressionEnable()
-          .strictDBGet()
-          .closeOnJvmShutdown();
       return this;
     }
 
@@ -588,6 +613,12 @@ public final class Persistence {
       final File dbFile = new File(
           FileUtils.makePath(this.dataPath) + Builder.PREFIX + "_" + this.name);
       this.dbMkr.dbFile(dbFile);
+
+      // debug dump configuration
+      if (LOG.isDebugEnabled()) {
+        this.dbMkr.debugDump();
+      }
+
       final Persistence p;
       try {
         switch (this.cacheInstruction) {

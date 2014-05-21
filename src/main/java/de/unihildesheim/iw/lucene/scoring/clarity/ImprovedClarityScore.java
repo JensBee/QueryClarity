@@ -247,7 +247,6 @@ public final class ImprovedClarityScore
   private void initCache(final Builder builder)
       throws IOException, Buildable.BuildableException {
     final Persistence.Builder psb = builder.persistenceBuilder;
-    psb.setDbDefaults();
 
     final Persistence persistence;
     boolean createNew = false;

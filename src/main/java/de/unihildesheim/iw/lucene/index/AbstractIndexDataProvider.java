@@ -396,7 +396,13 @@ abstract class AbstractIndexDataProvider
   /**
    * Pre-cache index terms.
    */
-  final void warmUpTerms()
+  protected abstract void warmUpTerms()
+      throws DataProviderException;
+
+  /**
+   * Default implementation of {@link #warmUpTerms()}.
+   */
+  final void warmUpTerms_default()
       throws ProcessingException {
     final TimeMeasure tStep = new TimeMeasure();
     // cache all index terms
@@ -415,7 +421,13 @@ abstract class AbstractIndexDataProvider
   /**
    * Pre-cache term frequencies.
    */
-  final void warmUpIndexTermFrequencies() {
+  protected abstract void warmUpIndexTermFrequencies()
+      throws DataProviderException;
+
+  /**
+   * Default implementation of {@link #warmUpIndexTermFrequencies()}.
+   */
+  final void warmUpIndexTermFrequencies_default() {
     final TimeMeasure tStep = new TimeMeasure();
     // collect index term frequency
     if (this.idxTf == null || this.idxTf == 0) {
@@ -438,7 +450,13 @@ abstract class AbstractIndexDataProvider
   /**
    * Pre-cache document-ids.
    */
-  final void warmUpDocumentIds() {
+  protected abstract void warmUpDocumentIds()
+      throws DataProviderException;
+
+  /**
+   * Default implementation of {@link #warmUpDocumentIds()}.
+   */
+  final void warmUpDocumentIds_default() {
     final TimeMeasure tStep = new TimeMeasure();
     // cache document ids
     if (this.idxDocumentIds == null || this.idxDocumentIds.isEmpty()) {
@@ -459,7 +477,13 @@ abstract class AbstractIndexDataProvider
   /**
    * Pre-cache term-document frequencies.
    */
-  final void warmUpDocumentFrequencies()
+  abstract void warmUpDocumentFrequencies()
+      throws DataProviderException;
+
+  /**
+   * Default implementation of {@link #warmUpDocumentFrequencies()}.
+   */
+  final void warmUpDocumentFrequencies_default()
       throws ProcessingException {
     // cache document frequency values for each term
     if (getIdxDfMap().isEmpty()) {
@@ -502,19 +526,10 @@ abstract class AbstractIndexDataProvider
     final TimeMeasure tOverAll = new TimeMeasure().start();
 
     // order matters!
-    try {
-      warmUpTerms(); // should be first
-    } catch (ProcessingException e) {
-      throw new DataProviderException("Failed to warm-up terms.", e);
-    }
+    warmUpTerms(); // should be first
     warmUpIndexTermFrequencies(); // may need terms
     warmUpDocumentIds();
-    try {
-      warmUpDocumentFrequencies(); // need terms
-    } catch (ProcessingException e) {
-      throw new DataProviderException(
-          "Failed to warm-up document frequencies.", e);
-    }
+    warmUpDocumentFrequencies(); // need terms
 
     LOG.info("Cache warmed. Took {}.", tOverAll.stop().getTimeString());
     this.warmed = true;

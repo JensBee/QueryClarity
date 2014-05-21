@@ -55,6 +55,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -92,13 +93,13 @@ public final class DirectIndexDataProvider
   /**
    * Wrapper for persistent data storage.
    */
-  private Persistence persistence;
+  Persistence persistence;
 
   /**
    * Wrapper for externally configurable options.
    */
   private static final class UserConf {
-    private static final String key(final String name) {
+    private static String key(final String name) {
       return IDENTIFIER + "_" + name;
     }
 
@@ -169,13 +170,15 @@ public final class DirectIndexDataProvider
       default:
         if (!psb.dbExists()) {
           clearCache = true;
+          LOG.debug("NEW Cache ");
+        } else {
+          LOG.debug("Cache expected");
         }
         this.persistence = psb.makeOrGet().build();
         break;
     }
 
     this.db = persistence.db;
-    final Persistence.StorageMeta dbMeta = this.persistence.getMetaData();
 
     if (!clearCache) {
       if (!this.db.exists(DbMakers.Stores.IDX_TERMS_MAP.name())) {
@@ -187,12 +190,13 @@ public final class DirectIndexDataProvider
         LOG.warn("Index commit generation not available. Assuming an " +
             "unchanged index!");
       } else {
-        if (!dbMeta.generationCurrent(getLastIndexCommitGeneration())) {
+        if (!this.persistence.getMetaData().generationCurrent(
+            getLastIndexCommitGeneration())) {
           throw new IllegalStateException("Invalid database state. " +
               "Index changed since last caching.");
         }
       }
-      if (!dbMeta.fieldsCurrent(getDocumentFields())) {
+      if (!this.persistence.getMetaData().fieldsCurrent(getDocumentFields())) {
         LOG.info("Fields changed. Caches needs to be rebuild.");
         clearCache = true;
       }
@@ -215,44 +219,128 @@ public final class DirectIndexDataProvider
     setIdxTermsMap(DbMakers.idxTermsMapMkr(this.db)
         .<Fun.Tuple2<SerializableByte, ByteArray>, Long>makeOrGet());
 
+    // caches are current
+    if (!clearCache) {
+      // read cached values
+      readDbCaches();
+
+      // finally check if any fields failed to index, returns true,
+      // if any fields have been removed
+      clearCache = checkForIncompleteIndexedFields();
+    }
+
+    // caches are not current, or their have been incomplete indexed fields
     if (clearCache) {
-      clearCache();
+      // re-create cached values
+      clearDbCaches();
       buildCache(getDocumentFields());
-    } else {
-      if (dbMeta.stopWordsCurrent(getStopwords())) {
-        LOG.info("Stopwords unchanged.");
-
-        // load terms index
-        setIdxTerms(DbMakers.idxTermsMaker(this.db).<ByteArray>makeOrGet());
-        final int idxTermsSize = getIdxTerms().size();
-        if (idxTermsSize == 0) {
-          LOG.info("Index terms cache is empty. Will be rebuild on warm-up.");
-        } else {
-          LOG.info("Loaded index terms cache with {} entries.",
-              idxTermsSize);
-        }
-
-        // try load overall term frequency
-        setIdxTf(this.db.getAtomicLong(DbMakers.Caches.IDX_TF.name()).get());
-        if (getIdxTf() == 0L) {
-          clearIdxTf();
-        }
-      } else {
-        // reset terms index
-        LOG.info("Stopwords changed. Deleting index terms cache.");
-        this.db.delete(DbMakers.Caches.IDX_TERMS.name());
-        setIdxTerms(DbMakers.idxTermsMaker(this.db).<ByteArray>make());
-
-        // reset overall term frequency
-        setIdxTf(null);
-      }
-
-      setIdxDfMap(DbMakers.idxDfMapMaker(this.db).<ByteArray,
-          Integer>makeOrGet());
     }
 
     this.persistence.updateMetaData(getDocumentFields(), getStopwords());
-    this.db.commit();
+    commitDb(false);
+  }
+
+  void commitDb(final boolean compact) {
+    TimeMeasure tm = null;
+
+    if (persistence.supportsTransaction()) {
+      tm = new TimeMeasure().start();
+      LOG.info("Updating database.");
+      this.db.commit();
+      LOG.info("Database updated. ({})", tm.stop().getTimeString());
+    }
+
+    if (compact) {
+      if (tm == null) {
+        tm = new TimeMeasure();
+      }
+      tm.start();
+      LOG.info("Compacting database.");
+      this.db.compact();
+      LOG.info("Database compacted. ({})", tm.stop().getTimeString());
+    }
+  }
+
+  /**
+   * Check, if field indexing was not completed in last run. Will remove any
+   * field data that is flagged as being incomplete (due to crashes,
+   * interruption, etc.).
+   * <p/>
+   * Cached data have to been loaded already to allow modifications.
+   *
+   * @return True, if indexed fields have changed
+   */
+  private boolean checkForIncompleteIndexedFields() {
+    if (!this.db.exists(DbMakers.Flags.IDX_FIELDS_BEING_INDEXED.name())) {
+      return false; // no changes
+    }
+
+    final Set<String> flaggedFields = this.db.createHashSet(DbMakers
+        .Flags.IDX_FIELDS_BEING_INDEXED.name()).<String>makeOrGet();
+
+    if (flaggedFields.isEmpty()) {
+      return false; // no changes
+    } else {
+      ByteArray ignored;
+      for (final String field : flaggedFields) {
+        final SerializableByte fieldId = getFieldId(field);
+
+        // remove all field contents from persistent index terms map
+        final Iterator<ByteArray> idxTMapIt =
+            Fun.filter(getIdxTermsMap().keySet(),
+                fieldId).iterator();
+        while (idxTMapIt.hasNext()) {
+          ignored = idxTMapIt.next();
+          idxTMapIt.remove();
+        }
+
+        // remove all field contents from persistent document terms map
+        final Iterator<ByteArray> docTMapIt =
+            Fun.filter(getIdxDocTermsMap().keySet(), fieldId, null).iterator();
+        while (docTMapIt.hasNext()) {
+          ignored = docTMapIt.next();
+          docTMapIt.remove();
+        }
+      }
+      LOG.warn("Incompletely index fields found ({}). This fields have been " +
+          "removed from cache. Cache rebuilding is needed.", flaggedFields);
+      commitDb(false);
+      return true; // fields were removed from cache
+    }
+  }
+
+  @Override
+  protected void warmUpDocumentFrequencies()
+      throws DataProviderException {
+    try {
+      super.warmUpDocumentFrequencies_default();
+      commitDb(false);
+    } catch (ProcessingException e) {
+      throw new DataProviderException(
+          "Failed to warm-up document frequencies", e);
+    }
+  }
+
+  @Override
+  protected void warmUpTerms()
+      throws DataProviderException {
+    try {
+      super.warmUpTerms_default();
+      commitDb(false);
+    } catch (ProcessingException e) {
+      throw new DataProviderException(
+          "Failed to warm-up terms", e);
+    }
+  }
+
+  @Override
+  protected void warmUpDocumentIds() {
+    super.warmUpDocumentIds_default();
+  }
+
+  @Override
+  protected void warmUpIndexTermFrequencies() {
+    super.warmUpIndexTermFrequencies_default();
   }
 
   @Override
@@ -274,10 +362,8 @@ public final class DirectIndexDataProvider
         throw new IllegalStateException("Zero terms.");
       }
 
-      LOG.info("Writing data.");
       this.persistence.updateMetaData(getDocumentFields(), getStopwords());
-      this.db.commit();
-      LOG.debug("Writing data - done.");
+      commitDb(false);
     }
   }
 
@@ -294,10 +380,72 @@ public final class DirectIndexDataProvider
   }
 
   /**
+   * Read dynamic caches from the database and validate their state.
+   */
+  private void readDbCaches() {
+    if (this.persistence.getMetaData().stopWordsCurrent(getStopwords())) {
+      LOG.info("Stopwords unchanged ({} terms).", getStopwords().size());
+
+      // check if terms collector task has finished completely
+      if (this.db.exists(DbMakers.Flags.IDX_TERMS_COLLECTING_RUN.name())) {
+        LOG.warn("Found incomplete terms index. This index will " +
+            "be deleted and rebuilt on warm-up.");
+        this.db.delete(DbMakers.Flags.IDX_TERMS_COLLECTING_RUN.name());
+        this.db.delete(DbMakers.Caches.IDX_TERMS.name());
+      }
+
+      // load terms index
+      setIdxTerms(DbMakers.idxTermsMaker(this.db).<ByteArray>makeOrGet());
+      final int idxTermsSize = getIdxTerms().size();
+      if (idxTermsSize == 0) {
+        LOG.info("Index terms cache is empty. Will be rebuild on warm-up.");
+      } else {
+        LOG.info("Loaded index terms cache with {} entries.",
+            idxTermsSize);
+      }
+
+      // try load overall term frequency
+      setIdxTf(this.db.getAtomicLong(DbMakers.Caches.IDX_TF.name()).get());
+      if (getIdxTf() == 0L) {
+        LOG.info("No term frequency value found. Will be re-calculated on " +
+            "warm-up.");
+        clearIdxTf();
+      } else {
+        LOG.info("Term frequency value loaded ({}).", getIdxTf());
+      }
+    } else {
+      // reset terms index
+      LOG.info("Stopwords changed. Deleting index terms cache.");
+      this.db.delete(DbMakers.Caches.IDX_TERMS.name());
+      setIdxTerms(DbMakers.idxTermsMaker(this.db).<ByteArray>make());
+
+      // reset overall term frequency
+      setIdxTf(null);
+    }
+
+    // check if document-frequency calculation task has finished completely
+    if (this.db.exists(DbMakers.Flags.IDX_DOC_FREQ_CALC_RUN.name())) {
+      LOG.warn("Found incomplete document-frequency map. This map will " +
+          "be deleted and rebuilt on warm-up.");
+      this.db.delete(DbMakers.Flags.IDX_DOC_FREQ_CALC_RUN.name());
+      this.db.delete(DbMakers.Caches.IDX_DFMAP.name());
+    }
+    setIdxDfMap(DbMakers.idxDfMapMaker(this.db).<ByteArray,
+        Integer>makeOrGet());
+    if (getIdxDfMap().isEmpty()) {
+      LOG.info(
+          "Document-frequency cache is empty. Will be rebuild on warm-up.");
+    } else {
+      LOG.info("Loaded document-frequency cache with {} entries.",
+          getIdxDfMap().size());
+    }
+  }
+
+  /**
    * Clear all dynamic caches. This must be called, if the fields or stop-words
    * have changed.
    */
-  void clearCache() {
+  void clearDbCaches() {
     LOG.info("Clearing temporary caches.");
     // index terms cache (content depends on current fields & stopwords)
     if (this.db.exists(DbMakers.Caches.IDX_TERMS.name())) {
@@ -328,12 +476,7 @@ public final class DirectIndexDataProvider
         .removeAll(updatingFields);
     updatingFields.removeAll(getCachedFieldsMap().keySet());
 
-    if (!updatingFields.isEmpty()) {
-      for (final String field : updatingFields) {
-        addFieldToCacheMap(field);
-      }
-    }
-
+    // check, if there's anything to update
     if (!update && updatingFields.isEmpty()) {
       return;
     }
@@ -356,6 +499,21 @@ public final class DirectIndexDataProvider
             "available.");
       }
     }
+
+    // generate a field-id
+    if (!updatingFields.isEmpty()) {
+      for (final String field : updatingFields) {
+        addFieldToCacheMap(field);
+      }
+    }
+
+    // Store fields being update to database. The list will be emptied after
+    // indexing. This will be used to identify incomplete indexed fields
+    // caused by interruptions.
+    final Set<String> flaggedFields = this.db.createHashSet(DbMakers
+        .Flags.IDX_FIELDS_BEING_INDEXED.name()).<String>make();
+    flaggedFields.addAll(updatingFields);
+    commitDb(false); // store before processing
 
     final List<AtomicReaderContext> arContexts =
         getIndexReader().getContext().leaves();
@@ -413,10 +571,10 @@ public final class DirectIndexDataProvider
     }
     autoCommit.stop();
 
-    LOG.info("Updating database.");
-    this.db.commit();
-    LOG.info("Compacting database.");
-    this.db.compact();
+    // all fields successful updated
+    this.db.delete(DbMakers.Flags.IDX_FIELDS_BEING_INDEXED.name());
+
+    commitDb(true);
   }
 
   /**
@@ -638,9 +796,8 @@ public final class DirectIndexDataProvider
   @Override
   public void dispose() {
     if (this.db != null && !this.db.isClosed()) {
+      commitDb(true);
       LOG.info("Closing database.");
-      this.db.commit();
-      this.db.compact();
       this.db.close();
     }
     setDisposed();
@@ -987,10 +1144,7 @@ public final class DirectIndexDataProvider
     public void run() {
       if (this.finished && tm.getElapsedMillis() >= this.period) {
         this.finished = false;
-        tm.stop().start();
-        LOG.info("Updating database.");
-        DirectIndexDataProvider.this.db.commit();
-        LOG.info("Database updated. ({})", tm.stop().getTimeString());
+        commitDb(false);
         this.finished = true;
         tm.start();
       }
@@ -1002,8 +1156,8 @@ public final class DirectIndexDataProvider
    */
   private final class TimedCommit {
 
-    private Timer timer = new Timer();
-    private final int period;
+    private Timer timer;
+    private int period;
     private TimedCommitRunner task;
 
     /**
@@ -1014,10 +1168,12 @@ public final class DirectIndexDataProvider
      * @param newPeriod time in milliseconds between successive task executions
      */
     TimedCommit(final int delay, final int newPeriod) {
-      this.period = newPeriod;
-      this.timer = new Timer();
-      this.task = new TimedCommitRunner(this.period);
-      this.timer.schedule(task, delay, this.period);
+      if (persistence.supportsTransaction()) {
+        this.period = newPeriod;
+        this.timer = new Timer();
+        this.task = new TimedCommitRunner(this.period);
+        this.timer.schedule(task, delay, this.period);
+      }
     }
 
     /**
@@ -1027,15 +1183,20 @@ public final class DirectIndexDataProvider
      * @param newPeriod time in milliseconds between successive task executions
      */
     TimedCommit(final int newPeriod) {
-      this.period = newPeriod;
-      this.task = new TimedCommitRunner(this.period);
+      if (persistence.supportsTransaction()) {
+        this.period = newPeriod;
+        this.timer = new Timer();
+        this.task = new TimedCommitRunner(this.period);
+      }
     }
 
     /**
      * Stop the timer.
      */
     void stop() {
-      this.timer.cancel();
+      if (persistence.supportsTransaction()) {
+        this.timer.cancel();
+      }
     }
 
     /**
@@ -1044,19 +1205,23 @@ public final class DirectIndexDataProvider
      * @param newPeriod time in milliseconds between successive task executions
      */
     void start(final int newPeriod) {
-      this.timer.cancel();
-      this.timer = new Timer();
-      this.task = new TimedCommitRunner(this.period);
-      this.timer.schedule(task, 0, newPeriod);
+      if (persistence.supportsTransaction()) {
+        this.timer.cancel();
+        this.timer = new Timer();
+        this.task = new TimedCommitRunner(this.period);
+        this.timer.schedule(task, 0, newPeriod);
+      }
     }
 
     /**
      * Start the timer again.
      */
     void start() {
-      this.timer.cancel();
-      this.timer = new Timer();
-      this.timer.schedule(task, 0, this.period);
+      if (persistence.supportsTransaction()) {
+        this.timer.cancel();
+        this.timer = new Timer();
+        this.timer.schedule(task, 0, this.period);
+      }
     }
   }
 
@@ -1193,6 +1358,26 @@ public final class DirectIndexDataProvider
         }
       }
       return miss;
+    }
+
+    /**
+     * Ids of flags being stored in the database. Those values are needed to
+     * ensure data is consistent.
+     */
+    public enum Flags {
+      /**
+       * List of fields currently being indexed. Used to recover from crashes.
+       */
+      IDX_FIELDS_BEING_INDEXED,
+      /**
+       * Boolean flag indicating, if a document-frequency calculating process is
+       * running.
+       */
+      IDX_DOC_FREQ_CALC_RUN,
+      /**
+       * Boolean flag indicating, if a term collecting process is running.
+       */
+      IDX_TERMS_COLLECTING_RUN
     }
 
     /**
