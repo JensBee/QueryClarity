@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Jens Bertram
+ * Copyright (C) 2014 Jens Bertram <code@jens-bertram.net>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,6 +33,8 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Wrapper for database creation.
+ *
  * @author Jens Bertram
  */
 public final class Persistence {
@@ -121,20 +123,20 @@ public final class Persistence {
     if (create && this.db.exists(Storage.PERSISTENCE_FIELDS.name())) {
       this.db.delete(Storage.PERSISTENCE_FIELDS.name());
     }
-    //noinspection RedundantTypeArguments
+
     meta.fields = this.db.createHashSet(Storage.PERSISTENCE_FIELDS.name()).
         serializer(Serializer.STRING).<String>makeOrGet();
 
     if (create && this.db.exists(Storage.PERSISTENCE_STOPWORDS.name())) {
       this.db.delete(Storage.PERSISTENCE_STOPWORDS.name());
     }
-    //noinspection RedundantTypeArguments
     meta.stopWords = this.db.createHashSet(Storage.PERSISTENCE_STOPWORDS.
         name()).serializer(Serializer.STRING).<String>makeOrGet();
   }
 
   /**
-   * Update the meta-data records. This does not commit data to the database.
+   * Update the field and stopwords meta-data records. This does not commit data
+   * to the database.
    */
   public void updateMetaData(final Set<String> fields,
       final Set<String> stopwords) {
@@ -142,6 +144,14 @@ public final class Persistence {
     meta.setFields(Objects.requireNonNull(fields, "Fields were null."));
     meta.setStopWords(Objects.requireNonNull(stopwords,
         "Stopwords were null."));
+  }
+
+  /**
+   * Update the commit-generation meta-data records. This does not commit data
+   * to the database.
+   */
+  public void updateMetaData(final long commitGen) {
+    meta.setIndexCommitGen(commitGen);
   }
 
   /**
@@ -196,7 +206,8 @@ public final class Persistence {
      * @param newIndexCommitGen Generation
      */
     protected void setIndexCommitGen(final Long newIndexCommitGen) {
-      this.indexCommitGen.set(newIndexCommitGen);
+      this.indexCommitGen.set(Objects.requireNonNull(newIndexCommitGen,
+          "Commit generation was null."));
     }
 
     /**
@@ -271,6 +282,7 @@ public final class Persistence {
         throw new IllegalStateException("Commit generation "
             + "meta information not set.");
       }
+      LOG.debug("this={} that={}", this.indexCommitGen.get(), currentGen);
       return this.indexCommitGen.get() == currentGen;
     }
   }
@@ -431,6 +443,7 @@ public final class Persistence {
           .mmapFileEnableIfSupported()
           .commitFileSyncDisable()
           .compressionEnable()
+          .strictDBGet()
           .closeOnJvmShutdown();
       return this;
     }
@@ -567,9 +580,13 @@ public final class Persistence {
     public Persistence build()
         throws ConfigurationException, BuildException {
       validate();
+      try {
+        Persistence.tryCreateDataPath(this.dataPath);
+      } catch (IOException e) {
+        throw new BuildException("Failed to create data path.", e);
+      }
       final File dbFile = new File(
           FileUtils.makePath(this.dataPath) + Builder.PREFIX + "_" + this.name);
-      //this.dbMkr = DBMaker.newFileDB(dbFile);
       this.dbMkr.dbFile(dbFile);
       final Persistence p;
       try {

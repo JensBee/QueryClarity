@@ -315,6 +315,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
       try {
         this.lastCommitGeneration = SegmentInfos.getLastCommitGeneration(this
             .luceneDir);
+        this.persistenceBuilder.lastCommitGeneration(this.lastCommitGeneration);
       } catch (IOException e) {
         throw new ConfigurationException("Filed to get Lucene segment " +
             "information.", e);
