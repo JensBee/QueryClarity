@@ -21,7 +21,6 @@ import de.unihildesheim.iw.Persistence;
 import de.unihildesheim.iw.SerializableByte;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
-import de.unihildesheim.iw.util.TupleSetFilter;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
@@ -43,6 +42,7 @@ import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.concurrent.ConcurrentNavigableMap;
 
 /**
@@ -754,20 +754,26 @@ abstract class AbstractIndexDataProvider
     public void call(final ByteArray term)
         throws Exception {
       if (term != null) {
-        int matchedDocs = 0;
+        final Set<Integer> matchedDocs = new HashSet<>();
+        SortedSet<Fun.Tuple3<SerializableByte, Integer, ByteArray>> subSet;
+
         for (final String field : this.docFields) {
           final SerializableByte fieldId = getFieldId(field);
           // get all documents which have the current term in the current field
-          final Iterable<Integer> docIdIt = TupleSetFilter.filterB
-              (this.docFieldTermSet, fieldId, term);
+          subSet = ((NavigableSet) this.docFieldTermSet).subSet(
+              Fun.t3(fieldId, null, null),
+              Fun.t3(fieldId, Fun.<Integer>HI(), Fun.<ByteArray>HI())
+          );
 
-          for (final Integer ignored : docIdIt) {
-            matchedDocs++;
+          for (Fun.Tuple3<SerializableByte, Integer, ByteArray> t3 : subSet) {
+            if (term.equals(t3.c)) {
+              matchedDocs.add(t3.b);
+            }
           }
         }
 
-        assert matchedDocs > 0;
-        getIdxDfMap().put(term, matchedDocs);
+        assert matchedDocs.size() > 0;
+        getIdxDfMap().put(term, matchedDocs.size());
       }
     }
   }
