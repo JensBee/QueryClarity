@@ -111,8 +111,8 @@ public final class DirectIndexDataProvider
    *
    * @param builder Builder to use for constructing the instance
    * @return New instance
-   * @throws Buildable.BuildException Thrown, if initializing the
-   * instance with the provided builder has failed
+   * @throws Buildable.BuildException Thrown, if initializing the instance with
+   * the provided builder has failed
    * @throws DataProviderException Thrown, if initializing the instance data
    * failed
    */
@@ -214,7 +214,7 @@ public final class DirectIndexDataProvider
         getDocumentFields());
 
     setIdxDocTermsMap(DbMakers.idxDocTermsMapMkr(this.db)
-        .<Fun.Tuple3<SerializableByte, Integer, ByteArray>,
+        .<Fun.Tuple3<ByteArray, SerializableByte, Integer>,
             Integer>makeOrGet());
     setIdxTermsMap(DbMakers.idxTermsMapMkr(this.db)
         .<Fun.Tuple2<SerializableByte, ByteArray>, Long>makeOrGet());
@@ -244,6 +244,36 @@ public final class DirectIndexDataProvider
     commitDb(false);
   }
 
+  @Override
+  public void warmUp()
+      throws DataProviderException {
+    if (!cachesWarmed()) {
+      super.warmUp();
+
+      if (getIdxTf() == null || getIdxTf() == 0) {
+        throw new IllegalStateException("Zero term frequency.");
+      }
+
+      if (this.db.exists(DbMakers.Caches.IDX_TF.name())) {
+        this.db.getAtomicLong(DbMakers.Caches.IDX_TF.name()).set(getIdxTf());
+      } else {
+        this.db.createAtomicLong(DbMakers.Caches.IDX_TF.name(), getIdxTf());
+      }
+
+
+      if (getIdxDocumentIds().isEmpty()) {
+        throw new IllegalStateException("Zero document ids.");
+      }
+
+      if (getIdxTerms().isEmpty()) {
+        throw new IllegalStateException("Zero terms.");
+      }
+
+      this.persistence.updateMetaData(getDocumentFields(), getStopwords());
+      commitDb(false);
+    }
+  }
+
   /**
    * Read dynamic caches from the database and validate their state.
    */
@@ -265,8 +295,7 @@ public final class DirectIndexDataProvider
       if (idxTermsSize == 0) {
         LOG.info("Index terms cache is empty. Will be rebuild on warm-up.");
       } else {
-        LOG.info("Loaded index terms cache with {} entries.",
-            idxTermsSize);
+        LOG.info("Loaded index terms cache with {} entries.", idxTermsSize);
       }
 
       // try load overall term frequency
@@ -338,11 +367,14 @@ public final class DirectIndexDataProvider
         }
 
         // remove all field contents from persistent document terms map
-        final Iterator<ByteArray> docTMapIt =
-            Fun.filter(getIdxDocTermsMap().keySet(), fieldId, null).iterator();
-        while (docTMapIt.hasNext()) {
-          docTMapIt.next();
-          docTMapIt.remove();
+        for (ByteArray term : getIdxTerms()) {
+          final Iterator<Integer> docTMapIt =
+              Fun.filter(getIdxDocTermsMap().keySet(), term, fieldId)
+                  .iterator();
+          while (docTMapIt.hasNext()) {
+            docTMapIt.next();
+            docTMapIt.remove();
+          }
         }
       }
       LOG.warn("Incompletely index fields found ({}). This fields have been " +
@@ -378,8 +410,8 @@ public final class DirectIndexDataProvider
    * Build a cache of the current index.
    *
    * @param fields List of fields to cache
-   * @throws ProcessingException Thrown, if any parallel data processing
-   * method is failing
+   * @throws ProcessingException Thrown, if any parallel data processing method
+   * is failing
    * @throws IOException Thrown on low-level I/O errors
    */
   private void buildCache(final Set<String> fields)
@@ -519,108 +551,15 @@ public final class DirectIndexDataProvider
     }
   }
 
-  /**
-   * Shared method for {@link IndexSegmentTermsCollectorTarget} and {@link
-   * IndexTermsCollectorTarget} collecting all terms from a {@link DocsEnum}.
-   * The results are stored to both the index terms map and document
-   * term-frequency map.
-   *
-   * @param term Current term that is being collected
-   * @param fieldId Id of the field that gets processed
-   * @param targetIdxTerms Target map for storing index term frequency values
-   * @param targetDocTerms Target map to store document term-frequency values
-   * @param docsEnum Enum initialized with the given term
-   * @param ttf Total term frequency (in index) of the given term
-   * @param docBase DocBase value {@see AtomicReaderContext#docBase} to
-   * calculate the read document-id
-   * @throws IOException Thrown on low-level i/o errors
-   */
-  static void collectTerms(
-      final ByteArray term, final SerializableByte fieldId,
-      final ConcurrentMap<Fun.Tuple2<SerializableByte,
-          ByteArray>, Long> targetIdxTerms,
-      final ConcurrentMap<Fun.Tuple3<SerializableByte, Integer,
-          ByteArray>, Integer> targetDocTerms, final DocsEnum docsEnum,
-      final long ttf, final int docBase)
-      throws IOException {
-    // initialize the document iterator
-    int docId = docsEnum.nextDoc();
-
-    // build term frequency map for each document
-    Integer oldDTFValue;
-    while (docId != DocsEnum.NO_MORE_DOCS) {
-      docId += docBase;
-      final int docTermFreq = docsEnum.freq();
-
-      oldDTFValue =
-          targetDocTerms.putIfAbsent(Fun.t3(fieldId, docId, term), docTermFreq);
-      if (oldDTFValue != null) {
-        final Fun.Tuple3<SerializableByte, Integer, ByteArray>
-            idxDocTfMapKey = Fun.t3(fieldId, docId, term);
-        while (!targetDocTerms
-            .replace(idxDocTfMapKey, oldDTFValue, oldDTFValue + docTermFreq)) {
-          oldDTFValue = targetDocTerms.get(idxDocTfMapKey);
-        }
-      }
-
-      docId = docsEnum.nextDoc();
-    }
-
-    // add whole index term frequency map
-    Long oldValue = targetIdxTerms.putIfAbsent(Fun.t2(fieldId, term), ttf);
-    if (oldValue != null) {
-      final Fun.Tuple2<SerializableByte, ByteArray> idxTfMapKey =
-          Fun.t2(fieldId, term);
-      while (!targetIdxTerms.replace(idxTfMapKey, oldValue, oldValue + ttf)) {
-        oldValue = targetIdxTerms.get(idxTfMapKey);
-      }
-    }
-  }
-
-  /**
-   * Get the persistent storage manager.
-   *
-   * @return Persistence instance
-   */
-  Persistence getPersistence() {
-    return persistence;
-  }
-
-  /**
-   * {@inheritDoc} Deleted documents will be removed from the list.
-   *
-   * @return Unique collection of all (non-deleted) document ids
-   */
-  @Override
-  protected Collection<Integer> getDocumentIds() {
-    Collection<Integer> ret;
-
-    // cache initially, if needed
-    if (getIdxDocumentIds() == null) {
-      final int maxDoc = getIndexReader().maxDoc();
-      setIdxDocumentIds(new HashSet<Integer>(maxDoc));
-
-      final Bits liveDocs = MultiFields.getLiveDocs(getIndexReader());
-      for (int i = 0; i < maxDoc; i++) {
-        if (liveDocs != null && !liveDocs.get(i)) {
-          continue;
-        }
-        getIdxDocumentIds().add(i);
-      }
-      ret = Collections.unmodifiableCollection(getIdxDocumentIds());
-    } else {
-      ret = Collections.unmodifiableCollection(getIdxDocumentIds());
-    }
-    return ret;
-  }
-
   @Override
   protected void warmUpTerms()
       throws DataProviderException {
     try {
       this.db.createAtomicBoolean(DbMakers.Flags.IDX_TERMS_COLLECTING_RUN
           .name(), true);
+
       super.warmUpTerms_default();
+
       this.db.delete(DbMakers.Flags.IDX_TERMS_COLLECTING_RUN.name());
       commitDb(false);
     } catch (ProcessingException e) {
@@ -654,34 +593,101 @@ public final class DirectIndexDataProvider
     }
   }
 
+  /**
+   * {@inheritDoc} Deleted documents will be removed from the list.
+   *
+   * @return Unique collection of all (non-deleted) document ids
+   */
   @Override
-  public void warmUp()
-      throws DataProviderException {
-    if (!cachesWarmed()) {
-      super.warmUp();
+  protected Collection<Integer> getDocumentIds() {
+    Collection<Integer> ret;
 
-      if (getIdxTf() == null || getIdxTf() == 0) {
-        throw new IllegalStateException("Zero term frequency.");
+    // cache initially, if needed
+    if (getIdxDocumentIds() == null) {
+      final int maxDoc = getIndexReader().maxDoc();
+      setIdxDocumentIds(new HashSet<Integer>(maxDoc));
+
+      final Bits liveDocs = MultiFields.getLiveDocs(getIndexReader());
+      for (int i = 0; i < maxDoc; i++) {
+        if (liveDocs != null && !liveDocs.get(i)) {
+          continue;
+        }
+        getIdxDocumentIds().add(i);
       }
-
-      if (this.db.exists(DbMakers.Caches.IDX_TF.name())) {
-        this.db.getAtomicLong(DbMakers.Caches.IDX_TF.name()).set(getIdxTf());
-      } else {
-        this.db.createAtomicLong(DbMakers.Caches.IDX_TF.name(), getIdxTf());
-      }
-
-
-      if (getIdxDocumentIds().isEmpty()) {
-        throw new IllegalStateException("Zero document ids.");
-      }
-
-      if (getIdxTerms().isEmpty()) {
-        throw new IllegalStateException("Zero terms.");
-      }
-
-      this.persistence.updateMetaData(getDocumentFields(), getStopwords());
-      commitDb(false);
+      ret = Collections.unmodifiableCollection(getIdxDocumentIds());
+    } else {
+      ret = Collections.unmodifiableCollection(getIdxDocumentIds());
     }
+    return ret;
+  }
+
+  /**
+   * Shared method for {@link IndexSegmentTermsCollectorTarget} and {@link
+   * IndexTermsCollectorTarget} collecting all terms from a {@link DocsEnum}.
+   * The results are stored to both the index terms map and document
+   * term-frequency map.
+   *
+   * @param term Current term that is being collected
+   * @param fieldId Id of the field that gets processed
+   * @param targetIdxTerms Target map for storing index term frequency values
+   * @param targetDocTerms Target map to store document term-frequency values
+   * @param docsEnum Enum initialized with the given term
+   * @param ttf Total term frequency (in index) of the given term
+   * @param docBase DocBase value {@see AtomicReaderContext#docBase} to
+   * calculate the read document-id
+   * @throws IOException Thrown on low-level i/o errors
+   */
+  static void collectTerms(
+      final ByteArray term, final SerializableByte fieldId,
+      final ConcurrentMap<Fun.Tuple2<SerializableByte,
+          ByteArray>, Long> targetIdxTerms,
+      final ConcurrentMap<Fun.Tuple3<ByteArray, SerializableByte, Integer>,
+          Integer> targetDocTerms,
+      final DocsEnum docsEnum,
+      final long ttf, final int docBase)
+      throws IOException {
+    // initialize the document iterator
+    int docId = docsEnum.nextDoc();
+
+    // build term frequency map for each document
+    Integer oldDTFValue;
+    while (docId != DocsEnum.NO_MORE_DOCS) {
+      docId += docBase;
+      final int docTermFreq = docsEnum.freq();
+
+      oldDTFValue =
+          targetDocTerms.putIfAbsent(Fun.t3(term, fieldId, docId),
+              docTermFreq);
+      if (oldDTFValue != null) {
+        final Fun.Tuple3<ByteArray, SerializableByte, Integer>
+            idxDocTfMapKey = Fun.t3(term, fieldId, docId);
+        while (!targetDocTerms
+            .replace(idxDocTfMapKey, oldDTFValue, oldDTFValue + docTermFreq)) {
+          oldDTFValue = targetDocTerms.get(idxDocTfMapKey);
+        }
+      }
+
+      docId = docsEnum.nextDoc();
+    }
+
+    // add whole index term frequency map
+    Long oldValue = targetIdxTerms.putIfAbsent(Fun.t2(fieldId, term), ttf);
+    if (oldValue != null) {
+      final Fun.Tuple2<SerializableByte, ByteArray> idxTfMapKey =
+          Fun.t2(fieldId, term);
+      while (!targetIdxTerms.replace(idxTfMapKey, oldValue, oldValue + ttf)) {
+        oldValue = targetIdxTerms.get(idxTfMapKey);
+      }
+    }
+  }
+
+  /**
+   * Get the persistent storage manager.
+   *
+   * @return Persistence instance
+   */
+  Persistence getPersistence() {
+    return persistence;
   }
 
   /**
@@ -772,44 +778,6 @@ public final class DirectIndexDataProvider
   }
 
   /**
-   * {@inheritDoc} Stop-words will be skipped (their value is always
-   * <tt>false</tt>).
-   *
-   * @param documentId Id of the document to check
-   * @param term Term to lookup
-   * @return True, if it contains the term, false otherwise, or if term is a
-   * stopword
-   */
-  @Override
-  public boolean documentContains(final int documentId, final ByteArray term) {
-    Objects.requireNonNull(term, "Term was null.");
-
-    if (isStopword(term)) {
-      // skip stop-words
-      return false;
-    }
-
-    checkDocId(documentId);
-    try {
-      final DocFieldsTermsEnum dftEnum =
-          new DocFieldsTermsEnum(getIndexReader(), getDocumentFields())
-              .setDocument
-                  (documentId);
-      BytesRef br = dftEnum.next();
-      while (br != null) {
-        if (BytesRefUtils.bytesEquals(br, term)) {
-          return true;
-        }
-        br = dftEnum.next();
-      }
-    } catch (IOException ex) {
-      LOG.error("Caught exception while iterating document terms. "
-          + "docId=" + documentId + ".", ex);
-    }
-    return false;
-  }
-
-  /**
    * {@inheritDoc} Stop-words will be skipped.
    *
    * @param docIds List of document ids to extract terms from
@@ -851,6 +819,44 @@ public final class DirectIndexDataProvider
   }
 
   /**
+   * {@inheritDoc} Stop-words will be skipped (their value is always
+   * <tt>false</tt>).
+   *
+   * @param documentId Id of the document to check
+   * @param term Term to lookup
+   * @return True, if it contains the term, false otherwise, or if term is a
+   * stopword
+   */
+  @Override
+  public boolean documentContains(final int documentId, final ByteArray term) {
+    Objects.requireNonNull(term, "Term was null.");
+
+    if (isStopword(term)) {
+      // skip stop-words
+      return false;
+    }
+
+    checkDocId(documentId);
+    try {
+      final DocFieldsTermsEnum dftEnum =
+          new DocFieldsTermsEnum(getIndexReader(), getDocumentFields())
+              .setDocument
+                  (documentId);
+      BytesRef br = dftEnum.next();
+      while (br != null) {
+        if (BytesRefUtils.bytesEquals(br, term)) {
+          return true;
+        }
+        br = dftEnum.next();
+      }
+    } catch (IOException ex) {
+      LOG.error("Caught exception while iterating document terms. "
+          + "docId=" + documentId + ".", ex);
+    }
+    return false;
+  }
+
+  /**
    * Wrapper for externally configurable options.
    */
   private static final class UserConf {
@@ -867,8 +873,8 @@ public final class DirectIndexDataProvider
 
     private static ConcurrentMap<Fun.Tuple2<SerializableByte,
         ByteArray>, Long> targetIdxTerms;
-    private static ConcurrentMap<Fun.Tuple3<SerializableByte, Integer,
-        ByteArray>, Integer> targetDocTerms;
+    private static ConcurrentMap<Fun.Tuple3<ByteArray, SerializableByte,
+        Integer>, Integer> targetDocTerms;
     private static AtomicReader reader;
     private static String field;
     private static int docBase;
@@ -880,7 +886,7 @@ public final class DirectIndexDataProvider
         final AtomicReaderContext context,
         final ConcurrentMap<Fun.Tuple2<SerializableByte, ByteArray>,
             Long> idxTermsMap,
-        final ConcurrentMap<Fun.Tuple3<SerializableByte, Integer, ByteArray>,
+        final ConcurrentMap<Fun.Tuple3<ByteArray, SerializableByte, Integer>,
             Integer> idxDocTermsMap)
         throws IOException {
       super(newSource);
@@ -990,8 +996,8 @@ public final class DirectIndexDataProvider
      */
     static final BTreeKeySerializer IDX_DOCTERMSMAP_KEYSERIALIZER
         = new BTreeKeySerializer.Tuple3KeySerializer<>(
-        SerializableByte.COMPARATOR, null, SerializableByte.SERIALIZER,
-        Serializer.INTEGER, ByteArray.SERIALIZER);
+        null, null,
+        ByteArray.SERIALIZER, SerializableByte.SERIALIZER, Serializer.INTEGER);
 
     /**
      * Private empty constructor for utility class.
@@ -1010,6 +1016,7 @@ public final class DirectIndexDataProvider
           .createTreeSet(Caches.IDX_TERMS.name())
           .serializer(new BTreeKeySerializer.BasicKeySerializer(
               ByteArray.SERIALIZER))
+          .nodeSize(18)
           .counterEnable();
     }
 
@@ -1024,6 +1031,7 @@ public final class DirectIndexDataProvider
           .createTreeMap(Caches.IDX_DFMAP.name())
           .keySerializerWrap(ByteArray.SERIALIZER)
           .valueSerializer(Serializer.INTEGER)
+          .nodeSize(18)
           .counterEnable();
     }
 
@@ -1038,7 +1046,8 @@ public final class DirectIndexDataProvider
           .createTreeMap(Stores.IDX_TERMS_MAP.name())
           .keySerializer(DbMakers.IDX_TERMSMAP_KEYSERIALIZER)
           .valueSerializer(Serializer.LONG)
-          .nodeSize(100);
+          .counterEnable()
+          .nodeSize(16);
     }
 
     /**
@@ -1052,7 +1061,8 @@ public final class DirectIndexDataProvider
           .createTreeMap(Stores.IDX_DOC_TERMS_MAP.name())
           .keySerializer(DbMakers.IDX_DOCTERMSMAP_KEYSERIALIZER)
           .valueSerializer(Serializer.INTEGER)
-          .nodeSize(100);
+          .counterEnable()
+          .nodeSize(8);
     }
 
     /**
@@ -1066,6 +1076,7 @@ public final class DirectIndexDataProvider
           .createTreeMap(Caches.IDX_FIELDS.name())
           .keySerializer(BTreeKeySerializer.STRING)
           .valueSerializer(SerializableByte.SERIALIZER)
+          .nodeSize(8)
           .counterEnable();
     }
 

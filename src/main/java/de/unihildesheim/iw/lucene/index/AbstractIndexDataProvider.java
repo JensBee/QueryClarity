@@ -42,7 +42,6 @@ import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.SortedSet;
 import java.util.concurrent.ConcurrentNavigableMap;
 
 /**
@@ -103,11 +102,11 @@ abstract class AbstractIndexDataProvider
       SerializableByte, ByteArray>, Long> idxTermsMap;
   /**
    * Persistent cached collection of all index terms mapped by document-field
-   * and document-id. Mapping is {@code(Field, Document, Term)} to {@code
+   * and document-id. Mapping is {@code(Term, Field, Document)} to {@code
    * Frequency}. Fields are indexed by {@link #cachedFieldsMap}.
    */
   private ConcurrentNavigableMap<Fun.Tuple3<
-      SerializableByte, Integer, ByteArray>, Integer> idxDocTermsMap;
+      ByteArray, SerializableByte, Integer>, Integer> idxDocTermsMap;
   /**
    * List of fields cached by this instance. Mapping of field name to id value.
    */
@@ -214,12 +213,12 @@ abstract class AbstractIndexDataProvider
   }
 
   protected ConcurrentNavigableMap<Fun.Tuple3<
-      SerializableByte, Integer, ByteArray>, Integer> getIdxDocTermsMap() {
+      ByteArray, SerializableByte, Integer>, Integer> getIdxDocTermsMap() {
     return this.idxDocTermsMap;
   }
 
   protected void setIdxDocTermsMap(final ConcurrentNavigableMap<Fun.Tuple3<
-      SerializableByte, Integer, ByteArray>, Integer> newIdxDocTermsMap) {
+      ByteArray, SerializableByte, Integer>, Integer> newIdxDocTermsMap) {
     this.idxDocTermsMap = Objects.requireNonNull(newIdxDocTermsMap,
         "Index document term-frequency map was null.");
   }
@@ -284,20 +283,24 @@ abstract class AbstractIndexDataProvider
   /**
    * Default implementation of {@link #warmUpTerms()}.
    */
-  final void warmUpTerms_default()
+  final boolean warmUpTerms_default()
       throws ProcessingException {
+    final boolean loaded;
     final TimeMeasure tStep = new TimeMeasure();
     // cache all index terms
     if (this.idxTerms == null || this.idxTerms.isEmpty()) {
+      loaded = false;
       tStep.start();
       LOG.info("Cache warming: terms..");
       getTerms(); // caches this.idxTerms
       LOG.info("Cache warming: collecting {} unique terms took {}.",
           this.idxTerms.size(), tStep.stop().getTimeString());
     } else {
+      loaded = true;
       LOG.info("Cache warming: {} Unique terms already loaded.",
           this.idxTerms.size());
     }
+    return loaded;
   }
 
   /**
@@ -351,10 +354,12 @@ abstract class AbstractIndexDataProvider
   /**
    * Default implementation of {@link #warmUpIndexTermFrequencies()}.
    */
-  final void warmUpIndexTermFrequencies_default() {
+  final boolean warmUpIndexTermFrequencies_default() {
+    final boolean loaded;
     final TimeMeasure tStep = new TimeMeasure();
     // collect index term frequency
     if (this.idxTf == null || this.idxTf == 0) {
+      loaded = false;
       tStep.start();
       LOG.info("Cache warming: index term frequencies..");
       getTermFrequency(); // caches this.idxTf
@@ -364,11 +369,13 @@ abstract class AbstractIndexDataProvider
               getTimeString()
       );
     } else {
+      loaded = true;
       LOG.info("Cache warming: "
               + "{} index term frequency values already loaded.",
           this.idxTf
       );
     }
+    return loaded;
   }
 
   /**
@@ -595,6 +602,13 @@ abstract class AbstractIndexDataProvider
   }
 
   /**
+   * Collect and cache all document-ids from the index.
+   *
+   * @return Unique collection of all document ids
+   */
+  protected abstract Collection<Integer> getDocumentIds();
+
+  /**
    * Get the term frequency including stop-words.
    *
    * @param term Term to lookup
@@ -613,6 +627,21 @@ abstract class AbstractIndexDataProvider
       }
     }
     return tf;
+  }
+
+  /**
+   * Get a list of field-ids of all available document fields.
+   *
+   * @return List of field ids
+   */
+  private Set<SerializableByte> getDocumentFieldIds() {
+    final Set<SerializableByte> fieldIds = new HashSet<>(this.documentFields
+        .size());
+    for (String fieldName : this.documentFields) {
+      fieldIds.add(getFieldId(fieldName));
+    }
+    assert !fieldIds.isEmpty();
+    return fieldIds;
   }
 
   /**
@@ -635,13 +664,6 @@ abstract class AbstractIndexDataProvider
           this.idxDocumentIds.size());
     }
   }
-
-  /**
-   * Collect and cache all document-ids from the index.
-   *
-   * @return Unique collection of all document ids
-   */
-  protected abstract Collection<Integer> getDocumentIds();
 
   /**
    * Default implementation of {@link #warmUpDocumentFrequencies()}.
@@ -717,42 +739,32 @@ abstract class AbstractIndexDataProvider
       extends TargetFuncCall.TargetFunc<ByteArray> {
 
     private final Collection<Integer> docIds;
-    private final Collection<String> docFields;
-    private final NavigableSet<Fun.Tuple3<SerializableByte,
-        Integer, ByteArray>> docFieldTermSet;
+    private final Collection<SerializableByte> docFieldIds;
+    private final NavigableSet<Fun.Tuple3<
+        ByteArray, SerializableByte, Integer>> docFieldTermSet;
 
-    DocumentFrequencyCollectorTarget() {
+    DocumentFrequencyCollectorTarget()
+        throws ProcessingException {
+      super();
       this.docIds = getDocumentIds();
-      this.docFields = getDocumentFields();
+      this.docFieldIds = getDocumentFieldIds();
       this.docFieldTermSet = getIdxDocTermsMap().keySet();
     }
 
     @Override
-    public void call(final ByteArray term)
-        throws Exception {
+    public void call(final ByteArray term) {
       if (term != null) {
         final Set<Integer> matchedDocs = new HashSet<>();
-        SortedSet<Fun.Tuple3<SerializableByte, Integer, ByteArray>> subSet;
 
-        for (final String field : this.docFields) {
-          final SerializableByte fieldId = getFieldId(field);
-          // check all documents
-          for (Integer docId : getIdxDocumentIds()) {
-            // check all terms in current field
-            subSet = ((NavigableSet) this.docFieldTermSet).subSet(
-                Fun.t3(fieldId, docId, null),
-                Fun.t3(fieldId, docId, Fun.<ByteArray>HI())
-            );
-
-            for (Fun.Tuple3<SerializableByte, Integer, ByteArray> t3 : subSet) {
-              if (term.equals(t3.c)) {
-                matchedDocs.add(t3.b);
-              }
-            }
+        for (final SerializableByte fieldId : this.docFieldIds) {
+          // iterate only a reduced set of documents
+          for (final Integer docId :
+              Fun.filter(this.docFieldTermSet, term, fieldId)) {
+            matchedDocs.add(docId);
           }
         }
 
-        assert matchedDocs.size() > 0;
+        assert !matchedDocs.isEmpty();
         getIdxDfMap().put(term, matchedDocs.size());
       }
     }
