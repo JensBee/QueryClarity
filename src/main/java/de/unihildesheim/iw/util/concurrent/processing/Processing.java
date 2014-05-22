@@ -40,11 +40,6 @@ import java.util.concurrent.TimeoutException;
 public final class Processing {
 
   /**
-   * Prefix used to store configuration.
-   */
-  private static final String IDENTIFIER = "Processing";
-
-  /**
    * Default number of target threads to run. Defaults to the number of
    * available processors.
    */
@@ -61,6 +56,10 @@ public final class Processing {
     }
   }
 
+  /**
+   * Prefix used to store configuration.
+   */
+  private static final String IDENTIFIER = "Processing";
   /**
    * Logger instance for this class.
    */
@@ -88,6 +87,17 @@ public final class Processing {
   private CountDownLatch threadTrackingLatch;
 
   /**
+   * Creates a new processing pipe, deriving the {@link Source} from the {@link
+   * Target}.
+   *
+   * @param newTarget Processing {@link Target}
+   * @see Processing#Processing(Source, Target)
+   */
+  public Processing(final Target newTarget) {
+    this(newTarget.getSource(), newTarget);
+  }
+
+  /**
    * Creates a new processing pipe with the given {@link Source} and {@link
    * Target}.
    *
@@ -101,14 +111,15 @@ public final class Processing {
   }
 
   /**
-   * Creates a new processing pipe, deriving the {@link Source} from the {@link
-   * Target}.
-   *
-   * @param newTarget Processing {@link Target}
-   * @see Processing#Processing(Source, Target)
+   * Initialize the thread pool. Adds a shutdown hook to terminate the pool.
    */
-  public Processing(final Target newTarget) {
-    this(newTarget.getSource(), newTarget);
+  private void initPool() {
+    if (executor == null) {
+      LOG.debug("Initialize thread pool.");
+      executor = new ProcessingThreadPoolExecutor();
+      Runtime.getRuntime().addShutdownHook(new Thread(new ShutDownHook(),
+          "Processing_shutdownHandler"));
+    }
   }
 
   /**
@@ -164,18 +175,6 @@ public final class Processing {
   }
 
   /**
-   * Initialize the thread pool. Adds a shutdown hook to terminate the pool.
-   */
-  private void initPool() {
-    if (executor == null) {
-      LOG.debug("Initialize thread pool.");
-      executor = new ProcessingThreadPoolExecutor();
-      Runtime.getRuntime().addShutdownHook(new Thread(new ShutDownHook(),
-          "Processing_shutdownHandler"));
-    }
-  }
-
-  /**
    * Start processing with the defined {@link Source} and {@link Target} with
    * the default number of threads.
    */
@@ -189,9 +188,10 @@ public final class Processing {
    * specified number of threads.
    *
    * @param maxThreadCount Maximum number of threads to use
+   * @return Number of processed items. May be {@code null} on errors.
    */
   @SuppressWarnings("ThrowableResultIgnored")
-  public void process(final int maxThreadCount)
+  public Long process(final int maxThreadCount)
       throws ProcessingException {
     final int threadCount;
     if (maxThreadCount > Processing.THREADS) {
@@ -280,10 +280,12 @@ public final class Processing {
       }
     }
 
+    Long processedItems = 0L;
     try {
       // retrieve result from source
+      processedItems = sourceThread.get(3, TimeUnit.SECONDS);
       LOG.debug("Source finished with {} items after {}.",
-          sourceThread.get(3, TimeUnit.SECONDS),
+          processedItems,
           TimeMeasure.getTimeString(sourceTime.get(1, TimeUnit.SECONDS))
       );
     } catch (TimeoutException ex) {
@@ -304,6 +306,7 @@ public final class Processing {
     }
 
     LOG.trace("Processing finished.");
+    return processedItems;
   }
 
   /**
