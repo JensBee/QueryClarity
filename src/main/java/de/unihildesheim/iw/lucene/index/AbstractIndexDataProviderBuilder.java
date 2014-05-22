@@ -25,6 +25,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -42,58 +44,52 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
     implements Buildable {
 
   /**
+   * Logger instance for this class.
+   */
+  private static final Logger LOG = LoggerFactory.getLogger(
+      AbstractIndexDataProviderBuilder.class);
+  /**
+   * Implementation identifier used for proper cache naming.
+   */
+  private final String identifier;
+  /**
    * List of stopwords to use.
    */
   protected Set<String> stopwords = Collections.<String>emptySet();
-
   /**
    * List of document fields to use.
    */
   protected Set<String> documentFields = Collections.<String>emptySet();
-
   /**
    * Flag indicating, if the new instance will be temporary. How to handle this
    * state is up to the specific implementation.
    */
   protected boolean isTemporary;
-
   /**
    * {@link IndexReader} to use for accessing the Lucene index.
    */
   protected IndexReader idxReader;
-
-  /**
-   * File path where the working data will be stored.
-   */
-  private File dataPath;
-
-  /**
-   * {@link Directory} instance pointing at the Lucene index.
-   */
-  private Directory luceneDir;
-
   /**
    * Builder used to create a proper caching backend.
    */
   protected Persistence.Builder persistenceBuilder = new Persistence.Builder();
-
-  /**
-   * Implementation identifier used for proper cache naming.
-   */
-  private final String identifier;
-
   /**
    * Warm-up the instance right after building it?
    */
   protected boolean doWarmUp;
-
   /**
    * Last commit generation of the Lucene index (if it's a {@link Directory}
    * index). May be {@code null}.
    */
   protected Long lastCommitGeneration;
-
-  protected abstract T getThis();
+  /**
+   * File path where the working data will be stored.
+   */
+  private File dataPath;
+  /**
+   * {@link Directory} instance pointing at the Lucene index.
+   */
+  private Directory luceneDir;
 
   /**
    * Constructor setting the implementation identifier for the cache.
@@ -106,6 +102,18 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
       throw new IllegalArgumentException("Empty identifier name.");
     }
     this.identifier = newIdentifier;
+  }
+
+  /**
+   * Instruction to load the named cache.
+   *
+   * @param name Cache name
+   * @return Self reference
+   */
+  public final T loadCache(final String name) {
+    this.persistenceBuilder.name(createCacheName(name));
+    this.persistenceBuilder.get();
+    return getThis();
   }
 
   /**
@@ -122,17 +130,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
     return this.identifier + "_" + name;
   }
 
-  /**
-   * Instruction to load the named cache.
-   *
-   * @param name Cache name
-   * @return Self reference
-   */
-  public final T loadCache(final String name) {
-    this.persistenceBuilder.name(createCacheName(name));
-    this.persistenceBuilder.get();
-    return getThis();
-  }
+  protected abstract T getThis();
 
   /**
    * Set the instruction to newly create the named cache.
@@ -210,29 +208,29 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
       throw new IllegalArgumentException("Index path was empty.");
     }
 
-    final File idxDir = new File(filePath);
-    if (idxDir.exists()) {
+    final File newIdxDir = new File(filePath);
+    if (newIdxDir.exists()) {
       // check, if path is a directory
-      if (!idxDir.isDirectory()) {
-        throw new IOException("Index path '" + idxDir.getCanonicalPath()
+      if (!newIdxDir.isDirectory()) {
+        throw new IOException("Index path '" + newIdxDir.getCanonicalPath()
             + "' exists, but is not a directory.");
       }
       // check, if there's a Lucene index in the path
-      this.luceneDir = FSDirectory.open(idxDir);
+      this.luceneDir = FSDirectory.open(newIdxDir);
       if (!DirectoryReader.indexExists(this.luceneDir)) {
-        throw new IOException("No index found at index path '" + idxDir
+        throw new IOException("No index found at index path '" + newIdxDir
             .getCanonicalPath() + "'.");
       }
     } else {
       // path does not exist
       throw new IOException(
-          "Index path '" + idxDir.getCanonicalPath() + "' does " +
+          "Index path '" + newIdxDir.getCanonicalPath() + "' does " +
               "not exist."
       );
     }
-    if (!idxDir.canRead()) {
+    if (!newIdxDir.canRead()) {
       throw new IOException("Insufficient rights for index directory '"
-          + idxDir.getCanonicalPath() + "'.");
+          + newIdxDir.getCanonicalPath() + "'.");
     }
 
     return getThis();
@@ -307,7 +305,6 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
         throw new ConfigurationException("Filed to open Lucene index.", e);
       }
     }
-
 
     if (this.idxReader instanceof DirectoryReader) {
       this.luceneDir = ((DirectoryReader) this.idxReader)

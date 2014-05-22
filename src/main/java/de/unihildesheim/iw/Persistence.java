@@ -108,7 +108,6 @@ public final class Persistence {
       instance.updateMetaData(builder.getDocumentFields(),
           builder.getStopwords());
       if (builder.getLastCommitGeneration() != null) {
-        LOG.debug("LCG={}", builder.getLastCommitGeneration());
         instance.meta.setIndexCommitGen(builder.getLastCommitGeneration());
       }
     } else {
@@ -309,43 +308,25 @@ public final class Persistence {
       implements Buildable<Persistence> {
 
     /**
-     * Instructions on how to load/create the persistent cache.
-     */
-    public enum LoadInstruction {
-      /**
-       * Tries to create a new cache.
-       */
-      MAKE,
-      /**
-       * Tries to load a cache.
-       */
-      GET,
-      /**
-       * Tries to load or create a cache.
-       */
-      MAKE_OR_GET
-    }
-
-    /**
-     * Instruction on how to handle the cache.
-     */
-    private LoadInstruction cacheInstruction;
-
-    /**
      * Database async write flush delay.
      */
     private static final int DB_ASYNC_WRITEFLUSH_DELAY = 100;
-
     /**
      * Database file prefix.
      */
     private static final String PREFIX = "persist_";
-
     /**
      * Builder used to create a new database.
      */
     private final ExtDBMaker dbMkr;
-
+    /**
+     * Random string to prefix a temporary storage with.
+     */
+    private final String randNameSuffix;
+    /**
+     * Instruction on how to handle the cache.
+     */
+    private LoadInstruction cacheInstruction;
     /**
      * Name of the database to create.
      */
@@ -373,42 +354,6 @@ public final class Persistence {
      * any data may be deleted on JVM exit.
      */
     private boolean isTemporary;
-
-    /**
-     * Random string to prefix a temporary storage with.
-     */
-    private final String randNameSuffix;
-
-    /**
-     * Simple extension of MapDB's {@link DBMaker} to allow specifying the
-     * database file after creating the maker instance.
-     */
-    private static final class ExtDBMaker
-        extends DBMaker {
-      private ExtDBMaker() {
-        super();
-      }
-
-      private void debugDump() {
-        for (final Object k : props.keySet()) {
-          LOG.debug("Prop k={} v={}", k.toString(), props.get(k));
-        }
-      }
-
-      /**
-       * Check, if this db instance uses transactions.
-       *
-       * @return
-       */
-      public boolean supportsTransaction() {
-        return !this.TRUE.equals(this.props.get(Keys.transactionDisable));
-      }
-
-      private ExtDBMaker dbFile(final File file) {
-        props.setProperty(Keys.file, file.getPath());
-        return this;
-      }
-    }
 
     public Builder() {
       this.dbMkr = new ExtDBMaker();
@@ -547,35 +492,6 @@ public final class Persistence {
       return this;
     }
 
-    /**
-     * Tries to load an existing database and create the instance.
-     *
-     * @return Instance with current builder configuration
-     * @throws FileNotFoundException Thrown, if the database could not be found
-     */
-    private Persistence getInstance(final File dbFile)
-        throws FileNotFoundException {
-      if (!dbFile.exists()) {
-        throw new FileNotFoundException("Database file not found.");
-      }
-      return Persistence.build(this, false);
-    }
-
-    /**
-     * Tries to create a new database and create the instance.
-     *
-     * @return Instance with current builder configuration
-     * @throws IOException Thrown on low-level I/O errors
-     */
-    private Persistence makeInstance(final File dbFile)
-        throws IOException {
-      if (dbFile.exists()) {
-        throw new IOException("Database file exists: " + dbFile.toString());
-      }
-      LOG.debug("New fileDB @ {}", dbFile);
-      return Persistence.build(this, true);
-    }
-
     public LoadInstruction getCacheLoadInstruction() {
       return this.cacheInstruction;
     }
@@ -645,6 +561,35 @@ public final class Persistence {
       return p;
     }
 
+    /**
+     * Tries to load an existing database and create the instance.
+     *
+     * @return Instance with current builder configuration
+     * @throws FileNotFoundException Thrown, if the database could not be found
+     */
+    private Persistence getInstance(final File dbFile)
+        throws FileNotFoundException {
+      if (!dbFile.exists()) {
+        throw new FileNotFoundException("Database file not found.");
+      }
+      return Persistence.build(this, false);
+    }
+
+    /**
+     * Tries to create a new database and create the instance.
+     *
+     * @return Instance with current builder configuration
+     * @throws IOException Thrown on low-level I/O errors
+     */
+    private Persistence makeInstance(final File dbFile)
+        throws IOException {
+      if (dbFile.exists()) {
+        throw new IOException("Database file exists: " + dbFile.toString());
+      }
+      LOG.debug("New fileDB @ {}", dbFile);
+      return Persistence.build(this, true);
+    }
+
     @Override
     public void validate()
         throws ConfigurationException {
@@ -659,6 +604,55 @@ public final class Persistence {
       }
       if (this.stopwords == null) {
         throw new ConfigurationException("Stopwords are null.");
+      }
+    }
+
+    /**
+     * Instructions on how to load/create the persistent cache.
+     */
+    public enum LoadInstruction {
+      /**
+       * Tries to create a new cache.
+       */
+      MAKE,
+      /**
+       * Tries to load a cache.
+       */
+      GET,
+      /**
+       * Tries to load or create a cache.
+       */
+      MAKE_OR_GET
+    }
+
+    /**
+     * Simple extension of MapDB's {@link DBMaker} to allow specifying the
+     * database file after creating the maker instance.
+     */
+    private static final class ExtDBMaker
+        extends DBMaker {
+      private ExtDBMaker() {
+        super();
+      }
+
+      private void debugDump() {
+        for (final Object k : props.keySet()) {
+          LOG.debug("Prop k={} v={}", k.toString(), props.get(k));
+        }
+      }
+
+      /**
+       * Check, if this db instance uses transactions.
+       *
+       * @return
+       */
+      public boolean supportsTransaction() {
+        return !this.TRUE.equals(this.props.get(Keys.transactionDisable));
+      }
+
+      private ExtDBMaker dbFile(final File file) {
+        props.setProperty(Keys.file, file.getPath());
+        return this;
       }
     }
   }

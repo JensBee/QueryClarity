@@ -38,14 +38,13 @@ public interface Buildable<T> {
    *
    * @throws ConfigurationException Thrown, if the current builder configuration
    * is not valid.
-   * @throws Exception Any exception may be thrown by implementing classes
    */
   void validate()
       throws ConfigurationException;
 
   public static abstract class BuildableException
       extends Exception {
-    BuildableException(final String msg, final Exception e) {
+    BuildableException(final String msg, final Throwable e) {
       super(msg, e);
     }
 
@@ -66,7 +65,7 @@ public interface Buildable<T> {
       super(msg);
     }
 
-    public ConfigurationException(final String msg, Exception ex) {
+    public ConfigurationException(final String msg, Throwable ex) {
       super(msg, ex);
     }
   }
@@ -79,7 +78,7 @@ public interface Buildable<T> {
    */
   public static final class BuildException
       extends BuildableException {
-    public BuildException(final Exception ex) {
+    public BuildException(final Throwable ex) {
       super("Failed to build instance.", ex);
     }
 
@@ -87,7 +86,7 @@ public interface Buildable<T> {
       super(msg);
     }
 
-    public BuildException(final String msg, Exception ex) {
+    public BuildException(final String msg, Throwable ex) {
       super(msg, ex);
     }
   }
