@@ -60,6 +60,10 @@ public class GlobalConfiguration
     saveOnExit();
   }
 
+  public static final String mkPrefix(final String identifier) {
+    return identifier + "_";
+  }
+
   /**
    * Get the singleton instance.
    *
