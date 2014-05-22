@@ -43,6 +43,9 @@ public final class Persistence {
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(Persistence.class);
+  private static final String IDENTIFIER = "Persistence";
+  private static final String CONF_PREFIX = GlobalConfiguration.mkPrefix
+      (IDENTIFIER);
   /**
    * Database reference.
    */
@@ -52,7 +55,6 @@ public final class Persistence {
    * the runtime configuration.
    */
   private StorageMeta meta;
-
   /**
    * Flag indicating, if the {@link DB} instance uses transactions.
    */
@@ -295,7 +297,6 @@ public final class Persistence {
         throw new IllegalStateException("Commit generation "
             + "meta information not set.");
       }
-      LOG.debug("this={} that={}", this.indexCommitGen.get(), currentGen);
       return this.indexCommitGen.get() == currentGen;
     }
   }
@@ -308,13 +309,15 @@ public final class Persistence {
       implements Buildable<Persistence> {
 
     /**
-     * Database async write flush delay.
-     */
-    private static final int DB_ASYNC_WRITEFLUSH_DELAY = 100;
-    /**
      * Database file prefix.
      */
     private static final String PREFIX = "persist_";
+    /**
+     * Database async write flush delay.
+     */
+    private static final int DB_ASYNC_WRITEFLUSH_DELAY = GlobalConfiguration
+        .conf()
+        .getAndAddInteger(CONF_PREFIX + "db-async-writeflush-delay", 100);
     /**
      * Builder used to create a new database.
      */
@@ -331,24 +334,19 @@ public final class Persistence {
      * Name of the database to create.
      */
     private String name;
-
     private String dataPath;
-
     /**
      * List of stopwords to use.
      */
     private Set<String> stopwords;
-
     /**
      * List of document fields to use.
      */
     private Set<String> documentFields;
-
     /**
      * Last commit generation id of the Lucene index.
      */
     private Long lastCommitGeneration;
-
     /**
      * Flag indicating, if the new instance will be temporary. If it's temporary
      * any data may be deleted on JVM exit.
@@ -364,6 +362,7 @@ public final class Persistence {
           .commitFileSyncDisable()
           .compressionEnable()
           .strictDBGet()
+          .asyncWriteFlushDelay(DB_ASYNC_WRITEFLUSH_DELAY)
           .closeOnJvmShutdown();
       this.cacheInstruction = LoadInstruction.MAKE_OR_GET;
       this.stopwords = Collections.<String>emptySet();
@@ -655,5 +654,7 @@ public final class Persistence {
         return this;
       }
     }
+
+
   }
 }
