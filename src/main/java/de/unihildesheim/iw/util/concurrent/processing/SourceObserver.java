@@ -169,7 +169,6 @@ public final class SourceObserver<T>
             if (LoopType.ITEM_COUNTER.equals(type)) {
               this.wait(UPDATE_INTERVAL);
             } else {
-              LOG.debug("wait plain");
               this.wait(INTERVAL);
             }
           }
