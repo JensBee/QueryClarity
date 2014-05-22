@@ -242,7 +242,7 @@ public class ProcessingTest
           )
       ).process(coll.size());
       fail("Expected an Exception to be thrown");
-    } catch (ProcessingException.TargetFailedException e) {
+    } catch (TargetException.TargetFailedException e) {
       // pass
     }
   }
@@ -266,7 +266,7 @@ public class ProcessingTest
           )
       ).process(coll.size());
       fail("Expected an Exception to be thrown");
-    } catch (ProcessingException.TargetFailedException e) {
+    } catch (TargetException.TargetFailedException e) {
       // pass
     }
   }

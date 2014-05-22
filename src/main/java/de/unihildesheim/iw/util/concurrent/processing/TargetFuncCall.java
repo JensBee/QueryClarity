@@ -58,7 +58,7 @@ public final class TargetFuncCall<T>
       final T data;
       try {
         data = getSource().next();
-      } catch (ProcessingException.SourceHasFinishedException ex) {
+      } catch (SourceException.SourceHasFinishedException ex) {
         break;
       }
 

@@ -30,6 +30,7 @@ import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.iw.util.concurrent.processing.Source;
+import de.unihildesheim.iw.util.concurrent.processing.SourceException;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
 import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import org.apache.lucene.index.AtomicReader;
@@ -920,7 +921,7 @@ public final class DirectIndexDataProvider
       while (!isTerminating()) {
         try {
           term = getSource().next();
-        } catch (ProcessingException.SourceHasFinishedException ex) {
+        } catch (SourceException.SourceHasFinishedException ex) {
           break;
         }
 

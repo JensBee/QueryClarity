@@ -59,7 +59,7 @@ public class TestTargets {
         final T data;
         try {
           data = getSource().next();
-        } catch (ProcessingException.SourceHasFinishedException ex) {
+        } catch (SourceException.SourceHasFinishedException ex) {
           break;
         }
 

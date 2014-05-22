@@ -221,7 +221,7 @@ public final class Processing {
       try {
         aTarget = this.target.newInstance();
       } catch (Exception e) {
-        throw new ProcessingException.TargetFailedException(
+        throw new TargetException.TargetFailedException(
             "Target throwed an exception.", e.getCause());
       }
       aTarget.setLatch(this.threadTrackingLatch);
@@ -245,9 +245,9 @@ public final class Processing {
       this.threadTrackingLatch.await();
     } catch (InterruptedException ex) {
       // TODO: ugly skip source finished exception
-      if (!(ex.getCause() instanceof ProcessingException
-          .SourceHasFinishedException)) {
-        throw new ProcessingException.SourceFailedException("Caught " +
+      if (!(ex
+          .getCause() instanceof SourceException.SourceHasFinishedException)) {
+        throw new SourceException.SourceFailedException("Caught " +
             "exception while tracking source state.", ex.getCause());
       }
     }
@@ -273,10 +273,10 @@ public final class Processing {
       try {
         state.get();
       } catch (InterruptedException e) {
-        throw new ProcessingException.TargetFailedException("Target " +
+        throw new TargetException.TargetFailedException("Target " +
             "interrupted.", e.getCause());
       } catch (ExecutionException e) {
-        throw new ProcessingException.TargetFailedException(
+        throw new TargetException.TargetFailedException(
             "Target throwed an exception.", e.getCause());
       }
     }
@@ -290,18 +290,18 @@ public final class Processing {
           TimeMeasure.getTimeString(sourceTime.get(1, TimeUnit.SECONDS))
       );
     } catch (TimeoutException ex) {
-      throw new ProcessingException.TargetFailedException(
+      throw new TargetException.TargetFailedException(
           "Source finished without result. "
               + "There may be processing errors."
       );
     } catch (InterruptedException e) {
-      throw new ProcessingException.SourceFailedException("Source interrupted" +
+      throw new SourceException.SourceFailedException("Source interrupted" +
           ".", e.getCause());
     } catch (ExecutionException e) {
       // TODO: ugly skip source finished exception
-      if (!(e.getCause() instanceof ProcessingException
-          .SourceHasFinishedException)) {
-        throw new ProcessingException.SourceFailedException(
+      if (!(e
+          .getCause() instanceof SourceException.SourceHasFinishedException)) {
+        throw new SourceException.SourceFailedException(
             "Source throwed an exception.", e.getCause());
       }
     }

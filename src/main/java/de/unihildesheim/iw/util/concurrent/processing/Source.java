@@ -16,7 +16,7 @@
  */
 package de.unihildesheim.iw.util.concurrent.processing;
 
-import de.unihildesheim.iw.util.concurrent.processing.ProcessingException
+import de.unihildesheim.iw.util.concurrent.processing.SourceException
     .SourceNotReadyException;
 import org.slf4j.LoggerFactory;
 
@@ -62,10 +62,10 @@ public abstract class Source<T>
   @Override
   public synchronized Long call() {
     if (isRunning()) {
-      throw new ProcessingException.SourceIsRunningException();
+      throw new SourceException.SourceIsRunningException();
     }
     if (isFinished()) {
-      throw new ProcessingException.SourceHasFinishedException();
+      throw new SourceException.SourceHasFinishedException();
     }
     setRunning();
     try {
@@ -78,11 +78,45 @@ public abstract class Source<T>
   }
 
   /**
-   * Get the number of items already served.
+   * Status, if the source is running (providing data).
    *
-   * @return Number of items served
+   * @return True, if source is ready to serve data
    */
-  public abstract long getSourcedItemCount();
+  public final synchronized boolean isRunning() {
+    return this.isRunning;
+  }
+
+  /**
+   * Status, if the source is running (providing data).
+   *
+   * @return True, if source is ready to serve data
+   */
+  public final synchronized boolean isFinished() {
+    return this.isFinished;
+  }
+
+  /**
+   * Set the flag indicating this {@link Source} is running.
+   */
+  protected final void setRunning() {
+    synchronized (this) {
+      this.isRunning = true;
+      this.notifyAll();
+    }
+  }
+
+  /**
+   * Await termination.
+   *
+   * @throws java.lang.InterruptedException Thrown, if thread gets interrupted
+   */
+  protected final synchronized void awaitTermination()
+      throws
+      InterruptedException {
+    while (this.isRunning) {
+      this.wait();
+    }
+  }
 
   /**
    * Signal the {@link Source}, that it should stop generating items.
@@ -92,6 +126,13 @@ public abstract class Source<T>
     this.isFinished = true;
     this.notifyAll();
   }
+
+  /**
+   * Get the number of items already served.
+   *
+   * @return Number of items served
+   */
+  public abstract long getSourcedItemCount();
 
   /**
    * Get the next item to process.
@@ -116,30 +157,12 @@ public abstract class Source<T>
       throws ProcessingException;
 
   /**
-   * Status, if the source is running (providing data).
-   *
-   * @return True, if source is ready to serve data
-   */
-  public final synchronized boolean isRunning() {
-    return this.isRunning;
-  }
-
-  /**
-   * Status, if the source is running (providing data).
-   *
-   * @return True, if source is ready to serve data
-   */
-  public final synchronized boolean isFinished() {
-    return this.isFinished;
-  }
-
-  /**
    * Check, if instance is running. Optionally throwing an exception, if it's
    * not the case.
    *
    * @return True, if running
-   * @throws ProcessingException.SourceNotReadyException Thrown, if the {@link
-   * Source} has not been started and <tt>fail</tt> is <tt>true</tt>
+   * @throws SourceNotReadyException Thrown, if the {@link Source} has not been
+   * started and <tt>fail</tt> is <tt>true</tt>
    */
   @SuppressWarnings("SameReturnValue")
   protected final synchronized boolean checkRunStatus()
@@ -149,35 +172,12 @@ public abstract class Source<T>
       return true;
     }
     if (this.isFinished) {
-      throw new ProcessingException.SourceHasFinishedException();
+      throw new SourceException.SourceHasFinishedException();
     }
     if (!this.isRunning) {
-      throw new ProcessingException.SourceNotReadyException();
+      throw new SourceNotReadyException();
     }
     return true;
-  }
-
-  /**
-   * Set the flag indicating this {@link Source} is running.
-   */
-  protected final void setRunning() {
-    synchronized (this) {
-      this.isRunning = true;
-      this.notifyAll();
-    }
-  }
-
-  /**
-   * Await termination.
-   *
-   * @throws java.lang.InterruptedException Thrown, if thread gets interrupted
-   */
-  protected final synchronized void awaitTermination()
-      throws
-      InterruptedException {
-    while (this.isRunning) {
-      this.wait();
-    }
   }
 
   /**

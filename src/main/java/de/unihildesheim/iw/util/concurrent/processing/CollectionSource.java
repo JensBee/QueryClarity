@@ -36,13 +36,13 @@ public final class CollectionSource<T>
    */
   private final Collection<T> collection;
   /**
-   * Iterator over the wrapped source.
-   */
-  private volatile Iterator<T> itemsIt;
-  /**
    * Number of provided items.
    */
   private final AtomicLong sourcedItemCount;
+  /**
+   * Iterator over the wrapped source.
+   */
+  private volatile Iterator<T> itemsIt;
 
   /**
    * Wrap the specified collection using it as source.
@@ -59,11 +59,26 @@ public final class CollectionSource<T>
   }
 
   @Override
+  public synchronized Long call() {
+    if (isRunning()) {
+      throw new SourceException.SourceIsRunningException();
+    }
+    this.itemsIt = this.collection.iterator();
+    super.call();
+    return this.sourcedItemCount.get();
+  }
+
+  @Override
+  public long getSourcedItemCount() {
+    return this.sourcedItemCount.get();
+  }
+
+  @Override
   public synchronized T next()
       throws ProcessingException,
              InterruptedException {
     if (isFinished()) {
-      throw new ProcessingException.SourceHasFinishedException();
+      throw new SourceException.SourceHasFinishedException();
     }
     if (this.itemsIt != null && this.itemsIt.hasNext()) {
       this.sourcedItemCount.incrementAndGet();
@@ -78,21 +93,6 @@ public final class CollectionSource<T>
       throws ProcessingException {
     checkRunStatus();
     return (long) this.collection.size();
-  }
-
-  @Override
-  public synchronized Long call() {
-    if (isRunning()) {
-      throw new ProcessingException.SourceIsRunningException();
-    }
-    this.itemsIt = this.collection.iterator();
-    super.call();
-    return this.sourcedItemCount.get();
-  }
-
-  @Override
-  public long getSourcedItemCount() {
-    return this.sourcedItemCount.get();
   }
 
 }
