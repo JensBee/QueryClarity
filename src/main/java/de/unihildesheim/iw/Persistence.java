@@ -313,15 +313,15 @@ public final class Persistence {
      */
     private static final String PREFIX = "persist_";
     /**
+     * Builder used to create a new database.
+     */
+    private final ExtDBMaker dbMkr;
+    /**
      * Database async write flush delay.
      */
     private static final int DB_ASYNC_WRITEFLUSH_DELAY = GlobalConfiguration
         .conf()
         .getAndAddInteger(CONF_PREFIX + "db-async-writeflush-delay", 100);
-    /**
-     * Builder used to create a new database.
-     */
-    private final ExtDBMaker dbMkr;
     /**
      * Random string to prefix a temporary storage with.
      */
@@ -359,7 +359,6 @@ public final class Persistence {
           .transactionDisable()
           .commitFileSyncDisable()
           .mmapFileEnableIfSupported()
-          .commitFileSyncDisable()
           .compressionEnable()
           .strictDBGet()
           .asyncWriteFlushDelay(DB_ASYNC_WRITEFLUSH_DELAY)
@@ -654,6 +653,8 @@ public final class Persistence {
         return this;
       }
     }
+
+
 
 
   }
