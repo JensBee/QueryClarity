@@ -17,79 +17,105 @@
 package de.unihildesheim.iw.util.concurrent.processing;
 
 /**
- * Exceptions for {@link Source}s.
+ * {@link Processing} exceptions.
  */
 public class ProcessingException
     extends Exception {
-  /**
-   * Serialization id.
-   */
+
   private static final long serialVersionUID = -6304188198808418922L;
 
   /**
    * General exception with custom message.
    *
-   * @param message Exception message
+   * @param msg Message
    */
-  ProcessingException(final String message) {
-    super(message);
+  ProcessingException(final String msg) {
+    super(msg);
   }
 
-  ProcessingException(final String message, final Throwable t) {
-    super(message, t);
+  /**
+   * Create a new exception with custom message and a {@link Throwable} for
+   * forwarding.
+   *
+   * @param msg Message
+   * @param t Throwable to forward
+   */
+  ProcessingException(final String msg, final Throwable t) {
+    super(msg, t);
   }
 
   ProcessingException(final Throwable t) {
     super(t);
   }
 
+  /**
+   * Exception indicating a {@link Target} has failed.
+   */
   public static final class TargetFailedException
       extends ProcessingException {
 
+    private static final long serialVersionUID = 6307633346087284282L;
+
     /**
      * General exception with custom message.
      *
-     * @param message Exception message
+     * @param msg Message
      */
-    public TargetFailedException(final String message) {
-      super(message);
+    public TargetFailedException(final String msg) {
+      super(msg);
     }
 
-    public TargetFailedException(final String message, final Throwable t) {
-      super(message, t);
+    /**
+     * Create a new exception with custom message and a {@link Throwable} for
+     * forwarding.
+     *
+     * @param msg Message
+     * @param t Throwable to forward
+     */
+    public TargetFailedException(final String msg, final Throwable t) {
+      super(msg, t);
     }
   }
 
+  /**
+   * Exception indicating that the {@link Source} has encountered an error and
+   * cannot proceed.
+   */
   public static final class SourceFailedException
       extends ProcessingException {
 
+    private static final long serialVersionUID = -6894137346922047523L;
+
     /**
-     * General exception with custom message.
+     * Create a new exception with custom message.
      *
-     * @param message Exception message
+     * @param msg Message
      */
-    public SourceFailedException(final String message) {
-      super(message);
+    public SourceFailedException(final String msg) {
+      super(msg);
     }
 
-    public SourceFailedException(final String message, final Throwable t) {
-      super(message, t);
-    }
-
-    public SourceFailedException(final Throwable t) {
-      super(t);
+    /**
+     * Create a new exception with custom message and a {@link Throwable} for
+     * forwarding.
+     *
+     * @param msg Message
+     * @param t Throwable to forward
+     */
+    public SourceFailedException(final String msg, final Throwable t) {
+      super(msg, t);
     }
   }
 
   /**
    * Exception to indicate that the {@link Source} is not ready to serve items.
+   * <p/>
+   * Should be thrown, if the {@link Source} has not yet been initialized and
+   * items or other information is being requested, but not available yet.
    */
-  @SuppressWarnings("PublicInnerClass")
   public static final class SourceNotReadyException
       extends ProcessingException {
-    /**
-     * Serialization id.
-     */
+
     private static final long serialVersionUID = -6669588774093776128L;
 
     /**
@@ -98,13 +124,24 @@ public class ProcessingException
     public SourceNotReadyException() {
       super("Source is not running.");
     }
+
+    /**
+     * Create a new exception with custom message.
+     *
+     * @param msg Message
+     */
+    public SourceNotReadyException(final String msg) {
+      super(msg);
+    }
   }
 
   /**
    * Exception to indicate that the {@link Source} has no more items to
    * process.
+   * <p/>
+   * Should be thrown, if a {@link Target} requests an item, but the {@link
+   * Source} has already been finished with providing items.
    */
-  @SuppressWarnings("PublicInnerClass")
   public static final class SourceHasFinishedException
       extends RuntimeException {
     /**
@@ -118,12 +155,23 @@ public class ProcessingException
     public SourceHasFinishedException() {
       super("Source has no more items to process.");
     }
+
+    /**
+     * Create a new Exception with custom message.
+     *
+     * @param msg Message
+     */
+    public SourceHasFinishedException(final String msg) {
+      super(msg);
+    }
   }
 
   /**
    * Exception to indicate that the {@link Source} has already been started.
+   * <p/>
+   * Should be thrown, if the {@link Source} is tried to be started more than
+   * once.
    */
-  @SuppressWarnings("PublicInnerClass")
   public static final class SourceIsRunningException
       extends RuntimeException {
     /**
@@ -136,6 +184,15 @@ public class ProcessingException
      */
     public SourceIsRunningException() {
       super("Source has already been started.");
+    }
+
+    /**
+     * Create a new Exception with custom message.
+     *
+     * @param msg Message
+     */
+    public SourceIsRunningException(final String msg) {
+      super(msg);
     }
   }
 }
