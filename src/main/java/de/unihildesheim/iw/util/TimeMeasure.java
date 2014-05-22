@@ -44,6 +44,17 @@ public final class TimeMeasure {
   private boolean stopped;
 
   /**
+   * Get a string representation of the elapsed time formatted as <tt>DDd
+   * HH:MM:SS</tt> string.
+   *
+   * @param nanos Nanoseconds to convert
+   * @return Formatted elapsed time string
+   */
+  public static String getTimeString(final double nanos) {
+    return getTimeString((long) (nanos / 1000000000.0));
+  }
+
+  /**
    * Start the time measurement. If the measurement was paused, it will continue
    * measuring. If it was stopped before it will be reset.
    *
@@ -65,20 +76,10 @@ public final class TimeMeasure {
    * @return Self reference
    */
   public TimeMeasure pause() {
-    this.elapsed = getNanos();
+    if (!this.paused && !this.stopped) {
+      this.elapsed = getNanos();
+    }
     this.paused = true;
-    return this;
-  }
-
-  /**
-   * Start the time measurement.
-   *
-   * @return Self reference
-   */
-  public TimeMeasure stop() {
-    this.paused = false;
-    this.stopped = true;
-    this.elapsed += getNanos();
     return this;
   }
 
@@ -90,6 +91,30 @@ public final class TimeMeasure {
    */
   private long getNanos() {
     return System.nanoTime() - startTime;
+  }
+
+  /**
+   * Start the time measurement.
+   *
+   * @return Self reference
+   */
+  public TimeMeasure stop() {
+    if (!this.stopped && !this.paused) {
+      this.elapsed += getNanos();
+    }
+    this.paused = false;
+    this.stopped = true;
+    return this;
+  }
+
+  /**
+   * Get the elapsed milliseconds of the current measurement.
+   *
+   * @return elapsed milliseconds, or <tt>0</tt> if no time was recorded
+   */
+  public double getElapsedMillis() {
+    final double nanos = getElapsedNanos();
+    return nanos > 0 ? nanos / 1000000.0 : 0d;
   }
 
   /**
@@ -112,26 +137,6 @@ public final class TimeMeasure {
   }
 
   /**
-   * Get the elapsed seconds of the current measurement.
-   *
-   * @return elapsed seconds, or <tt>0</tt> if no time was recorded
-   */
-  public double getElapsedSeconds() {
-    final double nanos = getElapsedNanos();
-    return nanos > 0 ? nanos / 1000000000.0 : 0d;
-  }
-
-  /**
-   * Get the elapsed milliseconds of the current measurement.
-   *
-   * @return elapsed milliseconds, or <tt>0</tt> if no time was recorded
-   */
-  public double getElapsedMillis() {
-    final double nanos = getElapsedNanos();
-    return nanos > 0 ? nanos / 1000000.0 : 0d;
-  }
-
-  /**
    * Get a string representation of the elapsed time formatted as <tt>DDd
    * HH:MM:SS</tt> string.
    *
@@ -139,17 +144,6 @@ public final class TimeMeasure {
    */
   public String getTimeString() {
     return getTimeString((long) getElapsedSeconds());
-  }
-
-  /**
-   * Get a string representation of the elapsed time formatted as <tt>DDd
-   * HH:MM:SS</tt> string.
-   *
-   * @param nanos Nanoseconds to convert
-   * @return Formatted elapsed time string
-   */
-  public static String getTimeString(final double nanos) {
-    return getTimeString((long) (nanos / 1000000000.0));
   }
 
   /**
@@ -181,5 +175,15 @@ public final class TimeMeasure {
       timeStr.append(seconds).append('s');
     }
     return timeStr.toString();
+  }
+
+  /**
+   * Get the elapsed seconds of the current measurement.
+   *
+   * @return elapsed seconds, or <tt>0</tt> if no time was recorded
+   */
+  public double getElapsedSeconds() {
+    final double nanos = getElapsedNanos();
+    return nanos > 0 ? nanos / 1000000000.0 : 0d;
   }
 }
