@@ -45,6 +45,11 @@ public final class Processing {
    */
   public static final int THREADS;
 
+  /**
+   * Prefix used to store configuration.
+   */
+  private static final String IDENTIFIER = "Processing";
+
   static {
     final Integer maxThreads = GlobalConfiguration.conf().getAndAddInteger
         (IDENTIFIER + "_max-threads", 0);
@@ -56,10 +61,6 @@ public final class Processing {
     }
   }
 
-  /**
-   * Prefix used to store configuration.
-   */
-  private static final String IDENTIFIER = "Processing";
   /**
    * Logger instance for this class.
    */
