@@ -431,6 +431,7 @@ public final class DirectIndexDataProvider
     if (updatingFields.isEmpty()) {
       LOG.info("Updating persistent index term cache. {} -> {}",
           getCachedFieldsMap().keySet(), fields);
+      return;
     } else {
       LOG.info("Building persistent index term cache. {}",
           updatingFields);
@@ -715,7 +716,7 @@ public final class DirectIndexDataProvider
   @Override
   public void dispose() {
     if (this.db != null && !this.db.isClosed()) {
-      commitDb(true);
+      commitDb(false);
       LOG.info("Closing database.");
       this.db.close();
     }
