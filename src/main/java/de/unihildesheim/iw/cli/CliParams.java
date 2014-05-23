@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.iw.lucene.cli;
+package de.unihildesheim.iw.cli;
 
 /**
  * Definitions for general commandline parameters.
@@ -26,11 +26,28 @@ public final class CliParams {
   /**
    * Parameter to specify the Lucene index directory.
    */
-  public static final String INDEX_DIR_P = "-i";
+  public static final String INDEX_DIR_P = "-idx";
   /**
    * Usage for specifying the Lucene index directory.
    */
   public static final String INDEX_DIR_U = "Path to Lucene index.";
+  /**
+   * Meta value for specifying the Lucene index directory.
+   */
+  public static final String INDEX_DIR_M = "DIR";
+
+  /**
+   * Parameter to specify the data directory.
+   */
+  public static final String DATA_DIR_P = "-data";
+  /**
+   * Usage for specifying the data directory.
+   */
+  public static final String DATA_DIR_U = "Path to data directory.";
+  /**
+   * Meta value for specifying the data directory.
+   */
+  public static final String DATA_DIR_M = "DIR";
 
   /**
    * Parameter to run a single shell command.

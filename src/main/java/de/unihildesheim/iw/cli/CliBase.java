@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.lucene.cli;
+package de.unihildesheim.iw.cli;
 
 import org.kohsuke.args4j.ClassParser;
 import org.kohsuke.args4j.CmdLineException;
@@ -35,10 +35,10 @@ public class CliBase {
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(CliBase.class);
-
+  protected final DefaultCliParams defaultCliParams;
   private final String header;
   private final String info;
-  private final DefaultCliParams defaultCliParams;
+  private boolean helpPrinted = false;
 
   /**
    * Initialize the cli base class.
@@ -50,6 +50,41 @@ public class CliBase {
     this.header = newHeader;
     this.info = newInfo;
     this.defaultCliParams = new DefaultCliParams();
+  }
+
+  protected CmdLineParser parseWithHelp(final Object bean,
+      final String[] args) {
+    final CmdLineParser parser = parse(bean, args);
+
+    if (!helpPrinted) {
+      this.defaultCliParams.printHelpAndExit(parser, System.out, 0, false);
+    }
+    return parser;
+  }
+
+  protected CmdLineParser parse(final Object bean, final String[] args) {
+    final CmdLineParser parser = new CmdLineParser(this.defaultCliParams);
+    final ClassParser beanOpts = new ClassParser();
+    beanOpts.parse(bean, parser);
+
+    printHeader(System.out);
+
+    try {
+      parser.parseArgument(args);
+    } catch (CmdLineException ex) {
+      if (this.defaultCliParams.printHelp) {
+        // succeeds in case help is requested
+        printInfo(System.out);
+        parser.printUsage(System.out);
+        helpPrinted = true;
+      } else {
+        // succeeds, if there is an error
+        LOG.error(ex.getMessage());
+        this.defaultCliParams.printHelpAndExit(parser, System.err, 1, true);
+      }
+    }
+
+    return parser;
   }
 
   /**
@@ -70,34 +105,13 @@ public class CliBase {
     out.println(this.info);
   }
 
-  protected CmdLineParser parse(final Object bean, final String[] args) {
-    final CmdLineParser parser = new CmdLineParser(this.defaultCliParams);
-    final ClassParser beanOpts = new ClassParser();
-    beanOpts.parse(bean, parser);
-
-    printHeader(System.out);
-
-    try {
-      parser.parseArgument(args);
-    } catch (CmdLineException ex) {
-      // succeeds in case help is requested
-      this.defaultCliParams.printHelpAndExit(parser, System.out, 0, false);
-      // succeeds, if there is an error
-      System.err.println("Error: " + ex.getMessage());
-      this.defaultCliParams.printHelpAndExit(parser, System.err, 1, true);
-    }
-
-    this.defaultCliParams.printHelpAndExit(parser, System.out, 0, false);
-    return parser;
-  }
-
   /**
    * Default commandline parameters shared by all instances.
    */
-  private final class DefaultCliParams {
+  protected final class DefaultCliParams {
     @Option(name = "-h", aliases = "--help", usage = "Usage help",
         required = false)
-    private boolean printHelp;
+    boolean printHelp;
 
     /**
      * Prints a help string and exists, if requested by cli params.

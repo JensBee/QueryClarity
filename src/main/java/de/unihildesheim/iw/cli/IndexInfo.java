@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.unihildesheim.iw.lucene.cli;
+package de.unihildesheim.iw.cli;
 
 import asg.cliche.CLIException;
 import asg.cliche.Command;
@@ -41,7 +41,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Simple interface to get some basic Lucene index informations.
+ * Simple interface to get some basic Lucene index information.
  *
  * @author Jens Bertram
  */
@@ -56,14 +56,14 @@ public final class IndexInfo {
   @SuppressWarnings({"CollectionWithoutInitialCapacity",
       "MismatchedQueryAndUpdateOfCollection"})
   private final List<String> runCommand = new ArrayList<>();
+
   /**
    * CLI-parameter to specify the Lucene index directory.
    */
-  @Parameter(names = CliParams.INDEX_DIR_P, description
-      = CliParams.INDEX_DIR_U,
-      required = true)
-
+  @Parameter(names = CliParams.INDEX_DIR_P, description = CliParams
+      .INDEX_DIR_U, required = true)
   private String indexDir;
+
   /**
    * Reader to access Lucene index.
    */
@@ -86,6 +86,37 @@ public final class IndexInfo {
     }
 
     ii.start();
+  }
+
+  /**
+   * Run the instance.
+   *
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  private void start()
+      throws IOException {
+    try {
+      // open index
+      final Directory directory = FSDirectory.open(new File(this.indexDir));
+      this.reader = DirectoryReader.open(directory);
+    } catch (IOException ex) {
+      ex.printStackTrace();
+      System.exit(1);
+    }
+
+    final Shell shell = ShellFactory.createConsoleShell("cmd", "IndexInfo",
+        this);
+    if (!this.runCommand.isEmpty()) {
+      final String[] command = this.runCommand.toArray(
+          new String[this.runCommand.size()]);
+      try {
+        shell.processLine(StringUtils.join(command, " "));
+      } catch (CLIException ex) {
+        ex.printStackTrace();
+      }
+    } else {
+      shell.commandLoop();
+    }
   }
 
   /**
@@ -171,36 +202,5 @@ public final class IndexInfo {
       = ShellCmds.QUIT_U)
   public void quit() {
     System.exit(0);
-  }
-
-  /**
-   * Run the instance.
-   *
-   * @throws IOException Thrown on low-level I/O errors
-   */
-  private void start()
-      throws IOException {
-    try {
-      // open index
-      final Directory directory = FSDirectory.open(new File(this.indexDir));
-      this.reader = DirectoryReader.open(directory);
-    } catch (IOException ex) {
-      ex.printStackTrace();
-      System.exit(1);
-    }
-
-    final Shell shell = ShellFactory.createConsoleShell("cmd", "IndexInfo",
-        this);
-    if (!this.runCommand.isEmpty()) {
-      final String[] command = this.runCommand.toArray(
-          new String[this.runCommand.size()]);
-      try {
-        shell.processLine(StringUtils.join(command, " "));
-      } catch (CLIException ex) {
-        ex.printStackTrace();
-      }
-    } else {
-      shell.commandLoop();
-    }
   }
 }
