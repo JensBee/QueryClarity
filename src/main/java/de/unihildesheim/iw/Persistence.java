@@ -101,6 +101,7 @@ public final class Persistence {
     Objects.requireNonNull(builder, "Builder was null.");
 
     final Persistence instance = new Persistence();
+    LOG.info("Opening database {}.", builder.getMaker().getDbFile());
     instance.db = builder.getMaker().make();
     instance.meta = new StorageMeta();
     instance.supportsTransaction = builder.getMaker().supportsTransaction();
@@ -192,8 +193,8 @@ public final class Persistence {
   }
 
   /**
-   * Object wrapping storage meta-information. Values are initialized by
-   * {@link #getMetaData(boolean)}.
+   * Object wrapping storage meta-information. Values are initialized by {@link
+   * #getMetaData(boolean)}.
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class StorageMeta {
@@ -317,15 +318,15 @@ public final class Persistence {
      */
     private final ExtDBMaker dbMkr;
     /**
+     * Random string to prefix a temporary storage with.
+     */
+    private final String randNameSuffix;
+    /**
      * Database async write flush delay.
      */
     private static final int DB_ASYNC_WRITEFLUSH_DELAY = GlobalConfiguration
         .conf()
         .getAndAddInteger(CONF_PREFIX + "db-async-writeflush-delay", 100);
-    /**
-     * Random string to prefix a temporary storage with.
-     */
-    private final String randNameSuffix;
     /**
      * Instruction on how to handle the cache.
      */
@@ -633,7 +634,7 @@ public final class Persistence {
         super();
       }
 
-      private void debugDump() {
+      void debugDump() {
         for (final Object k : props.keySet()) {
           LOG.debug("Prop k={} v={}", k.toString(), props.get(k));
         }
@@ -644,17 +645,19 @@ public final class Persistence {
        *
        * @return
        */
-      public boolean supportsTransaction() {
+      boolean supportsTransaction() {
         return !this.TRUE.equals(this.props.get(Keys.transactionDisable));
       }
 
-      private ExtDBMaker dbFile(final File file) {
+      ExtDBMaker dbFile(final File file) {
         props.setProperty(Keys.file, file.getPath());
         return this;
       }
+
+      String getDbFile() {
+        return props.getProperty(Keys.file);
+      }
     }
-
-
 
 
   }
