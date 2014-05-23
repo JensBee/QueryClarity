@@ -54,21 +54,18 @@ public final class TempDiskIndex {
    * Lucene index.
    */
   final Directory index;
-
-  /**
-   * File directory of the index.
-   */
-  private final String indexDir;
-
-  /**
-   * Fields available on this index.
-   */
-  private final String[] idxFields;
-
   /**
    * Writer for the temporary index.
    */
   final IndexWriter writer;
+  /**
+   * File directory of the index.
+   */
+  private final String indexDir;
+  /**
+   * Fields available on this index.
+   */
+  private final String[] idxFields;
 
   /**
    * Create a new temporary index.
@@ -127,11 +124,47 @@ public final class TempDiskIndex {
             LOG.error("Caught exception while closing index.", ex);
           }
         }
-      }, "CachedIndexDataProvider_shutdownHandler");
+      }, TempDiskIndex.class.getSimpleName() + "_shutdownHandler");
       Runtime.getRuntime().addShutdownHook(shutdownHandler);
     } catch (IllegalArgumentException ex) {
       // already registered, or shutdown is currently happening
     }
+  }
+
+  /**
+   * Create the simple in-memory test index.
+   *
+   * @param documents Documents to add to the index
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  public void addDocs(final Collection<String[]> documents)
+      throws IOException {
+    if (Objects.requireNonNull(documents, "Documents were null.").isEmpty()) {
+      throw new IllegalArgumentException("Empty documents list.");
+    }
+    // index documents
+    for (final String[] doc : documents) {
+      addDoc(this.writer, doc);
+    }
+    LOG.info("Added {} documents to index", documents.size());
+  }
+
+  /**
+   * Add a document to the index.
+   *
+   * @param writer Index writer instance
+   * @param content Content of the document
+   * @throws IOException Thrown, if index could not be accessed
+   */
+  @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
+  private void addDoc(final IndexWriter writer, final String[] content)
+      throws IOException {
+    final Document doc = new Document();
+    for (int i = 0; i < content.length; i++) {
+      doc.add(new VecTextField(this.idxFields[i], content[i],
+          Field.Store.NO));
+    }
+    writer.addDocument(doc);
   }
 
   /**
@@ -177,41 +210,5 @@ public final class TempDiskIndex {
       throw new IllegalArgumentException("Empty content.");
     }
     addDoc(this.writer, content);
-  }
-
-  /**
-   * Create the simple in-memory test index.
-   *
-   * @param documents Documents to add to the index
-   * @throws IOException Thrown on low-level I/O errors
-   */
-  public void addDocs(final Collection<String[]> documents)
-      throws IOException {
-    if (Objects.requireNonNull(documents, "Documents were null.").isEmpty()) {
-      throw new IllegalArgumentException("Empty documents list.");
-    }
-    // index documents
-    for (final String[] doc : documents) {
-      addDoc(this.writer, doc);
-    }
-    LOG.info("Added {} documents to index", documents.size());
-  }
-
-  /**
-   * Add a document to the index.
-   *
-   * @param writer Index writer instance
-   * @param content Content of the document
-   * @throws IOException Thrown, if index could not be accessed
-   */
-  @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
-  private void addDoc(final IndexWriter writer, final String[] content)
-      throws IOException {
-    final Document doc = new Document();
-    for (int i = 0; i < content.length; i++) {
-      doc.add(new VecTextField(this.idxFields[i], content[i],
-          Field.Store.NO));
-    }
-    writer.addDocument(doc);
   }
 }

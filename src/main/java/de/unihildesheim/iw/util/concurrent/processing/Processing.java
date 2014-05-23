@@ -119,7 +119,7 @@ public final class Processing {
       LOG.debug("Initialize thread pool.");
       executor = new ProcessingThreadPoolExecutor();
       Runtime.getRuntime().addShutdownHook(new Thread(new ShutDownHook(),
-          "Processing_shutdownHandler"));
+          Processing.class.getSimpleName() + "_shutdownHandler"));
     }
   }
 
