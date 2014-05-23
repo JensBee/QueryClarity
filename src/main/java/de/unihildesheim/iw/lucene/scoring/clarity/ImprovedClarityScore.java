@@ -79,32 +79,32 @@ public final class ImprovedClarityScore
     implements ClarityScoreCalculation {
 
   /**
-   * Logger instance for this class.
-   */
-  private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
-      ImprovedClarityScore.class);
-  /**
    * Prefix to use to store calculated term-data values in cache and access
    * properties stored in the {@link de.unihildesheim.iw.lucene.index
    * .IndexDataProvider}.
    */
   static final String IDENTIFIER = "ICS";
-
+  /**
+   * Logger instance for this class.
+   */
+  private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
+      ImprovedClarityScore.class);
+  /**
+   * Provider for general index metrics.
+   */
+  Metrics metrics;
   /**
    * {@link IndexDataProvider} to use.
    */
   private IndexDataProvider dataProv;
-
   /**
    * Reader to access the Lucene index.
    */
   private IndexReader idxReader;
-
   /**
    * Configuration object used for all parameters of the calculation.
    */
   private ImprovedClarityScoreConfiguration.Conf conf;
-
   /**
    * Database instance.
    */
@@ -113,98 +113,22 @@ public final class ImprovedClarityScore
    * Manager for extended document meta-data.
    */
   private ExternalDocTermDataManager extDocMan;
-
   /**
    * Flag indicating, if a cache is available.
    */
   private boolean hasCache;
-
   /**
    * Cache of default document models.
    */
   private Map<Fun.Tuple2<Integer, ByteArray>, Double> defaultDocModels;
-
   /**
    * Utility working with queries.
    */
   private QueryUtils queryUtils;
-
-  /**
-   * Policy to use to simplify a query, if no document matches all terms in the
-   * initial query.
-   * <p/>
-   * If multiple terms match the same criteria a random one out of those will be
-   * chosen.
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public enum QuerySimplifyPolicy {
-
-    /**
-     * Removes the first term.
-     */
-    FIRST,
-    /**
-     * Removes the term with the highest document-frequency.
-     */
-    HIGHEST_DOCFREQ,
-    /**
-     * Removes the term with the highest index-frequency.
-     */
-    HIGHEST_TERMFREQ,
-    /**
-     * Removes the last term.
-     */
-    LAST,
-    /**
-     * Removes a randomly chosen term.
-     */
-    RANDOM
-  }
-
-  /**
-   * Ids of temporary data caches held in the database.
-   */
-  private enum Caches {
-
-    /**
-     * Smoothing parameter value.
-     */
-    SMOOTHING,
-    /**
-     * Lambda parameter.
-     */
-    LAMBDA,
-    /**
-     * Beta parameter.
-     */
-    BETA,
-    /**
-     * Flag indicating, if pre-calculated models are available.
-     */
-    HAS_PRECALC_DATA,
-    /**
-     * Default document models.
-     */
-    DEFAULT_DOC_MODELS
-  }
-
-  private enum DataKeys {
-
-    /**
-     * Document-models.
-     */
-    DM
-  }
-
   /**
    * Cached storage of Document-id -> Term, model-value.
    */
   private Map<Integer, Map<ByteArray, Double>> docModelDataCache;
-
-  /**
-   * Provider for general index metrics.
-   */
-  Metrics metrics;
 
   /**
    * Default constructor. Called from builder.
@@ -242,6 +166,20 @@ public final class ImprovedClarityScore
   }
 
   /**
+   * Set the configuration to use by this instance.
+   *
+   * @param newConf Configuration
+   */
+  private ImprovedClarityScore setConfiguration(
+      final ImprovedClarityScoreConfiguration newConf) {
+    this.conf = newConf.compile();
+    newConf.debugDump();
+    this.docModelDataCache = new ConcurrentHashMap<>(this.conf.fbMax);
+    parseConfig();
+    return this;
+  }
+
+  /**
    * Initializes a cache.
    */
   private void initCache(final Builder builder)
@@ -273,7 +211,8 @@ public final class ImprovedClarityScore
     final Double beta = this.conf.beta;
 
     if (!createNew) {
-      if (this.dataProv.getLastIndexCommitGeneration() == null) {
+      if (this.dataProv.getLastIndexCommitGeneration() == null || !persistence
+          .getMetaData().hasGenerationValue()) {
         LOG.warn("Index commit generation not available. Assuming an " +
             "unchanged index!");
       } else {
@@ -328,20 +267,6 @@ public final class ImprovedClarityScore
   }
 
   /**
-   * Set the configuration to use by this instance.
-   *
-   * @param newConf Configuration
-   */
-  private ImprovedClarityScore setConfiguration(
-      final ImprovedClarityScoreConfiguration newConf) {
-    this.conf = newConf.compile();
-    newConf.debugDump();
-    this.docModelDataCache = new ConcurrentHashMap<>(this.conf.fbMax);
-    parseConfig();
-    return this;
-  }
-
-  /**
    * Parse the configuration and do some simple pre-checks.
    */
   private void parseConfig() {
@@ -358,79 +283,42 @@ public final class ImprovedClarityScore
   }
 
   /**
-   * Reduce the query by removing a term based on a specific policy.
+   * Calculate the query model.
    *
-   * @param query Query to reduce
-   * @param policy Policy to use for choosing which term to remove
-   * @return Simplified query string
-   * @throws ParseException Thrown, if query string could not be parsed
-   * @throws IOException Thrown on low-level i/O errors or if a term could not
-   * be parsed to UTF-8
+   * @param fbTerm Feedback term
+   * @param qTerms List of query terms
+   * @param fbDocIds List of feedback document
+   * @return Query model for the current term and set of feedback documents
    */
-  private String simplifyQuery(final String query,
-      final QuerySimplifyPolicy policy)
-      throws IOException, ParseException,
-             Buildable.ConfigurationException, Buildable.BuildException {
-    Collection<ByteArray> qTerms = new ArrayList<>(this.queryUtils.
-        getAllQueryTerms(query));
-    ByteArray termToRemove = null;
-    if (new HashSet<>(qTerms).size() == 1) {
-      LOG.debug("Return empty string from one term query.");
-      return "";
-    }
+  double getQueryModel(final ByteArray fbTerm,
+      final List<ByteArray> qTerms,
+      final Set<Integer> fbDocIds) {
+    assert fbTerm != null;
+    assert qTerms != null && !qTerms.isEmpty();
+    assert fbDocIds != null && !fbDocIds.isEmpty();
 
-    switch (policy) {
-      case FIRST:
-        termToRemove = ((List<ByteArray>) qTerms).get(0);
-        break;
-      case HIGHEST_DOCFREQ:
-        long docFreq = 0;
-        qTerms = new HashSet<>(qTerms);
-        for (final ByteArray term : qTerms) {
-          final long tDocFreq = this.metrics.collection.df(term);
-          if (tDocFreq > docFreq) {
-            termToRemove = term;
-            docFreq = tDocFreq;
-          } else if (tDocFreq == docFreq && RandomValue.getBoolean()) {
-            termToRemove = term;
-          }
-        }
-        break;
-      case HIGHEST_TERMFREQ:
-        long collFreq = 0;
-        qTerms = new HashSet<>(qTerms);
-        for (final ByteArray term : qTerms) {
-          final long tCollFreq = this.metrics.collection.tf(term);
-          if (tCollFreq > collFreq) {
-            termToRemove = term;
-            collFreq = tCollFreq;
-          } else if (tCollFreq == collFreq && RandomValue.getBoolean()) {
-            termToRemove = term;
-          }
-        }
-        break;
-      case LAST:
-        termToRemove = ((List<ByteArray>) qTerms).get(qTerms.size() - 1);
-        break;
-      case RANDOM:
-        final int idx = RandomValue.getInteger(0, qTerms.size() - 1);
-        termToRemove = ((List<ByteArray>) qTerms).get(idx);
-        break;
+    Objects.requireNonNull(fbTerm);
+    if (Objects.requireNonNull(fbDocIds).isEmpty()) {
+      throw new IllegalArgumentException("List of feedback document ids was " +
+          "empty.");
     }
-
-    while (qTerms.contains(termToRemove)) {
-      qTerms.remove(termToRemove);
+    if (Objects.requireNonNull(qTerms).isEmpty()) {
+      throw new IllegalArgumentException("List of query terms was empty.");
     }
+    double model = 0d;
 
-    final StringBuilder sb = new StringBuilder(100);
-    for (final ByteArray qTerm : qTerms) {
-      sb.append(ByteArrayUtils.utf8ToString(qTerm)).append(' ');
+    for (final Integer fbDocId : fbDocIds) {
+      // document model for the given term pD(t)
+      final double docModel = getDocumentModel(fbDocId, fbTerm);
+      // calculate the product of the document models for all query terms
+      // given the current document
+      double docModelQtProduct = 1d;
+      for (final ByteArray qTerm : qTerms) {
+        docModelQtProduct *= getDocumentModel(fbDocId, qTerm);
+      }
+      model += docModel * docModelQtProduct;
     }
-
-    LOG.debug("Remove term={} policy={} oldQ={} newQ={}", ByteArrayUtils.
-        utf8ToString(termToRemove), policy, query, sb.toString().
-        trim());
-    return sb.toString().trim();
+    return model;
   }
 
   /**
@@ -518,45 +406,6 @@ public final class ImprovedClarityScore
       this.docModelDataCache.put(docId, map);
     }
     return map;
-  }
-
-  /**
-   * Calculate the query model.
-   *
-   * @param fbTerm Feedback term
-   * @param qTerms List of query terms
-   * @param fbDocIds List of feedback document
-   * @return Query model for the current term and set of feedback documents
-   */
-  double getQueryModel(final ByteArray fbTerm,
-      final List<ByteArray> qTerms,
-      final Set<Integer> fbDocIds) {
-    assert fbTerm != null;
-    assert qTerms != null && !qTerms.isEmpty();
-    assert fbDocIds != null && !fbDocIds.isEmpty();
-
-    Objects.requireNonNull(fbTerm);
-    if (Objects.requireNonNull(fbDocIds).isEmpty()) {
-      throw new IllegalArgumentException("List of feedback document ids was " +
-          "empty.");
-    }
-    if (Objects.requireNonNull(qTerms).isEmpty()) {
-      throw new IllegalArgumentException("List of query terms was empty.");
-    }
-    double model = 0d;
-
-    for (final Integer fbDocId : fbDocIds) {
-      // document model for the given term pD(t)
-      final double docModel = getDocumentModel(fbDocId, fbTerm);
-      // calculate the product of the document models for all query terms
-      // given the current document
-      double docModelQtProduct = 1d;
-      for (final ByteArray qTerm : qTerms) {
-        docModelQtProduct *= getDocumentModel(fbDocId, qTerm);
-      }
-      model += docModel * docModelQtProduct;
-    }
-    return model;
   }
 
   /**
@@ -725,6 +574,82 @@ public final class ImprovedClarityScore
   }
 
   /**
+   * Reduce the query by removing a term based on a specific policy.
+   *
+   * @param query Query to reduce
+   * @param policy Policy to use for choosing which term to remove
+   * @return Simplified query string
+   * @throws ParseException Thrown, if query string could not be parsed
+   * @throws IOException Thrown on low-level i/O errors or if a term could not
+   * be parsed to UTF-8
+   */
+  private String simplifyQuery(final String query,
+      final QuerySimplifyPolicy policy)
+      throws IOException, ParseException,
+             Buildable.ConfigurationException, Buildable.BuildException {
+    Collection<ByteArray> qTerms = new ArrayList<>(this.queryUtils.
+        getAllQueryTerms(query));
+    ByteArray termToRemove = null;
+    if (new HashSet<>(qTerms).size() == 1) {
+      LOG.debug("Return empty string from one term query.");
+      return "";
+    }
+
+    switch (policy) {
+      case FIRST:
+        termToRemove = ((List<ByteArray>) qTerms).get(0);
+        break;
+      case HIGHEST_DOCFREQ:
+        long docFreq = 0;
+        qTerms = new HashSet<>(qTerms);
+        for (final ByteArray term : qTerms) {
+          final long tDocFreq = this.metrics.collection.df(term);
+          if (tDocFreq > docFreq) {
+            termToRemove = term;
+            docFreq = tDocFreq;
+          } else if (tDocFreq == docFreq && RandomValue.getBoolean()) {
+            termToRemove = term;
+          }
+        }
+        break;
+      case HIGHEST_TERMFREQ:
+        long collFreq = 0;
+        qTerms = new HashSet<>(qTerms);
+        for (final ByteArray term : qTerms) {
+          final long tCollFreq = this.metrics.collection.tf(term);
+          if (tCollFreq > collFreq) {
+            termToRemove = term;
+            collFreq = tCollFreq;
+          } else if (tCollFreq == collFreq && RandomValue.getBoolean()) {
+            termToRemove = term;
+          }
+        }
+        break;
+      case LAST:
+        termToRemove = ((List<ByteArray>) qTerms).get(qTerms.size() - 1);
+        break;
+      case RANDOM:
+        final int idx = RandomValue.getInteger(0, qTerms.size() - 1);
+        termToRemove = ((List<ByteArray>) qTerms).get(idx);
+        break;
+    }
+
+    while (qTerms.contains(termToRemove)) {
+      qTerms.remove(termToRemove);
+    }
+
+    final StringBuilder sb = new StringBuilder(100);
+    for (final ByteArray qTerm : qTerms) {
+      sb.append(ByteArrayUtils.utf8ToString(qTerm)).append(' ');
+    }
+
+    LOG.debug("Remove term={} policy={} oldQ={} newQ={}", ByteArrayUtils.
+        utf8ToString(termToRemove), policy, query, sb.toString().
+        trim());
+    return sb.toString().trim();
+  }
+
+  /**
    * Pre-calculate all document models for all terms known from the index.
    */
   public void preCalcDocumentModels()
@@ -746,6 +671,73 @@ public final class ImprovedClarityScore
       ).process(this.metrics.collection.numberOfDocuments().intValue());
       hasData.set(true);
     }
+  }
+
+  /**
+   * Policy to use to simplify a query, if no document matches all terms in the
+   * initial query.
+   * <p/>
+   * If multiple terms match the same criteria a random one out of those will be
+   * chosen.
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public enum QuerySimplifyPolicy {
+
+    /**
+     * Removes the first term.
+     */
+    FIRST,
+    /**
+     * Removes the term with the highest document-frequency.
+     */
+    HIGHEST_DOCFREQ,
+    /**
+     * Removes the term with the highest index-frequency.
+     */
+    HIGHEST_TERMFREQ,
+    /**
+     * Removes the last term.
+     */
+    LAST,
+    /**
+     * Removes a randomly chosen term.
+     */
+    RANDOM
+  }
+
+  /**
+   * Ids of temporary data caches held in the database.
+   */
+  private enum Caches {
+
+    /**
+     * Smoothing parameter value.
+     */
+    SMOOTHING,
+    /**
+     * Lambda parameter.
+     */
+    LAMBDA,
+    /**
+     * Beta parameter.
+     */
+    BETA,
+    /**
+     * Flag indicating, if pre-calculated models are available.
+     */
+    HAS_PRECALC_DATA,
+    /**
+     * Default document models.
+     */
+    DEFAULT_DOC_MODELS
+  }
+
+  private enum DataKeys {
+
+    /**
+     * Document-models.
+     */
+    DM
   }
 
   /**
@@ -792,6 +784,226 @@ public final class ImprovedClarityScore
       if (term != null && (this.collectionMetrics.df(term) >= this.minDf)) {
         this.reducedTermsTarget.add(term);
       }
+    }
+  }
+
+  /**
+   * Extended result object containing additional meta information about what
+   * values were actually used for calculation.
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public static final class Result
+      extends ClarityScoreResult {
+
+    /**
+     * List of queries issued to get feedback documents.
+     */
+    private final List<String> queries;
+    /**
+     * Configuration that was used.
+     */
+    private ImprovedClarityScoreConfiguration.Conf conf;
+    /**
+     * Ids of feedback documents used for calculation.
+     */
+    private Set<Integer> feedbackDocIds;
+    /**
+     * Terms from feedback documents used for calculation.
+     */
+    private Set<ByteArray> feedbackTerms;
+    /**
+     * Flag indicating, if the query was simplified.
+     */
+    private boolean wasQuerySimplified;
+
+    /**
+     * Creates an object wrapping the result with meta information.
+     *
+     * @param cscType Type of the calculation class
+     */
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
+    public Result(final Class<? extends ClarityScoreCalculation> cscType) {
+      super(cscType);
+      this.queries = new ArrayList<>();
+      this.feedbackDocIds = Collections.<Integer>emptySet();
+      this.feedbackTerms = Collections.<ByteArray>emptySet();
+    }
+
+    /**
+     * Set the calculation result.
+     *
+     * @param score Score result
+     */
+    void setScore(final double score) {
+      super._setScore(score);
+    }
+
+    /**
+     * Set the list of feedback documents used.
+     *
+     * @param fbDocIds List of feedback documents
+     */
+    void setFeedbackDocIds(final Set<Integer> fbDocIds) {
+      this.feedbackDocIds = Collections.unmodifiableSet(
+          Objects.requireNonNull(fbDocIds, "Feedback documents were null."));
+    }
+
+    /**
+     * Set the flag, if this query was simplified.
+     *
+     * @param state True, if simplified
+     */
+    void setQuerySimplified(final boolean state) {
+      this.wasQuerySimplified = state;
+    }
+
+    /**
+     * Set the configuration that was used.
+     *
+     * @param newConf Configuration used
+     */
+    void setConf(final ImprovedClarityScoreConfiguration.Conf newConf) {
+      this.conf = Objects.requireNonNull(newConf, "Configuration was null.");
+    }
+
+    /**
+     * Add a query string to the list of issued queries.
+     *
+     * @param query Query to add
+     */
+    void addQuery(final String query) {
+      if (Objects.requireNonNull(query, "Query was null.").trim().isEmpty()) {
+        throw new IllegalArgumentException("Query was empty.");
+      }
+      this.queries.add(query);
+    }
+
+    /**
+     * Get the configuration used for this calculation result.
+     *
+     * @return Configuration used for this calculation result
+     */
+    public ImprovedClarityScoreConfiguration.Conf getConfiguration() {
+      return this.conf;
+    }
+
+    /**
+     * Get the collection of feedback documents used for calculation.
+     *
+     * @return Feedback documents used for calculation
+     */
+    public Set<Integer> getFeedbackDocuments() {
+      return this.feedbackDocIds;
+    }
+
+    /**
+     * Get the collection of feedback terms used for calculation.
+     *
+     * @return Feedback terms used for calculation
+     */
+    public Set<ByteArray> getFeedbackTerms() {
+      return this.feedbackTerms;
+    }
+
+    /**
+     * Set the list of feedback terms used.
+     *
+     * @param fbTerms List of feedback terms
+     */
+    void setFeedbackTerms(final Set<ByteArray> fbTerms) {
+      this.feedbackTerms = Collections.unmodifiableSet(Objects
+          .requireNonNull(fbTerms, "Feedback terms were null"));
+    }
+
+    /**
+     * Get the flag indicating, if the query was simplified.
+     *
+     * @return True, if it was simplified
+     */
+    public boolean wasQuerySimplified() {
+      return this.wasQuerySimplified;
+    }
+
+    /**
+     * Get the queries issued to get feedback documents.
+     *
+     * @return List of queries issued
+     */
+    public List<String> getQueries() {
+      return Collections.unmodifiableList(this.queries);
+    }
+  }
+
+  /**
+   * Builder to create a new {@link ImprovedClarityScore} instance.
+   */
+  public static final class Builder
+      extends AbstractClarityScoreCalculationBuilder<Builder> {
+    /**
+     * Configuration to use.
+     */
+    ImprovedClarityScoreConfiguration configuration = new
+        ImprovedClarityScoreConfiguration();
+
+    public Builder() {
+      super(IDENTIFIER);
+    }
+
+    protected Builder getThis() {
+      return this;
+    }
+
+    @Override
+    public void validate()
+        throws ConfigurationException {
+      super.validate();
+      super.validatePersistenceBuilder();
+    }
+
+    /**
+     * Set the configuration to use.
+     *
+     * @param conf Configuration
+     * @return Self reference
+     */
+    public Builder configuration(
+        final ImprovedClarityScoreConfiguration conf) {
+      this.configuration = Objects.requireNonNull(conf,
+          "Configuration was null.");
+      return this;
+    }
+
+    @Override
+    public ImprovedClarityScore build()
+        throws BuildableException {
+      validate();
+      try {
+        return ImprovedClarityScore.build(this);
+      } catch (IOException e) {
+        throw new BuildException(e);
+      }
+    }
+  }
+
+  /**
+   * Base class for {@link ImprovedClarityScore} specific {@link Exception}s.
+   */
+  public static class ImprovedClarityScoreCalculationException
+      extends ClarityScoreCalculationException {
+
+    public ImprovedClarityScoreCalculationException(final String msg) {
+      super(msg);
+    }
+  }
+
+  /**
+   * {@link Exception} indicating that there are no terms left to run a scoring
+   * query.
+   */
+  public final static class NoTermsLeftException
+      extends ImprovedClarityScoreCalculationException {
+    public NoTermsLeftException(final String msg) {
+      super(msg);
     }
   }
 
@@ -857,226 +1069,6 @@ public final class ImprovedClarityScore
         // document and term that is available for processing
         getDocumentModel(docId);
       }
-    }
-  }
-
-  /**
-   * Extended result object containing additional meta information about what
-   * values were actually used for calculation.
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public static final class Result
-      extends ClarityScoreResult {
-
-    /**
-     * Configuration that was used.
-     */
-    private ImprovedClarityScoreConfiguration.Conf conf;
-    /**
-     * Ids of feedback documents used for calculation.
-     */
-    private Set<Integer> feedbackDocIds;
-    /**
-     * Terms from feedback documents used for calculation.
-     */
-    private Set<ByteArray> feedbackTerms;
-    /**
-     * Flag indicating, if the query was simplified.
-     */
-    private boolean wasQuerySimplified;
-    /**
-     * List of queries issued to get feedback documents.
-     */
-    private final List<String> queries;
-
-    /**
-     * Creates an object wrapping the result with meta information.
-     *
-     * @param cscType Type of the calculation class
-     */
-    @SuppressWarnings("CollectionWithoutInitialCapacity")
-    public Result(final Class<? extends ClarityScoreCalculation> cscType) {
-      super(cscType);
-      this.queries = new ArrayList<>();
-      this.feedbackDocIds = Collections.<Integer>emptySet();
-      this.feedbackTerms = Collections.<ByteArray>emptySet();
-    }
-
-    /**
-     * Set the calculation result.
-     *
-     * @param score Score result
-     */
-    void setScore(final double score) {
-      super._setScore(score);
-    }
-
-    /**
-     * Set the list of feedback documents used.
-     *
-     * @param fbDocIds List of feedback documents
-     */
-    void setFeedbackDocIds(final Set<Integer> fbDocIds) {
-      this.feedbackDocIds = Collections.unmodifiableSet(
-          Objects.requireNonNull(fbDocIds, "Feedback documents were null."));
-    }
-
-    /**
-     * Set the list of feedback terms used.
-     *
-     * @param fbTerms List of feedback terms
-     */
-    void setFeedbackTerms(final Set<ByteArray> fbTerms) {
-      this.feedbackTerms = Collections.unmodifiableSet(Objects
-          .requireNonNull(fbTerms, "Feedback terms were null"));
-    }
-
-    /**
-     * Set the flag, if this query was simplified.
-     *
-     * @param state True, if simplified
-     */
-    void setQuerySimplified(final boolean state) {
-      this.wasQuerySimplified = state;
-    }
-
-    /**
-     * Set the configuration that was used.
-     *
-     * @param newConf Configuration used
-     */
-    void setConf(final ImprovedClarityScoreConfiguration.Conf newConf) {
-      this.conf = Objects.requireNonNull(newConf, "Configuration was null.");
-    }
-
-    /**
-     * Add a query string to the list of issued queries.
-     *
-     * @param query Query to add
-     */
-    void addQuery(final String query) {
-      if (Objects.requireNonNull(query, "Query was null.").trim().isEmpty()) {
-        throw new IllegalArgumentException("Query was empty.");
-      }
-      this.queries.add(query);
-    }
-
-    /**
-     * Get the configuration used for this calculation result.
-     *
-     * @return Configuration used for this calculation result
-     */
-    public ImprovedClarityScoreConfiguration.Conf getConfiguration() {
-      return this.conf;
-    }
-
-    /**
-     * Get the collection of feedback documents used for calculation.
-     *
-     * @return Feedback documents used for calculation
-     */
-    public Set<Integer> getFeedbackDocuments() {
-      return this.feedbackDocIds;
-    }
-
-    /**
-     * Get the collection of feedback terms used for calculation.
-     *
-     * @return Feedback terms used for calculation
-     */
-    public Set<ByteArray> getFeedbackTerms() {
-      return this.feedbackTerms;
-    }
-
-    /**
-     * Get the flag indicating, if the query was simplified.
-     *
-     * @return True, if it was simplified
-     */
-    public boolean wasQuerySimplified() {
-      return this.wasQuerySimplified;
-    }
-
-    /**
-     * Get the queries issued to get feedback documents.
-     *
-     * @return List of queries issued
-     */
-    public List<String> getQueries() {
-      return Collections.unmodifiableList(this.queries);
-    }
-  }
-
-  /**
-   * Builder to create a new {@link ImprovedClarityScore} instance.
-   */
-  public static final class Builder
-      extends AbstractClarityScoreCalculationBuilder<Builder> {
-    /**
-     * Configuration to use.
-     */
-    ImprovedClarityScoreConfiguration configuration = new
-        ImprovedClarityScoreConfiguration();
-
-    public Builder() {
-      super(IDENTIFIER);
-    }
-
-    protected Builder getThis() {
-      return this;
-    }
-
-    /**
-     * Set the configuration to use.
-     *
-     * @param conf Configuration
-     * @return Self reference
-     */
-    public Builder configuration(
-        final ImprovedClarityScoreConfiguration conf) {
-      this.configuration = Objects.requireNonNull(conf,
-          "Configuration was null.");
-      return this;
-    }
-
-    @Override
-    public ImprovedClarityScore build()
-        throws BuildableException {
-      validate();
-      try {
-        return ImprovedClarityScore.build(this);
-      } catch (IOException e) {
-        throw new BuildException(e);
-      }
-    }
-
-    @Override
-    public void validate()
-        throws ConfigurationException {
-      super.validate();
-      super.validatePersistenceBuilder();
-    }
-  }
-
-  /**
-   * Base class for {@link ImprovedClarityScore} specific {@link Exception}s.
-   */
-  public static class ImprovedClarityScoreCalculationException
-      extends ClarityScoreCalculationException {
-
-    public ImprovedClarityScoreCalculationException(final String msg) {
-      super(msg);
-    }
-  }
-
-  /**
-   * {@link Exception} indicating that there are no terms left to run a scoring
-   * query.
-   */
-  public final static class NoTermsLeftException
-      extends ImprovedClarityScoreCalculationException {
-    public NoTermsLeftException(final String msg) {
-      super(msg);
     }
   }
 }

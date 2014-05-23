@@ -74,93 +74,50 @@ public final class DefaultClarityScore
     implements ClarityScoreCalculation {
 
   /**
+   * Prefix used to identify externally stored data.
+   */
+  static final String IDENTIFIER = "DCS";
+  /**
    * Logger instance for this class.
    */
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       DefaultClarityScore.class);
-
-  /**
-   * Prefix used to identify externally stored data.
-   */
-  static final String IDENTIFIER = "DCS";
-
-  /**
-   * Ids of temporary data caches held in the database.
-   */
-  private enum Caches {
-
-    /**
-     * Language model weighting factor.
-     */
-    LANGMODEL_WEIGHT,
-    /**
-     * Flag indicating, if pre-calculated models are available.
-     */
-    HAS_PRECALC_DATA,
-    /**
-     * Pre-calculated default document models.
-     */
-    DEFAULT_DOC_MODELS
-  }
-
-  /**
-   * Keys to store calculation results in document models and access properties
-   * stored in the {@link IndexDataProvider}.
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public enum DataKeys {
-
-    /**
-     * Stores the document model for a specific term in a {@link
-     * DocumentModel}.
-     */
-    DM
-  }
-
-  /**
-   * Cached storage of Document-id -> Term, model-value.
-   */
-  private Map<Integer, Map<ByteArray, Double>> docModelDataCache;
-
-  /**
-   * Cached mapping of document model values.
-   */
-  private Map<ByteArray, Double> defaultDocModels;
-
-  /**
-   * Configuration object used for all parameters of the calculation.
-   */
-  private DefaultClarityScoreConfiguration conf;
-
-  /**
-   * Flag indicating, if a cache is set.
-   */
-  private boolean hasCache;
-
-  /**
-   * Database to use.
-   */
-  private DB db;
-
-  /**
-   * Manager object for extended document data.
-   */
-  private ExternalDocTermDataManager extDocMan;
-
-  /**
-   * {@link IndexDataProvider} to use.
-   */
-  private IndexDataProvider dataProv;
-
-  /**
-   * Reader to access Lucene index.
-   */
-  private IndexReader idxReader;
-
   /**
    * Provider for general index metrics.
    */
   Metrics metrics;
+  /**
+   * Cached storage of Document-id -> Term, model-value.
+   */
+  private Map<Integer, Map<ByteArray, Double>> docModelDataCache;
+  /**
+   * Cached mapping of document model values.
+   */
+  private Map<ByteArray, Double> defaultDocModels;
+  /**
+   * Configuration object used for all parameters of the calculation.
+   */
+  private DefaultClarityScoreConfiguration conf;
+  /**
+   * Flag indicating, if a cache is set.
+   */
+  private boolean hasCache;
+  /**
+   * Database to use.
+   */
+  private DB db;
+  /**
+   * Manager object for extended document data.
+   */
+  private ExternalDocTermDataManager extDocMan;
+  /**
+   * {@link IndexDataProvider} to use.
+   */
+  private IndexDataProvider dataProv;
+  /**
+   * Reader to access Lucene index.
+   */
+  private IndexReader idxReader;
 
   /**
    * Default constructor. Called from builder.
@@ -227,7 +184,8 @@ public final class DefaultClarityScore
     this.db = persistence.db;
 
     if (!createNew) {
-      if (this.dataProv.getLastIndexCommitGeneration() == null) {
+      if (this.dataProv.getLastIndexCommitGeneration() == null || !persistence
+          .getMetaData().hasGenerationValue()) {
         LOG.warn("Index commit generation not available. Assuming an " +
             "unchanged index!");
       } else {
@@ -265,62 +223,6 @@ public final class DefaultClarityScore
         .makeOrGet();
     this.extDocMan = new ExternalDocTermDataManager(this.db, IDENTIFIER);
     this.hasCache = true;
-  }
-
-  /**
-   * Calculate or get the default value, if the term is not contained in
-   * document.
-   *
-   * @param term Term whose model to calculate
-   * @return The calculated default model value
-   */
-  double getDefaultDocumentModel(final ByteArray term) {
-    assert this.defaultDocModels != null; // must be initialized
-    assert term != null;
-
-    Double model = this.defaultDocModels.get(term);
-    if (model == null) {
-      model = ((1d - this.conf.getLangModelWeight()) *
-          this.metrics.collection.relTf(term));
-      this.defaultDocModels.put(term.clone(), model);
-    }
-    return model;
-  }
-
-  /**
-   * Calculate or get the document model (pd) for a specific document.
-   *
-   * @param docId Id of the document whose model to get
-   * @return Mapping of each term in the document to it's model value
-   */
-  Map<ByteArray, Double> getDocumentModel(final int docId) {
-    Map<ByteArray, Double> map;
-    if (this.docModelDataCache.containsKey(docId)) {
-      // get local cached map
-      map = this.docModelDataCache.get(docId);
-    } else {
-      // get external cached map
-      map = this.extDocMan.getData(docId, DataKeys.DM.name());
-      // build mapping, if needed
-      if (map == null || map.isEmpty()) {
-        final DocumentModel docModel = this.metrics.getDocumentModel(docId);
-        final Set<ByteArray> terms = docModel.termFreqMap.keySet();
-
-        map = new HashMap<>(terms.size());
-        for (final ByteArray term : terms) {
-          final Double model = (this.conf.getLangModelWeight()
-              * docModel.metrics().relTf(term))
-              + getDefaultDocumentModel(term);
-
-          map.put(term, model);
-        }
-        // push data to persistent storage
-        this.extDocMan.setData(docModel.id, DataKeys.DM.name(), map);
-      }
-      // push to local cache
-      this.docModelDataCache.put(docId, map);
-    }
-    return map;
   }
 
   /**
@@ -365,6 +267,62 @@ public final class DefaultClarityScore
   }
 
   /**
+   * Calculate or get the document model (pd) for a specific document.
+   *
+   * @param docId Id of the document whose model to get
+   * @return Mapping of each term in the document to it's model value
+   */
+  Map<ByteArray, Double> getDocumentModel(final int docId) {
+    Map<ByteArray, Double> map;
+    if (this.docModelDataCache.containsKey(docId)) {
+      // get local cached map
+      map = this.docModelDataCache.get(docId);
+    } else {
+      // get external cached map
+      map = this.extDocMan.getData(docId, DataKeys.DM.name());
+      // build mapping, if needed
+      if (map == null || map.isEmpty()) {
+        final DocumentModel docModel = this.metrics.getDocumentModel(docId);
+        final Set<ByteArray> terms = docModel.termFreqMap.keySet();
+
+        map = new HashMap<>(terms.size());
+        for (final ByteArray term : terms) {
+          final Double model = (this.conf.getLangModelWeight()
+              * docModel.metrics().relTf(term))
+              + getDefaultDocumentModel(term);
+
+          map.put(term, model);
+        }
+        // push data to persistent storage
+        this.extDocMan.setData(docModel.id, DataKeys.DM.name(), map);
+      }
+      // push to local cache
+      this.docModelDataCache.put(docId, map);
+    }
+    return map;
+  }
+
+  /**
+   * Calculate or get the default value, if the term is not contained in
+   * document.
+   *
+   * @param term Term whose model to calculate
+   * @return The calculated default model value
+   */
+  double getDefaultDocumentModel(final ByteArray term) {
+    assert this.defaultDocModels != null; // must be initialized
+    assert term != null;
+
+    Double model = this.defaultDocModels.get(term);
+    if (model == null) {
+      model = ((1d - this.conf.getLangModelWeight()) *
+          this.metrics.collection.relTf(term));
+      this.defaultDocModels.put(term.clone(), model);
+    }
+    return model;
+  }
+
+  /**
    * Pre-calculate all document models for all terms known from the index. This
    * simpliy runs the calculation for each term and stores it's value to a
    * persistent cache.
@@ -387,6 +345,79 @@ public final class DefaultClarityScore
           )
       ).process(this.metrics.collection.numberOfDocuments().intValue());
       hasData.set(true);
+    }
+  }
+
+  /**
+   * Calculate the clarity score. This method does only pre-checks. The real
+   * calculation is done in {@link #calculateClarity(Set, Set)}.
+   *
+   * @param query Query used for term extraction
+   * @return Clarity score result
+   * @throws ClarityScoreCalculationException
+   */
+  @Override
+  public Result calculateClarity(final String query)
+      throws ClarityScoreCalculationException {
+    if (Objects.requireNonNull(query, "Query was null.").trim().isEmpty()) {
+      throw new IllegalArgumentException("Query was empty.");
+    }
+
+    LOG.info("Calculating clarity score. query={}", query);
+    final TimeMeasure timeMeasure = new TimeMeasure().start();
+
+    final QueryUtils queryUtils =
+        new QueryUtils(this.idxReader, this.dataProv.getDocumentFields());
+
+    final Query queryObj;
+    try {
+      queryObj = new TermsQueryBuilder(this.idxReader,
+          this.dataProv.getDocumentFields()).query(query).build();
+    } catch (Buildable.BuildableException e) {
+      throw new ClarityScoreCalculationException(
+          "Caught exception while building query.", e);
+    }
+
+    // get feedback documents
+    final Set<Integer> feedbackDocuments;
+    try {
+      feedbackDocuments = Feedback.getFixed(this.idxReader, queryObj,
+          this.conf.getFeedbackDocCount());
+
+    } catch (IOException ex) {
+      LOG.error("Caught exception while preparing calculation.", ex);
+      return null;
+    }
+    if (feedbackDocuments == null || feedbackDocuments.isEmpty()) {
+      throw new IllegalStateException("No feedback documents.");
+    }
+
+    final Set<ByteArray> queryTerms;
+    try {
+      // Get unique query terms
+      queryTerms = queryUtils.getUniqueQueryTerms(query);
+    } catch (UnsupportedEncodingException | ParseException e) {
+      LOG.error("Caught exception parsing query.", e);
+      return null;
+    } catch (Buildable.BuildableException e) {
+      LOG.error("Caught exception building query.", e);
+      return null;
+    }
+
+    if (queryTerms == null || queryTerms.isEmpty()) {
+      throw new IllegalStateException("No query terms.");
+    }
+
+    timeMeasure.stop();
+    try {
+      final Result r = calculateClarity(feedbackDocuments, queryTerms);
+      LOG.debug("Calculating default clarity score for query '{}' "
+              + "with {} document models took {}. {}", query,
+          feedbackDocuments.size(), timeMeasure.getTimeString(), r.getScore()
+      );
+      return r;
+    } catch (IOException | ProcessingException e) {
+      throw new ClarityScoreCalculationException(e);
     }
   }
 
@@ -462,75 +493,195 @@ public final class DefaultClarityScore
   }
 
   /**
-   * Calculate the clarity score. This method does only pre-checks. The real
-   * calculation is done in {@link #calculateClarity(Set, Set)}.
-   *
-   * @param query Query used for term extraction
-   * @return Clarity score result
-   * @throws ClarityScoreCalculationException
+   * Ids of temporary data caches held in the database.
    */
-  @Override
-  public Result calculateClarity(final String query)
-      throws ClarityScoreCalculationException {
-    if (Objects.requireNonNull(query, "Query was null.").trim().isEmpty()) {
-      throw new IllegalArgumentException("Query was empty.");
+  private enum Caches {
+
+    /**
+     * Language model weighting factor.
+     */
+    LANGMODEL_WEIGHT,
+    /**
+     * Flag indicating, if pre-calculated models are available.
+     */
+    HAS_PRECALC_DATA,
+    /**
+     * Pre-calculated default document models.
+     */
+    DEFAULT_DOC_MODELS
+  }
+
+  /**
+   * Keys to store calculation results in document models and access properties
+   * stored in the {@link IndexDataProvider}.
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public enum DataKeys {
+
+    /**
+     * Stores the document model for a specific term in a {@link
+     * DocumentModel}.
+     */
+    DM
+  }
+
+  /**
+   * Extended result object containing additional meta information about what
+   * values were actually used for calculation.
+   */
+  public static final class Result
+      extends ClarityScoreResult {
+
+    /**
+     * Query terms used for calculation.
+     */
+    private Collection<ByteArray> queryTerms;
+    /**
+     * Ids of feedback documents used for calculation.
+     */
+    private Collection<Integer> feedbackDocIds;
+    /**
+     * Configuration that was used.
+     */
+    private DefaultClarityScoreConfiguration conf;
+
+    /**
+     * Creates an object wrapping the result with meta information.
+     *
+     * @param cscType Type of the calculation class
+     */
+    protected Result(final Class<? extends ClarityScoreCalculation> cscType) {
+      super(Objects.requireNonNull(cscType));
+
+      this.feedbackDocIds = Collections.<Integer>emptyList();
+      this.queryTerms = Collections.<ByteArray>emptyList();
     }
 
-    LOG.info("Calculating clarity score. query={}", query);
-    final TimeMeasure timeMeasure = new TimeMeasure().start();
+    /**
+     * Set the list of feedback documents used.
+     *
+     * @param fbDocIds List of feedback documents
+     */
+    protected void setFeedbackDocIds(final Collection<Integer> fbDocIds) {
+      Objects.requireNonNull(fbDocIds);
 
-    final QueryUtils queryUtils =
-        new QueryUtils(this.idxReader, this.dataProv.getDocumentFields());
-
-    final Query queryObj;
-    try {
-      queryObj = new TermsQueryBuilder(this.idxReader,
-          this.dataProv.getDocumentFields()).query(query).build();
-    } catch (Buildable.BuildableException e) {
-      throw new ClarityScoreCalculationException(
-          "Caught exception while building query.", e);
+      this.feedbackDocIds = new ArrayList<>(fbDocIds.size());
+      this.feedbackDocIds.addAll(fbDocIds);
     }
 
-    // get feedback documents
-    final Set<Integer> feedbackDocuments;
-    try {
-      feedbackDocuments = Feedback.getFixed(this.idxReader, queryObj,
-          this.conf.getFeedbackDocCount());
-
-    } catch (IOException ex) {
-      LOG.error("Caught exception while preparing calculation.", ex);
-      return null;
-    }
-    if (feedbackDocuments == null || feedbackDocuments.isEmpty()) {
-      throw new IllegalStateException("No feedback documents.");
+    /**
+     * Set the value of the calculated score.
+     *
+     * @param score Calculated score
+     */
+    protected void setScore(final double score) {
+      _setScore(score);
     }
 
-    final Set<ByteArray> queryTerms;
-    try {
-      // Get unique query terms
-      queryTerms = queryUtils.getUniqueQueryTerms(query);
-    } catch (UnsupportedEncodingException | ParseException e) {
-      LOG.error("Caught exception parsing query.", e);
-      return null;
-    } catch (Buildable.BuildableException e) {
-      LOG.error("Caught exception building query.", e);
-      return null;
+    /**
+     * Set the configuration that was used.
+     *
+     * @param newConf Configuration used
+     */
+    protected void setConf(final DefaultClarityScoreConfiguration newConf) {
+      this.conf = Objects.requireNonNull(newConf);
     }
 
-    if (queryTerms == null || queryTerms.isEmpty()) {
-      throw new IllegalStateException("No query terms.");
+    /**
+     * Get the query terms used for calculation.
+     *
+     * @return Query terms
+     */
+    public Collection<ByteArray> getQueryTerms() {
+      return Collections.unmodifiableCollection(this.queryTerms);
     }
 
-    timeMeasure.stop();
-    try {
-      final Result r = calculateClarity(feedbackDocuments, queryTerms);
-      LOG.debug("Calculating default clarity score for query '{}' "
-              + "with {} document models took {}. {}", query,
-          feedbackDocuments.size(), timeMeasure.getTimeString(), r.getScore()
-      );
-      return r;
-    } catch (IOException | ProcessingException e) {
-      throw new ClarityScoreCalculationException(e);
+    /**
+     * Set the query terms used.
+     *
+     * @param qTerms Query terms
+     */
+    protected void setQueryTerms(final Collection<ByteArray> qTerms) {
+      Objects.requireNonNull(qTerms);
+      this.queryTerms = new ArrayList<>(qTerms.size());
+      this.queryTerms.addAll(qTerms);
+    }
+
+    /**
+     * Get the collection of feedback documents used for calculation.
+     *
+     * @return Feedback documents used for calculation
+     */
+    public Collection<Integer> getFeedbackDocuments() {
+      return Collections.unmodifiableCollection(this.feedbackDocIds);
+    }
+
+    /**
+     * Get the configuration used for this calculation result.
+     *
+     * @return Configuration used for this calculation result
+     */
+    public DefaultClarityScoreConfiguration getConfiguration() {
+      return this.conf;
+    }
+  }
+
+  /**
+   * Builder to create a new {@link DefaultClarityScore} instance.
+   */
+  public static final class Builder
+      extends AbstractClarityScoreCalculationBuilder<Builder> {
+    /**
+     * Configuration to use.
+     */
+    private DefaultClarityScoreConfiguration configuration = new
+        DefaultClarityScoreConfiguration();
+
+    public Builder() {
+      super(IDENTIFIER);
+    }
+
+    protected Builder getThis() {
+      return this;
+    }
+
+    @Override
+    public void validate()
+        throws ConfigurationException {
+      super.validate();
+      super.validatePersistenceBuilder();
+    }
+
+    /**
+     * Set the configuration to use.
+     *
+     * @param conf Configuration
+     * @return Self reference
+     */
+    public Builder configuration(final DefaultClarityScoreConfiguration conf) {
+      this.configuration = Objects.requireNonNull(conf,
+          "Configuration was null.");
+      return this;
+    }
+
+    /**
+     * Get the configuration to use.
+     *
+     * @return Configuration
+     */
+    protected DefaultClarityScoreConfiguration getConfiguration() {
+      return this.configuration;
+    }
+
+    @Override
+    public DefaultClarityScore build()
+        throws BuildableException {
+      validate();
+      try {
+        return DefaultClarityScore.build(this);
+      } catch (IOException e) {
+        throw new BuildException(e);
+      }
     }
   }
 
@@ -650,166 +801,6 @@ public final class DefaultClarityScore
       if (docId != null) {
         getDocumentModel(docId);
       }
-    }
-  }
-
-  /**
-   * Extended result object containing additional meta information about what
-   * values were actually used for calculation.
-   */
-  public static final class Result
-      extends ClarityScoreResult {
-
-    /**
-     * Query terms used for calculation.
-     */
-    private Collection<ByteArray> queryTerms;
-    /**
-     * Ids of feedback documents used for calculation.
-     */
-    private Collection<Integer> feedbackDocIds;
-    /**
-     * Configuration that was used.
-     */
-    private DefaultClarityScoreConfiguration conf;
-
-    /**
-     * Creates an object wrapping the result with meta information.
-     *
-     * @param cscType Type of the calculation class
-     */
-    protected Result(final Class<? extends ClarityScoreCalculation> cscType) {
-      super(Objects.requireNonNull(cscType));
-
-      this.feedbackDocIds = Collections.<Integer>emptyList();
-      this.queryTerms = Collections.<ByteArray>emptyList();
-    }
-
-    /**
-     * Set the list of feedback documents used.
-     *
-     * @param fbDocIds List of feedback documents
-     */
-    protected void setFeedbackDocIds(final Collection<Integer> fbDocIds) {
-      Objects.requireNonNull(fbDocIds);
-
-      this.feedbackDocIds = new ArrayList<>(fbDocIds.size());
-      this.feedbackDocIds.addAll(fbDocIds);
-    }
-
-    /**
-     * Set the query terms used.
-     *
-     * @param qTerms Query terms
-     */
-    protected void setQueryTerms(final Collection<ByteArray> qTerms) {
-      Objects.requireNonNull(qTerms);
-      this.queryTerms = new ArrayList<>(qTerms.size());
-      this.queryTerms.addAll(qTerms);
-    }
-
-    /**
-     * Set the value of the calculated score.
-     *
-     * @param score Calculated score
-     */
-    protected void setScore(final double score) {
-      _setScore(score);
-    }
-
-    /**
-     * Set the configuration that was used.
-     *
-     * @param newConf Configuration used
-     */
-    protected void setConf(final DefaultClarityScoreConfiguration newConf) {
-      this.conf = Objects.requireNonNull(newConf);
-    }
-
-    /**
-     * Get the query terms used for calculation.
-     *
-     * @return Query terms
-     */
-    public Collection<ByteArray> getQueryTerms() {
-      return Collections.unmodifiableCollection(this.queryTerms);
-    }
-
-    /**
-     * Get the collection of feedback documents used for calculation.
-     *
-     * @return Feedback documents used for calculation
-     */
-    public Collection<Integer> getFeedbackDocuments() {
-      return Collections.unmodifiableCollection(this.feedbackDocIds);
-    }
-
-    /**
-     * Get the configuration used for this calculation result.
-     *
-     * @return Configuration used for this calculation result
-     */
-    public DefaultClarityScoreConfiguration getConfiguration() {
-      return this.conf;
-    }
-  }
-
-  /**
-   * Builder to create a new {@link DefaultClarityScore} instance.
-   */
-  public static final class Builder
-      extends AbstractClarityScoreCalculationBuilder<Builder> {
-    /**
-     * Configuration to use.
-     */
-    private DefaultClarityScoreConfiguration configuration = new
-        DefaultClarityScoreConfiguration();
-
-    public Builder() {
-      super(IDENTIFIER);
-    }
-
-    protected Builder getThis() {
-      return this;
-    }
-
-    /**
-     * Set the configuration to use.
-     *
-     * @param conf Configuration
-     * @return Self reference
-     */
-    public Builder configuration(final DefaultClarityScoreConfiguration conf) {
-      this.configuration = Objects.requireNonNull(conf,
-          "Configuration was null.");
-      return this;
-    }
-
-    /**
-     * Get the configuration to use.
-     *
-     * @return Configuration
-     */
-    protected DefaultClarityScoreConfiguration getConfiguration() {
-      return this.configuration;
-    }
-
-    @Override
-    public DefaultClarityScore build()
-        throws BuildableException {
-      validate();
-      try {
-        return DefaultClarityScore.build(this);
-      } catch (IOException e) {
-        throw new BuildException(e);
-      }
-    }
-
-    @Override
-    public void validate()
-        throws ConfigurationException {
-      super.validate();
-      super.validatePersistenceBuilder();
     }
   }
 }

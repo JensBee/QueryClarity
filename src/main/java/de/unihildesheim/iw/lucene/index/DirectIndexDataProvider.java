@@ -187,7 +187,8 @@ public final class DirectIndexDataProvider
             "Invalid database state. 'idxTermsMap' does not exist.");
       }
 
-      if (getLastIndexCommitGeneration() == null) {
+      if (getLastIndexCommitGeneration() == null || !persistence
+          .getMetaData().hasGenerationValue()) {
         LOG.warn("Index commit generation not available. Assuming an " +
             "unchanged index!");
       } else {

@@ -70,15 +70,8 @@ public final class ExternalDocTermDataManager {
       throw new IllegalArgumentException("Prefix was empty.");
     }
     this.db = newDb;
-    this.prefix = newPrefix;
-    getMap(this.prefix);
-  }
 
-  /**
-   * Remove any custom data stored while using the index.
-   */
-  public void clear() {
-    this.db.delete(this.prefix);
+    this.prefix = newPrefix;
     getMap(this.prefix);
   }
 
@@ -111,6 +104,28 @@ public final class ExternalDocTermDataManager {
   }
 
   /**
+   * Remove any custom data stored while using the index.
+   */
+  public void clear() {
+    this.db.delete(this.prefix);
+    getMap(this.prefix);
+  }
+
+  /**
+   * Store a map with term-data to the database.
+   *
+   * @param documentId Document-id the data belongs to
+   * @param key Key to identify the data
+   * @param data Key, value pairs to store
+   */
+  public <T> void setData(final int documentId, final String key, final
+  Map<ByteArray, T> data) {
+    for (Map.Entry<ByteArray, T> d : data.entrySet()) {
+      setData(documentId, d.getKey(), key, d.getValue());
+    }
+  }
+
+  /**
    * Store term-data to the database.
    *
    * @param documentId Document-id the data belongs to
@@ -132,20 +147,6 @@ public final class ExternalDocTermDataManager {
     final T ret = (T) this.map.put(Fun.t3(key, documentId, term.clone()),
         value);
     return ret;
-  }
-
-  /**
-   * Store a map with term-data to the database.
-   *
-   * @param documentId Document-id the data belongs to
-   * @param key Key to identify the data
-   * @param data Key, value pairs to store
-   */
-  public <T> void setData(final int documentId, final String key, final
-  Map<ByteArray, T> data) {
-    for (Map.Entry<ByteArray, T> d : data.entrySet()) {
-      setData(documentId, d.getKey(), key, d.getValue());
-    }
   }
 
   /**
