@@ -307,8 +307,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
     }
 
     if (this.idxReader instanceof DirectoryReader) {
-      this.luceneDir = ((DirectoryReader) this.idxReader)
-          .directory();
+      this.luceneDir = ((DirectoryReader) this.idxReader).directory();
       try {
         this.lastCommitGeneration = SegmentInfos.getLastCommitGeneration(this
             .luceneDir);
