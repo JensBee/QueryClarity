@@ -16,9 +16,13 @@
  */
 package de.unihildesheim.iw.lucene.index;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.store.FSDirectory;
 
+import java.io.File;
+import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.Arrays;
 import java.util.Collection;
@@ -79,5 +83,24 @@ public final class IndexUtils {
           ))
       ));
     }
+  }
+
+  /**
+   * Get an {@link IndexReader} for a file based Lucene index.
+   *
+   * @param idxDir Directory where the Lucene index is located at
+   * @return Reader for the given index
+   * @throws IOException Thrown, if the index is not found or any other
+   * low-level I/O error occurred
+   */
+  public static IndexReader openReader(final File idxDir)
+      throws IOException {
+    // check, if there's a Lucene index in the path
+    final FSDirectory luceneDir = FSDirectory.open(idxDir);
+    if (!DirectoryReader.indexExists(luceneDir)) {
+      throw new IOException("No index found at index path '" + idxDir
+          .getCanonicalPath() + "'.");
+    }
+    return DirectoryReader.open(luceneDir);
   }
 }
