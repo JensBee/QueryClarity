@@ -60,15 +60,6 @@ public abstract class Target<T>
   }
 
   /**
-   * Get the {@link Source} for this {@link Target} instance.
-   *
-   * @return {@link Source} used by this {@link Target}.
-   */
-  public final Source<T> getSource() {
-    return this.source;
-  }
-
-  /**
    * Set the termination flag for this {@link Runnable}. If the instance
    * terminates, the provided {@link java.util.concurrent.CountDownLatch} must
    * be decremented.
@@ -81,6 +72,15 @@ public abstract class Target<T>
       LOG.trace("({}) Received termination signal.", getName());
       this.terminate = true;
     }
+  }
+
+  /**
+   * Get a unique name for this {@link Runnable}.
+   *
+   * @return Name for this instance
+   */
+  public final String getName() {
+    return this.getClass().getSimpleName() + "-" + this.hashCode();
   }
 
   /**
@@ -109,23 +109,6 @@ public abstract class Target<T>
     this.latch = Objects.requireNonNull(newLatch, "Latch was null.");
   }
 
-  /**
-   * Get a unique name for this {@link Runnable}.
-   *
-   * @return Name for this instance
-   */
-  public final String getName() {
-    return this.getClass().getSimpleName() + "-" + this.hashCode();
-  }
-
-  /**
-   * Equivalent for <tt>run()</tt> function called by abstract Target class.
-   *
-   * @throws java.lang.Exception
-   */
-  public abstract void runProcess()
-      throws Exception;
-
   public final Boolean call()
       throws Exception {
     Boolean success = Boolean.FALSE;
@@ -145,4 +128,21 @@ public abstract class Target<T>
       this.latch.countDown();
     }
   }
+
+  /**
+   * Get the {@link Source} for this {@link Target} instance.
+   *
+   * @return {@link Source} used by this {@link Target}.
+   */
+  public final Source<T> getSource() {
+    return this.source;
+  }
+
+  /**
+   * Equivalent for <tt>run()</tt> function called by abstract Target class.
+   *
+   * @throws java.lang.Exception
+   */
+  public abstract void runProcess()
+      throws Exception;
 }
