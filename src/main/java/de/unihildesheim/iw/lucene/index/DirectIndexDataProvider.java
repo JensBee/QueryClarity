@@ -25,6 +25,7 @@ import de.unihildesheim.iw.lucene.document.DocFieldsTermsEnum;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.util.ByteArrayUtils;
+import de.unihildesheim.iw.util.FileUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
@@ -91,12 +92,19 @@ public final class DirectIndexDataProvider
   /**
    * Persistent disk backed storage backend.
    */
-  private DB db;
+  private DB dbStatic;
+
+  /**
+   * Transient disk backed storage backend.
+   */
+  private DB dbTransient;
 
   /**
    * Wrapper for persistent data storage.
    */
-  private Persistence persistence;
+  private Persistence persistStatic;
+
+  private Persistence persistTransient;
 
   /**
    * Default constructor.
@@ -165,41 +173,52 @@ public final class DirectIndexDataProvider
 
     switch (psb.getCacheLoadInstruction()) {
       case MAKE:
-        this.persistence = psb.make().build();
+        this.persistStatic = psb.make().build();
         clearCache = true;
         break;
       case GET:
-        this.persistence = psb.get().build();
+        this.persistStatic = psb.get().build();
         break;
       default:
         if (!psb.dbExists()) {
           clearCache = true;
         }
-        this.persistence = psb.makeOrGet().build();
+        this.persistStatic = psb.makeOrGet().build();
         break;
     }
 
-    this.db = persistence.db;
+    this.dbStatic = this.persistStatic.db;
+    LOG.info("Opening transient database.");
+    this.persistTransient = builder.persistenceBuilderTransient.build();
+    this.dbTransient = this.persistTransient.db;
 
     if (!clearCache) {
-      if (!this.db.exists(DbMakers.Stores.IDX_TERMS_MAP.name())) {
+      if (!this.dbStatic.exists(DbMakers.Stores.IDX_TERMS_MAP.name())) {
         throw new IllegalStateException(
             "Invalid database state. 'idxTermsMap' does not exist.");
       }
 
-      if (getLastIndexCommitGeneration() == null || !persistence
+      if (getLastIndexCommitGeneration() == null || !persistStatic
           .getMetaData().hasGenerationValue()) {
         LOG.warn("Index commit generation not available. Assuming an " +
             "unchanged index!");
       } else {
-        if (!this.persistence.getMetaData().generationCurrent(
+        if (!this.persistStatic.getMetaData().generationCurrent(
             getLastIndexCommitGeneration())) {
           throw new IllegalStateException("Invalid database state. " +
               "Index changed since last caching.");
         }
       }
-      if (!this.persistence.getMetaData().fieldsCurrent(getDocumentFields())) {
+      // check, if fields have changed
+      if (!this.persistTransient.getMetaData()
+          .fieldsCurrent(getDocumentFields())) {
         LOG.info("Fields changed. Caches needs to be rebuild.");
+        clearCache = true;
+      }
+      // check, if stopwords have changed
+      if (!this.persistTransient.getMetaData()
+          .stopwordsCurrent(getStopwords())) {
+        LOG.info("Stopwords changed. Caches needs to be rebuild.");
         clearCache = true;
       }
     }
@@ -208,17 +227,17 @@ public final class DirectIndexDataProvider
       setCachedFieldsMap(
           new HashMap<String, SerializableByte>(getDocumentFields().size()));
     } else {
-      setCachedFieldsMap(DbMakers.cachedFieldsMapMaker(this.db).<String,
-          SerializableByte>makeOrGet());
+      setCachedFieldsMap(DbMakers.cachedFieldsMapMaker(this.dbTransient)
+          .<String, SerializableByte>makeOrGet());
     }
 
     LOG.debug("Fields: cached={} active={}", getCachedFieldsMap().keySet(),
         getDocumentFields());
 
-    setIdxDocTermsMap(DbMakers.idxDocTermsMapMkr(this.db)
+    setIdxDocTermsMap(DbMakers.idxDocTermsMapMkr(this.dbStatic)
         .<Fun.Tuple3<ByteArray, SerializableByte, Integer>,
             Integer>makeOrGet());
-    setIdxTermsMap(DbMakers.idxTermsMapMkr(this.db)
+    setIdxTermsMap(DbMakers.idxTermsMapMkr(this.dbStatic)
         .<Fun.Tuple2<SerializableByte, ByteArray>, Long>makeOrGet());
 
     // caches are current
@@ -237,13 +256,19 @@ public final class DirectIndexDataProvider
       clearDbCaches();
       try {
         buildCache(getDocumentFields());
+        this.persistTransient
+            .updateMetaData(getDocumentFields(), getStopwords());
+        commitDb(false);
       } catch (ProcessingException e) {
         throw new DataProviderException("Cache building failed.", e);
       }
     }
 
-    this.persistence.updateMetaData(getDocumentFields(), getStopwords());
-    commitDb(false);
+    // re-open database read-only
+    LOG.info("Re-opening static information storage read-only.");
+    this.dbStatic.close();
+    this.persistStatic = psb.readOnly().get().build();
+    this.dbStatic = this.persistStatic.db;
   }
 
   @Override
@@ -256,10 +281,12 @@ public final class DirectIndexDataProvider
         throw new IllegalStateException("Zero term frequency.");
       }
 
-      if (this.db.exists(DbMakers.Caches.IDX_TF.name())) {
-        this.db.getAtomicLong(DbMakers.Caches.IDX_TF.name()).set(getIdxTf());
+      if (this.dbTransient.exists(DbMakers.Caches.IDX_TF.name())) {
+        this.dbTransient.getAtomicLong(DbMakers.Caches.IDX_TF.name())
+            .set(getIdxTf());
       } else {
-        this.db.createAtomicLong(DbMakers.Caches.IDX_TF.name(), getIdxTf());
+        this.dbTransient
+            .createAtomicLong(DbMakers.Caches.IDX_TF.name(), getIdxTf());
       }
 
 
@@ -271,7 +298,7 @@ public final class DirectIndexDataProvider
         throw new IllegalStateException("Zero terms.");
       }
 
-      this.persistence.updateMetaData(getDocumentFields(), getStopwords());
+      this.persistStatic.updateMetaData(getDocumentFields(), getStopwords());
       commitDb(false);
     }
   }
@@ -280,53 +307,44 @@ public final class DirectIndexDataProvider
    * Read dynamic caches from the database and validate their state.
    */
   private void readDbCaches() {
-    if (this.persistence.getMetaData().stopWordsCurrent(getStopwords())) {
-      LOG.info("Stopwords unchanged ({} terms).", getStopwords().size());
+    // check if terms collector task has finished completely
+    if (this.dbTransient
+        .exists(DbMakers.Flags.IDX_TERMS_COLLECTING_RUN.name())) {
+      LOG.warn("Found incomplete terms index. This index will " +
+          "be deleted and rebuilt on warm-up.");
+      this.dbTransient.delete(DbMakers.Flags.IDX_TERMS_COLLECTING_RUN.name());
+      this.dbTransient.delete(DbMakers.Caches.IDX_TERMS.name());
+    }
 
-      // check if terms collector task has finished completely
-      if (this.db.exists(DbMakers.Flags.IDX_TERMS_COLLECTING_RUN.name())) {
-        LOG.warn("Found incomplete terms index. This index will " +
-            "be deleted and rebuilt on warm-up.");
-        this.db.delete(DbMakers.Flags.IDX_TERMS_COLLECTING_RUN.name());
-        this.db.delete(DbMakers.Caches.IDX_TERMS.name());
-      }
-
-      // load terms index
-      setIdxTerms(DbMakers.idxTermsMaker(this.db).<ByteArray>makeOrGet());
-      final int idxTermsSize = getIdxTerms().size();
-      if (idxTermsSize == 0) {
-        LOG.info("Index terms cache is empty. Will be rebuild on warm-up.");
-      } else {
-        LOG.info("Loaded index terms cache with {} entries.", idxTermsSize);
-      }
-
-      // try load overall term frequency
-      if (this.db.exists(DbMakers.Caches.IDX_TF.name())) {
-        setIdxTf(this.db.getAtomicLong(DbMakers.Caches.IDX_TF.name()).get());
-        LOG.info("Term frequency value loaded ({}).", getIdxTf());
-      } else {
-        LOG.info("No term frequency value found. Will be re-calculated on " +
-            "warm-up.");
-        clearIdxTf();
-      }
+    // load terms index
+    setIdxTerms(
+        DbMakers.idxTermsMaker(this.dbTransient).<ByteArray>makeOrGet());
+    final int idxTermsSize = getIdxTerms().size();
+    if (idxTermsSize == 0) {
+      LOG.info("Index terms cache is empty. Will be rebuild on warm-up.");
     } else {
-      // reset terms index
-      LOG.info("Stopwords changed. Deleting index terms cache.");
-      this.db.delete(DbMakers.Caches.IDX_TERMS.name());
-      setIdxTerms(DbMakers.idxTermsMaker(this.db).<ByteArray>make());
+      LOG.info("Loaded index terms cache with {} entries.", idxTermsSize);
+    }
 
-      // reset overall term frequency
-      setIdxTf(null);
+    // try load overall term frequency
+    if (this.dbTransient.exists(DbMakers.Caches.IDX_TF.name())) {
+      setIdxTf(
+          this.dbTransient.getAtomicLong(DbMakers.Caches.IDX_TF.name()).get());
+      LOG.info("Term frequency value loaded ({}).", getIdxTf());
+    } else {
+      LOG.info("No term frequency value found. Will be re-calculated on " +
+          "warm-up.");
+      clearIdxTf();
     }
 
     // check if document-frequency calculation task has finished completely
-    if (this.db.exists(DbMakers.Flags.IDX_DOC_FREQ_CALC_RUN.name())) {
+    if (this.dbTransient.exists(DbMakers.Flags.IDX_DOC_FREQ_CALC_RUN.name())) {
       LOG.warn("Found incomplete document-frequency map. This map will " +
           "be deleted and rebuilt on warm-up.");
-      this.db.delete(DbMakers.Flags.IDX_DOC_FREQ_CALC_RUN.name());
-      this.db.delete(DbMakers.Caches.IDX_DFMAP.name());
+      this.dbTransient.delete(DbMakers.Flags.IDX_DOC_FREQ_CALC_RUN.name());
+      this.dbTransient.delete(DbMakers.Caches.IDX_DFMAP.name());
     }
-    setIdxDfMap(DbMakers.idxDfMapMaker(this.db).<ByteArray,
+    setIdxDfMap(DbMakers.idxDfMapMaker(this.dbTransient).<ByteArray,
         Integer>makeOrGet());
     if (getIdxDfMap().isEmpty()) {
       LOG.info(
@@ -347,11 +365,12 @@ public final class DirectIndexDataProvider
    * @return True, if indexed fields have changed
    */
   private boolean checkForIncompleteIndexedFields() {
-    if (!this.db.exists(DbMakers.Flags.IDX_FIELDS_BEING_INDEXED.name())) {
+    if (!this.dbTransient.exists(DbMakers.Flags.IDX_FIELDS_BEING_INDEXED.name()
+    )) {
       return false; // no changes
     }
 
-    final Set<String> flaggedFields = this.db.createHashSet(DbMakers
+    final Set<String> flaggedFields = this.dbTransient.createHashSet(DbMakers
         .Flags.IDX_FIELDS_BEING_INDEXED.name()).<String>makeOrGet();
 
     if (flaggedFields.isEmpty()) {
@@ -393,17 +412,18 @@ public final class DirectIndexDataProvider
   void clearDbCaches() {
     LOG.info("Clearing temporary caches.");
     // index terms cache (content depends on current fields & stopwords)
-    if (this.db.exists(DbMakers.Caches.IDX_TERMS.name())) {
-      this.db.delete(DbMakers.Caches.IDX_TERMS.name());
+    if (this.dbTransient.exists(DbMakers.Caches.IDX_TERMS.name())) {
+      this.dbTransient.delete(DbMakers.Caches.IDX_TERMS.name());
     }
-    setIdxTerms(DbMakers.idxTermsMaker(this.db).<ByteArray>make());
+    setIdxTerms(DbMakers.idxTermsMaker(this.dbTransient).<ByteArray>make());
 
     // document term-frequency map
     // (content depends on current fields)
-    if (this.db.exists(DbMakers.Caches.IDX_DFMAP.name())) {
-      this.db.delete(DbMakers.Caches.IDX_DFMAP.name());
+    if (this.dbTransient.exists(DbMakers.Caches.IDX_DFMAP.name())) {
+      this.dbTransient.delete(DbMakers.Caches.IDX_DFMAP.name());
     }
-    setIdxDfMap(DbMakers.idxDfMapMaker(this.db).<ByteArray, Integer>make());
+    setIdxDfMap(
+        DbMakers.idxDfMapMaker(this.dbTransient).<ByteArray, Integer>make());
 
     clearIdxTf();
   }
@@ -460,7 +480,7 @@ public final class DirectIndexDataProvider
     // Store fields being update to database. The list will be emptied after
     // indexing. This will be used to identify incomplete indexed fields
     // caused by interruptions.
-    final Set<String> flaggedFields = this.db.createHashSet(DbMakers
+    final Set<String> flaggedFields = this.dbTransient.createHashSet(DbMakers
         .Flags.IDX_FIELDS_BEING_INDEXED.name()).<String>make();
     flaggedFields.addAll(updatingFields);
     commitDb(false); // store before processing
@@ -522,13 +542,13 @@ public final class DirectIndexDataProvider
     autoCommit.stop();
 
     // all fields successful updated
-    this.db.delete(DbMakers.Flags.IDX_FIELDS_BEING_INDEXED.name());
+    this.dbTransient.delete(DbMakers.Flags.IDX_FIELDS_BEING_INDEXED.name());
 
     commitDb(true);
   }
 
   /**
-   * Try to commit the database and optinally run compaction. Commits will only
+   * Try to commit the database and optionally run compaction. Commits will only
    * be done, if transaction is supported.
    *
    * @param compact If true, compaction will be run after committing
@@ -536,21 +556,24 @@ public final class DirectIndexDataProvider
   void commitDb(final boolean compact) {
     TimeMeasure tm = null;
 
-    if (persistence.supportsTransaction()) {
+    if (persistStatic.supportsTransaction()) {
       tm = new TimeMeasure().start();
-      LOG.info("Updating database.");
-      this.db.commit();
-      LOG.info("Database updated. ({})", tm.stop().getTimeString());
+      LOG.info("Updating storage.");
+      // TODO: split by db
+      this.dbStatic.commit();
+      this.dbTransient.commit();
+      LOG.info("Storage updated. ({})", tm.stop().getTimeString());
     }
 
     if (compact) {
-      if (tm == null) {
-        tm = new TimeMeasure();
-      }
-      tm.start();
-      LOG.info("Compacting database.");
-      this.db.compact();
-      LOG.info("Database compacted. ({})", tm.stop().getTimeString());
+      LOG.warn("Compaction currently disabled.");
+//      if (tm == null) {
+//        tm = new TimeMeasure();
+//      }
+//      tm.start();
+//      LOG.info("Compacting storage.");
+//      this.db.compact();
+//      LOG.info("Storage compacted. ({})", tm.stop().getTimeString());
     }
   }
 
@@ -558,12 +581,12 @@ public final class DirectIndexDataProvider
   protected void warmUpTerms()
       throws DataProviderException {
     try {
-      this.db.createAtomicBoolean(DbMakers.Flags.IDX_TERMS_COLLECTING_RUN
-          .name(), true);
+      this.dbTransient.createAtomicBoolean(DbMakers.Flags
+          .IDX_TERMS_COLLECTING_RUN.name(), true);
 
       super.warmUpTerms_default();
 
-      this.db.delete(DbMakers.Flags.IDX_TERMS_COLLECTING_RUN.name());
+      this.dbTransient.delete(DbMakers.Flags.IDX_TERMS_COLLECTING_RUN.name());
       commitDb(false);
     } catch (ProcessingException e) {
       throw new DataProviderException(
@@ -585,10 +608,11 @@ public final class DirectIndexDataProvider
   protected void warmUpDocumentFrequencies()
       throws DataProviderException {
     try {
-      this.db.createAtomicBoolean(DbMakers.Flags.IDX_DOC_FREQ_CALC_RUN.name()
-          , true);
+      this.dbTransient
+          .createAtomicBoolean(DbMakers.Flags.IDX_DOC_FREQ_CALC_RUN.name()
+              , true);
       super.warmUpDocumentFrequencies_default();
-      this.db.delete(DbMakers.Flags.IDX_DOC_FREQ_CALC_RUN.name());
+      this.dbTransient.delete(DbMakers.Flags.IDX_DOC_FREQ_CALC_RUN.name());
       commitDb(false);
     } catch (ProcessingException e) {
       throw new DataProviderException(
@@ -690,7 +714,7 @@ public final class DirectIndexDataProvider
    * @return Persistence instance
    */
   Persistence getPersistence() {
-    return persistence;
+    return persistStatic;
   }
 
   /**
@@ -716,10 +740,15 @@ public final class DirectIndexDataProvider
 
   @Override
   public void dispose() {
-    if (this.db != null && !this.db.isClosed()) {
+    if (this.dbStatic != null && !this.dbStatic.isClosed()) {
       commitDb(false);
-      LOG.info("Closing database.");
-      this.db.close();
+      LOG.info("Closing static information storage.");
+      this.dbStatic.close();
+    }
+    if (this.dbTransient != null && !this.dbTransient.isClosed()) {
+      commitDb(false);
+      LOG.info("Closing transient information storage.");
+      this.dbTransient.close();
     }
     setDisposed();
   }
@@ -951,6 +980,12 @@ public final class DirectIndexDataProvider
       extends AbstractIndexDataProviderBuilder<Builder> {
 
     /**
+     * Builder used to create a proper caching backend.
+     */
+    protected Persistence.Builder persistenceBuilderTransient =
+        new Persistence.Builder();
+
+    /**
      * Default constructor.
      */
     public Builder() {
@@ -972,6 +1007,20 @@ public final class DirectIndexDataProvider
     public DirectIndexDataProvider build()
         throws BuildableException {
       validate();
+
+      // create transient cache db
+      try {
+        this.persistenceBuilderTransient
+            .dataPath(FileUtils.getPath(this.dataPath));
+      } catch (IOException e) {
+        throw new BuildException(e);
+      }
+      this.persistenceBuilderTransient.name(createCacheName(this.cacheName +
+          "_transient"))
+          .stopwords(this.stopwords)
+          .documentFields(this.documentFields)
+          .makeOrGet();
+
       try {
         return DirectIndexDataProvider.build(this);
       } catch (DataProviderException e) {
@@ -1009,7 +1058,7 @@ public final class DirectIndexDataProvider
     }
 
     /**
-     * Get a maker for {@link #idxTerms}.
+     * Get a maker for {@link #idxTerms}. Transient.
      *
      * @param db Database reference
      * @return Maker for {@link #idxTerms}
@@ -1024,7 +1073,7 @@ public final class DirectIndexDataProvider
     }
 
     /**
-     * Get a maker for {@link #idxDfMap}.
+     * Get a maker for {@link #idxDfMap}. Transient.
      *
      * @param db Database reference
      * @return Maker for {@link #idxDfMap}
@@ -1039,7 +1088,7 @@ public final class DirectIndexDataProvider
     }
 
     /**
-     * Get a maker for {@link #idxTermsMap}.
+     * Get a maker for {@link #idxTermsMap}. Static.
      *
      * @param db Database reference
      * @return Maker for {@link #idxTermsMap}
@@ -1054,7 +1103,7 @@ public final class DirectIndexDataProvider
     }
 
     /**
-     * Get a maker for {@link #idxTermsMap}.
+     * Get a maker for {@link #idxTermsMap}. Static.
      *
      * @param db Database reference
      * @return Maker for {@link #idxTermsMap}
@@ -1069,7 +1118,7 @@ public final class DirectIndexDataProvider
     }
 
     /**
-     * Get a maker for {@link #cachedFieldsMap}.
+     * Get a maker for {@link #cachedFieldsMap}. Transient.
      *
      * @param db Database reference
      * @return Maker for {@link #cachedFieldsMap}

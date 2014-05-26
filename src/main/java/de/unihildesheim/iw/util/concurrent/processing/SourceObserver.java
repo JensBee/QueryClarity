@@ -186,12 +186,24 @@ public final class SourceObserver<T>
    * Show a timed status message.
    */
   private void showStatus(final boolean isSingle) {
+    final long count = this.source.getSourcedItemCount();
+    final String text;
     if (isSingle) {
-      LOG.info("Processing {} items since {}.",
+      if (count <= 1) {
+        text = "Processing {} item since {}.";
+      } else {
+        text = "Processing {} items since {}.";
+      }
+      LOG.info(text,
           this.source.getSourcedItemCount(),
           this.overallTime.getTimeString());
     } else {
-      LOG.info("Processed {} items after {}s, running since {}.",
+      if (count <= 1) {
+        text = "Processed {} item after {}s, running since {}.";
+      } else {
+        text = "Processed {} items after {}s, running since {}.";
+      }
+      LOG.info(text,
           this.source.getSourcedItemCount(),
           this.runTime.getElapsedSeconds(),
           this.overallTime.getTimeString());

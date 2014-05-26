@@ -23,7 +23,6 @@ import de.unihildesheim.iw.lucene.query.SimpleTermsQuery;
 import de.unihildesheim.iw.lucene.query.TermsQueryBuilder;
 import de.unihildesheim.iw.lucene.util.TempDiskIndex;
 import de.unihildesheim.iw.util.ByteArrayUtils;
-import de.unihildesheim.iw.util.FileUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
@@ -68,36 +67,296 @@ public final class TestIndexDataProvider
     implements IndexDataProvider {
 
   /**
+   * Default index size to use for running tests.
+   */
+  public static final IndexSize DEFAULT_INDEX_SIZE = IndexSize.SMALL;
+  /**
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(
       TestIndexDataProvider.class);
-
+  public static Reference reference;
+  public static Util util;
   /**
    * Index field names.
    */
   private static List<String> fields;
-
   /**
    * Bit-mask storing active fields state. 0 means off 1 on. Index is related to
    * {@link #fields}.
    */
   private static int[] activeFieldState;
-
   /**
    * Flag indicating, if all static fields have been initialized.
    */
   private static boolean initialized;
-
   /**
    * Temporary Lucene index held in memory.
    */
   private static TempDiskIndex tmpIdx;
-
   /**
    * List of stop-words to exclude from term frequency calculations.
    */
   private static Collection<ByteArray> stopWords = Collections.emptySet();
+  /**
+   * Size of the index actually used.
+   */
+  private static IndexSize idxConf;
+  /**
+   * Number of documents in index.
+   */
+  private static int documentsCount;
+  /**
+   * Field, Document-id, Term -> Frequency.
+   */
+  private static ConcurrentNavigableMap<
+      Fun.Tuple3<Integer, Integer, ByteArray>, Long> idx;
+
+  /**
+   * Create a new test index with a specific size constraint.
+   *
+   * @param indexSize Size
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  public TestIndexDataProvider(final IndexSize indexSize)
+      throws IOException, ProcessingException {
+    Objects.requireNonNull(indexSize);
+
+    if (!TestIndexDataProvider.initialized) {
+      reference = new Reference();
+      util = new Util();
+      TestIndexDataProvider.idxConf = indexSize;
+      createIndex();
+    }
+    TestIndexDataProvider.activeFieldState
+        = new int[TestIndexDataProvider.fields.size()];
+    // set all fields active
+    Arrays.fill(TestIndexDataProvider.activeFieldState, 1);
+  }
+
+  /**
+   * Create a simple test index and initialize the {@link TempDiskIndex}.
+   *
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  private void createIndex()
+      throws IOException, ProcessingException {
+    TestIndexDataProvider.idx = DBMaker.newTempFileDB()
+        .transactionDisable()
+        .asyncWriteEnable()
+        .asyncWriteFlushDelay(100)
+        .mmapFileEnableIfSupported()
+        .make().createTreeMap("idx").keySerializer(
+            BTreeKeySerializer.TUPLE3).valueSerializer(
+            Serializer.LONG).make();
+
+    // generate random document fields
+    final int fieldsCount = RandomValue.getInteger(
+        TestIndexDataProvider.idxConf.fieldCount[0],
+        TestIndexDataProvider.idxConf.fieldCount[1]);
+    TestIndexDataProvider.fields = new ArrayList<>(fieldsCount);
+    for (int i = 0; i < fieldsCount; i++) {
+      TestIndexDataProvider.fields.add(i + "_" + RandomValue.getString(3, 10));
+    }
+
+    // create the lucene index
+    TestIndexDataProvider.tmpIdx = new TempDiskIndex(
+        TestIndexDataProvider.fields.toArray(
+            new String[TestIndexDataProvider.fields.size()])
+    );
+
+    // set the number of random documents to create
+    TestIndexDataProvider.documentsCount = RandomValue.getInteger(
+        TestIndexDataProvider.idxConf.docCount[0],
+        TestIndexDataProvider.idxConf.docCount[1]);
+
+    LOG.info("Creating a {} sized index with {} documents, {} fields each "
+            + "and a maximum of {} terms per field. This may take some time.",
+        TestIndexDataProvider.idxConf.toString(),
+        TestIndexDataProvider.documentsCount, fieldsCount,
+        TestIndexDataProvider.idxConf.docLength[1]
+    );
+
+    final int termSeedSize = (int) ((fieldsCount
+        * TestIndexDataProvider.documentsCount * TestIndexDataProvider.idxConf
+        .docLength[1]) * 0.005);
+
+    // generate a seed of random terms
+    LOG.info("Creating term seed with {} terms.", termSeedSize);
+    final List<String> seedTermList = new ArrayList<>(termSeedSize);
+    while (seedTermList.size() < termSeedSize) {
+      seedTermList.add(RandomValue.getString(
+          TestIndexDataProvider.idxConf.termLength[0],
+          TestIndexDataProvider.idxConf.termLength[1]));
+    }
+
+    LOG.info("Creating {} documents.", TestIndexDataProvider.documentsCount);
+    final Collection<Integer> latch = new ArrayList<>(
+        TestIndexDataProvider.documentsCount);
+    for (int doc = 0; doc < TestIndexDataProvider.documentsCount; doc++) {
+      latch.add(doc);
+    }
+    final Map<Integer, String[]> idxMap = DBMaker.newTempTreeMap();
+    new Processing(
+        new TargetFuncCall<>(
+            new CollectionSource<>(latch),
+            new DocCreator(idxMap, seedTermList, fieldsCount)
+        )
+    ).process();
+    for (final String[] c : idxMap.values()) {
+      TestIndexDataProvider.tmpIdx.addDoc(c);
+    }
+    TestIndexDataProvider.tmpIdx.flush();
+    idxMap.clear();
+
+    // create data path
+    final File dataDir = new File(tmpIdx.getIndexDir(), "data");
+    if (!dataDir.exists() && !dataDir.mkdirs()) {
+      throw new IOException("Failed to create data directory: '" + dataDir
+          + "'.");
+    }
+
+    reference = new Reference()
+        .setIndexDir(tmpIdx.getIndexDir())
+        .setDataDir(dataDir.getCanonicalPath())
+        .setDocumentFields(fields);
+
+    TestIndexDataProvider.initialized = true;
+  }
+
+  public static String getIndexConfName() {
+    return TestIndexDataProvider.idxConf.name();
+  }
+
+  @Override
+  public int getDocumentFrequency(final ByteArray term) {
+    Objects.requireNonNull(term);
+
+    if (TestIndexDataProvider.stopWords.contains(term)) {
+      return 0;
+    }
+    int freq = 0;
+    for (final Integer docId : getDocumentIds()) {
+      if (documentContains(docId, term)) {
+        freq++;
+      }
+    }
+    return freq;
+  }
+
+  /**
+   * Get the initialized state.
+   *
+   * @return True, if initialized
+   */
+  public static boolean isInitialized() {
+    return TestIndexDataProvider.initialized;
+  }
+
+  /**
+   * Get the Lucene index.
+   *
+   * @return Lucene index
+   */
+  public TempDiskIndex getIndex() {
+    return TestIndexDataProvider.tmpIdx;
+  }
+
+  /**
+   * Prepare the testing environment.
+   *
+   * @param newFields Document fields to use
+   * @param newStopwords List of stopwords to set
+   * @throws IOException Thrown on low-level i/o errors
+   */
+  @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
+  public void prepareTestEnvironment(
+      final Set<String> newFields,
+      final Set<String> newStopwords)
+      throws IOException {
+
+    if (newFields == null) {
+      enableAllFields();
+    } else {
+      Arrays.fill(TestIndexDataProvider.activeFieldState, 0);
+      // activate single fields
+      for (final String field : newFields) {
+        setFieldState(field, true);
+      }
+    }
+
+    if (newStopwords == null) {
+      TestIndexDataProvider.stopWords = Collections.<ByteArray>emptySet();
+      reference.setStopwords(Collections.<String>emptySet());
+    } else {
+      reference.setStopwords(newStopwords);
+      TestIndexDataProvider.stopWords = DBMaker.newTempHashSet();
+      for (final String stopWord : newStopwords) {
+        try {
+          TestIndexDataProvider.stopWords.add(new ByteArray(stopWord.getBytes(
+              "UTF-8")));
+        } catch (UnsupportedEncodingException ex) {
+          LOG.error("Error adding stopword '" + stopWord + "'.", ex);
+        }
+      }
+    }
+
+    LOG.info("Preparing Environment. fields={} stopwords={}",
+        getDocumentFields(), TestIndexDataProvider.stopWords.size());
+  }
+
+  /**
+   * Set all fields active.
+   */
+  private void enableAllFields() {
+    Arrays.fill(TestIndexDataProvider.activeFieldState, 1);
+    LOG.debug("Enabled all {} fields.",
+        TestIndexDataProvider.activeFieldState.length);
+  }
+
+  /**
+   * Set the active state of a field.
+   *
+   * @param fieldName Name of the field
+   * @param state True, to use this field for calculation
+   * @return Old state value, or <tt>null</tt> if the field does not exist
+   */
+  private Boolean setFieldState(final String fieldName, final boolean state) {
+    Boolean oldState = null;
+    for (int i = 0; i < TestIndexDataProvider.fields.size(); i++) {
+      if (TestIndexDataProvider.fields.get(i).equals(fieldName)) {
+        oldState = TestIndexDataProvider.activeFieldState[i] == 1;
+        if (state) {
+          TestIndexDataProvider.activeFieldState[i] = 1;
+        } else {
+          TestIndexDataProvider.activeFieldState[i] = 0;
+        }
+      }
+    }
+    return oldState;
+  }
+
+  public IndexReader getIndexReader()
+      throws IOException {
+    return tmpIdx.getReader();
+  }
+
+  /**
+   * Get a list of active fields.
+   *
+   * @return Collection of active fields
+   */
+  @Override
+  public Set<String> getDocumentFields() {
+    final Set<String> fieldNames = new HashSet<>(
+        TestIndexDataProvider.fields.size());
+    for (int i = 0; i < TestIndexDataProvider.fields.size(); i++) {
+      if (TestIndexDataProvider.activeFieldState[i] == 1) {
+        fieldNames.add(TestIndexDataProvider.fields.get(i));
+      }
+    }
+    return fieldNames;
+  }
 
   /**
    * Configuration to create different sizes of test indexes.
@@ -187,261 +446,210 @@ public final class TestIndexDataProvider
     }
   }
 
-  /**
-   * Default index size to use for running tests.
-   */
-  public static final IndexSize DEFAULT_INDEX_SIZE = IndexSize.SMALL;
+  public static final class Reference {
+    private String indexDir;
+    private String dataDir;
+    private Set<String> fields;
+    private Set<ByteArray> stopwordBytes;
+    private Set<String> stopwords;
 
-  /**
-   * Size of the index actually used.
-   */
-  private static IndexSize idxConf;
-
-  /**
-   * Number of documents in index.
-   */
-  private static int documentsCount;
-
-  /**
-   * Field, Document-id, Term -> Frequency.
-   */
-  private static ConcurrentNavigableMap<
-      Fun.Tuple3<Integer, Integer, ByteArray>, Long> idx;
-
-  public static Reference reference;
-  public static Util util;
-
-  /**
-   * Create a new test index with a specific size constraint.
-   *
-   * @param indexSize Size
-   * @throws IOException Thrown on low-level I/O errors
-   */
-  public TestIndexDataProvider(final IndexSize indexSize)
-      throws IOException, ProcessingException {
-    Objects.requireNonNull(indexSize);
-
-    if (!TestIndexDataProvider.initialized) {
-      reference = new Reference();
-      util = new Util();
-      TestIndexDataProvider.idxConf = indexSize;
-      createIndex();
+    /**
+     * Get the file directory where the temporary index resides in.
+     *
+     * @return Index directory path as string
+     */
+    public String getIndexDir() {
+      return this.indexDir;
     }
-    TestIndexDataProvider.activeFieldState
-        = new int[TestIndexDataProvider.fields.size()];
-    // set all fields active
-    Arrays.fill(TestIndexDataProvider.activeFieldState, 1);
-  }
 
-  @Override
-  public int getDocumentFrequency(final ByteArray term) {
-    Objects.requireNonNull(term);
-
-    if (TestIndexDataProvider.stopWords.contains(term)) {
-      return 0;
-    }
-    int freq = 0;
-    for (final Integer docId : getDocumentIds()) {
-      if (documentContains(docId, term)) {
-        freq++;
+    private Reference setIndexDir(final String dir) {
+      if (Objects.requireNonNull(dir).trim().isEmpty()) {
+        throw new IllegalArgumentException("Index dir was empty.");
       }
-    }
-    return freq;
-  }
-
-  /**
-   * Create a simple test index and initialize the {@link TempDiskIndex}.
-   *
-   * @throws IOException Thrown on low-level I/O errors
-   */
-  private void createIndex()
-      throws IOException, ProcessingException {
-    TestIndexDataProvider.idx = DBMaker.newTempFileDB()
-        .transactionDisable()
-        .asyncWriteEnable()
-        .asyncWriteFlushDelay(100)
-        .mmapFileEnableIfSupported()
-        .make().createTreeMap("idx").keySerializer(
-            BTreeKeySerializer.TUPLE3).valueSerializer(
-            Serializer.LONG).make();
-
-    // generate random document fields
-    final int fieldsCount = RandomValue.getInteger(
-        TestIndexDataProvider.idxConf.fieldCount[0],
-        TestIndexDataProvider.idxConf.fieldCount[1]);
-    TestIndexDataProvider.fields = new ArrayList<>(fieldsCount);
-    for (int i = 0; i < fieldsCount; i++) {
-      TestIndexDataProvider.fields.add(i + "_" + RandomValue.getString(3, 10));
+      this.indexDir = dir;
+      return this;
     }
 
-    // create the lucene index
-    TestIndexDataProvider.tmpIdx = new TempDiskIndex(
-        TestIndexDataProvider.fields.toArray(
-            new String[TestIndexDataProvider.fields.size()])
-    );
-
-    // set the number of random documents to create
-    TestIndexDataProvider.documentsCount = RandomValue.getInteger(
-        TestIndexDataProvider.idxConf.docCount[0],
-        TestIndexDataProvider.idxConf.docCount[1]);
-
-    LOG.info("Creating a {} sized index with {} documents, {} fields each "
-            + "and a maximum of {} terms per field. This may take some time.",
-        TestIndexDataProvider.idxConf.toString(),
-        TestIndexDataProvider.documentsCount, fieldsCount,
-        TestIndexDataProvider.idxConf.docLength[1]
-    );
-
-    final int termSeedSize = (int) ((fieldsCount
-        * TestIndexDataProvider.documentsCount * TestIndexDataProvider.idxConf
-        .docLength[1]) * 0.005);
-
-    // generate a seed of random terms
-    LOG.info("Creating term seed with {} terms.", termSeedSize);
-    final List<String> seedTermList = new ArrayList<>(termSeedSize);
-    while (seedTermList.size() < termSeedSize) {
-      seedTermList.add(RandomValue.getString(
-          TestIndexDataProvider.idxConf.termLength[0],
-          TestIndexDataProvider.idxConf.termLength[1]));
+    /**
+     * Get the file directory where the working data gets stored.
+     *
+     * @return Data directory path as string
+     */
+    public String getDataDir() {
+      return this.dataDir;
     }
 
-    LOG.info("Creating {} documents.", TestIndexDataProvider.documentsCount);
-    final Collection<Integer> latch = new ArrayList<>(
-        TestIndexDataProvider.documentsCount);
-    for (int doc = 0; doc < TestIndexDataProvider.documentsCount; doc++) {
-      latch.add(doc);
-    }
-    final Map<Integer, String[]> idxMap = DBMaker.newTempTreeMap();
-    new Processing(
-        new TargetFuncCall<>(
-            new CollectionSource<>(latch),
-            new DocCreator(idxMap, seedTermList, fieldsCount)
-        )
-    ).process();
-    for (final String[] c : idxMap.values()) {
-      TestIndexDataProvider.tmpIdx.addDoc(c);
-    }
-    TestIndexDataProvider.tmpIdx.flush();
-    idxMap.clear();
-
-    // create data path
-    final File dataDir = new File(FileUtils.makePath(tmpIdx.getIndexDir()) +
-        File.separatorChar + "data");
-    if (!dataDir.exists() && !dataDir.mkdirs()) {
-      throw new IOException("Failed to create data directory: '" + dataDir
-          + "'.");
-    }
-
-    reference = new Reference()
-        .setIndexDir(tmpIdx.getIndexDir())
-        .setDataDir(dataDir.getCanonicalPath())
-        .setDocumentFields(fields);
-
-    TestIndexDataProvider.initialized = true;
-  }
-
-  /**
-   * Get the Lucene index.
-   *
-   * @return Lucene index
-   */
-  public TempDiskIndex getIndex() {
-    return TestIndexDataProvider.tmpIdx;
-  }
-
-  public static String getIndexConfName() {
-    return TestIndexDataProvider.idxConf.name();
-  }
-
-  /**
-   * Set all fields active.
-   */
-  private void enableAllFields() {
-    Arrays.fill(TestIndexDataProvider.activeFieldState, 1);
-    LOG.debug("Enabled all {} fields.",
-        TestIndexDataProvider.activeFieldState.length);
-  }
-
-  /**
-   * Prepare the testing environment.
-   *
-   * @param newFields Document fields to use
-   * @param newStopwords List of stopwords to set
-   * @throws IOException Thrown on low-level i/o errors
-   */
-  @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
-  public void prepareTestEnvironment(
-      final Set<String> newFields,
-      final Set<String> newStopwords)
-      throws IOException {
-
-    if (newFields == null) {
-      enableAllFields();
-    } else {
-      Arrays.fill(TestIndexDataProvider.activeFieldState, 0);
-      // activate single fields
-      for (final String field : newFields) {
-        setFieldState(field, true);
+    private Reference setDataDir(final String dir) {
+      if (Objects.requireNonNull(dir).trim().isEmpty()) {
+        throw new IllegalArgumentException("Data dir was empty.");
       }
+      this.dataDir = dir;
+      return this;
     }
 
-    if (newStopwords == null) {
-      TestIndexDataProvider.stopWords = Collections.<ByteArray>emptySet();
-      reference.setStopwords(Collections.<String>emptySet());
-    } else {
-      reference.setStopwords(newStopwords);
-      TestIndexDataProvider.stopWords = DBMaker.newTempHashSet();
-      for (final String stopWord : newStopwords) {
-        try {
-          TestIndexDataProvider.stopWords.add(new ByteArray(stopWord.getBytes(
-              "UTF-8")));
-        } catch (UnsupportedEncodingException ex) {
-          LOG.error("Error adding stopword '" + stopWord + "'.", ex);
+    /**
+     * Get a list of all document fields available in the index.
+     *
+     * @return List of all document fields (regardless of their activation
+     * state)
+     */
+    public Set<String> getDocumentFields() {
+      return Collections.unmodifiableSet(this.fields);
+    }
+
+    private Reference setDocumentFields(final Collection<String> newFields) {
+      if (Objects.requireNonNull(newFields).isEmpty()) {
+        throw new IllegalArgumentException("Fields were empty.");
+      }
+      this.fields = new HashSet<>(newFields.size());
+      this.fields.addAll(newFields);
+      return this;
+    }
+
+    public Set<ByteArray> getStopwords() {
+      return Collections.unmodifiableSet(this.stopwordBytes);
+    }
+
+    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
+    private Reference setStopwords(final Collection<String> newStopwords)
+        throws UnsupportedEncodingException {
+      this.stopwordBytes = new HashSet<>(newStopwords.size());
+      this.stopwords = new HashSet<>(newStopwords);
+      for (final String w : newStopwords) {
+        this.stopwordBytes.add(new ByteArray(w.getBytes("UTF-8")));
+      }
+      return this;
+    }
+
+    public Set<String> getStopwordsStr() {
+      return Collections.unmodifiableSet(this.stopwords);
+    }
+
+    public boolean hasStopwords() {
+      return !(this.stopwordBytes == null) || !this.stopwordBytes.isEmpty();
+    }
+
+    /**
+     * Get a unique set of all currently visible index terms.
+     *
+     * @return Set of all terms in index
+     */
+    public Collection<ByteArray> getTermSet() {
+      @SuppressWarnings("CollectionWithoutInitialCapacity")
+      final Collection<ByteArray> terms = new HashSet<>();
+
+      for (int fieldNum = 0; fieldNum < TestIndexDataProvider.fields.size();
+           fieldNum++) {
+        if (TestIndexDataProvider.activeFieldState[fieldNum] == 1) {
+          for (int docId = 0; docId < TestIndexDataProvider.documentsCount;
+               docId++) {
+            final Iterable<ByteArray> docTerms = Fun.filter
+                (TestIndexDataProvider.idx.keySet(), fieldNum, docId);
+            for (final ByteArray docTerm : docTerms) {
+              if (TestIndexDataProvider.stopWords
+                  .contains(docTerm)) { // skip stopwords
+                continue;
+              }
+              if (docTerm == null) {
+                throw new IllegalStateException("Terms was null. doc=" + docId
+                    + " field=" + TestIndexDataProvider.fields.get(fieldNum));
+              }
+              terms.add(docTerm.clone());
+            }
+          }
         }
       }
+      return terms;
     }
 
-    LOG.info("Preparing Environment. fields={} stopwords={}",
-        getDocumentFields(), TestIndexDataProvider.stopWords.size());
-  }
-
-  /**
-   * Get a list of active fields.
-   *
-   * @return Collection of active fields
-   */
-  @Override
-  public Set<String> getDocumentFields() {
-    final Set<String> fieldNames = new HashSet<>(
-        TestIndexDataProvider.fields.size());
-    for (int i = 0; i < TestIndexDataProvider.fields.size(); i++) {
-      if (TestIndexDataProvider.activeFieldState[i] == 1) {
-        fieldNames.add(TestIndexDataProvider.fields.get(i));
-      }
-    }
-    return fieldNames;
-  }
-
-  /**
-   * Set the active state of a field.
-   *
-   * @param fieldName Name of the field
-   * @param state True, to use this field for calculation
-   * @return Old state value, or <tt>null</tt> if the field does not exist
-   */
-  private Boolean setFieldState(final String fieldName, final boolean state) {
-    Boolean oldState = null;
-    for (int i = 0; i < TestIndexDataProvider.fields.size(); i++) {
-      if (TestIndexDataProvider.fields.get(i).equals(fieldName)) {
-        oldState = TestIndexDataProvider.activeFieldState[i] == 1;
-        if (state) {
-          TestIndexDataProvider.activeFieldState[i] = 1;
-        } else {
-          TestIndexDataProvider.activeFieldState[i] = 0;
+    /**
+     * Get a list of all index terms. The list is <u>not</u> unique. Stopwords
+     * will be excluded.
+     *
+     * @return List of all terms in index
+     */
+    public Collection<ByteArray> getTermList() {
+      @SuppressWarnings("CollectionWithoutInitialCapacity")
+      final Collection<ByteArray> terms = new ArrayList<>();
+      for (int fieldNum = 0; fieldNum < TestIndexDataProvider.fields.size();
+           fieldNum++) {
+        if (TestIndexDataProvider.activeFieldState[fieldNum] == 1) {
+          for (int docId = 0; docId < TestIndexDataProvider.documentsCount;
+               docId++) {
+            final Iterable<ByteArray> docTerms = Fun.filter
+                (TestIndexDataProvider.idx.keySet(), fieldNum, docId);
+            for (final ByteArray docTerm : docTerms) {
+              if (TestIndexDataProvider.stopWords
+                  .contains(docTerm)) { // skip stopwords
+                continue;
+              }
+              final long docTermFreqCount = TestIndexDataProvider.idx.get(Fun.
+                  t3(fieldNum, docId, docTerm));
+              for (int docTermFreq = 0; docTermFreq < docTermFreqCount;
+                   docTermFreq++) {
+                terms.add(docTerm);
+              }
+            }
+          }
         }
       }
+      return terms;
     }
-    return oldState;
+
+    /**
+     * Get a set of unique terms for a document.
+     *
+     * @param docId Document-id to lookup
+     * @param testIndexDataProvider
+     * @return List of unique terms in document
+     */
+    public Collection<ByteArray> getDocumentTermSet(final int docId,
+        final TestIndexDataProvider testIndexDataProvider) {
+      testIndexDataProvider.checkDocumentId(docId);
+      return reference.getDocumentTermFrequencyMap(docId)
+          .keySet();
+    }
+
+    /**
+     * Get a map with <tt>term -> frequency (in document)</tt> values for a
+     * specific document.
+     *
+     * @param docId Document-id to lookup
+     * @return Map with <tt>term -> in-document-frequency</tt> values
+     */
+    public Map<ByteArray, Long> getDocumentTermFrequencyMap(final int docId) {
+      if (docId < 0 || docId > TestIndexDataProvider.documentsCount) {
+        throw new IllegalArgumentException(
+            "Illegal document id " + docId + ".");
+      }
+
+      @SuppressWarnings("CollectionWithoutInitialCapacity")
+      final Map<ByteArray, Long> termFreqMap = new HashMap<>();
+
+      for (int fieldNum = 0; fieldNum < TestIndexDataProvider.fields.size();
+           fieldNum++) {
+        if (TestIndexDataProvider.activeFieldState[fieldNum] == 1) {
+          final Iterable<ByteArray> docTerms = Fun.filter(TestIndexDataProvider
+                  .idx.keySet(), fieldNum, docId
+          );
+          for (final ByteArray term : docTerms) {
+            if (TestIndexDataProvider.stopWords
+                .contains(term)) { // skip stopwords
+              continue;
+            }
+            final Long docTermFreq = TestIndexDataProvider.idx.get(Fun.t3(
+                fieldNum, docId, term));
+            if (termFreqMap.containsKey(term)) {
+              termFreqMap
+                  .put(term.clone(), termFreqMap.get(term) + docTermFreq);
+            } else {
+              termFreqMap.put(term.clone(), docTermFreq);
+            }
+          }
+        }
+      }
+      return termFreqMap;
+    }
   }
 
   /**
@@ -458,6 +666,215 @@ public final class TestIndexDataProvider
     return docIds;
   }
 
+  public final class Util {
+    /**
+     * Picks some (1 to n) terms from the referenceIndex.
+     *
+     * @return Stop words term collection
+     */
+    public Set<String> getRandomStopWords() {
+      final Iterator<ByteArray> termsIt = TestIndexDataProvider.this
+          .getTermsIterator();
+      @SuppressWarnings("CollectionWithoutInitialCapacity")
+      final Set<String> stopWords = new HashSet<>();
+      while (termsIt.hasNext()) {
+        if (RandomValue.getBoolean()) {
+          stopWords.add(ByteArrayUtils.utf8ToString(termsIt.next()));
+        } else {
+          termsIt.next();
+        }
+      }
+      if (stopWords.isEmpty()) {
+        stopWords.add(ByteArrayUtils.utf8ToString(new ArrayList<>(
+            TestIndexDataProvider.reference.getTermSet()).get(0)));
+      }
+      return stopWords;
+    }
+
+    /**
+     * Get a random subset of all available fields.
+     *
+     * @return Collection of random fields
+     */
+    public Set<String> getRandomFields() {
+      final Set<String> fieldNames;
+      if (TestIndexDataProvider.fields.size() == 1) {
+        fieldNames = new HashSet<>(1);
+        fieldNames.add(TestIndexDataProvider.fields.get(0));
+      } else {
+        final int[] newFieldState = TestIndexDataProvider.activeFieldState.
+            clone();
+        // ensure both states are not the same
+        while (Arrays.equals(newFieldState,
+            TestIndexDataProvider.activeFieldState)) {
+          for (int i = 0; i < TestIndexDataProvider.activeFieldState.length;
+               i++) {
+            newFieldState[i] = RandomValue.getInteger(0, 1);
+          }
+        }
+
+        fieldNames = new HashSet<>(TestIndexDataProvider.fields.size());
+        for (int i = 0; i < TestIndexDataProvider.fields.size(); i++) {
+          if (newFieldState[i] == 1) {
+            fieldNames.add(TestIndexDataProvider.fields.get(i));
+          }
+        }
+
+        // lazy backup - add a random field, if none set already
+        if (fieldNames.isEmpty()) {
+          fieldNames.add(TestIndexDataProvider.fields.
+              get(RandomValue.getInteger(0, TestIndexDataProvider.fields.
+                  size() - 1)));
+        }
+      }
+      return fieldNames;
+    }
+
+    /**
+     * Get a random query matching terms from the documents in index. All terms
+     * in the query are unique. The query string may contain stopwords.
+     *
+     * @return Random query String
+     * @throws ParseException Thrown on query parsing errors
+     */
+    public String getUniqueQueryString()
+        throws ParseException {
+      return getQueryString(null, true);
+    }
+
+    /**
+     * Create a query object from the given terms or create a random query, if
+     * no terms were given. The query string may contain stopwords.
+     *
+     * @param queryTerms List of terms to include in the query, or null to
+     * create a random query
+     * @param unique If true and not terms are given, then query terms are
+     * unique
+     * @return A query String consisting of the given terms
+     */
+    private String getQueryString(final String[] queryTerms,
+        final boolean unique) {
+      final String queryStr;
+
+      if (queryTerms != null) {
+        if (queryTerms.length == 0) {
+          throw new IllegalArgumentException("Query terms where empty.");
+        }
+        // create query string from passed-in terms
+        queryStr = StringUtils.join(queryTerms, " ");
+      } else {
+        // create a random query string
+        if (reference.getTermSet().isEmpty()) {
+          throw new IllegalStateException("No terms in index.");
+        }
+
+        final List<ByteArray> idxTerms = new ArrayList<>(reference
+            .getTermSet());
+        final int queryLength = RandomValue.getInteger(
+            TestIndexDataProvider.idxConf.queryLength[0],
+            TestIndexDataProvider.idxConf.queryLength[1]);
+
+        final Collection<String> terms;
+
+        // check, if terms should be unique
+        if (unique) {
+          terms = new HashSet<>(queryLength);
+        } else {
+          terms = new ArrayList<>(queryLength);
+        }
+
+        if (TestIndexDataProvider.idxConf.queryLength[0] >= idxTerms.size()) {
+          LOG.warn("Minimum query length exceeds unique term count in index. "
+              + "Adding all index terms to query.");
+          for (final ByteArray term : idxTerms) {
+            terms.add(ByteArrayUtils.utf8ToString(term));
+          }
+        } else if (queryLength >= idxTerms.size()) {
+          LOG.warn("Random query length exceeds unique term count in index. "
+              + "Adding all index terms to query.");
+          for (final ByteArray term : idxTerms) {
+            terms.add(ByteArrayUtils.utf8ToString(term));
+          }
+        } else {
+          for (int i = 0; i < queryLength; ) {
+            if (terms.add(ByteArrayUtils.utf8ToString(idxTerms.get(RandomValue.
+                getInteger(0, idxTerms.size() - 1))))) {
+              i++;
+            }
+          }
+        }
+
+        queryStr = StringUtils.join(terms.toArray(new String[terms.
+            size()]), " ");
+      }
+
+      assert !queryStr.trim().isEmpty() : "Empty query string.";
+
+      LOG.debug("Test query: {}", queryStr);
+      return queryStr;
+    }
+
+    /**
+     * Get a random query matching terms from the documents in index. The terms
+     * in the query are not unique. The query string may contain stopwords.
+     *
+     * @return Query generated from random query string
+     * @throws ParseException Thrown on query parsing errors
+     */
+    public SimpleTermsQuery getQueryObj()
+        throws ParseException, IOException,
+               Buildable.BuildableException {
+      return getQueryObj(null);
+    }
+
+    /**
+     * Create a query object from the given terms. The query string may contain
+     * stopwords.
+     *
+     * @param queryTerms Terms to use in query
+     * @return A query object consisting of the given terms
+     * @throws ParseException Thrown on query parsing errors
+     */
+    public SimpleTermsQuery getQueryObj(final String[] queryTerms)
+        throws ParseException, IOException,
+               Buildable.BuildableException {
+      final TermsQueryBuilder tqb = new TermsQueryBuilder(tmpIdx.getReader(),
+          TestIndexDataProvider.this.getDocumentFields());
+      tqb.setFields(TestIndexDataProvider.this.getDocumentFields());
+      if (queryTerms == null) {
+        return tqb.query(util.getQueryString())
+            .build();
+      }
+      return tqb.query(util.getQueryString
+          (queryTerms)).build();
+    }
+
+    /**
+     * Get a random query matching terms from the documents in index. The terms
+     * in the query are not unique. The query string may contain stopwords.
+     *
+     * @return Random query string
+     * @throws ParseException Thrown on query parsing errors
+     */
+    public String getQueryString()
+        throws ParseException {
+      return getQueryString(null, false);
+    }
+
+    /**
+     * Create a query string from the given terms. The query string may contain
+     * stopwords.
+     *
+     * @param queryTerms Terms to use in query
+     * @return A query String consisting of the given terms
+     * @throws ParseException Thrown on query parsing errors
+     */
+    public String getQueryString(final String[] queryTerms)
+        throws ParseException {
+      return getQueryString(queryTerms, false);
+    }
+  }
+
   /**
    * Checks, if a document-id is valid (in index).
    *
@@ -466,6 +883,100 @@ public final class TestIndexDataProvider
   private void checkDocumentId(final int docId) {
     if (docId < 0 || docId > TestIndexDataProvider.documentsCount - 1) {
       throw new IllegalArgumentException("Illegal document id: " + docId);
+    }
+  }
+
+  /**
+   * {@link Processing} {@link Target} creating random documents.
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public final class DocCreator
+      extends TargetFuncCall.TargetFunc<Integer> {
+
+    /**
+     * Seed list with document terms.
+     */
+    private final List<String> seedTermList;
+    /**
+     * Number of fields to create.
+     */
+    private final int fieldsCount;
+    /**
+     * Map caching target documents.
+     */
+    private final Map<Integer, String[]> contentCache;
+
+    /**
+     * Factory instance creator.
+     *
+     * @param targetMap Target map to put results in
+     * @param newSeedTermList List with terms to add to documents
+     * @param newFieldsCount Number of fields to create
+     */
+    private DocCreator(
+        final Map<Integer, String[]> targetMap,
+        final List<String> newSeedTermList,
+        final int newFieldsCount) {
+      super();
+      this.seedTermList = newSeedTermList;
+      this.fieldsCount = newFieldsCount;
+      this.contentCache = targetMap;
+    }
+
+    @Override
+    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
+    public void call(final Integer docId) {
+      if (docId == null) {
+        return;
+      }
+
+      final String[] docContent = new String[this.fieldsCount];
+
+      // create document fields
+      for (int field = 0; field < this.fieldsCount; field++) {
+        final int fieldTerms = RandomValue.getInteger(idxConf.docLength[0],
+            idxConf.docLength[1]);
+        final StringBuilder content = new StringBuilder(fieldTerms *
+            idxConf.termLength[1]);
+        final Map<ByteArray, AtomicInteger> fieldTermFreq
+            = new HashMap<>(fieldTerms);
+
+        // create terms for each field
+        for (int term = 0; term < fieldTerms; term++) {
+          // pick a document term from the seed
+          final String docTerm = seedTermList.get(RandomValue.getInteger(0,
+              seedTermList.size() - 1));
+          // add it to the list of known terms
+          final ByteArray docTermBytes;
+          try {
+            docTermBytes = new ByteArray(docTerm.getBytes("UTF-8"));
+          } catch (UnsupportedEncodingException ex) {
+            LOG.error("Error encoding term. term={}", docTerm);
+            continue;
+          }
+
+          // count term frequencies
+          if (fieldTermFreq.containsKey(docTermBytes)) {
+            fieldTermFreq.get(docTermBytes).incrementAndGet();
+          } else {
+            fieldTermFreq.put(docTermBytes, new AtomicInteger(1));
+          }
+
+          // append term to content
+          content.append(docTerm).append(' ');
+        }
+        // store document field
+        docContent[field] = content.toString().trim();
+
+        // store document field term frequency value
+        for (final Entry<ByteArray, AtomicInteger> ftfEntry : fieldTermFreq.
+            entrySet()) {
+          idx.put(Fun.t3(field, docId, ftfEntry.getKey()),
+              ftfEntry.getValue().longValue());
+        }
+      }
+
+      this.contentCache.put(docId, docContent);
     }
   }
 
@@ -621,10 +1132,6 @@ public final class TestIndexDataProvider
     return reference.getStopwordsStr();
   }
 
-  public IndexReader getIndexReader()
-      throws IOException {
-    return tmpIdx.getReader();
-  }
 
   @Override
   public boolean isDisposed() {
@@ -657,521 +1164,5 @@ public final class TestIndexDataProvider
     // NOP
   }
 
-  /**
-   * Get the initialized state.
-   *
-   * @return True, if initialized
-   */
-  public static boolean isInitialized() {
-    return TestIndexDataProvider.initialized;
-  }
 
-  public final class Util {
-    /**
-     * Picks some (1 to n) terms from the referenceIndex.
-     *
-     * @return Stop words term collection
-     */
-    public Set<String> getRandomStopWords() {
-      final Iterator<ByteArray> termsIt = TestIndexDataProvider.this
-          .getTermsIterator();
-      @SuppressWarnings("CollectionWithoutInitialCapacity")
-      final Set<String> stopWords = new HashSet<>();
-      while (termsIt.hasNext()) {
-        if (RandomValue.getBoolean()) {
-          stopWords.add(ByteArrayUtils.utf8ToString(termsIt.next()));
-        } else {
-          termsIt.next();
-        }
-      }
-      if (stopWords.isEmpty()) {
-        stopWords.add(ByteArrayUtils.utf8ToString(new ArrayList<>(
-            TestIndexDataProvider.reference.getTermSet()).get(0)));
-      }
-      return stopWords;
-    }
-
-    /**
-     * Get a random subset of all available fields.
-     *
-     * @return Collection of random fields
-     */
-    public Set<String> getRandomFields() {
-      final Set<String> fieldNames;
-      if (TestIndexDataProvider.fields.size() == 1) {
-        fieldNames = new HashSet<>(1);
-        fieldNames.add(TestIndexDataProvider.fields.get(0));
-      } else {
-        final int[] newFieldState = TestIndexDataProvider.activeFieldState.
-            clone();
-        // ensure both states are not the same
-        while (Arrays.equals(newFieldState,
-            TestIndexDataProvider.activeFieldState)) {
-          for (int i = 0; i < TestIndexDataProvider.activeFieldState.length;
-               i++) {
-            newFieldState[i] = RandomValue.getInteger(0, 1);
-          }
-        }
-
-        fieldNames = new HashSet<>(TestIndexDataProvider.fields.size());
-        for (int i = 0; i < TestIndexDataProvider.fields.size(); i++) {
-          if (newFieldState[i] == 1) {
-            fieldNames.add(TestIndexDataProvider.fields.get(i));
-          }
-        }
-
-        // lazy backup - add a random field, if none set already
-        if (fieldNames.isEmpty()) {
-          fieldNames.add(TestIndexDataProvider.fields.
-              get(RandomValue.getInteger(0, TestIndexDataProvider.fields.
-                  size() - 1)));
-        }
-      }
-      return fieldNames;
-    }
-
-    /**
-     * Create a query object from the given terms. The query string may contain
-     * stopwords.
-     *
-     * @param queryTerms Terms to use in query
-     * @return A query object consisting of the given terms
-     * @throws ParseException Thrown on query parsing errors
-     */
-    public SimpleTermsQuery getQueryObj(final String[] queryTerms)
-        throws ParseException, IOException,
-               Buildable.BuildableException {
-      final TermsQueryBuilder tqb = new TermsQueryBuilder(tmpIdx.getReader(),
-          TestIndexDataProvider.this.getDocumentFields());
-      tqb.setFields(TestIndexDataProvider.this.getDocumentFields());
-      if (queryTerms == null) {
-        return tqb.query(util.getQueryString())
-            .build();
-      }
-      return tqb.query(util.getQueryString
-          (queryTerms)).build();
-    }
-
-    /**
-     * Create a query object from the given terms or create a random query, if
-     * no terms were given. The query string may contain stopwords.
-     *
-     * @param queryTerms List of terms to include in the query, or null to
-     * create a random query
-     * @param unique If true and not terms are given, then query terms are
-     * unique
-     * @return A query String consisting of the given terms
-     */
-    private String getQueryString(final String[] queryTerms,
-        final boolean unique) {
-      final String queryStr;
-
-      if (queryTerms != null) {
-        if (queryTerms.length == 0) {
-          throw new IllegalArgumentException("Query terms where empty.");
-        }
-        // create query string from passed-in terms
-        queryStr = StringUtils.join(queryTerms, " ");
-      } else {
-        // create a random query string
-        if (reference.getTermSet().isEmpty()) {
-          throw new IllegalStateException("No terms in index.");
-        }
-
-        final List<ByteArray> idxTerms = new ArrayList<>(reference
-            .getTermSet());
-        final int queryLength = RandomValue.getInteger(
-            TestIndexDataProvider.idxConf.queryLength[0],
-            TestIndexDataProvider.idxConf.queryLength[1]);
-
-        final Collection<String> terms;
-
-        // check, if terms should be unique
-        if (unique) {
-          terms = new HashSet<>(queryLength);
-        } else {
-          terms = new ArrayList<>(queryLength);
-        }
-
-        if (TestIndexDataProvider.idxConf.queryLength[0] >= idxTerms.size()) {
-          LOG.warn("Minimum query length exceeds unique term count in index. "
-              + "Adding all index terms to query.");
-          for (final ByteArray term : idxTerms) {
-            terms.add(ByteArrayUtils.utf8ToString(term));
-          }
-        } else if (queryLength >= idxTerms.size()) {
-          LOG.warn("Random query length exceeds unique term count in index. "
-              + "Adding all index terms to query.");
-          for (final ByteArray term : idxTerms) {
-            terms.add(ByteArrayUtils.utf8ToString(term));
-          }
-        } else {
-          for (int i = 0; i < queryLength; ) {
-            if (terms.add(ByteArrayUtils.utf8ToString(idxTerms.get(RandomValue.
-                getInteger(0, idxTerms.size() - 1))))) {
-              i++;
-            }
-          }
-        }
-
-        queryStr = StringUtils.join(terms.toArray(new String[terms.
-            size()]), " ");
-      }
-
-      assert !queryStr.trim().isEmpty() : "Empty query string.";
-
-      LOG.debug("Test query: {}", queryStr);
-      return queryStr;
-    }
-
-    /**
-     * Create a query string from the given terms. The query string may contain
-     * stopwords.
-     *
-     * @param queryTerms Terms to use in query
-     * @return A query String consisting of the given terms
-     * @throws ParseException Thrown on query parsing errors
-     */
-    public String getQueryString(final String[] queryTerms)
-        throws ParseException {
-      return getQueryString(queryTerms, false);
-    }
-
-    /**
-     * Get a random query matching terms from the documents in index. All terms
-     * in the query are unique. The query string may contain stopwords.
-     *
-     * @return Random query String
-     * @throws ParseException Thrown on query parsing errors
-     */
-    public String getUniqueQueryString()
-        throws ParseException {
-      return getQueryString(null, true);
-    }
-
-    /**
-     * Get a random query matching terms from the documents in index. The terms
-     * in the query are not unique. The query string may contain stopwords.
-     *
-     * @return Query generated from random query string
-     * @throws ParseException Thrown on query parsing errors
-     */
-    public SimpleTermsQuery getQueryObj()
-        throws ParseException, IOException,
-               Buildable.BuildableException {
-      return getQueryObj(null);
-    }
-
-    /**
-     * Get a random query matching terms from the documents in index. The terms
-     * in the query are not unique. The query string may contain stopwords.
-     *
-     * @return Random query string
-     * @throws ParseException Thrown on query parsing errors
-     */
-    public String getQueryString()
-        throws ParseException {
-      return getQueryString(null, false);
-    }
-  }
-
-  public static final class Reference {
-    private String indexDir;
-    private String dataDir;
-    private Set<String> fields;
-    private Set<ByteArray> stopwordBytes;
-    private Set<String> stopwords;
-
-    private Reference setIndexDir(final String dir) {
-      if (Objects.requireNonNull(dir).trim().isEmpty()) {
-        throw new IllegalArgumentException("Index dir was empty.");
-      }
-      this.indexDir = dir;
-      return this;
-    }
-
-    /**
-     * Get the file directory where the temporary index resides in.
-     *
-     * @return Index directory path as string
-     */
-    public String getIndexDir() {
-      return this.indexDir;
-    }
-
-    private Reference setDataDir(final String dir) {
-      if (Objects.requireNonNull(dir).trim().isEmpty()) {
-        throw new IllegalArgumentException("Data dir was empty.");
-      }
-      this.dataDir = dir;
-      return this;
-    }
-
-    /**
-     * Get the file directory where the working data gets stored.
-     *
-     * @return Data directory path as string
-     */
-    public String getDataDir() {
-      return this.dataDir;
-    }
-
-    private Reference setDocumentFields(final Collection<String> newFields) {
-      if (Objects.requireNonNull(newFields).isEmpty()) {
-        throw new IllegalArgumentException("Fields were empty.");
-      }
-      this.fields = new HashSet<>(newFields.size());
-      this.fields.addAll(newFields);
-      return this;
-    }
-
-    /**
-     * Get a list of all document fields available in the index.
-     *
-     * @return List of all document fields (regardless of their activation
-     * state)
-     */
-    public Set<String> getDocumentFields() {
-      return Collections.unmodifiableSet(this.fields);
-    }
-
-    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
-    private Reference setStopwords(final Collection<String> newStopwords)
-        throws UnsupportedEncodingException {
-      this.stopwordBytes = new HashSet<>(newStopwords.size());
-      this.stopwords = new HashSet<>(newStopwords);
-      for (final String w : newStopwords) {
-        this.stopwordBytes.add(new ByteArray(w.getBytes("UTF-8")));
-      }
-      return this;
-    }
-
-    public Set<ByteArray> getStopwords() {
-      return Collections.unmodifiableSet(this.stopwordBytes);
-    }
-
-    public Set<String> getStopwordsStr() {
-      return Collections.unmodifiableSet(this.stopwords);
-    }
-
-    public boolean hasStopwords() {
-      return !(this.stopwordBytes == null) || !this.stopwordBytes.isEmpty();
-    }
-
-    /**
-     * Get a map with <tt>term -> frequency (in document)</tt> values for a
-     * specific document.
-     *
-     * @param docId Document-id to lookup
-     * @return Map with <tt>term -> in-document-frequency</tt> values
-     */
-    public Map<ByteArray, Long> getDocumentTermFrequencyMap(final int docId) {
-      if (docId < 0 || docId > TestIndexDataProvider.documentsCount) {
-        throw new IllegalArgumentException(
-            "Illegal document id " + docId + ".");
-      }
-
-      @SuppressWarnings("CollectionWithoutInitialCapacity")
-      final Map<ByteArray, Long> termFreqMap = new HashMap<>();
-
-      for (int fieldNum = 0; fieldNum < TestIndexDataProvider.fields.size();
-           fieldNum++) {
-        if (TestIndexDataProvider.activeFieldState[fieldNum] == 1) {
-          final Iterable<ByteArray> docTerms = Fun.filter(TestIndexDataProvider
-                  .idx.keySet(), fieldNum, docId
-          );
-          for (final ByteArray term : docTerms) {
-            if (TestIndexDataProvider.stopWords
-                .contains(term)) { // skip stopwords
-              continue;
-            }
-            final Long docTermFreq = TestIndexDataProvider.idx.get(Fun.t3(
-                fieldNum, docId, term));
-            if (termFreqMap.containsKey(term)) {
-              termFreqMap
-                  .put(term.clone(), termFreqMap.get(term) + docTermFreq);
-            } else {
-              termFreqMap.put(term.clone(), docTermFreq);
-            }
-          }
-        }
-      }
-      return termFreqMap;
-    }
-
-    /**
-     * Get a unique set of all currently visible index terms.
-     *
-     * @return Set of all terms in index
-     */
-    public Collection<ByteArray> getTermSet() {
-      @SuppressWarnings("CollectionWithoutInitialCapacity")
-      final Collection<ByteArray> terms = new HashSet<>();
-
-      for (int fieldNum = 0; fieldNum < TestIndexDataProvider.fields.size();
-           fieldNum++) {
-        if (TestIndexDataProvider.activeFieldState[fieldNum] == 1) {
-          for (int docId = 0; docId < TestIndexDataProvider.documentsCount;
-               docId++) {
-            final Iterable<ByteArray> docTerms = Fun.filter
-                (TestIndexDataProvider.idx.keySet(), fieldNum, docId);
-            for (final ByteArray docTerm : docTerms) {
-              if (TestIndexDataProvider.stopWords
-                  .contains(docTerm)) { // skip stopwords
-                continue;
-              }
-              if (docTerm == null) {
-                throw new IllegalStateException("Terms was null. doc=" + docId
-                    + " field=" + TestIndexDataProvider.fields.get(fieldNum));
-              }
-              terms.add(docTerm.clone());
-            }
-          }
-        }
-      }
-      return terms;
-    }
-
-    /**
-     * Get a list of all index terms. The list is <u>not</u> unique. Stopwords
-     * will be excluded.
-     *
-     * @return List of all terms in index
-     */
-    public Collection<ByteArray> getTermList() {
-      @SuppressWarnings("CollectionWithoutInitialCapacity")
-      final Collection<ByteArray> terms = new ArrayList<>();
-      for (int fieldNum = 0; fieldNum < TestIndexDataProvider.fields.size();
-           fieldNum++) {
-        if (TestIndexDataProvider.activeFieldState[fieldNum] == 1) {
-          for (int docId = 0; docId < TestIndexDataProvider.documentsCount;
-               docId++) {
-            final Iterable<ByteArray> docTerms = Fun.filter
-                (TestIndexDataProvider.idx.keySet(), fieldNum, docId);
-            for (final ByteArray docTerm : docTerms) {
-              if (TestIndexDataProvider.stopWords
-                  .contains(docTerm)) { // skip stopwords
-                continue;
-              }
-              final long docTermFreqCount = TestIndexDataProvider.idx.get(Fun.
-                  t3(fieldNum, docId, docTerm));
-              for (int docTermFreq = 0; docTermFreq < docTermFreqCount;
-                   docTermFreq++) {
-                terms.add(docTerm);
-              }
-            }
-          }
-        }
-      }
-      return terms;
-    }
-
-    /**
-     * Get a set of unique terms for a document.
-     *
-     * @param docId Document-id to lookup
-     * @param testIndexDataProvider
-     * @return List of unique terms in document
-     */
-    public Collection<ByteArray> getDocumentTermSet(final int docId,
-        final TestIndexDataProvider testIndexDataProvider) {
-      testIndexDataProvider.checkDocumentId(docId);
-      return reference.getDocumentTermFrequencyMap(docId)
-          .keySet();
-    }
-  }
-
-  /**
-   * {@link Processing} {@link Target} creating random documents.
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public final class DocCreator
-      extends TargetFuncCall.TargetFunc<Integer> {
-
-    /**
-     * Seed list with document terms.
-     */
-    private final List<String> seedTermList;
-    /**
-     * Number of fields to create.
-     */
-    private final int fieldsCount;
-    /**
-     * Map caching target documents.
-     */
-    private final Map<Integer, String[]> contentCache;
-
-    /**
-     * Factory instance creator.
-     *
-     * @param targetMap Target map to put results in
-     * @param newSeedTermList List with terms to add to documents
-     * @param newFieldsCount Number of fields to create
-     */
-    private DocCreator(
-        final Map<Integer, String[]> targetMap,
-        final List<String> newSeedTermList,
-        final int newFieldsCount) {
-      super();
-      this.seedTermList = newSeedTermList;
-      this.fieldsCount = newFieldsCount;
-      this.contentCache = targetMap;
-    }
-
-    @Override
-    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
-    public void call(final Integer docId) {
-      if (docId == null) {
-        return;
-      }
-
-      final String[] docContent = new String[this.fieldsCount];
-
-      // create document fields
-      for (int field = 0; field < this.fieldsCount; field++) {
-        final int fieldTerms = RandomValue.getInteger(idxConf.docLength[0],
-            idxConf.docLength[1]);
-        final StringBuilder content = new StringBuilder(fieldTerms *
-            idxConf.termLength[1]);
-        final Map<ByteArray, AtomicInteger> fieldTermFreq
-            = new HashMap<>(fieldTerms);
-
-        // create terms for each field
-        for (int term = 0; term < fieldTerms; term++) {
-          // pick a document term from the seed
-          final String docTerm = seedTermList.get(RandomValue.getInteger(0,
-              seedTermList.size() - 1));
-          // add it to the list of known terms
-          final ByteArray docTermBytes;
-          try {
-            docTermBytes = new ByteArray(docTerm.getBytes("UTF-8"));
-          } catch (UnsupportedEncodingException ex) {
-            LOG.error("Error encoding term. term={}", docTerm);
-            continue;
-          }
-
-          // count term frequencies
-          if (fieldTermFreq.containsKey(docTermBytes)) {
-            fieldTermFreq.get(docTermBytes).incrementAndGet();
-          } else {
-            fieldTermFreq.put(docTermBytes, new AtomicInteger(1));
-          }
-
-          // append term to content
-          content.append(docTerm).append(' ');
-        }
-        // store document field
-        docContent[field] = content.toString().trim();
-
-        // store document field term frequency value
-        for (final Entry<ByteArray, AtomicInteger> ftfEntry : fieldTermFreq.
-            entrySet()) {
-          idx.put(Fun.t3(field, docId, ftfEntry.getKey()),
-              ftfEntry.getValue().longValue());
-        }
-      }
-
-      this.contentCache.put(docId, docContent);
-    }
-  }
 }
