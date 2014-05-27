@@ -25,6 +25,7 @@ import de.unihildesheim.iw.lucene.index.ExternalDocTermDataManager;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
+import de.unihildesheim.iw.lucene.query.SimpleTermsQuery;
 import de.unihildesheim.iw.lucene.query.TermsQueryBuilder;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
@@ -37,7 +38,6 @@ import de.unihildesheim.iw.util.concurrent.processing.Target;
 import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.search.Query;
 import org.mapdb.Atomic;
 import org.mapdb.DB;
 import org.mapdb.Serializer;
@@ -158,13 +158,13 @@ public final class DefaultClarityScore
    * @param builder Builder instance
    * @throws IOException Thrown on low-level I/O errors
    */
-  @SuppressWarnings("checkstyle:magicnumber")
   private void initCache(final Builder builder)
       throws IOException, Buildable.BuildableException {
     final Persistence.Builder psb = builder.persistenceBuilder;
 
     final Persistence persistence;
     boolean createNew = false;
+    boolean clearCache = false;
     switch (psb.getCacheLoadInstruction()) {
       case MAKE:
         persistence = psb.make().build();
@@ -191,27 +191,44 @@ public final class DefaultClarityScore
       } else {
         if (!persistence.getMetaData()
             .generationCurrent(this.dataProv.getLastIndexCommitGeneration())) {
-          throw new IllegalStateException("Index changed since last caching.");
+          LOG.warn("Index changed since last caching. Clearing cache.");
+          clearCache = true;
         }
       }
-      if (!this.db.getAtomicString(Caches.LANGMODEL_WEIGHT.name()).get().
-          equals(this.conf.getLangModelWeight().toString())) {
-        throw new IllegalStateException(
-            "Different language-model weight used in cache.");
+      if (!clearCache) {
+        if (!this.db.getAtomicString(Caches.LANGMODEL_WEIGHT.name()).get().
+            equals(this.conf.getLangModelWeight().toString())) {
+          LOG.warn("Different language-model weight used in cache. " +
+              "Clearing cache.");
+          clearCache = true;
+        } else if (!persistence.getMetaData()
+            .fieldsCurrent(this.dataProv.getDocumentFields())) {
+          LOG.warn("Current fields are different from cached ones. " +
+              "Clearing cache.");
+          clearCache = true;
+        } else if (!persistence.getMetaData().stopwordsCurrent(this.dataProv
+            .getStopwords())) {
+          LOG.warn("Current stopwords are different from cached ones. " +
+              "Clearing cache.");
+          clearCache = true;
+        }
       }
-      if (!persistence.getMetaData()
-          .fieldsCurrent(this.dataProv.getDocumentFields())) {
-        throw new IllegalStateException(
-            "Current fields are different from cached ones.");
+    }
+
+    if (clearCache && this.db.exists(Caches.DEFAULT_DOC_MODELS.name())) {
+      LOG.info("Clearing cached document models.");
+      this.db.delete(Caches.DEFAULT_DOC_MODELS.name());
+    }
+
+    if (createNew || clearCache) {
+      if (this.db.exists(Caches.LANGMODEL_WEIGHT.name())) {
+        this.db.getAtomicString(Caches.LANGMODEL_WEIGHT.name()).set(this.conf.
+            getLangModelWeight().toString());
+      } else {
+        this.db.createAtomicString(Caches.LANGMODEL_WEIGHT.name(), this.conf.
+            getLangModelWeight().toString());
       }
-      if (!persistence.getMetaData().stopWordsCurrent(this.dataProv
-          .getStopwords())) {
-        throw new IllegalStateException(
-            "Current stopwords are different from cached ones.");
-      }
-    } else {
-      this.db.createAtomicString(Caches.LANGMODEL_WEIGHT.name(), this.conf.
-          getLangModelWeight().toString());
+      persistence.clearMetaData();
       persistence.updateMetaData(this.dataProv.getDocumentFields(),
           this.dataProv.getStopwords());
     }
@@ -221,7 +238,12 @@ public final class DefaultClarityScore
         .keySerializer(ByteArray.SERIALIZER)
         .valueSerializer(Serializer.BASIC)
         .makeOrGet();
+
     this.extDocMan = new ExternalDocTermDataManager(this.db, IDENTIFIER);
+    if (clearCache) {
+      LOG.info("Clearing document model data cache.");
+      this.extDocMan.clear();
+    }
     this.hasCache = true;
   }
 
@@ -369,10 +391,12 @@ public final class DefaultClarityScore
     final QueryUtils queryUtils =
         new QueryUtils(this.idxReader, this.dataProv.getDocumentFields());
 
-    final Query queryObj;
+    final SimpleTermsQuery queryObj;
     try {
-      queryObj = new TermsQueryBuilder(this.idxReader,
-          this.dataProv.getDocumentFields()).query(query).build();
+      queryObj = new TermsQueryBuilder(
+          this.idxReader, this.dataProv.getDocumentFields())
+          .query(query).stopwords(this.dataProv.getStopwords())
+          .build();
     } catch (Buildable.BuildableException e) {
       throw new ClarityScoreCalculationException(
           "Caught exception while building query.", e);
@@ -395,7 +419,7 @@ public final class DefaultClarityScore
     final Set<ByteArray> queryTerms;
     try {
       // Get unique query terms
-      queryTerms = queryUtils.getUniqueQueryTerms(query);
+      queryTerms = queryUtils.getUniqueQueryTerms(queryObj);
     } catch (UnsupportedEncodingException | ParseException e) {
       LOG.error("Caught exception parsing query.", e);
       return null;
@@ -419,6 +443,11 @@ public final class DefaultClarityScore
     } catch (IOException | ProcessingException e) {
       throw new ClarityScoreCalculationException(e);
     }
+  }
+
+  @Override
+  public String getIdentifier() {
+    return IDENTIFIER;
   }
 
   /**

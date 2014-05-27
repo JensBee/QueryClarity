@@ -36,25 +36,21 @@ public final class TermsQueryBuilder
     implements Buildable<SimpleTermsQuery> {
 
   /**
+   * Reader to access Lucene index.
+   */
+  private final IndexReader idxReader;
+  /**
    * Collection of stop-words to use.
    */
   private Set<String> stopwords = Collections.<String>emptySet();
-
   /**
    * List of fields to query.
    */
   private Set<String> fields;
-
   /**
    * Boolean operator to use for joining query terms.
    */
   private QueryParser.Operator operator = SimpleTermsQuery.DEFAULT_OPERATOR;
-
-  /**
-   * Reader to access Lucene index.
-   */
-  private final IndexReader idxReader;
-
   /**
    * Query string.
    */
@@ -76,7 +72,7 @@ public final class TermsQueryBuilder
    * @param newStopwords List of stop-words
    * @return Self reference
    */
-  public TermsQueryBuilder setStopwords(final Set<String> newStopwords) {
+  public TermsQueryBuilder stopwords(final Set<String> newStopwords) {
     this.stopwords = new HashSet<>(Objects.requireNonNull(newStopwords,
         "Stopwords were null."));
     return this;
@@ -88,7 +84,7 @@ public final class TermsQueryBuilder
    * @param newFields List of fields to query
    * @return Self reference
    */
-  public TermsQueryBuilder setFields(final Set<String> newFields) {
+  public TermsQueryBuilder fields(final Set<String> newFields) {
     if (Objects.requireNonNull(newFields, "Fields were null.").isEmpty()) {
       throw new IllegalArgumentException("Empty fields.");
     }
@@ -103,7 +99,7 @@ public final class TermsQueryBuilder
    * @param newOperator Boolean operator
    * @return Self reference
    */
-  public TermsQueryBuilder setBoolOperator(
+  public TermsQueryBuilder boolOperator(
       final QueryParser.Operator newOperator) {
     this.operator = Objects.requireNonNull(newOperator, "Operator was null.");
     return this;

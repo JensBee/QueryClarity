@@ -568,6 +568,16 @@ abstract class AbstractIndexDataProvider
     return this.stopwordsStr;
   }
 
+  @Override
+  public Set<ByteArray> getStopwordsBytes() {
+    return this.stopwords;
+  }
+
+  @Override
+  public boolean isDisposed() {
+    return this.isDisposed;
+  }
+
   /**
    * Set the (String) list of stopwords.
    *
@@ -584,11 +594,6 @@ abstract class AbstractIndexDataProvider
       final ByteArray termBa = new ByteArray(word.getBytes("UTF-8"));
       this.stopwords.add(termBa);
     }
-  }
-
-  @Override
-  public boolean isDisposed() {
-    return this.isDisposed;
   }
 
   /**

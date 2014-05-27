@@ -130,6 +130,11 @@ public final class FakeIndexDataProvider
   }
 
   @Override
+  public Set<ByteArray> getStopwordsBytes() {
+    return Collections.<ByteArray>emptySet();
+  }
+
+  @Override
   public boolean isDisposed() {
     return false;
   }

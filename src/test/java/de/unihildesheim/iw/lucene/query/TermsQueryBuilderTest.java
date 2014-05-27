@@ -70,7 +70,7 @@ public final class TermsQueryBuilderTest
   }
 
   /**
-   * Test of setStopwords method, of class TermsQueryBuilder.
+   * Test of stopwords method, of class TermsQueryBuilder.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
@@ -92,7 +92,7 @@ public final class TermsQueryBuilderTest
 
     final TermsQueryBuilder instance = new TermsQueryBuilder(this.referenceIndex
         .getIndexReader(), this.referenceIndex.getDocumentFields());
-    instance.setStopwords(newStopWords);
+    instance.stopwords(newStopWords);
 
     @SuppressWarnings("StringBufferWithoutInitialCapacity")
     final StringBuilder qb = new StringBuilder();
@@ -128,7 +128,7 @@ public final class TermsQueryBuilderTest
         .getIndexReader(), this.referenceIndex.getDocumentFields());
 
     final String qStr =
-        instance.setFields(fields).query("foo").build().getQueryObj()
+        instance.fields(fields).query("foo").build().getQueryObj()
             .toString();
     for (final String f : fields) {
       // stupid simple & may break easily
@@ -137,7 +137,7 @@ public final class TermsQueryBuilderTest
   }
 
   /**
-   * Test of setBoolOperator method, of class TermsQueryBuilder.
+   * Test of boolOperator method, of class TermsQueryBuilder.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
@@ -152,7 +152,7 @@ public final class TermsQueryBuilderTest
     for (final QueryParser.Operator op : QueryParser.Operator.values()) {
       instance = new TermsQueryBuilder(this.referenceIndex.getIndexReader(),
           this.referenceIndex.getDocumentFields());
-      instance.setBoolOperator(op).query("foo bar").build().toString();
+      instance.boolOperator(op).query("foo bar").build().toString();
     }
   }
 
@@ -172,8 +172,8 @@ public final class TermsQueryBuilderTest
 
     final TermsQueryBuilder instance = new TermsQueryBuilder(this.referenceIndex
         .getIndexReader(), fields);
-    instance.setStopwords(stopwords);
-    instance.setBoolOperator(QueryParser.Operator.OR);
+    instance.stopwords(stopwords);
+    instance.boolOperator(QueryParser.Operator.OR);
     final String query = RandomValue.getString(1, 100) + " " + RandomValue.
         getString(1, 100);
 

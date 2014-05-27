@@ -22,7 +22,6 @@ import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.util.TempDiskIndex;
 import de.unihildesheim.iw.util.ByteArrayUtils;
-import de.unihildesheim.iw.util.FileUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Source;
@@ -57,24 +56,6 @@ public final class FixedTestIndexDataProvider
     implements IndexDataProvider {
 
   /**
-   * Number of fields per document.
-   */
-  private static final int FIELD_COUNT = 3;
-
-  /**
-   * Document fields.
-   */
-  private static final String[] DOC_FIELDS;
-
-  static {
-    DOC_FIELDS = new String[FIELD_COUNT];
-    // create field names
-    for (int i = 0; i < FIELD_COUNT; i++) {
-      DOC_FIELDS[i] = "fld_" + i;
-    }
-  }
-
-  /**
    * Temporary Lucene index held in memory.
    */
   public static final TempDiskIndex TMP_IDX;
@@ -91,8 +72,7 @@ public final class FixedTestIndexDataProvider
    * Temporary directory to store calculation data in test runs. Created as
    * subdirectory of the temporary index directory.
    */
-  public static final File DATA_DIR = new File(FileUtils.makePath(TMP_IDX
-      .getIndexDir()) + File.separatorChar + "data");
+  public static final File DATA_DIR = new File(TMP_IDX.getIndexDir(), "data");
 
   static {
     if (!DATA_DIR.exists() && !DATA_DIR.mkdirs()) {
@@ -100,11 +80,6 @@ public final class FixedTestIndexDataProvider
           "Failed to create data directory: '" + DATA_DIR + "'.");
     }
   }
-
-  /**
-   * Number of documents in the index.
-   */
-  private static final int DOC_COUNT = 10;
 
   /**
    * Document contents.
@@ -283,36 +258,153 @@ public final class FixedTestIndexDataProvider
   }
 
   /**
+   * Number of fields per document.
+   */
+  private static final int FIELD_COUNT = 3;
+  /**
+   * Document fields.
+   */
+  private static final String[] DOC_FIELDS;
+
+  static {
+    DOC_FIELDS = new String[FIELD_COUNT];
+    // create field names
+    for (int i = 0; i < FIELD_COUNT; i++) {
+      DOC_FIELDS[i] = "fld_" + i;
+    }
+  }
+
+  /**
+   * Number of documents in the index.
+   */
+  private static final int DOC_COUNT = 10;
+  /**
+   * Store the singleton instance.
+   */
+  private static final FixedTestIndexDataProvider INSTANCE = new
+      FixedTestIndexDataProvider();
+
+  /**
+   * Empty constructor.
+   */
+  private FixedTestIndexDataProvider() {
+  }
+
+  /**
+   * Get the singleton instance.
+   *
+   * @return Instance
+   */
+  public static FixedTestIndexDataProvider getInstance() {
+    return INSTANCE;
+  }
+
+  /**
+   * Get a set of unique terms in index.
+   *
+   * @return Unique set of all index terms
+   */
+  public Set<ByteArray> getTermSet() {
+    return getDocumentsTermSet(getDocumentIds());
+  }
+
+  /**
+   * Get a unique set of all document ids.
+   *
+   * @return Document ids
+   */
+  public Set<Integer> getDocumentIds() {
+    final Set<Integer> docIds = new HashSet<>(DOC_COUNT);
+    for (int i = 0; i < DOC_COUNT; i++) {
+      docIds.add(i);
+    }
+    return docIds;
+  }
+
+  /**
+   * Checks, if a document-id is valid (in index).
+   *
+   * @param docId Document-id to check
+   */
+  private void checkDocumentId(final int docId) {
+    if (!hasDocument(docId)) {
+      throw new IllegalArgumentException("Illegal document id: " + docId);
+    }
+  }
+
+  /**
+   * Get some unique random terms from the index. The amount of terms returned
+   * is the half of all index terms at maximum.
+   *
+   * @return Tuple containing a set of terms as String and {@link ByteArray}
+   * @throws UnsupportedEncodingException Thrown, if a query term could not be
+   * encoded to {@code UTF-8}
+   */
+  public Tuple.Tuple2<Set<String>, Set<ByteArray>>
+  getUniqueRandomIndexTerms()
+      throws UnsupportedEncodingException {
+    final Tuple.Tuple2<List<String>, List<ByteArray>> terms =
+        getRandomIndexTerms();
+    return Tuple.tuple2((Set<String>) new HashSet<>(terms.a),
+        (Set<ByteArray>) new HashSet<>(terms.b));
+  }
+
+  /**
+   * Get some non-unique random terms from the index. The amount of terms
+   * returned is the half of all index terms at maximum.
+   *
+   * @return Tuple containing a set of terms as String and {@link ByteArray}
+   * @throws UnsupportedEncodingException Thrown, if a query term could not be
+   * encoded to {@code UTF-8}
+   */
+  public Tuple.Tuple2<List<String>, List<ByteArray>> getRandomIndexTerms()
+      throws UnsupportedEncodingException {
+    final int maxTerm = FixedTestIndexDataProvider.KnownData.IDX_TERMFREQ
+        .size() - 1;
+    final int qTermCount = RandomValue.getInteger(0, maxTerm / 2);
+    final List<ByteArray> qTerms = new ArrayList<>(qTermCount);
+    final List<String> qTermsStr = new ArrayList<>(qTermCount);
+    final List<String> idxTerms = new ArrayList<>(FixedTestIndexDataProvider
+        .KnownData.IDX_TERMFREQ.keySet());
+
+    for (int i = 0; i < qTermCount; i++) {
+      final String term = idxTerms.get(RandomValue.getInteger(0, maxTerm));
+      qTermsStr.add(term);
+      qTerms.add(new ByteArray(term.getBytes("UTF-8")));
+    }
+
+    assert !qTerms.isEmpty();
+    assert !qTermsStr.isEmpty();
+
+    return Tuple.tuple2(qTermsStr, qTerms);
+  }
+
+  /**
    * Data dump of known (pre-calculated) values.
    */
   public static final class KnownData {
     /**
+     * Number of non-unique terms in index.
+     */
+    public static final int TERM_COUNT = 1000;
+    /**
      * Number of documents in index.
      */
     public static final int DOC_COUNT = FixedTestIndexDataProvider.DOC_COUNT;
-
+    /**
+     * Number of unique terms in index.
+     */
+    public static final int TERM_COUNT_UNIQUE = 171;
     /**
      * Number of fields per document.
      */
     public static final int FIELD_COUNT = FixedTestIndexDataProvider
         .FIELD_COUNT;
-
-    /**
-     * Number of non-unique terms in index.
-     */
-    public static final int TERM_COUNT = 1000;
-
-    /**
-     * Number of unique terms in index.
-     */
-    public static final int TERM_COUNT_UNIQUE = 171;
-
     /**
      * Number of unique combinations of documents & terms. Used for sizing
      * storage maps.
      */
     public static final int DOC_TERM_PAIRS = 711;
-
     /**
      * Frequency values of all terms in index.
      */
@@ -1501,107 +1593,8 @@ public final class FixedTestIndexDataProvider
               "Unknown document id. id=" + docId);
       }
     }
-  }
 
-  /**
-   * Store the singleton instance.
-   */
-  private static final FixedTestIndexDataProvider INSTANCE = new
-      FixedTestIndexDataProvider();
 
-  /**
-   * Empty constructor.
-   */
-  private FixedTestIndexDataProvider() {
-  }
-
-  /**
-   * Get the singleton instance.
-   *
-   * @return Instance
-   */
-  public static FixedTestIndexDataProvider getInstance() {
-    return INSTANCE;
-  }
-
-  /**
-   * Checks, if a document-id is valid (in index).
-   *
-   * @param docId Document-id to check
-   */
-  private void checkDocumentId(final int docId) {
-    if (!hasDocument(docId)) {
-      throw new IllegalArgumentException("Illegal document id: " + docId);
-    }
-  }
-
-  /**
-   * Get a unique set of all document ids.
-   *
-   * @return Document ids
-   */
-  public Set<Integer> getDocumentIds() {
-    final Set<Integer> docIds = new HashSet<>(DOC_COUNT);
-    for (int i = 0; i < DOC_COUNT; i++) {
-      docIds.add(i);
-    }
-    return docIds;
-  }
-
-  /**
-   * Get a set of unique terms in index.
-   *
-   * @return Unique set of all index terms
-   */
-  public Set<ByteArray> getTermSet() {
-    return getDocumentsTermSet(getDocumentIds());
-  }
-
-  /**
-   * Get some unique random terms from the index. The amount of terms returned
-   * is the half of all index terms at maximum.
-   *
-   * @return Tuple containing a set of terms as String and {@link ByteArray}
-   * @throws UnsupportedEncodingException Thrown, if a query term could not be
-   * encoded to {@code UTF-8}
-   */
-  public Tuple.Tuple2<Set<String>, Set<ByteArray>>
-  getUniqueRandomIndexTerms()
-      throws UnsupportedEncodingException {
-    final Tuple.Tuple2<List<String>, List<ByteArray>> terms =
-        getRandomIndexTerms();
-    return Tuple.tuple2((Set<String>) new HashSet<>(terms.a),
-        (Set<ByteArray>) new HashSet<>(terms.b));
-  }
-
-  /**
-   * Get some non-unique random terms from the index. The amount of terms
-   * returned is the half of all index terms at maximum.
-   *
-   * @return Tuple containing a set of terms as String and {@link ByteArray}
-   * @throws UnsupportedEncodingException Thrown, if a query term could not be
-   * encoded to {@code UTF-8}
-   */
-  public Tuple.Tuple2<List<String>, List<ByteArray>> getRandomIndexTerms()
-      throws UnsupportedEncodingException {
-    final int maxTerm = FixedTestIndexDataProvider.KnownData.IDX_TERMFREQ
-        .size() - 1;
-    final int qTermCount = RandomValue.getInteger(0, maxTerm / 2);
-    final List<ByteArray> qTerms = new ArrayList<>(qTermCount);
-    final List<String> qTermsStr = new ArrayList<>(qTermCount);
-    final List<String> idxTerms = new ArrayList<>(FixedTestIndexDataProvider
-        .KnownData.IDX_TERMFREQ.keySet());
-
-    for (int i = 0; i < qTermCount; i++) {
-      final String term = idxTerms.get(RandomValue.getInteger(0, maxTerm));
-      qTermsStr.add(term);
-      qTerms.add(new ByteArray(term.getBytes("UTF-8")));
-    }
-
-    assert !qTerms.isEmpty();
-    assert !qTermsStr.isEmpty();
-
-    return Tuple.tuple2(qTermsStr, qTerms);
   }
 
   @Override
@@ -1756,6 +1749,12 @@ public final class FixedTestIndexDataProvider
   @Override
   public Set<String> getStopwords() {
     return Collections.<String>emptySet();
+  }
+
+  @Override
+  public Set<ByteArray> getStopwordsBytes() {
+    return Collections
+        .<ByteArray>emptySet();
   }
 
   @Override

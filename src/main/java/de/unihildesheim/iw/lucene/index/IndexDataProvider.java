@@ -188,13 +188,12 @@ public interface IndexDataProvider {
    */
   Set<String> getStopwords();
 
-//  /**
-//   * Get the {@link IndexReader} for accessing the Lucene index.
-//   *
-//   * @return Index reader pointing at the Lucene index
-//   */
-//  IndexReader getIndexReader()
-//      throws IOException;
+  /**
+   * Get the list of stopwords currently in use.
+   *
+   * @return List of words to exclude
+   */
+  Set<ByteArray> getStopwordsBytes();
 
   /**
    * Flag indicating, if this instance is closed.

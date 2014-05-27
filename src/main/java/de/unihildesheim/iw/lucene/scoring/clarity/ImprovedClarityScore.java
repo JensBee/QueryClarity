@@ -25,6 +25,7 @@ import de.unihildesheim.iw.lucene.index.ExternalDocTermDataManager;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
+import de.unihildesheim.iw.lucene.query.SimpleTermsQuery;
 import de.unihildesheim.iw.lucene.query.TermsQueryBuilder;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.MathUtils;
@@ -39,7 +40,6 @@ import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
-import org.apache.lucene.search.Query;
 import org.mapdb.Atomic;
 import org.mapdb.BTreeKeySerializer;
 import org.mapdb.DB;
@@ -243,7 +243,7 @@ public final class ImprovedClarityScore
             "Current fields are different from cached ones.");
       }
       if (!persistence.getMetaData()
-          .stopWordsCurrent(this.dataProv.getStopwords())) {
+          .stopwordsCurrent(this.dataProv.getStopwords())) {
         throw new IllegalStateException(
             "Current stopwords are different from cached ones.");
       }
@@ -436,12 +436,16 @@ public final class ImprovedClarityScore
 
     // run a query to get feedback
     final TermsQueryBuilder termsQueryBuilder =
-        new TermsQueryBuilder(this.idxReader, this.dataProv.getDocumentFields
-            ()).setBoolOperator(QueryParser.Operator.AND);
+        new TermsQueryBuilder(
+            this.idxReader, this.dataProv.getDocumentFields())
+            .stopwords(this.dataProv.getStopwords())
+            .boolOperator(QueryParser.Operator.AND);
 
-    Query queryObj;
+    SimpleTermsQuery queryObj; // reusable query object for simplified queries
+    final SimpleTermsQuery userQuery; // store unmodified query
     try {
       queryObj = termsQueryBuilder.query(query).build();
+      userQuery = termsQueryBuilder.query(query).build();
     } catch (Buildable.BuildableException e) {
       throw new ClarityScoreCalculationException(
           "Caught exception while building query.", e);
@@ -469,7 +473,7 @@ public final class ImprovedClarityScore
       );
 
       try {
-        simplifiedQuery = simplifyQuery(simplifiedQuery, this.conf.policy);
+        simplifiedQuery = simplifyQuery(queryObj, this.conf.policy);
       } catch (IOException | ParseException | Buildable.BuildableException
           e) {
         throw new ClarityScoreCalculationException("Error while trying to " +
@@ -551,7 +555,10 @@ public final class ImprovedClarityScore
           new TargetFuncCall<>(
               new CollectionSource<>(reducedFbTerms),
               new ModelCalculatorTarget(feedbackDocIds,
-                  this.queryUtils.getAllQueryTerms(query), score)
+                  // already stopped
+                  this.queryUtils.getAllQueryTerms(userQuery),
+                  score
+              )
           )
       ).process(reducedFbTerms.size());
     } catch (UnsupportedEncodingException | ParseException | Buildable
@@ -573,6 +580,11 @@ public final class ImprovedClarityScore
     return result;
   }
 
+  @Override
+  public String getIdentifier() {
+    return IDENTIFIER;
+  }
+
   /**
    * Reduce the query by removing a term based on a specific policy.
    *
@@ -583,7 +595,7 @@ public final class ImprovedClarityScore
    * @throws IOException Thrown on low-level i/O errors or if a term could not
    * be parsed to UTF-8
    */
-  private String simplifyQuery(final String query,
+  private String simplifyQuery(final SimpleTermsQuery query,
       final QuerySimplifyPolicy policy)
       throws IOException, ParseException,
              Buildable.ConfigurationException, Buildable.BuildException {

@@ -19,6 +19,9 @@ package de.unihildesheim.iw.util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -41,13 +44,6 @@ public class Configuration {
   private Properties data;
 
   /**
-   * Creates a new empty configuration object.
-   */
-  public Configuration() {
-    this.data = new Properties();
-  }
-
-  /**
    * Constructor for overriding classes, to pass in an already created {@link
    * Properties} object.
    *
@@ -68,6 +64,25 @@ public class Configuration {
     addAll(Objects.requireNonNull(initial, "Initial map was null."));
   }
 
+  /**
+   * Creates a new empty configuration object.
+   */
+  public Configuration() {
+    this.data = new Properties();
+  }
+
+  /**
+   * Add all entries from the given map to the configuration.
+   *
+   * @param config Map with configuration settings
+   */
+  public final void addAll(final Map<String, String> config) {
+    Objects.requireNonNull(config, "Configuration map was null.");
+    for (final Entry<String, String> confEntry : config.entrySet()) {
+      this.data.setProperty(confEntry.getKey(), confEntry.getValue());
+    }
+  }
+
   protected void setProperties(final Properties prop) {
     this.data = prop;
   }
@@ -83,86 +98,6 @@ public class Configuration {
       }
       LOG.debug("Dumping configuration - done");
     }
-  }
-
-  /**
-   * Add all entries from the given map to the configuration.
-   *
-   * @param config Map with configuration settings
-   */
-  public final void addAll(final Map<String, String> config) {
-    Objects.requireNonNull(config, "Configuration map was null.");
-    for (final Entry<String, String> confEntry : config.entrySet()) {
-      this.data.setProperty(confEntry.getKey(), confEntry.getValue());
-    }
-  }
-
-  /**
-   * Store a string value under the given key.
-   *
-   * @param key Key to use for storing
-   * @param value Value to store
-   */
-  public final void add(final String key, final String value) {
-    checkKeyValue(key, value);
-    this.data.setProperty(key, value);
-  }
-
-  /**
-   * Store a integer value under the given key.
-   *
-   * @param key Key to use for storing
-   * @param value Value to store
-   */
-  public final void add(final String key, final Integer value) {
-    checkKeyValue(key, value);
-    this.data.setProperty(key, value.toString());
-  }
-
-  protected void checkKeyValue(final String key, final Object value) {
-    if (Objects.requireNonNull(key, "Key was null.").trim().isEmpty()) {
-      throw new IllegalArgumentException("Key was empty.");
-    }
-    Objects.requireNonNull(value, "Value was null.");
-  }
-
-  /**
-   * Store a double value under the given key.
-   *
-   * @param key Key to use for storing
-   * @param value Value to store
-   */
-  public final void add(final String key, final Double value) {
-    checkKeyValue(key, value);
-    this.data.setProperty(key, value.toString());
-  }
-
-  /**
-   * Tries to get a string value associated with the given key.
-   *
-   * @param key Configuration item key
-   * @return String value assigned to the key, or <tt>null</tt> if there was
-   * none or there was an error interpreting the value as integer
-   */
-  public final String getString(final String key) {
-    return getString(key, null);
-  }
-
-  /**
-   * Tries to get a string value associated with the given key.
-   *
-   * @param key Configuration item key
-   * @param defaultValue Default value to use, if no data for the given key was
-   * found
-   * @return String value assigned to the key, or <tt>defaultValue</tt> if there
-   * was none
-   */
-  public final String getString(final String key,
-      final String defaultValue) {
-    if (Objects.requireNonNull(key, "Key was null.").trim().isEmpty()) {
-      throw new IllegalArgumentException("Key was empty.");
-    }
-    return this.data.getProperty(key, defaultValue);
   }
 
   /**
@@ -184,6 +119,41 @@ public class Configuration {
       return defaultValue;
     }
     return value;
+  }
+
+  /**
+   * Tries to get a string value associated with the given key.
+   *
+   * @param key Configuration item key
+   * @param defaultValue Default value to use, if no data for the given key was
+   * found
+   * @return String value assigned to the key, or <tt>defaultValue</tt> if there
+   * was none
+   */
+  public final String getString(final String key,
+      final String defaultValue) {
+    if (Objects.requireNonNull(key, "Key was null.").trim().isEmpty()) {
+      throw new IllegalArgumentException("Key was empty.");
+    }
+    return this.data.getProperty(key, defaultValue);
+  }
+
+  /**
+   * Store a string value under the given key.
+   *
+   * @param key Key to use for storing
+   * @param value Value to store
+   */
+  public final void add(final String key, final String value) {
+    checkKeyValue(key, value);
+    this.data.setProperty(key, value);
+  }
+
+  protected void checkKeyValue(final String key, final Object value) {
+    if (Objects.requireNonNull(key, "Key was null.").trim().isEmpty()) {
+      throw new IllegalArgumentException("Key was empty.");
+    }
+    Objects.requireNonNull(value, "Value was null.");
   }
 
   /**
@@ -222,6 +192,17 @@ public class Configuration {
   }
 
   /**
+   * Tries to get a string value associated with the given key.
+   *
+   * @param key Configuration item key
+   * @return String value assigned to the key, or <tt>null</tt> if there was
+   * none or there was an error interpreting the value as integer
+   */
+  public final String getString(final String key) {
+    return getString(key, null);
+  }
+
+  /**
    * Tries to get a Integer value associated with the given key. Adds the
    * default value as new entry to the configuration, if no value is present.
    *
@@ -240,6 +221,17 @@ public class Configuration {
       return defaultValue;
     }
     return getInteger(key, defaultValue);
+  }
+
+  /**
+   * Store a integer value under the given key.
+   *
+   * @param key Key to use for storing
+   * @param value Value to store
+   */
+  public final void add(final String key, final Integer value) {
+    checkKeyValue(key, value);
+    this.data.setProperty(key, value.toString());
   }
 
   /**
@@ -295,5 +287,28 @@ public class Configuration {
       return defaultValue;
     }
     return getDouble(key, defaultValue);
+  }
+
+  /**
+   * Store a double value under the given key.
+   *
+   * @param key Key to use for storing
+   * @param value Value to store
+   */
+  public final void add(final String key, final Double value) {
+    checkKeyValue(key, value);
+    this.data.setProperty(key, value.toString());
+  }
+
+  public Iterator<Entry<Object, Object>> iterator() {
+    return Collections.unmodifiableSet(this.data.entrySet()).iterator();
+  }
+
+  public Map<String, String> entryMap() {
+    final Map<String, String> entries = new HashMap<>(this.data.size());
+    for (Entry<Object, Object> e : this.data.entrySet()) {
+      entries.put(e.getKey().toString(), e.getValue().toString());
+    }
+    return entries;
   }
 }

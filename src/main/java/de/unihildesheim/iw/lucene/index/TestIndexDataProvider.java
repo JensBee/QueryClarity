@@ -228,22 +228,6 @@ public final class TestIndexDataProvider
     return TestIndexDataProvider.idxConf.name();
   }
 
-  @Override
-  public int getDocumentFrequency(final ByteArray term) {
-    Objects.requireNonNull(term);
-
-    if (TestIndexDataProvider.stopWords.contains(term)) {
-      return 0;
-    }
-    int freq = 0;
-    for (final Integer docId : getDocumentIds()) {
-      if (documentContains(docId, term)) {
-        freq++;
-      }
-    }
-    return freq;
-  }
-
   /**
    * Get the initialized state.
    *
@@ -260,6 +244,22 @@ public final class TestIndexDataProvider
    */
   public TempDiskIndex getIndex() {
     return TestIndexDataProvider.tmpIdx;
+  }
+
+  @Override
+  public int getDocumentFrequency(final ByteArray term) {
+    Objects.requireNonNull(term);
+
+    if (TestIndexDataProvider.stopWords.contains(term)) {
+      return 0;
+    }
+    int freq = 0;
+    for (final Integer docId : getDocumentIds()) {
+      if (documentContains(docId, term)) {
+        freq++;
+      }
+    }
+    return freq;
   }
 
   /**
@@ -339,23 +339,6 @@ public final class TestIndexDataProvider
   public IndexReader getIndexReader()
       throws IOException {
     return tmpIdx.getReader();
-  }
-
-  /**
-   * Get a list of active fields.
-   *
-   * @return Collection of active fields
-   */
-  @Override
-  public Set<String> getDocumentFields() {
-    final Set<String> fieldNames = new HashSet<>(
-        TestIndexDataProvider.fields.size());
-    for (int i = 0; i < TestIndexDataProvider.fields.size(); i++) {
-      if (TestIndexDataProvider.activeFieldState[i] == 1) {
-        fieldNames.add(TestIndexDataProvider.fields.get(i));
-      }
-    }
-    return fieldNames;
   }
 
   /**
@@ -652,20 +635,6 @@ public final class TestIndexDataProvider
     }
   }
 
-  /**
-   * Get a collection of all known document-ids.
-   *
-   * @return All known document-ids
-   */
-  private Collection<Integer> getDocumentIds() {
-    final Collection<Integer> docIds = new ArrayList<>(
-        TestIndexDataProvider.documentsCount);
-    for (int i = 0; i < TestIndexDataProvider.documentsCount; i++) {
-      docIds.add(i);
-    }
-    return docIds;
-  }
-
   public final class Util {
     /**
      * Picks some (1 to n) terms from the referenceIndex.
@@ -840,7 +809,7 @@ public final class TestIndexDataProvider
                Buildable.BuildableException {
       final TermsQueryBuilder tqb = new TermsQueryBuilder(tmpIdx.getReader(),
           TestIndexDataProvider.this.getDocumentFields());
-      tqb.setFields(TestIndexDataProvider.this.getDocumentFields());
+      tqb.fields(TestIndexDataProvider.this.getDocumentFields());
       if (queryTerms == null) {
         return tqb.query(util.getQueryString())
             .build();
@@ -872,17 +841,6 @@ public final class TestIndexDataProvider
     public String getQueryString(final String[] queryTerms)
         throws ParseException {
       return getQueryString(queryTerms, false);
-    }
-  }
-
-  /**
-   * Checks, if a document-id is valid (in index).
-   *
-   * @param docId Document-id to check
-   */
-  private void checkDocumentId(final int docId) {
-    if (docId < 0 || docId > TestIndexDataProvider.documentsCount - 1) {
-      throw new IllegalArgumentException("Illegal document id: " + docId);
     }
   }
 
@@ -979,6 +937,51 @@ public final class TestIndexDataProvider
       this.contentCache.put(docId, docContent);
     }
   }
+
+  /**
+   * Get a list of active fields.
+   *
+   * @return Collection of active fields
+   */
+  @Override
+  public Set<String> getDocumentFields() {
+    final Set<String> fieldNames = new HashSet<>(
+        TestIndexDataProvider.fields.size());
+    for (int i = 0; i < TestIndexDataProvider.fields.size(); i++) {
+      if (TestIndexDataProvider.activeFieldState[i] == 1) {
+        fieldNames.add(TestIndexDataProvider.fields.get(i));
+      }
+    }
+    return fieldNames;
+  }
+
+
+  /**
+   * Get a collection of all known document-ids.
+   *
+   * @return All known document-ids
+   */
+  private Collection<Integer> getDocumentIds() {
+    final Collection<Integer> docIds = new ArrayList<>(
+        TestIndexDataProvider.documentsCount);
+    for (int i = 0; i < TestIndexDataProvider.documentsCount; i++) {
+      docIds.add(i);
+    }
+    return docIds;
+  }
+
+
+  /**
+   * Checks, if a document-id is valid (in index).
+   *
+   * @param docId Document-id to check
+   */
+  private void checkDocumentId(final int docId) {
+    if (docId < 0 || docId > TestIndexDataProvider.documentsCount - 1) {
+      throw new IllegalArgumentException("Illegal document id: " + docId);
+    }
+  }
+
 
   /**
    * Get the overall term-frequency for a specific document.
@@ -1132,6 +1135,10 @@ public final class TestIndexDataProvider
     return reference.getStopwordsStr();
   }
 
+  @Override
+  public Set<ByteArray> getStopwordsBytes() {
+    return reference.getStopwords();
+  }
 
   @Override
   public boolean isDisposed() {

@@ -60,6 +60,9 @@ public final class Persistence {
    */
   private boolean supportsTransaction;
 
+  private String dataDir;
+  private Long indexCommitGen;
+
   private Persistence() {
   }
 
@@ -105,14 +108,13 @@ public final class Persistence {
     instance.db = builder.getMaker().make();
     instance.meta = new StorageMeta();
     instance.supportsTransaction = builder.getMaker().supportsTransaction();
+    instance.dataDir = builder.dataPath;
+    instance.indexCommitGen = builder.getLastCommitGeneration();
 
     if (empty) {
       instance.getMetaData(true);
       instance.updateMetaData(builder.getDocumentFields(),
           builder.getStopwords());
-      if (builder.getLastCommitGeneration() != null) {
-        instance.meta.setIndexCommitGen(builder.getLastCommitGeneration());
-      }
     } else {
       instance.getMetaData(false);
     }
@@ -128,12 +130,21 @@ public final class Persistence {
    */
   private void getMetaData(final boolean create) {
     if (this.db.exists(Storage.PERSISTENCE_IDX_COMMIT_GEN.name())) {
-      meta.indexCommitGen = this.db.getAtomicLong(
-          Storage.PERSISTENCE_IDX_COMMIT_GEN.name());
+      if (create) {
+        if (this.indexCommitGen == null) {
+          this.db.getAtomicLong(Storage.PERSISTENCE_IDX_COMMIT_GEN.name())
+              .set(-1);
+        } else {
+          this.db.getAtomicLong(Storage.PERSISTENCE_IDX_COMMIT_GEN.name())
+              .set(this.indexCommitGen);
+        }
+      }
     } else {
-      meta.indexCommitGen = this.db.createAtomicLong(Storage
-          .PERSISTENCE_IDX_COMMIT_GEN.name(), -1);
+      this.db.createAtomicLong(Storage.PERSISTENCE_IDX_COMMIT_GEN.name(), -1);
     }
+
+    meta.indexCommitGen =
+        this.db.getAtomicLong(Storage.PERSISTENCE_IDX_COMMIT_GEN.name());
 
     if (create && this.db.exists(Storage.PERSISTENCE_FIELDS.name())) {
       this.db.delete(Storage.PERSISTENCE_FIELDS.name());
@@ -159,6 +170,14 @@ public final class Persistence {
     meta.setFields(Objects.requireNonNull(fields, "Fields were null."));
     meta.setStopWords(Objects.requireNonNull(stopwords,
         "Stopwords were null."));
+  }
+
+  public String getDataDir() {
+    return this.dataDir;
+  }
+
+  public void clearMetaData() {
+    getMetaData(true);
   }
 
   public boolean supportsTransaction() {
@@ -260,8 +279,7 @@ public final class Persistence {
         throw new IllegalStateException("Fields meta information not set.");
       }
       return this.fields.size() == currentFields.size() &&
-          this.fields.containsAll(
-              currentFields);
+          this.fields.containsAll(currentFields);
     }
 
     /**
@@ -271,7 +289,7 @@ public final class Persistence {
      * @param currentWords List of stopwords to check
      * @return True, if both contain the same list of stopwords.
      */
-    public boolean stopWordsCurrent(final Set<String> currentWords) {
+    public boolean stopwordsCurrent(final Set<String> currentWords) {
       Objects.requireNonNull(currentWords, "Stopwords were null.");
 
       if (this.stopWords == null) {
@@ -298,6 +316,8 @@ public final class Persistence {
         throw new IllegalStateException("Commit generation "
             + "meta information not set.");
       }
+      LOG.debug("Generations: this={} that={}", this.indexCommitGen.get(),
+          currentGen);
       return this.indexCommitGen.get() == currentGen;
     }
   }
@@ -321,10 +341,11 @@ public final class Persistence {
      * Random string to prefix a temporary storage with.
      */
     private final String randNameSuffix;
+    String dataPath;
     /**
      * Database async write flush delay.
      */
-    private static final int DB_ASYNC_WRITEFLUSH_DELAY = GlobalConfiguration
+    public static final int DB_ASYNC_WRITEFLUSH_DELAY = GlobalConfiguration
         .conf()
         .getAndAddInteger(CONF_PREFIX + "db-async-writeflush-delay", 100);
     /**
@@ -335,7 +356,6 @@ public final class Persistence {
      * Name of the database to create.
      */
     private String name;
-    private String dataPath;
     /**
      * List of stopwords to use.
      */
@@ -358,7 +378,6 @@ public final class Persistence {
       this.dbMkr = new ExtDBMaker();
       this.dbMkr
           .transactionDisable()
-          .commitFileSyncDisable()
           .mmapFileEnableIfSupported()
           .compressionEnable()
           .strictDBGet()
@@ -398,6 +417,11 @@ public final class Persistence {
      */
     public ExtDBMaker getMaker() {
       return this.dbMkr;
+    }
+
+    public Builder readOnly() {
+      this.dbMkr.readOnly(true);
+      return this;
     }
 
     /**
@@ -637,6 +661,14 @@ public final class Persistence {
       void debugDump() {
         for (final Object k : props.keySet()) {
           LOG.debug("Prop k={} v={}", k.toString(), props.get(k));
+        }
+      }
+
+      void readOnly(final boolean state) {
+        if (state) {
+          props.setProperty(Keys.readOnly, TRUE);
+        } else {
+          props.setProperty(Keys.readOnly, "false");
         }
       }
 

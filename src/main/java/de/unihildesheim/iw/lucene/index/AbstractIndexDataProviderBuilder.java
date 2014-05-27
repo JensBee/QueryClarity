@@ -85,7 +85,8 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
   /**
    * File path where the working data will be stored.
    */
-  private File dataPath;
+  protected File dataPath;
+  protected String cacheName;
   /**
    * {@link Directory} instance pointing at the Lucene index.
    */
@@ -111,6 +112,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * @return Self reference
    */
   public final T loadCache(final String name) {
+    this.cacheName = name;
     this.persistenceBuilder.name(createCacheName(name));
     this.persistenceBuilder.get();
     return getThis();
@@ -123,7 +125,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * @param name Cache name
    * @return Cache name prefixed with current identifier
    */
-  private String createCacheName(final String name) {
+  protected String createCacheName(final String name) {
     if (Objects.requireNonNull(name, "Cache name was null.").isEmpty()) {
       throw new IllegalArgumentException("Empty cache name.");
     }
@@ -139,6 +141,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * @return Self reference
    */
   public final T createCache(final String name) {
+    this.cacheName = name;
     this.persistenceBuilder.name(createCacheName(name));
     this.persistenceBuilder.make();
     return getThis();
@@ -151,6 +154,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * @return Self reference
    */
   public T loadOrCreateCache(final String name) {
+    this.cacheName = name;
     this.persistenceBuilder.name(createCacheName(name));
     this.persistenceBuilder.makeOrGet();
     return getThis();
@@ -164,7 +168,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    */
   public final T stopwords(final Set<String> words) {
     this.stopwords = Objects.requireNonNull(words);
-    this.persistenceBuilder.stopwords(stopwords);
+    this.persistenceBuilder.stopwords(this.stopwords);
     return getThis();
   }
 
@@ -178,7 +182,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
       final Set<String> fields) {
     Objects.requireNonNull(fields, "Field were null.");
     this.documentFields = fields;
-    this.persistenceBuilder.documentFields(fields);
+    this.persistenceBuilder.documentFields(this.documentFields);
     return getThis();
   }
 
@@ -246,7 +250,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * directory is not allowed.
    * @see Persistence#tryCreateDataPath(String)
    */
-  public final T dataPath(final String filePath)
+  public T dataPath(final String filePath)
       throws IOException {
     this.dataPath = null;
     this.dataPath = Persistence.tryCreateDataPath(filePath);

@@ -86,7 +86,6 @@ public final class SimpleTermsQuery
       final QueryParser.Operator operator, final Set<String> fields,
       final Set<String> stopwords)
       throws ParseException {
-    super();
     if (Objects.requireNonNull(fields, "Fields were null.").isEmpty()) {
       throw new IllegalArgumentException("Empty fields list.");
     }

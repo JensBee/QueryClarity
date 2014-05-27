@@ -100,10 +100,13 @@ public final class DirectIndexDataProvider
   private DB dbTransient;
 
   /**
-   * Wrapper for persistent data storage.
+   * Wrapper for persistent data storage (static data).
    */
   private Persistence persistStatic;
 
+  /**
+   * Wrapper for persistent data storage (transient data).
+   */
   private Persistence persistTransient;
 
   /**
@@ -167,21 +170,24 @@ public final class DirectIndexDataProvider
    */
   private void initCache(final Builder builder)
       throws IOException, Buildable.BuildableException, DataProviderException {
-    boolean clearCache = false;
+    boolean clearTmpCache = false; // clear temporary caches
+    boolean needsUpdate = false; // persistent index needs update
 
     final Persistence.Builder psb = builder.persistenceBuilder;
 
     switch (psb.getCacheLoadInstruction()) {
       case MAKE:
         this.persistStatic = psb.make().build();
-        clearCache = true;
+        clearTmpCache = true;
+        needsUpdate = true;
         break;
       case GET:
         this.persistStatic = psb.get().build();
         break;
       default:
         if (!psb.dbExists()) {
-          clearCache = true;
+          clearTmpCache = true;
+          needsUpdate = true;
         }
         this.persistStatic = psb.makeOrGet().build();
         break;
@@ -189,10 +195,14 @@ public final class DirectIndexDataProvider
 
     this.dbStatic = this.persistStatic.db;
     LOG.info("Opening transient database.");
+
+    if (!builder.persistenceBuilderTransient.dbExists()) {
+      clearTmpCache = true;
+    }
     this.persistTransient = builder.persistenceBuilderTransient.build();
     this.dbTransient = this.persistTransient.db;
 
-    if (!clearCache) {
+    if (!needsUpdate) {
       if (!this.dbStatic.exists(DbMakers.Stores.IDX_TERMS_MAP.name())) {
         throw new IllegalStateException(
             "Invalid database state. 'idxTermsMap' does not exist.");
@@ -210,25 +220,33 @@ public final class DirectIndexDataProvider
         }
       }
       // check, if fields have changed
-      if (!this.persistTransient.getMetaData()
+      if (!this.persistStatic.getMetaData()
           .fieldsCurrent(getDocumentFields())) {
         LOG.info("Fields changed. Caches needs to be rebuild.");
-        clearCache = true;
+        needsUpdate = true;
       }
-      // check, if stopwords have changed
-      if (!this.persistTransient.getMetaData()
-          .stopwordsCurrent(getStopwords())) {
-        LOG.info("Stopwords changed. Caches needs to be rebuild.");
-        clearCache = true;
-      }
+    }
+
+    // check, if stopwords have changed
+    if (!this.persistTransient.getMetaData()
+        .stopwordsCurrent(getStopwords())) {
+      LOG.info("Stopwords changed. Caches needs to be rebuild.");
+      clearTmpCache = true;
+    } else {
+      LOG.info("Stopwords ({}) unchanged.", getStopwords().size());
     }
 
     if (isTemporary()) {
       setCachedFieldsMap(
           new HashMap<String, SerializableByte>(getDocumentFields().size()));
     } else {
-      setCachedFieldsMap(DbMakers.cachedFieldsMapMaker(this.dbTransient)
+      setCachedFieldsMap(DbMakers.cachedFieldsMapMaker(this.dbStatic)
           .<String, SerializableByte>makeOrGet());
+    }
+
+    if (!needsUpdate && getCachedFieldsMap().isEmpty()) {
+      throw new IllegalStateException("Cached fields map is empty. Index " +
+          "is corrupted.");
     }
 
     LOG.debug("Fields: cached={} active={}", getCachedFieldsMap().keySet(),
@@ -241,19 +259,22 @@ public final class DirectIndexDataProvider
         .<Fun.Tuple2<SerializableByte, ByteArray>, Long>makeOrGet());
 
     // caches are current
-    if (!clearCache) {
+    if (!clearTmpCache) {
       // read cached values
       readDbCaches();
 
       // finally check if any fields failed to index, returns true,
       // if any fields have been removed
-      clearCache = checkForIncompleteIndexedFields();
+      needsUpdate = checkForIncompleteIndexedFields();
     }
 
     // caches are not current, or their have been incomplete indexed fields
-    if (clearCache) {
+    if (clearTmpCache) {
       // re-create cached values
       clearDbCaches();
+    }
+
+    if (needsUpdate) {
       try {
         buildCache(getDocumentFields());
         this.persistTransient
@@ -269,6 +290,17 @@ public final class DirectIndexDataProvider
     this.dbStatic.close();
     this.persistStatic = psb.readOnly().get().build();
     this.dbStatic = this.persistStatic.db;
+
+    if (!isTemporary()) {
+      setCachedFieldsMap(DbMakers.cachedFieldsMapMaker(this.dbTransient)
+          .<String, SerializableByte>makeOrGet());
+      setIdxDocTermsMap(DbMakers.idxDocTermsMapMkr(this.dbStatic)
+          .<Fun.Tuple3<ByteArray, SerializableByte, Integer>,
+              Integer>makeOrGet());
+      setIdxTermsMap(DbMakers.idxTermsMapMkr(this.dbStatic)
+          .<Fun.Tuple2<SerializableByte, ByteArray>, Long>makeOrGet());
+      readDbCaches();
+    }
   }
 
   @Override
@@ -298,7 +330,7 @@ public final class DirectIndexDataProvider
         throw new IllegalStateException("Zero terms.");
       }
 
-      this.persistStatic.updateMetaData(getDocumentFields(), getStopwords());
+      this.persistTransient.updateMetaData(getDocumentFields(), getStopwords());
       commitDb(false);
     }
   }
@@ -490,8 +522,8 @@ public final class DirectIndexDataProvider
 
     final Processing processing = new Processing();
     final TimedCommit autoCommit = new TimedCommit(UserConf.AUTOCOMMIT_DELAY);
-    if (arContexts.size() == 1 && updatingFields.size() > 1) {
-      LOG.debug("Build strategy: concurrent fields");
+    if (arContexts.size() == 1) {
+      LOG.debug("Build strategy: concurrent field(s)");
 
       final AtomicReader reader = arContexts.get(0).reader();
       Set<ByteArray> termSet;

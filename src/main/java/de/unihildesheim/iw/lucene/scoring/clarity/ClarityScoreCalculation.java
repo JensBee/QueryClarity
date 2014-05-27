@@ -37,6 +37,13 @@ public interface ClarityScoreCalculation {
       throws ClarityScoreCalculationException, IOException;
 
   /**
+   * Get a short identifier for this calculation implementation.
+   *
+   * @return Identifier
+   */
+  String getIdentifier();
+
+  /**
    * Basic class wrapping errors occurring while calculating the Clarity Score.
    * May be extended by implementing classes to provide finer grained error
    * tracing.

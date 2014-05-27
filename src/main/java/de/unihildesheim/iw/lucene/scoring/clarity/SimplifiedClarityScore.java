@@ -52,30 +52,26 @@ public final class SimplifiedClarityScore
     implements ClarityScoreCalculation {
 
   /**
+   * Prefix used to identify externally stored data.
+   */
+  static final String IDENTIFIER = "SCS";
+  /**
    * Logger instance for this class.
    */
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       SimplifiedClarityScore.class);
-
-  /**
-   * Prefix used to identify externally stored data.
-   */
-  static final String IDENTIFIER = "SCS";
-
-  /**
-   * {@link IndexDataProvider} to use.
-   */
-  private IndexDataProvider dataProv;
-
-  /**
-   * Reader to access the Lucene index.
-   */
-  private IndexReader idxReader;
-
   /**
    * Provider for general index metrics.
    */
   Metrics metrics;
+  /**
+   * {@link IndexDataProvider} to use.
+   */
+  private IndexDataProvider dataProv;
+  /**
+   * Reader to access the Lucene index.
+   */
+  private IndexReader idxReader;
 
   /**
    * Default constructor. Called from builder.
@@ -101,6 +97,56 @@ public final class SimplifiedClarityScore
     instance.metrics = new Metrics(builder.idxDataProvider);
 
     return instance;
+  }
+
+  @Override
+  public ClarityScoreResult calculateClarity(final String query)
+      throws ClarityScoreCalculationException {
+    if (Objects.requireNonNull(query, "Query was null.").trim().isEmpty()) {
+      throw new IllegalArgumentException("Query was empty.");
+    }
+
+    // pre-check query terms
+    final Collection<ByteArray> queryTerms;
+    try {
+      // get all query terms - list must NOT be unique!
+      final QueryUtils queryUtils =
+          new QueryUtils(this.idxReader, this.dataProv.getDocumentFields());
+      queryTerms = queryUtils.getAllQueryTerms(query);
+      // remove stopwords from query
+      queryTerms.removeAll(this.dataProv.getStopwordsBytes());
+    } catch (ParseException | UnsupportedEncodingException e) {
+      throw new ClarityScoreCalculationException(
+          "Caught exception while preparing calculation.", e);
+    } catch (Buildable.BuildableException e) {
+      throw new ClarityScoreCalculationException(
+          "Caught exception while building query.", e);
+    }
+    if (queryTerms == null || queryTerms.isEmpty()) {
+      throw new IllegalStateException("No query terms.");
+    }
+
+    LOG.info("Calculating clarity score. query={}", query);
+    final TimeMeasure timeMeasure = new TimeMeasure().start();
+
+    final double score;
+    try {
+      score = calculateScore(queryTerms);
+    } catch (DataProviderException e) {
+      throw new ClarityScoreCalculationException(e);
+    }
+
+    LOG.debug("Calculation results: query={} score={}.", query, score);
+
+    LOG.debug("Calculating simplified clarity score for query {} "
+        + "took {}. {}", query, timeMeasure.getTimeString(), score);
+
+    return new ClarityScoreResult(this.getClass(), score);
+  }
+
+  @Override
+  public final String getIdentifier() {
+    return IDENTIFIER;
   }
 
   /**
@@ -145,49 +191,6 @@ public final class SimplifiedClarityScore
     return result;
   }
 
-  @Override
-  public ClarityScoreResult calculateClarity(final String query)
-      throws ClarityScoreCalculationException {
-    if (Objects.requireNonNull(query, "Query was null.").trim().isEmpty()) {
-      throw new IllegalArgumentException("Query was empty.");
-    }
-
-    // pre-check query terms
-    final Collection<ByteArray> queryTerms;
-    try {
-      // get all query terms - list must NOT be unique!
-      final QueryUtils queryUtils =
-          new QueryUtils(this.idxReader, this.dataProv.getDocumentFields());
-      queryTerms = queryUtils.getAllQueryTerms(query);
-    } catch (ParseException | UnsupportedEncodingException e) {
-      throw new ClarityScoreCalculationException(
-          "Caught exception while preparing calculation.", e);
-    } catch (Buildable.BuildableException e) {
-      throw new ClarityScoreCalculationException(
-          "Caught exception while building query.", e);
-    }
-    if (queryTerms == null || queryTerms.isEmpty()) {
-      throw new IllegalStateException("No query terms.");
-    }
-
-    LOG.info("Calculating clarity score. query={}", query);
-    final TimeMeasure timeMeasure = new TimeMeasure().start();
-
-    final double score;
-    try {
-      score = calculateScore(queryTerms);
-    } catch (DataProviderException e) {
-      throw new ClarityScoreCalculationException(e);
-    }
-
-    LOG.debug("Calculation results: query={} score={}.", query, score);
-
-    LOG.debug("Calculating simplified clarity score for query {} "
-        + "took {}. {}", query, timeMeasure.getTimeString(), score);
-
-    return new ClarityScoreResult(this.getClass(), score);
-  }
-
   /**
    * Builder to create a new {@link SimplifiedClarityScore} instance.
    */
@@ -203,16 +206,16 @@ public final class SimplifiedClarityScore
     }
 
     @Override
+    public void validate()
+        throws ConfigurationException {
+      super.validate();
+    }
+
+    @Override
     public SimplifiedClarityScore build()
         throws ConfigurationException {
       validate();
       return SimplifiedClarityScore.build(this);
-    }
-
-    @Override
-    public void validate()
-        throws ConfigurationException {
-      super.validate();
     }
   }
 }
