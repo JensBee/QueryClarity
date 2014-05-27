@@ -292,7 +292,7 @@ public final class DirectIndexDataProvider
     this.dbStatic = this.persistStatic.db;
 
     if (!isTemporary()) {
-      setCachedFieldsMap(DbMakers.cachedFieldsMapMaker(this.dbTransient)
+      setCachedFieldsMap(DbMakers.cachedFieldsMapMaker(this.dbStatic)
           .<String, SerializableByte>makeOrGet());
       setIdxDocTermsMap(DbMakers.idxDocTermsMapMkr(this.dbStatic)
           .<Fun.Tuple3<ByteArray, SerializableByte, Integer>,

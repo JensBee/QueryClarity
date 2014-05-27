@@ -60,34 +60,46 @@ public final class FixedTestIndexDataProvider
    */
   public static final TempDiskIndex TMP_IDX;
 
-  static {
-    try {
-      TMP_IDX = new TempDiskIndex(DOC_FIELDS);
-    } catch (IOException e) {
-      throw new ExceptionInInitializerError(e);
-    }
-  }
-
   /**
    * Temporary directory to store calculation data in test runs. Created as
    * subdirectory of the temporary index directory.
    */
-  public static final File DATA_DIR = new File(TMP_IDX.getIndexDir(), "data");
+  public static final File DATA_DIR;
 
-  static {
-    if (!DATA_DIR.exists() && !DATA_DIR.mkdirs()) {
-      throw new ExceptionInInitializerError(
-          "Failed to create data directory: '" + DATA_DIR + "'.");
-    }
-  }
 
   /**
    * Document contents.
    */
   public static final List<String[]> DOCUMENTS;
 
-  // generate the index
+  /**
+   * Number of fields per document.
+   */
+  private static final int FIELD_COUNT = 3;
+  /**
+   * Document fields.
+   */
+  private static final String[] DOC_FIELDS;
+
   static {
+    DOC_FIELDS = new String[FIELD_COUNT];
+    // create field names
+    for (int i = 0; i < FIELD_COUNT; i++) {
+      DOC_FIELDS[i] = "fld_" + i;
+    }
+
+    try {
+      TMP_IDX = new TempDiskIndex(DOC_FIELDS);
+    } catch (IOException e) {
+      throw new ExceptionInInitializerError(e);
+    }
+
+    DATA_DIR = new File(TMP_IDX.getIndexDir(), "data");
+    if (!DATA_DIR.exists() && !DATA_DIR.mkdirs()) {
+      throw new ExceptionInInitializerError(
+          "Failed to create data directory: '" + DATA_DIR + "'.");
+    }
+
     // create 10 "lorem ipsum" documents with 3 fields
     DOCUMENTS = new ArrayList<>();
     // doc 0
@@ -258,23 +270,6 @@ public final class FixedTestIndexDataProvider
   }
 
   /**
-   * Number of fields per document.
-   */
-  private static final int FIELD_COUNT = 3;
-  /**
-   * Document fields.
-   */
-  private static final String[] DOC_FIELDS;
-
-  static {
-    DOC_FIELDS = new String[FIELD_COUNT];
-    // create field names
-    for (int i = 0; i < FIELD_COUNT; i++) {
-      DOC_FIELDS[i] = "fld_" + i;
-    }
-  }
-
-  /**
    * Number of documents in the index.
    */
   private static final int DOC_COUNT = 10;
@@ -388,18 +383,13 @@ public final class FixedTestIndexDataProvider
      */
     public static final int TERM_COUNT = 1000;
     /**
-     * Number of documents in index.
-     */
-    public static final int DOC_COUNT = FixedTestIndexDataProvider.DOC_COUNT;
-    /**
      * Number of unique terms in index.
      */
     public static final int TERM_COUNT_UNIQUE = 171;
     /**
-     * Number of fields per document.
+     * Number of documents in index.
      */
-    public static final int FIELD_COUNT = FixedTestIndexDataProvider
-        .FIELD_COUNT;
+    public static final int DOC_COUNT = FixedTestIndexDataProvider.DOC_COUNT;
     /**
      * Number of unique combinations of documents & terms. Used for sizing
      * storage maps.
@@ -409,6 +399,11 @@ public final class FixedTestIndexDataProvider
      * Frequency values of all terms in index.
      */
     public static final Map<String, Integer> IDX_TERMFREQ;
+    /**
+     * Number of fields per document.
+     */
+    public static final int FIELD_COUNT = FixedTestIndexDataProvider
+        .FIELD_COUNT;
 
     static {
       IDX_TERMFREQ = new HashMap<>(171);
@@ -584,12 +579,10 @@ public final class FixedTestIndexDataProvider
       IDX_TERMFREQ.put("dis", 1);
       IDX_TERMFREQ.put("cum", 1);
     }
-
     /**
      * Document frequency values of all terms in index.
      */
     public static final Map<String, Integer> IDX_DOCFREQ;
-
     static {
       IDX_DOCFREQ = new HashMap(171);
       IDX_DOCFREQ.put("a", 9);
@@ -764,12 +757,10 @@ public final class FixedTestIndexDataProvider
       IDX_DOCFREQ.put("volutpat", 3);
       IDX_DOCFREQ.put("vulputate", 4);
     }
-
     /**
      * Term frequency values for document 0.
      */
     public static final Map<String, Integer> TF_DOC_0;
-
     static {
       TF_DOC_0 = new HashMap<>(65);
       TF_DOC_0.put("justo", 3);
@@ -838,12 +829,10 @@ public final class FixedTestIndexDataProvider
       TF_DOC_0.put("adipiscing", 1);
       TF_DOC_0.put("a", 1);
     }
-
     /**
      * Term frequency values for document 1.
      */
     public static final Map<String, Integer> TF_DOC_1;
-
     static {
       TF_DOC_1 = new HashMap<>(70);
       TF_DOC_1.put("etiam", 3);
@@ -917,12 +906,10 @@ public final class FixedTestIndexDataProvider
       TF_DOC_1.put("ac", 1);
       TF_DOC_1.put("a", 1);
     }
-
     /**
      * Term frequency values for document 2.
      */
     public static final Map<String, Integer> TF_DOC_2;
-
     static {
       TF_DOC_2 = new HashMap<>(69);
       TF_DOC_2.put("sed", 3);
@@ -995,12 +982,10 @@ public final class FixedTestIndexDataProvider
       TF_DOC_2.put("ac", 1);
       TF_DOC_2.put("a", 1);
     }
-
     /**
      * Term frequency values for document 3.
      */
     public static final Map<String, Integer> TF_DOC_3;
-
     static {
       TF_DOC_3 = new HashMap<>(71);
       TF_DOC_3.put("imperdiet", 4);
@@ -1075,12 +1060,10 @@ public final class FixedTestIndexDataProvider
       TF_DOC_3.put("accumsan", 1);
       TF_DOC_3.put("a", 1);
     }
-
     /**
      * Term frequency values for document 4.
      */
     public static final Map<String, Integer> TF_DOC_4;
-
     static {
       TF_DOC_4 = new HashMap<>(53);
       TF_DOC_4.put("posuere", 4);
@@ -1137,12 +1120,10 @@ public final class FixedTestIndexDataProvider
       TF_DOC_4.put("aenean", 1);
       TF_DOC_4.put("accumsan", 1);
     }
-
     /**
      * Term frequency values for document 5.
      */
     public static final Map<String, Integer> TF_DOC_5;
-
     static {
       TF_DOC_5 = new HashMap<>(74);
       TF_DOC_5.put("et", 4);
@@ -1220,12 +1201,10 @@ public final class FixedTestIndexDataProvider
       TF_DOC_5.put("aenean", 1);
       TF_DOC_5.put("a", 1);
     }
-
     /**
      * Term frequency values for document 6.
      */
     public static final Map<String, Integer> TF_DOC_6;
-
     static {
       TF_DOC_6 = new HashMap<>(72);
       TF_DOC_6.put("felis", 5);
@@ -1301,12 +1280,10 @@ public final class FixedTestIndexDataProvider
       TF_DOC_6.put("augue", 1);
       TF_DOC_6.put("aenean", 1);
     }
-
     /**
      * Term frequency values for document 7.
      */
     public static final Map<String, Integer> TF_DOC_7;
-
     static {
       TF_DOC_7 = new HashMap<>(74);
       TF_DOC_7.put("et", 5);
@@ -1384,12 +1361,10 @@ public final class FixedTestIndexDataProvider
       TF_DOC_7.put("adipiscing", 1);
       TF_DOC_7.put("a", 1);
     }
-
     /**
      * Term frequency values for document 8.
      */
     public static final Map<String, Integer> TF_DOC_8;
-
     static {
       TF_DOC_8 = new HashMap<>(77);
       TF_DOC_8.put("vestibulum", 5);
@@ -1470,12 +1445,10 @@ public final class FixedTestIndexDataProvider
       TF_DOC_8.put("adipiscing", 1);
       TF_DOC_8.put("a", 1);
     }
-
     /**
      * Term frequency values for document 9.
      */
     public static final Map<String, Integer> TF_DOC_9;
-
     static {
       TF_DOC_9 = new HashMap<>(86);
       TF_DOC_9.put("ut", 6);
