@@ -120,25 +120,75 @@ public final class StringUtils {
   }
 
   /**
-   * Manual lower-case function that works on character level to avoid locale
+   * Checks, if a String is empty, if all characters defined by {@link
+   * String#trim()} are removed.
+   *
+   * @param input String to check
+   * @return True, if String will be empty after stripping those characters
+   */
+  public static boolean isTrimmedEmpty(final String input) {
+    for (int i = 0; i < input.length(); i++) {
+      if (input.charAt(i) > ' ') {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Manual upper-case function that works on character level to avoid locale
    * problems.
    *
    * @param input String to convert to all lower-case
-   * @return Lower-cased input string
+   * @return Lower-cased input String or plain input String, if empty
    */
-  public static String lowerCase(final String input) {
+  public static String upperCase(final String input) {
     Objects.requireNonNull(input, "String was null.");
 
-    if (input.trim().isEmpty()) {
+    if (isStrippedEmpty(input) || isAllUpper(input)) {
       return input;
     }
-    // manual transform to lowercase to avoid locale problems
-    char[] inputChars = input.toCharArray();
-    for (int i = 0; i < inputChars.length; i++) {
-      inputChars[i] = Character.toLowerCase(inputChars[i]);
+    final StringBuffer sb = new StringBuffer(input.length());
+    // manual transform to uppercase to avoid locale problems
+    for (int i = 0; i < input.length(); i++) {
+      sb.append(Character.toChars(Character.toUpperCase(input.codePointAt(i))));
     }
     // string is now all lower case
-    return new String(inputChars);
+    return sb.toString();
+  }
+
+  /**
+   * Checks, if a String is empty, if all characters defined by {@link
+   * Character#isWhitespace(int)} are removed.
+   *
+   * @param input String to check
+   * @return True, if String will be empty after stripping those characters
+   */
+  public static boolean isStrippedEmpty(final String input) {
+    for (int i = 0; i < input.length(); i++) {
+      if (!Character.isWhitespace(input.codePointAt(i))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Checks, if a String is all upper-case.
+   *
+   * @param input String to check
+   * @return True, if all upper-case or input String was empty
+   */
+  public static boolean isAllUpper(final String input) {
+    if (isStrippedEmpty(input)) {
+      return true;
+    }
+    for (int i = 0; i < input.length(); i++) {
+      if (!Character.isUpperCase(input.codePointAt(i))) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /**
@@ -159,7 +209,7 @@ public final class StringUtils {
     final Map<String, Integer> wordCounts = new HashMap<>();
 
     // short circuit, if string is empty
-    if (text.trim().isEmpty()) {
+    if (isStrippedEmpty(text)) {
       return wordCounts;
     }
 
@@ -187,6 +237,28 @@ public final class StringUtils {
   }
 
   /**
+   * Manual lower-case function that works on character level to avoid locale
+   * problems.
+   *
+   * @param input String to convert to all lower-case
+   * @return Lower-cased input string
+   */
+  public static String lowerCase(final String input) {
+    Objects.requireNonNull(input, "String was null.");
+
+    if (isStrippedEmpty(input) || isAllLower(input)) {
+      return input;
+    }
+    final StringBuffer sb = new StringBuffer(input.length());
+    // manual transform to lowercase to avoid locale problems
+    for (int i = 0; i < input.length(); i++) {
+      sb.append(Character.toChars(Character.toLowerCase(input.codePointAt(i))));
+    }
+    // string is now all lower case
+    return sb.toString();
+  }
+
+  /**
    * Checks, if a given string is a letter or number or a character representing
    * something else (digit, semicolon, quote,..)
    *
@@ -196,9 +268,32 @@ public final class StringUtils {
   private static boolean isWord(final String word) {
     assert word != null;
 
+    if (word == null) {
+      return false;
+    }
+
     if (word.length() == 1) {
       return Character.isLetterOrDigit(word.charAt(0));
     }
-    return !"".equals(word.trim());
+
+    return !isStrippedEmpty(word);
+  }
+
+  /**
+   * Checks, if a String is all lower-case.
+   *
+   * @param input String to check
+   * @return True, if all lower-case or String is empty
+   */
+  public static boolean isAllLower(final String input) {
+    if (isStrippedEmpty(input)) {
+      return true;
+    }
+    for (int i = 0; i < input.length(); i++) {
+      if (!Character.isLowerCase(input.codePointAt(i))) {
+        return false;
+      }
+    }
+    return true;
   }
 }

@@ -26,6 +26,25 @@ import java.io.IOException;
 public interface ClarityScoreCalculation {
 
   /**
+   * Empty implementation. May be used, if calculation has failed.
+   */
+  static final ClarityScoreCalculation NONE = new
+      ClarityScoreCalculation() {
+
+        @Override
+        public ClarityScoreResult calculateClarity(final String query)
+            throws ClarityScoreCalculationException,
+                   IOException {
+          return ClarityScoreResult.EMPTY_RESULT;
+        }
+
+        @Override
+        public String getIdentifier() {
+          return "NONE";
+        }
+      };
+
+  /**
    * Calculate the clarity score based on the given query terms.
    *
    * @param query Query used for term extraction

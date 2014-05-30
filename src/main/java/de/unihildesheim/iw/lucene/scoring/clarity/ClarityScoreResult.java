@@ -25,13 +25,25 @@ import java.util.Objects;
  *
  * @author Jens Bertram
  */
-public class ClarityScoreResult
+public abstract class ClarityScoreResult
     extends ScoringResult {
 
   /**
    * Used implementation of {@link ClarityScoreCalculation}.
    */
   private final Class<? extends ClarityScoreCalculation> type;
+  /**
+   * Empty result. May be returned, if calculation has failed.
+   */
+  public static final ClarityScoreResult EMPTY_RESULT =
+      new ClarityScoreResult(ClarityScoreCalculation.NONE.getClass()) {
+        private final ScoringResultXml xml = new ScoringResultXml();
+
+        @Override
+        public ScoringResultXml getXml() {
+          return xml;
+        }
+      };
 
   /**
    * Create a new calculation result of the given type with the given value.
@@ -41,7 +53,6 @@ public class ClarityScoreResult
    */
   ClarityScoreResult(final Class<? extends ClarityScoreCalculation> cscType,
       final double clarityScore) {
-    super();
     this.type = Objects.requireNonNull(cscType, "Score type was null.");
     _setScore(clarityScore);
   }
@@ -66,4 +77,6 @@ public class ClarityScoreResult
   public final Class<? extends ClarityScoreCalculation> getType() {
     return type;
   }
+
+
 }

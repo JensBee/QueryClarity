@@ -23,17 +23,14 @@ import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.StringUtils;
-import org.apache.lucene.search.IndexSearcher;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -52,10 +49,41 @@ public final class SimpleTermsQueryTest
    * @param dataProv Data provider to use
    * @param rType Data provider configuration
    */
-  public SimpleTermsQueryTest(
-      final DataProviders dataProv,
-      final MultiIndexDataProviderTestCase.RunType rType) {
+  public SimpleTermsQueryTest(final DataProviders dataProv,
+      final RunType rType) {
     super(dataProv, rType);
+  }
+
+  /**
+   * Test constructor of class SimpleTermQuery.
+   *
+   * @throws Exception Any exception thrown indicates an error
+   */
+  @Test
+  @SuppressWarnings("ResultOfObjectAllocationIgnored")
+  public void testConstructor()
+      throws Exception {
+    try {
+      new SimpleTermsQuery(referenceIndex.getAnalyzer(), " ",
+          SimpleTermsQuery.DEFAULT_OPERATOR,
+          referenceIndex.getDocumentFields());
+      fail(msg("Expected exception: Empty query string."));
+    } catch (final IllegalArgumentException ex) {
+    }
+    try {
+      new SimpleTermsQuery(referenceIndex.getAnalyzer(), null,
+          SimpleTermsQuery.DEFAULT_OPERATOR,
+          referenceIndex.getDocumentFields());
+      fail(msg("Expected exception: Empty query string (null)."));
+    } catch (final IllegalArgumentException ex) {
+    }
+    try {
+      new SimpleTermsQuery(referenceIndex.getAnalyzer(), "",
+          SimpleTermsQuery.DEFAULT_OPERATOR,
+          referenceIndex.getDocumentFields());
+      fail(msg("Expected exception: Empty query string."));
+    } catch (final IllegalArgumentException ex) {
+    }
   }
 
   /**
@@ -76,87 +104,15 @@ public final class SimpleTermsQueryTest
    * @return Instance with the given query string set
    * @throws Exception Any exception thrown indicates an error
    */
-  private SimpleTermsQuery getInstance(final String query)
+  private static SimpleTermsQuery getInstance(final String query)
       throws Exception {
-    return new SimpleTermsQuery(query, SimpleTermsQuery.DEFAULT_OPERATOR,
-        referenceIndex.getDocumentFields(),
-        referenceIndex.getStopwords());
+    return new SimpleTermsQuery(referenceIndex.getAnalyzer(), query,
+        SimpleTermsQuery.DEFAULT_OPERATOR,
+        referenceIndex.getDocumentFields());
   }
 
   /**
-   * Test constructor of class SimpleTermQuery.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  @SuppressWarnings("ResultOfObjectAllocationIgnored")
-  public void testConstructor()
-      throws Exception {
-    try {
-      new SimpleTermsQuery(" ", SimpleTermsQuery.DEFAULT_OPERATOR,
-          referenceIndex.getDocumentFields(),
-          referenceIndex.getStopwords());
-      fail(msg("Expected exception: Empty query string."));
-    } catch (IllegalArgumentException ex) {
-    }
-    try {
-      new SimpleTermsQuery(null, SimpleTermsQuery.DEFAULT_OPERATOR,
-          referenceIndex.getDocumentFields(),
-          referenceIndex.getStopwords());
-      fail(msg("Expected exception: Empty query string (null)."));
-    } catch (IllegalArgumentException ex) {
-    }
-    try {
-      new SimpleTermsQuery("", SimpleTermsQuery.DEFAULT_OPERATOR,
-          referenceIndex.getDocumentFields(),
-          referenceIndex.getStopwords());
-      fail(msg("Expected exception: Empty query string."));
-    } catch (IllegalArgumentException ex) {
-    }
-  }
-
-  /**
-   * Test of toString method, of class SimpleTermQuery.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testToString_String()
-      throws Exception {
-    final SimpleTermsQuery instance = getInstance();
-    for (final String field : referenceIndex.getDocumentFields()) {
-      final String result = instance.toString(field);
-      assertFalse("Results were empty.", result.isEmpty());
-    }
-  }
-
-  /**
-   * Test of toString method, of class SimpleTermQuery.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testToString_0args()
-      throws Exception {
-    getInstance().toString();
-  }
-
-  /**
-   * Test of createWeight method, of class SimpleTermQuery.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testCreateWeight()
-      throws Exception {
-    final IndexSearcher searcher =
-        new IndexSearcher(referenceIndex.getIndexReader().
-            getContext());
-    getInstance().createWeight(searcher);
-  }
-
-  /**
-   * Test of getQueryObj method, of class SimpleTermsQuery.
+   * Test of getSTQueryObj method, of class SimpleTermsQuery.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
@@ -166,9 +122,10 @@ public final class SimpleTermsQueryTest
     final String queryStr = TestIndexDataProvider.util.getQueryString();
     final SimpleTermsQuery instance = getInstance(queryStr);
     final Collection<String> result = instance.getQueryTerms();
-    final Collection<ByteArray> exp = new QueryUtils(referenceIndex
-        .getIndexReader(), referenceIndex.getDocumentFields())
-        .getAllQueryTerms(queryStr);
+    final Collection<ByteArray> exp = new QueryUtils(
+        referenceIndex.getAnalyzer(),
+        referenceIndex.getIndexReader(),
+        referenceIndex.getDocumentFields()).getAllQueryTerms(queryStr);
     final Collection<String> expResult = new ArrayList<>(exp.size());
     final Collection<String> stopwords = referenceIndex.getStopwords();
 
@@ -179,7 +136,8 @@ public final class SimpleTermsQueryTest
       }
     }
 
-    assertEquals(msg("Term count differs."), expResult.size(), result.size());
+    assertEquals(msg("Term count differs."),
+        (long) expResult.size(), (long) result.size());
     assertTrue(msg("Not all terms present."), expResult.containsAll(result));
   }
 
@@ -192,7 +150,7 @@ public final class SimpleTermsQueryTest
   public void testGetQueryTerms()
       throws Exception {
     final int termsCount = RandomValue.getInteger(3, 100);
-    final List<String> terms = new ArrayList<>(termsCount);
+    final Collection<String> terms = new ArrayList<>(termsCount);
     final Collection<String> stopwords = referenceIndex.getStopwords();
 
     for (int i = 0; i < termsCount; i++) {
@@ -203,10 +161,10 @@ public final class SimpleTermsQueryTest
     }
     final SimpleTermsQuery instance = getInstance(StringUtils.join(terms, " "));
 
-    assertEquals(msg("Not all terms returned."), terms.size(), instance.
-        getQueryTerms().size());
-    assertTrue(msg("Not all terms in result set."), instance.getQueryTerms().
-        containsAll(terms));
+    assertEquals(msg("Not all terms returned."),
+        (long) terms.size(), (long) instance.getQueryTerms().size());
+    assertTrue(msg("Not all terms in result set."),
+        instance.getQueryTerms().containsAll(terms));
   }
 
 }

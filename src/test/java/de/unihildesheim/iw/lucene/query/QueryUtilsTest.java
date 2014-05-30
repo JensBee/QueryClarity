@@ -59,9 +59,7 @@ public final class QueryUtilsTest
    * @param dataProv {@link IndexDataProvider} to use
    * @param rType Data provider configuration
    */
-  public QueryUtilsTest(
-      final DataProviders dataProv,
-      final MultiIndexDataProviderTestCase.RunType rType) {
+  public QueryUtilsTest(final DataProviders dataProv, final RunType rType) {
     super(dataProv, rType);
   }
 
@@ -70,12 +68,12 @@ public final class QueryUtilsTest
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
+  @SuppressWarnings("ObjectAllocationInLoop")
   @Test
-  @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
   public void testGetUniqueQueryTerms()
       throws Exception {
     final int termsCount = RandomValue.getInteger(3, 100);
-    final Set<ByteArray> termsBw = new HashSet<>(termsCount);
+    final Collection<ByteArray> termsBw = new HashSet<>(termsCount);
     final List<String> terms = new ArrayList<>(termsCount);
     final Set<String> stopwords = referenceIndex.getStopwords();
 
@@ -92,6 +90,7 @@ public final class QueryUtilsTest
         terms.toArray(new String[terms.size()]));
     LOG.debug("QS->{}", queryString);
     final Set<ByteArray> result = new QueryUtils(referenceIndex
+        .getAnalyzer(), referenceIndex
         .getIndexReader(), referenceIndex.getDocumentFields())
         .getUniqueQueryTerms(queryString);
 
@@ -104,8 +103,8 @@ public final class QueryUtilsTest
     }
 
     LOG.debug("A={} B={}", termsBw, result);
-    assertEquals(msg("Terms amount mismatch."), termsBw.size(),
-        result.size());
+    assertEquals(msg("Terms amount mismatch."), (long) termsBw.size(),
+        (long) result.size());
     assertTrue(msg("Term list content differs."), result.containsAll(termsBw));
   }
 
@@ -114,13 +113,12 @@ public final class QueryUtilsTest
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
+  @SuppressWarnings("ObjectAllocationInLoop")
   @Test
-  @SuppressWarnings({"DM_DEFAULT_ENCODING",
-      "PMD.AvoidInstantiatingObjectsInLoops"})
   public void testGetAllQueryTerms()
       throws Exception {
     final int termsCount = RandomValue.getInteger(3, 100);
-    final List<ByteArray> termsBw = new ArrayList<>(termsCount);
+    final Collection<ByteArray> termsBw = new ArrayList<>(termsCount);
     final List<String> terms = new ArrayList<>(termsCount);
     final Set<String> stopwords = referenceIndex.getStopwords();
 
@@ -139,9 +137,10 @@ public final class QueryUtilsTest
 
     final String queryString = TestIndexDataProvider.util.getQueryString(
         terms.toArray(new String[termsCount]));
-    final Collection<ByteArray> result = new QueryUtils(referenceIndex
-        .getIndexReader(), referenceIndex.getDocumentFields())
-        .getAllQueryTerms(queryString);
+    final Collection<ByteArray> result = new QueryUtils(
+        referenceIndex.getAnalyzer(),
+        referenceIndex.getIndexReader(),
+        referenceIndex.getDocumentFields()).getAllQueryTerms(queryString);
 
     // manual stopword removal
     final Iterator<ByteArray> rt = result.iterator();
@@ -152,24 +151,7 @@ public final class QueryUtilsTest
     }
 
     assertTrue(msg("Not all terms returned."), result.containsAll(termsBw));
-
-    if (termsBw.size() != result.size()) {
-      @java.lang.SuppressWarnings("StringBufferWithoutInitialCapacity")
-      final StringBuilder sbInitial = new StringBuilder();
-
-      for (final ByteArray bw : termsBw) {
-        sbInitial.append(new String(bw.bytes)).append(' ');
-      }
-
-      @java.lang.SuppressWarnings("StringBufferWithoutInitialCapacity")
-      final StringBuilder sbResult = new StringBuilder();
-
-      for (final ByteArray bw : result) {
-        sbResult.append(ByteArrayUtils.utf8ToString(bw)).append(' ');
-      }
-    }
-
     assertEquals(msg("Initial term list and returned list differ in size."),
-        termsBw.size(), result.size());
+        (long) termsBw.size(), (long) result.size());
   }
 }

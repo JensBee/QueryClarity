@@ -18,6 +18,7 @@ package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.ByteArray;
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 
@@ -40,14 +41,17 @@ public final class QueryUtils {
 
   private final Set<String> fields;
   private final IndexReader reader;
+  private final Analyzer analyzer;
 
-  public QueryUtils(final IndexReader newReader, final Set<String> newFields) {
+  public QueryUtils(final Analyzer newAnalyzer, final IndexReader newReader,
+      final Set<String> newFields) {
     Objects.requireNonNull(newReader, "IndexReader was null.");
     if (Objects.requireNonNull(newFields, "Fields were null.").isEmpty()) {
       throw new IllegalArgumentException("Fields list was empty.");
     }
     this.fields = newFields;
     this.reader = newReader;
+    this.analyzer = newAnalyzer;
   }
 
   /**
@@ -67,7 +71,9 @@ public final class QueryUtils {
       throw new IllegalArgumentException("Query was empty.");
     }
     return new HashSet<>(extractTerms(
-        new TermsQueryBuilder(this.reader, this.fields).query(query).build()));
+        new SimpleTermsQueryBuilder(this.reader, this.fields)
+            .analyzer(this.analyzer).query(query).build()
+    ));
   }
 
   /**
@@ -80,7 +86,7 @@ public final class QueryUtils {
    * @throws org.apache.lucene.queryparser.classic.ParseException Thrown, if
    * query string could not be parsed
    */
-  private List<ByteArray> extractTerms(final SimpleTermsQuery query)
+  private List<ByteArray> extractTerms(final TermsProvidingQuery query)
       throws
       UnsupportedEncodingException, ParseException,
       Buildable.ConfigurationException, Buildable.BuildException {
@@ -109,7 +115,7 @@ public final class QueryUtils {
    * @throws ParseException
    * @throws UnsupportedEncodingException
    */
-  public Set<ByteArray> getUniqueQueryTerms(final SimpleTermsQuery query)
+  public Set<ByteArray> getUniqueQueryTerms(final TermsProvidingQuery query)
       throws Buildable.ConfigurationException, Buildable.BuildException,
              ParseException, UnsupportedEncodingException {
     return new HashSet<>(extractTerms(query));
@@ -132,7 +138,9 @@ public final class QueryUtils {
       throw new IllegalArgumentException("Query was empty.");
     }
     return extractTerms(
-        new TermsQueryBuilder(this.reader, this.fields).query(query).build());
+        new SimpleTermsQueryBuilder(this.reader, this.fields)
+            .analyzer(this.analyzer).query(query).build()
+    );
   }
 
   /**

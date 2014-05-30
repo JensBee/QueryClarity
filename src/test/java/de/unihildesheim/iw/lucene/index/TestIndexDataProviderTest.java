@@ -33,6 +33,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -48,6 +49,11 @@ public final class TestIndexDataProviderTest
     extends IndexDataProviderTestCase {
 
   /**
+   * Term whitespace split pattern.
+   */
+  private static final Pattern WS_SPLIT = Pattern.compile(" ");
+
+  /**
    * Initialize the test.
    *
    * @throws Exception Any exception indicates an error
@@ -55,19 +61,6 @@ public final class TestIndexDataProviderTest
   public TestIndexDataProviderTest()
       throws Exception {
     super(new TestIndexDataProvider(TestIndexDataProvider.DEFAULT_INDEX_SIZE));
-  }
-
-  /**
-   * Initialize the test environment.
-   *
-   * @param fields Fields to use (may be null to use all)
-   * @param stopwords Stopwords to use (may be null)
-   * @throws Exception Any exception indicates an error
-   */
-  private void initEnvironment(final Set<String> fields,
-      final Set<String> stopwords)
-      throws Exception {
-    this.referenceIndex.prepareTestEnvironment(fields, stopwords);
   }
 
   /**
@@ -84,6 +77,19 @@ public final class TestIndexDataProviderTest
   }
 
   /**
+   * Initialize the test environment.
+   *
+   * @param fields Fields to use (may be null to use all)
+   * @param stopwords Stopwords to use (may be null)
+   * @throws Exception Any exception indicates an error
+   */
+  private void initEnvironment(final Set<String> fields,
+      final Set<String> stopwords)
+      throws Exception {
+    this.referenceIndex.prepareTestEnvironment(fields, stopwords);
+  }
+
+  /**
    * Test of getQueryString method, of class TestIndexDataProvider.
    *
    * @throws Exception Any exception indicates an error
@@ -94,9 +100,10 @@ public final class TestIndexDataProviderTest
     initEnvironment(null, null);
     final String qString = TestIndexDataProvider.util.getQueryString();
     final Collection<ByteArray> qTerms;
-    qTerms = new QueryUtils(this.referenceIndex
-        .getIndexReader(), this.referenceIndex.getDocumentFields())
-        .getUniqueQueryTerms(qString);
+    qTerms = new QueryUtils(
+        this.referenceIndex.getAnalyzer(),
+        this.referenceIndex.getIndexReader(),
+        this.referenceIndex.getDocumentFields()).getUniqueQueryTerms(qString);
     final Collection<ByteArray> sWords = TestIndexDataProvider.reference
         .getStopwords();
 
@@ -106,14 +113,14 @@ public final class TestIndexDataProviderTest
           final long result = this.referenceIndex.getTermFrequency(qTerm);
           assertEquals("Stopword has term frequency >0.", 0L, result);
         } else {
-          assertNotEquals(this, referenceIndex.getTermFrequency(qTerm));
+          assertNotEquals(this, this.referenceIndex.getTermFrequency(qTerm));
         }
       }
     }
   }
 
   /**
-   * Test of getQueryObj method, of class TestIndexDataProvider.
+   * Test of getSTQueryObj method, of class TestIndexDataProvider.
    *
    * @throws Exception Any exception indicates an error
    */
@@ -143,11 +150,13 @@ public final class TestIndexDataProviderTest
     initEnvironment(null, null);
     final String result = TestIndexDataProvider.util.getUniqueQueryString();
     final Collection<ByteArray> qTerms =
-        new QueryUtils(this.referenceIndex.getIndexReader()
-            , this.referenceIndex.getDocumentFields()).getAllQueryTerms(result);
-    final Set<ByteArray> qTermsUnique = new HashSet<>(qTerms);
-    assertEquals("Query string was not made of unique terms.", qTerms.size(),
-        qTermsUnique.size());
+        new QueryUtils(
+            this.referenceIndex.getAnalyzer(),
+            this.referenceIndex.getIndexReader(),
+            this.referenceIndex.getDocumentFields()).getAllQueryTerms(result);
+    final Collection<ByteArray> qTermsUnique = new HashSet<>(qTerms);
+    assertEquals("Query string was not made of unique terms.",
+        (long) qTerms.size(), (long) qTermsUnique.size());
   }
 
   /**
@@ -160,20 +169,22 @@ public final class TestIndexDataProviderTest
       throws Exception {
     initEnvironment(null, null);
     final String exStr = TestIndexDataProvider.util.getQueryString();
-    final String[] exArr = exStr.split(" ");
+    final String[] exArr = WS_SPLIT.split(exStr);
     final Collection<String> exColl = Arrays.asList(exArr);
 
     final String resStr = TestIndexDataProvider.util.getQueryString(exArr);
-    final String[] resArr = resStr.split(" ");
+    final String[] resArr = WS_SPLIT.split(resStr);
     final Collection<String> resColl = Arrays.asList(resArr);
 
-    assertEquals("Query terms size differs.", exArr.length, resArr.length);
-    assertEquals("Query terms size differs.", exColl.size(), resColl.size());
+    assertEquals("Query terms size differs.",
+        (long) exArr.length, (long) resArr.length);
+    assertEquals("Query terms size differs.",
+        (long) exColl.size(), (long) resColl.size());
     assertTrue("Query terms content differs.", resColl.containsAll(exColl));
   }
 
   /**
-   * Test of getQueryObj method, of class TestIndexDataProvider.
+   * Test of getSTQueryObj method, of class TestIndexDataProvider.
    *
    * @throws Exception Any exception indicates an error
    */
@@ -183,16 +194,17 @@ public final class TestIndexDataProviderTest
       throws Exception {
     initEnvironment(null, null);
     final String exStr = TestIndexDataProvider.util.getQueryString();
-    final Collection<ByteArray> oQueryTerms = new QueryUtils(this.referenceIndex
-        .getIndexReader(), this.referenceIndex.getDocumentFields())
-        .getAllQueryTerms(exStr);
+    final Collection<ByteArray> oQueryTerms = new QueryUtils(
+        this.referenceIndex.getAnalyzer(),
+        this.referenceIndex.getIndexReader(),
+        this.referenceIndex.getDocumentFields()).getAllQueryTerms(exStr);
     final Collection<String> oQueryTermsStr = new ArrayList<>(oQueryTerms.
         size());
     for (final ByteArray qTerm : oQueryTerms) {
       oQueryTermsStr.add(ByteArrayUtils.utf8ToString(qTerm));
     }
     // stopwords are already removed
-    final Collection<String> qTerms = TestIndexDataProvider.util.getQueryObj
+    final Collection<String> qTerms = TestIndexDataProvider.util.getSTQueryObj
         (oQueryTermsStr.toArray(new String[oQueryTermsStr.size()]))
         .getQueryTerms();
     for (final String term : qTerms) {

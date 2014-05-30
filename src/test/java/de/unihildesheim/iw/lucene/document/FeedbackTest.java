@@ -53,7 +53,7 @@ public final class FeedbackTest
    */
   public FeedbackTest(
       final DataProviders dataProv,
-      final MultiIndexDataProviderTestCase.RunType rType) {
+      final RunType rType) {
     super(dataProv, rType);
   }
 
@@ -70,7 +70,7 @@ public final class FeedbackTest
     Collection<Integer> result;
     for (int i = 1; i < maxDocCount; i += 10) {
       result = Feedback.get(referenceIndex.getIndexReader(),
-          TestIndexDataProvider.util.getQueryObj(), i);
+          TestIndexDataProvider.util.getQueryObj().getQueryObj(), i);
       assertNotEquals(msg("There must be results."), 0, result.size());
     }
   }
@@ -86,7 +86,7 @@ public final class FeedbackTest
     // try to get some random results
     Collection<Integer> result;
     result = Feedback.get(referenceIndex.getIndexReader(),
-        TestIndexDataProvider.util.getQueryObj(), -1);
+        TestIndexDataProvider.util.getQueryObj().getQueryObj(), -1);
     assertNotEquals(msg("No documents retrieved from feedback."), 0,
         result.size());
   }
@@ -119,7 +119,8 @@ public final class FeedbackTest
     singleTermQuery[0] = ByteArrayUtils.utf8ToString(terms.get(idx));
 
     boolean foundDoc = false;
-    final Query query = TestIndexDataProvider.util.getQueryObj(singleTermQuery);
+    final Query query = TestIndexDataProvider.util.getSTQueryObj
+        (singleTermQuery).getQueryObj();
     result = Feedback.get(referenceIndex.getIndexReader(), query, -1);
     for (final Integer docId : result) {
       if (docId.equals(docModel.id)) {
@@ -132,7 +133,8 @@ public final class FeedbackTest
 
     foundDoc = false;
     result = Feedback.get(referenceIndex.getIndexReader(),
-        TestIndexDataProvider.util.getQueryObj(multiTermQuery), -1
+        TestIndexDataProvider.util.getSTQueryObj(multiTermQuery).getQueryObj(),
+        -1
     );
     for (final Integer docId : result) {
       if (docId == docModel.id) {
@@ -155,7 +157,7 @@ public final class FeedbackTest
     // try to get some random results
     for (int i = 1; i < maxDocCount; i += 10) {
       result = Feedback.getFixed(referenceIndex.getIndexReader(),
-          TestIndexDataProvider.util.getQueryObj(), i);
+          TestIndexDataProvider.util.getQueryObj().getQueryObj(), i);
       assertEquals(msg("Less than expected documents returned."), i, result.
           size());
     }
@@ -173,7 +175,8 @@ public final class FeedbackTest
     final long maxDocCount = this.index.getDocumentCount();
     Collection<Integer> result;
     result = Feedback.getFixed(referenceIndex.getIndexReader(),
-        TestIndexDataProvider.util.getQueryObj(), (int) maxDocCount + 100);
+        TestIndexDataProvider.util.getQueryObj().getQueryObj(),
+        (int) maxDocCount + 100);
     assertEquals(msg("Less than expected documents returned."), maxDocCount,
         result.size());
   }
@@ -207,14 +210,14 @@ public final class FeedbackTest
     }
 
     result = Feedback.getFixed(referenceIndex.getIndexReader(),
-        TestIndexDataProvider.util.getQueryObj(singleTermQuery),
+        TestIndexDataProvider.util.getSTQueryObj(singleTermQuery).getQueryObj(),
         (int) maxDocCount
     );
     assertTrue(msg("Document not in single-term query result set."), result.
         contains(docModel.id));
 
     result = Feedback.getFixed(referenceIndex.getIndexReader(),
-        TestIndexDataProvider.util.getQueryObj(multiTermQuery),
+        TestIndexDataProvider.util.getSTQueryObj(multiTermQuery).getQueryObj(),
         (int) maxDocCount
     );
     assertTrue(msg("Document not in multi-term query result set."), result.
@@ -232,7 +235,7 @@ public final class FeedbackTest
     // wrapper function - just test if it succeeds
     assertFalse(msg("No results."),
         Feedback.get(referenceIndex.getIndexReader(),
-            TestIndexDataProvider.util.getQueryObj(),
+            TestIndexDataProvider.util.getQueryObj().getQueryObj(),
             RandomValue.getInteger(1, (int) this.index.getDocumentCount())
         ).isEmpty()
     );
@@ -249,7 +252,8 @@ public final class FeedbackTest
     System.out.println("getFixed [reader, query, docCount]");
     // wrapper function - just test if it succeeds
     assertFalse(msg("No results."), Feedback.getFixed(referenceIndex.
-            getIndexReader(), TestIndexDataProvider.util.getQueryObj(),
+            getIndexReader(),
+        TestIndexDataProvider.util.getQueryObj().getQueryObj(),
         RandomValue.getInteger(1, (int) this.index.getDocumentCount())
     ).isEmpty());
   }

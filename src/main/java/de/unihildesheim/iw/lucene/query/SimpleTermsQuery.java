@@ -20,25 +20,20 @@ import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.analysis.util.CharArraySet;
-import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
-import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.queryparser.flexible.standard.QueryParserUtil;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.Bits;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -50,7 +45,7 @@ import java.util.Set;
  * @author Jens Bertram
  */
 public final class SimpleTermsQuery
-    extends Query {
+    implements TermsProvidingQuery {
 
   /**
    * Default boolean operator to use for concatenating terms.
@@ -74,17 +69,17 @@ public final class SimpleTermsQuery
   /**
    * Create a new simple term query.
    *
+   * @param analyzer Analyzer for parsing the query
    * @param query Query string
    * @param operator Default boolean operator to use
    * @param fields Document fields to include
-   * @param stopwords List of stop-words to exclude from the query (case is
-   * ignored)
    * @throws ParseException Thrown if there were errors parsing the query
    * string
    */
-  public SimpleTermsQuery(final String query,
-      final QueryParser.Operator operator, final Set<String> fields,
-      final Set<String> stopwords)
+  public SimpleTermsQuery(final Analyzer analyzer, final String query,
+      final QueryParser.Operator operator,
+      final Set<String> fields
+  )
       throws ParseException {
     if (Objects.requireNonNull(fields, "Fields were null.").isEmpty()) {
       throw new IllegalArgumentException("Empty fields list.");
@@ -92,26 +87,29 @@ public final class SimpleTermsQuery
     if (Objects.requireNonNull(query, "Query was null.").trim().isEmpty()) {
       throw new IllegalArgumentException("Empty query.");
     }
-    Objects.requireNonNull(stopwords, "Stopwords were null.");
 
-    LOG.debug("STQ q({})={} op={} f={} s({})={}", query.split(" ").length,
-        query, operator, fields, stopwords.size(), stopwords);
-
-    final Analyzer analyzer = new StandardAnalyzer(LuceneDefaults.VERSION,
-        new CharArraySet(LuceneDefaults.VERSION, stopwords, true));
     final QueryParser qParser = new MultiFieldQueryParser(
         LuceneDefaults.VERSION, fields.toArray(new String[fields.size()]),
         analyzer);
+
+    // generate a local list of query terms using the provided Analyzer
     this.queryTerms = tokenizeQueryString(query, analyzer);
+
     final String stoppedQuery = StringUtils.join(this.queryTerms, " ");
 
-    if (stoppedQuery.trim().isEmpty()) {
+    if (StringUtils.isStrippedEmpty(stoppedQuery)) {
       throw new ParseException("Stopped query is empty.");
     }
-    LOG.debug("Queries: orig={} stopped={}", query, stoppedQuery);
+
+    LOG.debug("STQ userQuery={}", query);
+    LOG.debug("STQ analyzer={} tokens({})={}", analyzer.getClass()
+        .getSimpleName(), this.queryTerms.size(), this.queryTerms);
+    LOG.debug("STQ tokens={} operator={} fields={}", this.queryTerms.size(),
+        operator, fields);
 
     qParser.setDefaultOperator(operator);
-    this.queryObj = qParser.parse(stoppedQuery);
+    this.queryObj = qParser.parse(QueryParserUtil.escape(query));
+    LOG.debug("STQ Q={}", this.queryObj.toString());
   }
 
   /**
@@ -122,7 +120,7 @@ public final class SimpleTermsQuery
    * @param analyzer Analyzer to use
    * @return Tokenized query string with stop-words removed
    */
-  private List<String> tokenizeQueryString(final String query,
+  private static List<String> tokenizeQueryString(final String query,
       final Analyzer analyzer) {
     @SuppressWarnings("CollectionWithoutInitialCapacity")
     final List<String> result = new ArrayList<>();
@@ -130,22 +128,12 @@ public final class SimpleTermsQuery
         new StringReader(query))) {
       stream.reset();
       while (stream.incrementToken()) {
-        result.add(stream.getAttribute(CharTermAttribute.class)
-            .toString());
+        result.add(stream.getAttribute(CharTermAttribute.class).toString());
       }
-    } catch (IOException e) {
+    } catch (final IOException e) {
       // not thrown b/c we're using a string reader
     }
     return result;
-  }
-
-  /**
-   * Get the Query object.
-   *
-   * @return Query object
-   */
-  protected Query getQueryObj() {
-    return this.queryObj;
   }
 
   /**
@@ -153,85 +141,18 @@ public final class SimpleTermsQuery
    *
    * @return List of query terms with stop-words removed
    */
-  public List<String> getQueryTerms() {
-    return new ArrayList<>(this.queryTerms);
-  }
-
   @Override
-  public String toString(final String field) {
-    if (Objects.requireNonNull(field, "Field was null.").trim().isEmpty()) {
-      throw new IllegalArgumentException("Field name was empty.");
-    }
-    return "SimpleTermQuery: " + queryObj.toString(field);
-  }
-
-  @Override
-  public String toString() {
-    return "SimpleTermQuery: " + queryObj.toString();
-  }
-
-  @Override
-  public Weight createWeight(final IndexSearcher searcher)
-      throws IOException {
-    return new SimpleTermQueryWeight(Objects.requireNonNull(searcher,
-        "Searcher was null."));
+  public Collection<String> getQueryTerms() {
+    return Collections.unmodifiableCollection(this.queryTerms);
   }
 
   /**
-   * Provides weighting information for query re-use.
+   * Get the Query object.
+   *
+   * @return Query object
    */
-  @SuppressWarnings("PublicInnerClass")
-  public final class SimpleTermQueryWeight
-      extends Weight {
-
-    /**
-     * Weight object for the simple query.
-     */
-    private final Weight stqWeight;
-
-    /**
-     * Create a new weight object.
-     *
-     * @param searcher Searcher to use
-     * @throws IOException Thrown on low-level I/O errors
-     */
-    public SimpleTermQueryWeight(final IndexSearcher searcher)
-        throws IOException {
-      super();
-      Objects.requireNonNull(searcher, "Searcher was null.");
-      stqWeight = getQueryObj().createWeight(searcher);
-    }
-
-    @Override
-    public Explanation explain(final AtomicReaderContext context,
-        final int doc)
-        throws IOException {
-      return null;
-    }
-
-    @Override
-    public Query getQuery() {
-      return SimpleTermsQuery.this;
-    }
-
-    @Override
-    public float getValueForNormalization()
-        throws IOException {
-      return stqWeight.getValueForNormalization();
-    }
-
-    @Override
-    public void normalize(final float norm, final float topLevelBoost) {
-      stqWeight.normalize(norm, topLevelBoost);
-    }
-
-    @Override
-    public Scorer scorer(final AtomicReaderContext context,
-        final boolean scoreDocsInOrder,
-        final boolean topScorer, final Bits acceptDocs)
-        throws IOException {
-      Objects.requireNonNull(context, "Context was null.");
-      return stqWeight.scorer(context, scoreDocsInOrder, topScorer, acceptDocs);
-    }
+  @Override
+  public Query getQueryObj() {
+    return this.queryObj;
   }
 }

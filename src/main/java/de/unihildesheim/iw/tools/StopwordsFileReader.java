@@ -21,6 +21,7 @@ import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.Charset;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
@@ -38,7 +39,8 @@ public class StopwordsFileReader {
   private StopwordsFileReader() {
   }
 
-  public static Set<String> readWords(final Format format, final String source)
+  public static Set<String> readWords(final Format format,
+      final String source, final Charset cs)
       throws IOException {
     Objects.requireNonNull(format, "Format was null.");
     if (Objects.requireNonNull(source, "Source was null.").trim().isEmpty()) {
@@ -47,7 +49,7 @@ public class StopwordsFileReader {
 
     Set<String> words;
     try (BufferedReader reader = new BufferedReader(
-        new InputStreamReader(new FileInputStream(source)))) {
+        new InputStreamReader(new FileInputStream(source), cs))) {
 
       words = new HashSet<>();
 

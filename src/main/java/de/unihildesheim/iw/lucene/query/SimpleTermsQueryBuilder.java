@@ -18,9 +18,12 @@ package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.lucene.index.IndexUtils;
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -32,13 +35,23 @@ import java.util.Set;
  *
  * @author Jens Bertram
  */
-public final class TermsQueryBuilder
+public final class SimpleTermsQueryBuilder
     implements Buildable<SimpleTermsQuery> {
+
+  /**
+   * Logger instance for this class.
+   */
+  static final Logger LOG = LoggerFactory.getLogger(
+      SimpleTermsQueryBuilder.class);
 
   /**
    * Reader to access Lucene index.
    */
   private final IndexReader idxReader;
+  /**
+   * Analyzer to use for parsing queries.
+   */
+  protected Analyzer analyzer;
   /**
    * Collection of stop-words to use.
    */
@@ -56,7 +69,7 @@ public final class TermsQueryBuilder
    */
   private String query;
 
-  public TermsQueryBuilder(final IndexReader reader,
+  public SimpleTermsQueryBuilder(final IndexReader reader,
       final Set<String> newFields) {
     Objects.requireNonNull(reader, "IndexReader was null.");
     if (Objects.requireNonNull(newFields, "Fields were null.").isEmpty()) {
@@ -72,9 +85,20 @@ public final class TermsQueryBuilder
    * @param newStopwords List of stop-words
    * @return Self reference
    */
-  public TermsQueryBuilder stopwords(final Set<String> newStopwords) {
+  public SimpleTermsQueryBuilder stopwords(final Set<String> newStopwords) {
     this.stopwords = new HashSet<>(Objects.requireNonNull(newStopwords,
         "Stopwords were null."));
+    return this;
+  }
+
+  /**
+   * Set the analyzer to use for parsing queries.
+   *
+   * @param newAnalyzer Analyzer
+   * @return Self reference
+   */
+  public SimpleTermsQueryBuilder analyzer(final Analyzer newAnalyzer) {
+    this.analyzer = newAnalyzer;
     return this;
   }
 
@@ -84,7 +108,7 @@ public final class TermsQueryBuilder
    * @param newFields List of fields to query
    * @return Self reference
    */
-  public TermsQueryBuilder fields(final Set<String> newFields) {
+  public SimpleTermsQueryBuilder fields(final Set<String> newFields) {
     if (Objects.requireNonNull(newFields, "Fields were null.").isEmpty()) {
       throw new IllegalArgumentException("Empty fields.");
     }
@@ -99,7 +123,7 @@ public final class TermsQueryBuilder
    * @param newOperator Boolean operator
    * @return Self reference
    */
-  public TermsQueryBuilder boolOperator(
+  public SimpleTermsQueryBuilder boolOperator(
       final QueryParser.Operator newOperator) {
     this.operator = Objects.requireNonNull(newOperator, "Operator was null.");
     return this;
@@ -111,7 +135,7 @@ public final class TermsQueryBuilder
    * @param queryStr Query string
    * @return Self reference
    */
-  public TermsQueryBuilder query(final String queryStr) {
+  public SimpleTermsQueryBuilder query(final String queryStr) {
     if (Objects.requireNonNull(queryStr, "Query string was null.").trim()
         .isEmpty()) {
       throw new IllegalArgumentException("Empty query string.");
@@ -134,8 +158,8 @@ public final class TermsQueryBuilder
       throws ConfigurationException, BuildException {
     validate();
     try {
-      return new SimpleTermsQuery(this.query, this.operator, this.fields,
-          this.stopwords);
+      return new SimpleTermsQuery(this.analyzer, this.query, this.operator,
+          this.fields);
     } catch (ParseException e) {
       throw new BuildException(e);
     }
@@ -152,6 +176,9 @@ public final class TermsQueryBuilder
     }
     if (this.fields == null) {
       throw new ConfigurationException("No fields set.");
+    }
+    if (this.analyzer == null) {
+      throw new ConfigurationException("No query analyzer set.");
     }
   }
 }

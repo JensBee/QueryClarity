@@ -26,7 +26,7 @@ import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.lucene.query.SimpleTermsQuery;
-import de.unihildesheim.iw.lucene.query.TermsQueryBuilder;
+import de.unihildesheim.iw.lucene.query.SimpleTermsQueryBuilder;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.RandomValue;
@@ -37,6 +37,7 @@ import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
 import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
@@ -129,6 +130,10 @@ public final class ImprovedClarityScore
    * Cached storage of Document-id -> Term, model-value.
    */
   private Map<Integer, Map<ByteArray, Double>> docModelDataCache;
+  /**
+   * Lucene query analyzer.
+   */
+  private Analyzer analyzer;
 
   /**
    * Default constructor. Called from builder.
@@ -154,11 +159,12 @@ public final class ImprovedClarityScore
     instance.idxReader = builder.idxReader;
     instance.metrics = new Metrics(builder.idxDataProvider);
     instance.setConfiguration(builder.configuration);
+    instance.analyzer = builder.analyzer;
 
     // initialize
     instance.queryUtils =
-        new QueryUtils(builder.idxReader, builder.idxDataProvider
-            .getDocumentFields());
+        new QueryUtils(builder.analyzer, builder.idxReader,
+            builder.idxDataProvider.getDocumentFields());
 
     instance.initCache(builder);
 
@@ -434,9 +440,10 @@ public final class ImprovedClarityScore
     LOG.info("Calculating clarity score. query={}", query);
     final TimeMeasure timeMeasure = new TimeMeasure().start();
 
+    // TODO: use {@link TryExactTermsQuery}
     // run a query to get feedback
-    final TermsQueryBuilder termsQueryBuilder =
-        new TermsQueryBuilder(
+    final SimpleTermsQueryBuilder termsQueryBuilder =
+        new SimpleTermsQueryBuilder(
             this.idxReader, this.dataProv.getDocumentFields())
             .stopwords(this.dataProv.getStopwords())
             .boolOperator(QueryParser.Operator.AND);
@@ -454,13 +461,14 @@ public final class ImprovedClarityScore
     feedbackDocIds = new HashSet<>(this.conf.fbMax);
 
     try {
-      feedbackDocIds.addAll(Feedback.get(this.idxReader, queryObj,
+      feedbackDocIds.addAll(Feedback.get(this.idxReader, queryObj.getQueryObj(),
           this.conf.fbMax));
     } catch (IOException e) {
       throw new ClarityScoreCalculationException("Error while retrieving " +
           "feedback documents.", e);
     }
 
+    // TODO: superseded by {@link TryExactTermsQuery}
     // simplify query, if not enough feedback documents are available
     String simplifiedQuery = query;
     int docsToGet;
@@ -497,8 +505,10 @@ public final class ImprovedClarityScore
       }
 
       try {
-        feedbackDocIds.addAll(Feedback.get(this.idxReader, queryObj,
-            docsToGet));
+        feedbackDocIds.addAll(
+            Feedback.get(this.idxReader, queryObj.getQueryObj(),
+                docsToGet)
+        );
       } catch (IOException e) {
         throw new ClarityScoreCalculationException("Error while retrieving " +
             "feedback documents.", e);
@@ -594,6 +604,8 @@ public final class ImprovedClarityScore
    * @throws ParseException Thrown, if query string could not be parsed
    * @throws IOException Thrown on low-level i/O errors or if a term could not
    * be parsed to UTF-8
+   * <p/>
+   * TODO: superseded by {@link TryExactTermsQuery}
    */
   private String simplifyQuery(final SimpleTermsQuery query,
       final QuerySimplifyPolicy policy)
@@ -943,6 +955,12 @@ public final class ImprovedClarityScore
      */
     public List<String> getQueries() {
       return Collections.unmodifiableList(this.queries);
+    }
+
+    @Override
+    public ScoringResultXml getXml() {
+      // TODO: implement
+      throw new UnsupportedOperationException("Not implemented yet.");
     }
   }
 

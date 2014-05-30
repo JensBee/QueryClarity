@@ -24,6 +24,7 @@ import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.slf4j.LoggerFactory;
@@ -72,6 +73,10 @@ public final class SimplifiedClarityScore
    * Reader to access the Lucene index.
    */
   private IndexReader idxReader;
+  /**
+   * Lucene query analyzer.
+   */
+  private Analyzer analyzer;
 
   /**
    * Default constructor. Called from builder.
@@ -95,6 +100,7 @@ public final class SimplifiedClarityScore
     instance.dataProv = builder.idxDataProvider;
     instance.idxReader = builder.idxReader;
     instance.metrics = new Metrics(builder.idxDataProvider);
+    instance.analyzer = builder.analyzer;
 
     return instance;
   }
@@ -111,7 +117,8 @@ public final class SimplifiedClarityScore
     try {
       // get all query terms - list must NOT be unique!
       final QueryUtils queryUtils =
-          new QueryUtils(this.idxReader, this.dataProv.getDocumentFields());
+          new QueryUtils(this.analyzer, this.idxReader,
+              this.dataProv.getDocumentFields());
       queryTerms = queryUtils.getAllQueryTerms(query);
       // remove stopwords from query
       queryTerms.removeAll(this.dataProv.getStopwordsBytes());
@@ -141,7 +148,7 @@ public final class SimplifiedClarityScore
     LOG.debug("Calculating simplified clarity score for query {} "
         + "took {}. {}", query, timeMeasure.getTimeString(), score);
 
-    return new ClarityScoreResult(this.getClass(), score);
+    return new Result(this.getClass(), score);
   }
 
   @Override
@@ -216,6 +223,23 @@ public final class SimplifiedClarityScore
         throws ConfigurationException {
       validate();
       return SimplifiedClarityScore.build(this);
+    }
+  }
+
+  @SuppressWarnings("PublicInnerClass")
+  public static final class Result
+      extends ClarityScoreResult {
+
+    Result(
+        final Class<? extends ClarityScoreCalculation> cscType,
+        final double clarityScore) {
+      super(cscType, clarityScore);
+    }
+
+    @Override
+    public ScoringResultXml getXml() {
+      // TODO: implement
+      throw new UnsupportedOperationException("Not implemented yet.");
     }
   }
 }

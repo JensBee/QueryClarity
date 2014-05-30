@@ -21,7 +21,10 @@ import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.Persistence;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.util.FileUtils;
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -33,13 +36,17 @@ import java.util.Objects;
 public abstract class AbstractClarityScoreCalculationBuilder<T extends
     AbstractClarityScoreCalculationBuilder<T>>
     implements Buildable {
-  protected Persistence.Builder persistenceBuilder = new Persistence.Builder();
 
+  /**
+   * Logger instance for this class.
+   */
+  static final Logger LOG = LoggerFactory.getLogger(
+      AbstractClarityScoreCalculationBuilder.class);
   /**
    * Implementation identifier used for proper cache naming.
    */
   private final String identifier;
-
+  protected Persistence.Builder persistenceBuilder = new Persistence.Builder();
   /**
    * {@link IndexDataProvider} to use.
    */
@@ -54,13 +61,14 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
    * Flag indicating, if the new instance will be temporary.
    */
   protected boolean isTemporary;
-
+  /**
+   * Analyzer to use for parsing queries.
+   */
+  protected Analyzer analyzer;
   /**
    * File path where the working data will be stored.
    */
   private File dataPath;
-
-  protected abstract T getThis();
 
   /**
    * Constructor setting the implementation identifier for the cache.
@@ -87,9 +95,28 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
     return getThis();
   }
 
+  protected abstract T getThis();
+
+  /**
+   * Set the reader to access the Lucene index.
+   *
+   * @param newIdxReader Reader
+   * @return Self reference
+   */
   public T indexReader(final IndexReader newIdxReader) {
     this.idxReader = Objects.requireNonNull(newIdxReader,
         "IndexReader was null.");
+    return getThis();
+  }
+
+  /**
+   * Set the analyzer to use for parsing queries.
+   *
+   * @param newAnalyzer Analyzer
+   * @return Self reference
+   */
+  public T analyzer(final Analyzer newAnalyzer) {
+    this.analyzer = newAnalyzer;
     return getThis();
   }
 
@@ -105,6 +132,18 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
   }
 
   /**
+   * Instruction to load the named cache.
+   *
+   * @param name Cache name
+   * @return Self reference
+   */
+  public T loadCache(final String name) {
+    this.persistenceBuilder.name(createCacheName(name));
+    this.persistenceBuilder.get();
+    return getThis();
+  }
+
+  /**
    * Create a cache name prefixed with the identifier of the implementing
    * class.
    *
@@ -116,18 +155,6 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
       throw new IllegalArgumentException("Empty cache name.");
     }
     return this.identifier + "_" + name;
-  }
-
-  /**
-   * Instruction to load the named cache.
-   *
-   * @param name Cache name
-   * @return Self reference
-   */
-  public T loadCache(final String name) {
-    this.persistenceBuilder.name(createCacheName(name));
-    this.persistenceBuilder.get();
-    return getThis();
   }
 
   /**
@@ -197,6 +224,9 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
     if (this.idxDataProvider == null) {
       throw new ConfigurationException("No IndexDataProvider" +
           " set.");
+    }
+    if (this.analyzer == null) {
+      throw new ConfigurationException("No query analyzer set.");
     }
   }
 }

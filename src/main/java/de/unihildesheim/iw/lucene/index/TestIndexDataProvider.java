@@ -18,9 +18,10 @@ package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.ByteArray;
+import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.query.SimpleTermsQuery;
-import de.unihildesheim.iw.lucene.query.TermsQueryBuilder;
+import de.unihildesheim.iw.lucene.query.SimpleTermsQueryBuilder;
 import de.unihildesheim.iw.lucene.util.TempDiskIndex;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.RandomValue;
@@ -31,6 +32,9 @@ import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.iw.util.concurrent.processing.Source;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
 import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.mapdb.BTreeKeySerializer;
@@ -237,6 +241,13 @@ public final class TestIndexDataProvider
     return TestIndexDataProvider.initialized;
   }
 
+  public Analyzer getAnalyzer() {
+    return new StandardAnalyzer(LuceneDefaults.VERSION,
+        new CharArraySet(LuceneDefaults.VERSION,
+            reference.getStopwordsStr(), true)
+    );
+  }
+
   /**
    * Get the Lucene index.
    *
@@ -244,22 +255,6 @@ public final class TestIndexDataProvider
    */
   public TempDiskIndex getIndex() {
     return TestIndexDataProvider.tmpIdx;
-  }
-
-  @Override
-  public int getDocumentFrequency(final ByteArray term) {
-    Objects.requireNonNull(term);
-
-    if (TestIndexDataProvider.stopWords.contains(term)) {
-      return 0;
-    }
-    int freq = 0;
-    for (final Integer docId : getDocumentIds()) {
-      if (documentContains(docId, term)) {
-        freq++;
-      }
-    }
-    return freq;
   }
 
   /**
@@ -312,6 +307,22 @@ public final class TestIndexDataProvider
     Arrays.fill(TestIndexDataProvider.activeFieldState, 1);
     LOG.debug("Enabled all {} fields.",
         TestIndexDataProvider.activeFieldState.length);
+  }
+
+  @Override
+  public int getDocumentFrequency(final ByteArray term) {
+    Objects.requireNonNull(term);
+
+    if (TestIndexDataProvider.stopWords.contains(term)) {
+      return 0;
+    }
+    int freq = 0;
+    for (final Integer docId : getDocumentIds()) {
+      if (documentContains(docId, term)) {
+        freq++;
+      }
+    }
+    return freq;
   }
 
   /**
@@ -793,7 +804,7 @@ public final class TestIndexDataProvider
     public SimpleTermsQuery getQueryObj()
         throws ParseException, IOException,
                Buildable.BuildableException {
-      return getQueryObj(null);
+      return getSTQueryObj(null);
     }
 
     /**
@@ -804,11 +815,12 @@ public final class TestIndexDataProvider
      * @return A query object consisting of the given terms
      * @throws ParseException Thrown on query parsing errors
      */
-    public SimpleTermsQuery getQueryObj(final String[] queryTerms)
+    public SimpleTermsQuery getSTQueryObj(final String[] queryTerms)
         throws ParseException, IOException,
                Buildable.BuildableException {
-      final TermsQueryBuilder tqb = new TermsQueryBuilder(tmpIdx.getReader(),
-          TestIndexDataProvider.this.getDocumentFields());
+      final SimpleTermsQueryBuilder tqb =
+          new SimpleTermsQueryBuilder(tmpIdx.getReader(),
+              TestIndexDataProvider.this.getDocumentFields());
       tqb.fields(TestIndexDataProvider.this.getDocumentFields());
       if (queryTerms == null) {
         return tqb.query(util.getQueryString())
@@ -937,6 +949,7 @@ public final class TestIndexDataProvider
       this.contentCache.put(docId, docContent);
     }
   }
+
 
   /**
    * Get a list of active fields.

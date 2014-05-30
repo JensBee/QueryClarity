@@ -43,9 +43,8 @@ public final class Metrics {
 
   private static final Map<IndexDataProvider, Metrics> CACHE = new
       WeakHashMap<>();
-
-  private final IndexDataProvider dataProv;
   public final CollectionMetrics collection;
+  private final IndexDataProvider dataProv;
   private final Map<Integer, DocumentModel> docModelCache = new SoftHashMap<>();
 
   public Metrics(final IndexDataProvider dataProvider) {
@@ -54,13 +53,13 @@ public final class Metrics {
     this.collection = new CollectionMetrics();
   }
 
+  public DocumentMetrics document(final int docId) {
+    return document(getDocumentModel(docId));
+  }
+
   public DocumentMetrics document(final DocumentModel docModel) {
     return new DocumentMetrics(Objects.requireNonNull(docModel,
         "Document-model was null."));
-  }
-
-  public DocumentMetrics document(final int docId) {
-    return document(getDocumentModel(docId));
   }
 
   /**
@@ -80,6 +79,114 @@ public final class Metrics {
   }
 
   /**
+   * High level wrapper for {@link IndexDataProvider} to provide document
+   * related metrics.
+   *
+   * @author Jens Bertram
+   */
+  public static final class DocumentMetrics {
+
+    private final DocumentModel docModel;
+
+    public DocumentMetrics(final DocumentModel documentModel) {
+      this.docModel = Objects.requireNonNull(documentModel,
+          "Document-model was null.");
+    }
+
+    /**
+     * Calculate the Within-document Frequency for the given term.
+     *
+     * @param term Term whose frequency to get
+     * @return Frequency value
+     */
+    public double wdf(final ByteArray term) {
+      Objects.requireNonNull(term, "Term was null.");
+      return MathUtils.log2(tf(term).doubleValue() + 1) /
+          MathUtils.log2(tf().doubleValue());
+    }
+
+    /**
+     * Get the frequency of the given term in the specific document.
+     *
+     * @param term Term whose frequency to get
+     * @return Frequency of the given term in the given document
+     */
+    public Long tf(final ByteArray term) {
+      Objects.requireNonNull(term, "Term was null.");
+      final Long freq = this.docModel.termFreqMap.get(term);
+      if (freq == null) {
+        return 0L;
+      }
+      return freq;
+    }
+
+    /**
+     * Get the frequency of all terms in the document.
+     *
+     * @return Summed frequency of all terms in document
+     */
+    public Long tf() {
+      return this.docModel.termFrequency;
+    }
+
+    /**
+     * Get the number of unique terms in document.
+     *
+     * @return Number of unique terms in document
+     */
+    public Long uniqueTermCount() {
+      return this.docModel.termCount();
+    }
+
+    /**
+     * Checks, if the document contains the given term.
+     *
+     * @param term Term to lookup
+     * @return True, if term is in document
+     */
+    public boolean contains(final ByteArray term) {
+      return this.docModel.contains(Objects.requireNonNull(term,
+          "Term was null."));
+    }
+
+    /**
+     * Get the relative term frequency for a term in the document. Calculated
+     * using Bayesian smoothing using Dirichlet priors.
+     *
+     * @param term Term to lookup
+     * @param smoothing Smoothing parameter
+     * @return Smoothed relative term frequency
+     * @see #smoothedRelativeTermFrequency(ByteArray, double)
+     */
+    public double smoothedRelativeTermFrequency(final ByteArray term,
+        final double smoothing) {
+      Objects.requireNonNull(term, "Term was null.");
+      final double termFreq = this.docModel.tf(term).doubleValue();
+      final double relCollFreq = relTf(term);
+      return ((termFreq + smoothing) * relCollFreq) / (termFreq + (Integer.
+          valueOf(this.docModel.termFreqMap.size()).doubleValue() * smoothing));
+    }
+
+    /**
+     * Get the relative term frequency for a term in the document. Calculated by
+     * dividing the frequency of the given term by the frequency of all terms in
+     * the document.
+     *
+     * @param term Term to lookup
+     * @return Relative frequency. Zero if term is not in document.
+     */
+    public Double relTf(final ByteArray term) {
+      Objects.requireNonNull(term, "Term was null.");
+      final Long tf = this.docModel.tf(term);
+      if (0 == tf) {
+        return 0d;
+      }
+      return tf.doubleValue() / Long.valueOf(this.docModel.termFrequency)
+          .doubleValue();
+    }
+  }
+
+  /**
    * High level wrapper for {@link IndexDataProvider} to provide collection
    * related metrics.
    *
@@ -94,26 +201,6 @@ public final class Metrics {
     public Long numberOfUniqueTerms()
         throws DataProviderException {
       return dataProv.getUniqueTermsCount();
-    }
-
-    /**
-     * Get the number of documents in the index.
-     *
-     * @return Number of documents in index
-     */
-    public Long numberOfDocuments() {
-      return dataProv.getDocumentCount();
-    }
-
-    /**
-     * Get the document frequency of a term.
-     *
-     * @param term Term to lookup.
-     * @return Document frequency of the given term
-     */
-    public Integer df(final ByteArray term) {
-      return dataProv.getDocumentFrequency(Objects.requireNonNull(term,
-          "Term was null."));
     }
 
     /**
@@ -174,6 +261,26 @@ public final class Metrics {
     }
 
     /**
+     * Get the number of documents in the index.
+     *
+     * @return Number of documents in index
+     */
+    public Long numberOfDocuments() {
+      return dataProv.getDocumentCount();
+    }
+
+    /**
+     * Get the document frequency of a term.
+     *
+     * @param term Term to lookup.
+     * @return Document frequency of the given term
+     */
+    public Integer df(final ByteArray term) {
+      return dataProv.getDocumentFrequency(Objects.requireNonNull(term,
+          "Term was null."));
+    }
+
+    /**
      * Calculate the Okapi BM25 derivation of the inverse document frequency
      * (IDF) using a logarithmic base value of 10.
      *
@@ -226,114 +333,6 @@ public final class Metrics {
           throw new UnsupportedOperationException("Not supported yet.");
         }
       };
-    }
-  }
-
-  /**
-   * High level wrapper for {@link IndexDataProvider} to provide document
-   * related metrics.
-   *
-   * @author Jens Bertram
-   */
-  public static final class DocumentMetrics {
-
-    private final DocumentModel docModel;
-
-    public DocumentMetrics(final DocumentModel documentModel) {
-      this.docModel = Objects.requireNonNull(documentModel,
-          "Document-model was null.");
-    }
-
-    /**
-     * Calculate the Within-document Frequency for the given term.
-     *
-     * @param term Term whose frequency to get
-     * @return Frequency value
-     */
-    public double wdf(final ByteArray term) {
-      Objects.requireNonNull(term, "Term was null.");
-      return MathUtils.log2(tf(term).doubleValue() + 1) /
-          MathUtils.log2(tf().doubleValue());
-    }
-
-    /**
-     * Get the frequency of all terms in the document.
-     *
-     * @return Summed frequency of all terms in document
-     */
-    public Long tf() {
-      return this.docModel.termFrequency;
-    }
-
-    /**
-     * Get the frequency of the given term in the specific document.
-     *
-     * @param term Term whose frequency to get
-     * @return Frequency of the given term in the given document
-     */
-    public Long tf(final ByteArray term) {
-      Objects.requireNonNull(term, "Term was null.");
-      final Long freq = this.docModel.termFreqMap.get(term);
-      if (freq == null) {
-        return 0L;
-      }
-      return freq;
-    }
-
-    /**
-     * Get the number of unique terms in document.
-     *
-     * @return Number of unique terms in document
-     */
-    public Long uniqueTermCount() {
-      return this.docModel.termCount();
-    }
-
-    /**
-     * Get the relative term frequency for a term in the document. Calculated by
-     * dividing the frequency of the given term by the frequency of all terms in
-     * the document.
-     *
-     * @param term Term to lookup
-     * @return Relative frequency. Zero if term is not in document.
-     */
-    public Double relTf(final ByteArray term) {
-      Objects.requireNonNull(term, "Term was null.");
-      final Long tf = this.docModel.tf(term);
-      if (tf == 0) {
-        return 0.0;
-      }
-      return tf.doubleValue() / Long.valueOf(this.docModel.termFrequency)
-          .doubleValue();
-    }
-
-    /**
-     * Checks, if the document contains the given term.
-     *
-     * @param term Term to lookup
-     * @return True, if term is in document
-     */
-    public boolean contains(final ByteArray term) {
-      return this.docModel.contains(Objects.requireNonNull(term,
-          "Term was null."));
-    }
-
-    /**
-     * Get the relative term frequency for a term in the document. Calculated
-     * using Bayesian smoothing using Dirichlet priors.
-     *
-     * @param term Term to lookup
-     * @param smoothing Smoothing parameter
-     * @return Smoothed relative term frequency
-     * @see #smoothedRelativeTermFrequency(ByteArray, double)
-     */
-    public double smoothedRelativeTermFrequency(final ByteArray term,
-        final double smoothing) {
-      Objects.requireNonNull(term, "Term was null.");
-      final double termFreq = this.docModel.tf(term).doubleValue();
-      final double relCollFreq = relTf(term);
-      return ((termFreq + smoothing) * relCollFreq) / (termFreq + (Integer.
-          valueOf(this.docModel.termFreqMap.size()).doubleValue() * smoothing));
     }
   }
 }

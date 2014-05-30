@@ -33,11 +33,11 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Test for {@link TermsQueryBuilder}.
+ * Test for {@link SimpleTermsQueryBuilder}.
  *
  * @author Jens Bertram
  */
-public final class TermsQueryBuilderTest
+public final class SimpleTermsQueryBuilderTest
     extends TestCase {
 
   /**
@@ -90,8 +90,9 @@ public final class TermsQueryBuilderTest
       }
     }
 
-    final TermsQueryBuilder instance = new TermsQueryBuilder(this.referenceIndex
-        .getIndexReader(), this.referenceIndex.getDocumentFields());
+    final SimpleTermsQueryBuilder instance =
+        new SimpleTermsQueryBuilder(this.referenceIndex
+            .getIndexReader(), this.referenceIndex.getDocumentFields());
     instance.stopwords(newStopWords);
 
     @SuppressWarnings("StringBufferWithoutInitialCapacity")
@@ -124,8 +125,9 @@ public final class TermsQueryBuilderTest
       throws Exception {
     final Set<String> fields =
         new HashSet<>(this.referenceIndex.util.getRandomFields());
-    final TermsQueryBuilder instance = new TermsQueryBuilder(this.referenceIndex
-        .getIndexReader(), this.referenceIndex.getDocumentFields());
+    final SimpleTermsQueryBuilder instance =
+        new SimpleTermsQueryBuilder(this.referenceIndex
+            .getIndexReader(), this.referenceIndex.getDocumentFields());
 
     final String qStr =
         instance.fields(fields).query("foo").build().getQueryObj()
@@ -146,12 +148,13 @@ public final class TermsQueryBuilderTest
   public void testSetBoolOperator()
       throws Exception {
     @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
-    TermsQueryBuilder instance;
+    SimpleTermsQueryBuilder instance;
 
     // TODO: how to check results?
     for (final QueryParser.Operator op : QueryParser.Operator.values()) {
-      instance = new TermsQueryBuilder(this.referenceIndex.getIndexReader(),
-          this.referenceIndex.getDocumentFields());
+      instance =
+          new SimpleTermsQueryBuilder(this.referenceIndex.getIndexReader(),
+              this.referenceIndex.getDocumentFields());
       instance.boolOperator(op).query("foo bar").build().toString();
     }
   }
@@ -170,8 +173,9 @@ public final class TermsQueryBuilderTest
     final Set<String> stopwords = new HashSet<>(this.referenceIndex.util
         .getRandomStopWords());
 
-    final TermsQueryBuilder instance = new TermsQueryBuilder(this.referenceIndex
-        .getIndexReader(), fields);
+    final SimpleTermsQueryBuilder instance =
+        new SimpleTermsQueryBuilder(this.referenceIndex
+            .getIndexReader(), fields);
     instance.stopwords(stopwords);
     instance.boolOperator(QueryParser.Operator.OR);
     final String query = RandomValue.getString(1, 100) + " " + RandomValue.
