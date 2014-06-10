@@ -25,11 +25,9 @@ import de.unihildesheim.iw.lucene.index.ExternalDocTermDataManager;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
-import de.unihildesheim.iw.lucene.query.SimpleTermsQuery;
-import de.unihildesheim.iw.lucene.query.SimpleTermsQueryBuilder;
-import de.unihildesheim.iw.util.ByteArrayUtils;
+import de.unihildesheim.iw.lucene.query.RuleBasedTryExactTermsQuery;
 import de.unihildesheim.iw.util.MathUtils;
-import de.unihildesheim.iw.util.RandomValue;
+import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import de.unihildesheim.iw.util.concurrent.AtomicDouble;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
@@ -42,16 +40,11 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.mapdb.Atomic;
-import org.mapdb.BTreeKeySerializer;
 import org.mapdb.DB;
-import org.mapdb.Fun;
-import org.mapdb.Serializer;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -65,14 +58,11 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Improved Clarity Score implementation as described by Hauff, Murdock,
- * Baeza-Yates.
- * <p/>
- * Reference
- * <p/>
- * Hauff, Claudia, Vanessa Murdock, and Ricardo Baeza-Yates. “Improved Query
- * Difficulty Prediction for the Web.” In Proceedings of the 17th ACM Conference
- * on Information and Knowledge Management, 439–448. CIKM ’08. New York, NY,
- * USA: ACM, 2008. doi:10.1145/1458082.1458142.
+ * Baeza-Yates. <br> Reference <br> Hauff, Claudia, Vanessa Murdock, and Ricardo
+ * Baeza-Yates. “Improved Query Difficulty Prediction for the Web.” In
+ * Proceedings of the 17th ACM Conference on Information and Knowledge
+ * Management, 439–448. CIKM ’08. New York, NY, USA: ACM, 2008.
+ * doi:10.1145/1458082.1458142.
  *
  * @author Jens Bertram
  */
@@ -84,24 +74,35 @@ public final class ImprovedClarityScore
    * properties stored in the {@link de.unihildesheim.iw.lucene.index
    * .IndexDataProvider}.
    */
-  static final String IDENTIFIER = "ICS";
+  private static final String IDENTIFIER = "ICS";
   /**
    * Logger instance for this class.
    */
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       ImprovedClarityScore.class);
+
   /**
    * Provider for general index metrics.
    */
-  Metrics metrics;
+  private final Metrics metrics;
+
   /**
    * {@link IndexDataProvider} to use.
    */
-  private IndexDataProvider dataProv;
+  private final IndexDataProvider dataProv;
+
   /**
    * Reader to access the Lucene index.
    */
-  private IndexReader idxReader;
+  private final IndexReader idxReader;
+  /**
+   * Lucene query analyzer.
+   */
+  private final Analyzer analyzer;
+  /**
+   * Relaxing rule for simplifying queries.
+   */
+  private final RuleBasedTryExactTermsQuery.RelaxRule relaxRule;
   /**
    * Configuration object used for all parameters of the calculation.
    */
@@ -119,56 +120,30 @@ public final class ImprovedClarityScore
    */
   private boolean hasCache;
   /**
-   * Cache of default document models.
-   */
-  private Map<Fun.Tuple2<Integer, ByteArray>, Double> defaultDocModels;
-  /**
-   * Utility working with queries.
-   */
-  private QueryUtils queryUtils;
-  /**
    * Cached storage of Document-id -> Term, model-value.
    */
   private Map<Integer, Map<ByteArray, Double>> docModelDataCache;
-  /**
-   * Lucene query analyzer.
-   */
-  private Analyzer analyzer;
 
   /**
-   * Default constructor. Called from builder.
-   */
-  private ImprovedClarityScore() {
-    super();
-  }
-
-  /**
-   * Builder method to create a new instance.
+   * Create a new instance using a builder.
    *
    * @param builder Builder to use for constructing the instance
-   * @return New instance
+   * @throws Buildable.BuildableException Thrown, if building the cache instance
+   * failed
    */
-  protected static ImprovedClarityScore build(
-      final Builder builder)
-      throws Buildable.BuildableException, IOException {
+  ImprovedClarityScore(final Builder builder)
+      throws Buildable.BuildableException {
     Objects.requireNonNull(builder, "Builder was null.");
 
-    final ImprovedClarityScore instance = new ImprovedClarityScore();
     // set configuration
-    instance.dataProv = builder.idxDataProvider;
-    instance.idxReader = builder.idxReader;
-    instance.metrics = new Metrics(builder.idxDataProvider);
-    instance.setConfiguration(builder.configuration);
-    instance.analyzer = builder.analyzer;
+    this.dataProv = builder.idxDataProvider;
+    this.idxReader = builder.idxReader;
+    this.metrics = new Metrics(builder.idxDataProvider);
+    this.setConfiguration(builder.configuration);
+    this.analyzer = builder.analyzer;
+    this.relaxRule = builder.relaxRule;
 
-    // initialize
-    instance.queryUtils =
-        new QueryUtils(builder.analyzer, builder.idxReader,
-            builder.idxDataProvider.getDocumentFields());
-
-    instance.initCache(builder);
-
-    return instance;
+    this.initCache(builder);
   }
 
   /**
@@ -176,20 +151,23 @@ public final class ImprovedClarityScore
    *
    * @param newConf Configuration
    */
-  private ImprovedClarityScore setConfiguration(
+  private void setConfiguration(
       final ImprovedClarityScoreConfiguration newConf) {
     this.conf = newConf.compile();
     newConf.debugDump();
     this.docModelDataCache = new ConcurrentHashMap<>(this.conf.fbMax);
     parseConfig();
-    return this;
   }
 
   /**
-   * Initializes a cache.
+   * Initializes a cache using the {@link Builder}.
+   *
+   * @param builder Builder instance
+   * @throws Buildable.BuildableException Thrown, if building the cache instance
+   * failed
    */
   private void initCache(final Builder builder)
-      throws IOException, Buildable.BuildableException {
+      throws Buildable.BuildableException {
     final Persistence.Builder psb = builder.persistenceBuilder;
 
     final Persistence persistence;
@@ -210,20 +188,28 @@ public final class ImprovedClarityScore
         break;
     }
 
-    this.db = persistence.db;
+    this.db = persistence.getDb();
 
     final Double smoothing = this.conf.smoothing;
     final Double lambda = this.conf.lambda;
     final Double beta = this.conf.beta;
 
-    if (!createNew) {
+    if (createNew) {
+      this.db.
+          createAtomicString(Caches.SMOOTHING.name(), smoothing.toString());
+      this.db.createAtomicString(Caches.LAMBDA.name(), lambda.toString());
+      this.db.createAtomicString(Caches.BETA.name(), beta.toString());
+      persistence.updateMetaData(this.dataProv.getDocumentFields(),
+          this.dataProv.getStopwords());
+    } else {
       if (this.dataProv.getLastIndexCommitGeneration() == null || !persistence
           .getMetaData().hasGenerationValue()) {
         LOG.warn("Index commit generation not available. Assuming an " +
             "unchanged index!");
       } else {
         if (!persistence.getMetaData()
-            .generationCurrent(this.dataProv.getLastIndexCommitGeneration())) {
+            .isGenerationCurrent(
+                this.dataProv.getLastIndexCommitGeneration())) {
           throw new IllegalStateException(
               "Index changed since last caching.");
         }
@@ -244,29 +230,16 @@ public final class ImprovedClarityScore
             "Different beta parameter value used in cache.");
       }
       if (!persistence.getMetaData()
-          .fieldsCurrent(this.dataProv.getDocumentFields())) {
+          .areFieldsCurrent(this.dataProv.getDocumentFields())) {
         throw new IllegalStateException(
             "Current fields are different from cached ones.");
       }
       if (!persistence.getMetaData()
-          .stopwordsCurrent(this.dataProv.getStopwords())) {
+          .areStopwordsCurrent(this.dataProv.getStopwords())) {
         throw new IllegalStateException(
             "Current stopwords are different from cached ones.");
       }
-    } else {
-      this.db.
-          createAtomicString(Caches.SMOOTHING.name(), smoothing.toString());
-      this.db.createAtomicString(Caches.LAMBDA.name(), lambda.toString());
-      this.db.createAtomicString(Caches.BETA.name(), beta.toString());
-      persistence.updateMetaData(this.dataProv.getDocumentFields(),
-          this.dataProv.getStopwords());
     }
-
-    this.defaultDocModels = this.db
-        .createTreeMap(Caches.DEFAULT_DOC_MODELS.name())
-        .keySerializer(BTreeKeySerializer.TUPLE2)
-        .valueSerializer(Serializer.BASIC)
-        .makeOrGet();
 
     this.extDocMan = new ExternalDocTermDataManager(this.db, IDENTIFIER);
     this.hasCache = true;
@@ -276,12 +249,12 @@ public final class ImprovedClarityScore
    * Parse the configuration and do some simple pre-checks.
    */
   private void parseConfig() {
-    if (this.conf.fbMin > this.metrics.collection.numberOfDocuments()) {
+    if (this.conf.fbMin > this.metrics.collection().numberOfDocuments()) {
       throw new IllegalStateException(
           "Required minimum number of feedback documents ("
               + this.conf.fbMin + ") is larger "
               + "or equal compared to the total amount of indexed documents "
-              + "(" + this.metrics.collection.numberOfDocuments()
+              + "(" + this.metrics.collection().numberOfDocuments()
               + "). Unable to provide feedback."
       );
     }
@@ -330,10 +303,8 @@ public final class ImprovedClarityScore
   /**
    * Safe method to get the document model value for a document term. This
    * method will calculate an additional value, if the term in question is not
-   * contained in the document.
-   * <p/>
-   * A call to this method should only needed, if {@code lambda} in {@link
-   * #conf} is lesser than {@code 1}.
+   * contained in the document. <br> A call to this method should only needed,
+   * if {@code lambda} in {@link #conf} is lesser than {@code 1}.
    *
    * @param docId Id of the document whose model to get
    * @param term Term to calculate the model for
@@ -346,7 +317,7 @@ public final class ImprovedClarityScore
     // if term not in document, calculate new value
     if (model == null) {
       // relative collection frequency of the term
-      final double termRelIdxFreq = this.metrics.collection.relTf(term);
+      final double termRelIdxFreq = this.metrics.collection().relTf(term);
       final DocumentModel docModel = this.metrics.getDocumentModel(docId);
       final double docTermFreq = docModel.metrics().tf().doubleValue();
       final double termsInDoc =
@@ -385,12 +356,12 @@ public final class ImprovedClarityScore
         final double docTermFreq = docModel.metrics().tf().doubleValue();
         final double termsInDoc =
             docModel.metrics().uniqueTermCount().doubleValue();
-        final Set<ByteArray> terms = docModel.termFreqMap.keySet();
+        final Set<ByteArray> terms = docModel.getTermFreqMap().keySet();
 
         map = new HashMap<>(terms.size());
         for (final ByteArray term : terms) {
           // relative collection frequency of the term
-          final double termRelIdxFreq = this.metrics.collection.relTf(term);
+          final double termRelIdxFreq = this.metrics.collection().relTf(term);
           // term frequency given the document
           final double termInDocFreq =
               docModel.metrics().tf(term).doubleValue();
@@ -423,104 +394,68 @@ public final class ImprovedClarityScore
   @Override
   public Result calculateClarity(final String query)
       throws ClarityScoreCalculationException, IOException {
-    if (Objects.requireNonNull(query, "Query was null.").trim().isEmpty()) {
+    if (StringUtils.isStrippedEmpty(
+        Objects.requireNonNull(query, "Query was null."))) {
       throw new IllegalArgumentException("Query was empty.");
     }
 
     // result object
     final Result result = new Result(this.getClass());
     // final clarity score
-    final AtomicDouble score = new AtomicDouble(0);
-    // collection of feedback document ids
-    Set<Integer> feedbackDocIds;
+    final AtomicDouble score = new AtomicDouble(0d);
+    // stopped query terms
+    final List<String> queryTerms = QueryUtils.tokenizeQueryString(query,
+        this.analyzer);
+    final List<ByteArray> queryTermsBa = new ArrayList<>(queryTerms.size());
+    for (final String qTerm : queryTerms) {
+      @SuppressWarnings("ObjectAllocationInLoop")
+      final ByteArray qTermBa = new ByteArray(qTerm.getBytes("UTF-8"));
+      queryTermsBa.add(qTermBa);
+    }
+
     // save base data to result object
-    result.addQuery(query);
     result.setConf(this.conf);
+    result.setQueryTerms(queryTermsBa);
 
     LOG.info("Calculating clarity score. query={}", query);
     final TimeMeasure timeMeasure = new TimeMeasure().start();
 
-    // TODO: use {@link TryExactTermsQuery}
-    // run a query to get feedback
-    final SimpleTermsQueryBuilder termsQueryBuilder =
-        new SimpleTermsQueryBuilder(
-            this.idxReader, this.dataProv.getDocumentFields())
-            .stopwords(this.dataProv.getStopwords())
-            .boolOperator(QueryParser.Operator.AND);
-
-    SimpleTermsQuery queryObj; // reusable query object for simplified queries
-    final SimpleTermsQuery userQuery; // store unmodified query
+    final RuleBasedTryExactTermsQuery ruledQuery;
     try {
-      queryObj = termsQueryBuilder.query(query).build();
-      userQuery = termsQueryBuilder.query(query).build();
-    } catch (Buildable.BuildableException e) {
+      ruledQuery = new RuleBasedTryExactTermsQuery(
+          this.dataProv,
+          this.analyzer,
+          query,
+          QueryParser.Operator.AND,
+          this.dataProv.getDocumentFields(),
+          this.relaxRule);
+    } catch (final ParseException e) {
       throw new ClarityScoreCalculationException(
           "Caught exception while building query.", e);
     }
 
-    feedbackDocIds = new HashSet<>(this.conf.fbMax);
+    // collection of feedback document ids
+    final Set<Integer> feedbackDocIds;
 
     try {
-      feedbackDocIds.addAll(Feedback.get(this.idxReader, queryObj.getQueryObj(),
-          this.conf.fbMax));
-    } catch (IOException e) {
+      feedbackDocIds = Feedback.getFixed(this.idxReader, ruledQuery,
+          this.conf.fbMax);
+    } catch (final IOException | ParseException e) {
       throw new ClarityScoreCalculationException("Error while retrieving " +
           "feedback documents.", e);
     }
-
-    // TODO: superseded by {@link TryExactTermsQuery}
-    // simplify query, if not enough feedback documents are available
-    String simplifiedQuery = query;
-    int docsToGet;
-    while (feedbackDocIds.size() < this.conf.fbMin) {
-      // set flag indicating we simplified the query
-      result.setQuerySimplified(true);
-      LOG.info("Minimum number of feedback documents not reached "
-              + "({}/{}). Simplifying query using {} policy.",
-          feedbackDocIds.size(), this.conf.fbMin, this.conf.policy
-      );
-
-      try {
-        simplifiedQuery = simplifyQuery(queryObj, this.conf.policy);
-      } catch (IOException | ParseException | Buildable.BuildableException
-          e) {
-        throw new ClarityScoreCalculationException("Error while trying to " +
-            "simplify query.", e);
-      }
-
-      if (simplifiedQuery.isEmpty()) {
-        throw new NoTermsLeftException(
-            "No query terms left while trying to reach the minimum number of" +
-                " feedback documents."
-        );
-      }
-      result.addQuery(simplifiedQuery);
-      docsToGet = this.conf.fbMax - feedbackDocIds.size();
-
-      try {
-        queryObj = termsQueryBuilder.query(simplifiedQuery).build();
-      } catch (Buildable.BuildableException e) {
-        throw new ClarityScoreCalculationException(
-            "Error while building query.", e);
-      }
-
-      try {
-        feedbackDocIds.addAll(
-            Feedback.get(this.idxReader, queryObj.getQueryObj(),
-                docsToGet)
-        );
-      } catch (IOException e) {
-        throw new ClarityScoreCalculationException("Error while retrieving " +
-            "feedback documents.", e);
-      }
+    if (feedbackDocIds.isEmpty()) {
+      result.setEmpty("No feedback documents.");
+      return result;
     }
+    result.setFeedbackDocIds(feedbackDocIds);
 
     // collect all unique terms from feedback documents
     final Set<ByteArray> fbTerms = this.dataProv.getDocumentsTermSet(
         feedbackDocIds);
 
     // get document frequency threshold
-    int minDf = (int) (this.metrics.collection.numberOfDocuments()
+    int minDf = (int) (this.metrics.collection().numberOfDocuments()
         * this.conf.threshold);
     if (minDf <= 0) {
       LOG.debug("Document frequency threshold was {} setting to 1", minDf);
@@ -540,22 +475,22 @@ public final class ImprovedClarityScore
       new Processing(
           new TargetFuncCall<>(
               new CollectionSource<>(fbTerms),
-              new FbTermReducerTarget(this.metrics.collection, minDf,
+              new FbTermReducerTarget(this.metrics.collection(), minDf,
                   reducedFbTerms)
           )
       ).process(fbTerms.size());
-    } catch (ProcessingException e) {
+    } catch (final ProcessingException e) {
       throw new ClarityScoreCalculationException("Failed to reduce terms by " +
           "threshold.", e);
     }
     LOG.debug("Reduced term set size {}", reducedFbTerms.size());
 
     if (reducedFbTerms.isEmpty()) {
-      throw new NoTermsLeftException(
-          "No terms remaining after elimination based " +
-              "on document frequency threshold (" + minDf + ")."
-      );
+      result.setEmpty("No terms remaining after elimination based " +
+          "on document frequency threshold (" + minDf + ").");
+      return result;
     }
+    result.setFeedbackTerms(new HashSet<>(reducedFbTerms));
 
     // do the final calculation for all remaining feedback terms
     LOG.debug("Using {} feedback documents for calculation.",
@@ -564,21 +499,15 @@ public final class ImprovedClarityScore
       new Processing(
           new TargetFuncCall<>(
               new CollectionSource<>(reducedFbTerms),
-              new ModelCalculatorTarget(feedbackDocIds,
-                  // already stopped
-                  this.queryUtils.getAllQueryTerms(userQuery),
-                  score
-              )
+              new ModelCalculatorTarget(this.metrics.collection(),
+                  feedbackDocIds, queryTermsBa, score)
           )
       ).process(reducedFbTerms.size());
-    } catch (UnsupportedEncodingException | ParseException | Buildable
-        .BuildableException | ProcessingException e) {
+    } catch (final ProcessingException e) {
       throw new ClarityScoreCalculationException(e);
     }
 
     result.setScore(score.get());
-    result.setFeedbackDocIds(feedbackDocIds);
-    result.setFeedbackTerms(new HashSet<>(reducedFbTerms));
 
     timeMeasure.stop();
     LOG.debug("Calculating improved clarity score for query {} "
@@ -596,85 +525,10 @@ public final class ImprovedClarityScore
   }
 
   /**
-   * Reduce the query by removing a term based on a specific policy.
-   *
-   * @param query Query to reduce
-   * @param policy Policy to use for choosing which term to remove
-   * @return Simplified query string
-   * @throws ParseException Thrown, if query string could not be parsed
-   * @throws IOException Thrown on low-level i/O errors or if a term could not
-   * be parsed to UTF-8
-   * <p/>
-   * TODO: superseded by {@link TryExactTermsQuery}
-   */
-  private String simplifyQuery(final SimpleTermsQuery query,
-      final QuerySimplifyPolicy policy)
-      throws IOException, ParseException,
-             Buildable.ConfigurationException, Buildable.BuildException {
-    Collection<ByteArray> qTerms = new ArrayList<>(this.queryUtils.
-        getAllQueryTerms(query));
-    ByteArray termToRemove = null;
-    if (new HashSet<>(qTerms).size() == 1) {
-      LOG.debug("Return empty string from one term query.");
-      return "";
-    }
-
-    switch (policy) {
-      case FIRST:
-        termToRemove = ((List<ByteArray>) qTerms).get(0);
-        break;
-      case HIGHEST_DOCFREQ:
-        long docFreq = 0;
-        qTerms = new HashSet<>(qTerms);
-        for (final ByteArray term : qTerms) {
-          final long tDocFreq = this.metrics.collection.df(term);
-          if (tDocFreq > docFreq) {
-            termToRemove = term;
-            docFreq = tDocFreq;
-          } else if (tDocFreq == docFreq && RandomValue.getBoolean()) {
-            termToRemove = term;
-          }
-        }
-        break;
-      case HIGHEST_TERMFREQ:
-        long collFreq = 0;
-        qTerms = new HashSet<>(qTerms);
-        for (final ByteArray term : qTerms) {
-          final long tCollFreq = this.metrics.collection.tf(term);
-          if (tCollFreq > collFreq) {
-            termToRemove = term;
-            collFreq = tCollFreq;
-          } else if (tCollFreq == collFreq && RandomValue.getBoolean()) {
-            termToRemove = term;
-          }
-        }
-        break;
-      case LAST:
-        termToRemove = ((List<ByteArray>) qTerms).get(qTerms.size() - 1);
-        break;
-      case RANDOM:
-        final int idx = RandomValue.getInteger(0, qTerms.size() - 1);
-        termToRemove = ((List<ByteArray>) qTerms).get(idx);
-        break;
-    }
-
-    while (qTerms.contains(termToRemove)) {
-      qTerms.remove(termToRemove);
-    }
-
-    final StringBuilder sb = new StringBuilder(100);
-    for (final ByteArray qTerm : qTerms) {
-      sb.append(ByteArrayUtils.utf8ToString(qTerm)).append(' ');
-    }
-
-    LOG.debug("Remove term={} policy={} oldQ={} newQ={}", ByteArrayUtils.
-        utf8ToString(termToRemove), policy, query, sb.toString().
-        trim());
-    return sb.toString().trim();
-  }
-
-  /**
    * Pre-calculate all document models for all terms known from the index.
+   *
+   * @throws ProcessingException Thrown, if threaded calculation encountered an
+   * error
    */
   public void preCalcDocumentModels()
       throws ProcessingException {
@@ -692,17 +546,15 @@ public final class ImprovedClarityScore
               this.dataProv.getDocumentIdSource(),
               new DocumentModelCalculatorTarget()
           )
-      ).process(this.metrics.collection.numberOfDocuments().intValue());
+      ).process(this.metrics.collection().numberOfDocuments().intValue());
       hasData.set(true);
     }
   }
 
   /**
    * Policy to use to simplify a query, if no document matches all terms in the
-   * initial query.
-   * <p/>
-   * If multiple terms match the same criteria a random one out of those will be
-   * chosen.
+   * initial query. <br> If multiple terms match the same criteria a random one
+   * out of those will be chosen.
    */
   @SuppressWarnings("PublicInnerClass")
   public enum QuerySimplifyPolicy {
@@ -756,6 +608,7 @@ public final class ImprovedClarityScore
     DEFAULT_DOC_MODELS
   }
 
+  @SuppressWarnings("JavaDoc")
   private enum DataKeys {
 
     /**
@@ -767,7 +620,8 @@ public final class ImprovedClarityScore
   /**
    * {@link Processing} {@link Target} to reduce feedback terms.
    */
-  final static class FbTermReducerTarget
+  @SuppressWarnings("ProtectedInnerClass")
+  protected static final class FbTermReducerTarget
       extends TargetFuncCall.TargetFunc<ByteArray> {
 
     /**
@@ -787,20 +641,21 @@ public final class ImprovedClarityScore
      * Creates a new {@link Processing} {@link Target} for reducing query
      * terms.
      *
+     * @param newMetrics Metrics instance
      * @param minDocFreq Minimum document frequency
      * @param reducedFbTerms Target for reduced terms
      */
+    @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
     FbTermReducerTarget(
-        final Metrics.CollectionMetrics metrics,
+        final Metrics.CollectionMetrics newMetrics,
         final int minDocFreq,
         final Queue<ByteArray> reducedFbTerms) {
-      super();
-      assert metrics != null;
+      assert newMetrics != null;
       assert reducedFbTerms != null;
 
       this.reducedTermsTarget = reducedFbTerms;
       this.minDf = minDocFreq;
-      this.collectionMetrics = metrics;
+      this.collectionMetrics = newMetrics;
     }
 
     @Override
@@ -818,11 +673,6 @@ public final class ImprovedClarityScore
   @SuppressWarnings("PublicInnerClass")
   public static final class Result
       extends ClarityScoreResult {
-
-    /**
-     * List of queries issued to get feedback documents.
-     */
-    private final List<String> queries;
     /**
      * Configuration that was used.
      */
@@ -835,10 +685,6 @@ public final class ImprovedClarityScore
      * Terms from feedback documents used for calculation.
      */
     private Set<ByteArray> feedbackTerms;
-    /**
-     * Flag indicating, if the query was simplified.
-     */
-    private boolean wasQuerySimplified;
 
     /**
      * Creates an object wrapping the result with meta information.
@@ -848,18 +694,8 @@ public final class ImprovedClarityScore
     @SuppressWarnings("CollectionWithoutInitialCapacity")
     public Result(final Class<? extends ClarityScoreCalculation> cscType) {
       super(cscType);
-      this.queries = new ArrayList<>();
-      this.feedbackDocIds = Collections.<Integer>emptySet();
-      this.feedbackTerms = Collections.<ByteArray>emptySet();
-    }
-
-    /**
-     * Set the calculation result.
-     *
-     * @param score Score result
-     */
-    void setScore(final double score) {
-      super._setScore(score);
+      this.feedbackDocIds = Collections.emptySet();
+      this.feedbackTerms = Collections.emptySet();
     }
 
     /**
@@ -873,33 +709,12 @@ public final class ImprovedClarityScore
     }
 
     /**
-     * Set the flag, if this query was simplified.
-     *
-     * @param state True, if simplified
-     */
-    void setQuerySimplified(final boolean state) {
-      this.wasQuerySimplified = state;
-    }
-
-    /**
      * Set the configuration that was used.
      *
      * @param newConf Configuration used
      */
     void setConf(final ImprovedClarityScoreConfiguration.Conf newConf) {
       this.conf = Objects.requireNonNull(newConf, "Configuration was null.");
-    }
-
-    /**
-     * Add a query string to the list of issued queries.
-     *
-     * @param query Query to add
-     */
-    void addQuery(final String query) {
-      if (Objects.requireNonNull(query, "Query was null.").trim().isEmpty()) {
-        throw new IllegalArgumentException("Query was empty.");
-      }
-      this.queries.add(query);
     }
 
     /**
@@ -917,7 +732,7 @@ public final class ImprovedClarityScore
      * @return Feedback documents used for calculation
      */
     public Set<Integer> getFeedbackDocuments() {
-      return this.feedbackDocIds;
+      return Collections.unmodifiableSet(this.feedbackDocIds);
     }
 
     /**
@@ -926,7 +741,7 @@ public final class ImprovedClarityScore
      * @return Feedback terms used for calculation
      */
     public Set<ByteArray> getFeedbackTerms() {
-      return this.feedbackTerms;
+      return Collections.unmodifiableSet(this.feedbackTerms);
     }
 
     /**
@@ -939,46 +754,44 @@ public final class ImprovedClarityScore
           .requireNonNull(fbTerms, "Feedback terms were null"));
     }
 
-    /**
-     * Get the flag indicating, if the query was simplified.
-     *
-     * @return True, if it was simplified
-     */
-    public boolean wasQuerySimplified() {
-      return this.wasQuerySimplified;
-    }
-
-    /**
-     * Get the queries issued to get feedback documents.
-     *
-     * @return List of queries issued
-     */
-    public List<String> getQueries() {
-      return Collections.unmodifiableList(this.queries);
-    }
-
     @Override
     public ScoringResultXml getXml() {
-      // TODO: implement
-      throw new UnsupportedOperationException("Not implemented yet.");
+      final ScoringResultXml xml = new ScoringResultXml();
+
+      getXml(xml);
+
+      return xml;
     }
   }
 
   /**
    * Builder to create a new {@link ImprovedClarityScore} instance.
    */
+  @SuppressWarnings("PublicInnerClass")
   public static final class Builder
       extends AbstractClarityScoreCalculationBuilder<Builder> {
     /**
      * Configuration to use.
      */
+    @SuppressWarnings("PackageVisibleField")
     ImprovedClarityScoreConfiguration configuration = new
         ImprovedClarityScoreConfiguration();
 
+    /**
+     * Rule used to simplify the query.
+     */
+    @SuppressWarnings("PackageVisibleField")
+    RuleBasedTryExactTermsQuery.RelaxRule relaxRule =
+        RuleBasedTryExactTermsQuery.RelaxRule.HIGHEST_DOCFREQ;
+
+    /**
+     * Initializes the builder.
+     */
     public Builder() {
       super(IDENTIFIER);
     }
 
+    @Override
     protected Builder getThis() {
       return this;
     }
@@ -987,19 +800,31 @@ public final class ImprovedClarityScore
     public void validate()
         throws ConfigurationException {
       super.validate();
-      super.validatePersistenceBuilder();
+      validatePersistenceBuilder();
     }
 
     /**
      * Set the configuration to use.
      *
-     * @param conf Configuration
+     * @param newConf Configuration
      * @return Self reference
      */
     public Builder configuration(
-        final ImprovedClarityScoreConfiguration conf) {
-      this.configuration = Objects.requireNonNull(conf,
+        final ImprovedClarityScoreConfiguration newConf) {
+      this.configuration = Objects.requireNonNull(newConf,
           "Configuration was null.");
+      return this;
+    }
+
+    /**
+     * Set the relaxing rule to simplify queries.
+     *
+     * @param rule Rule to use
+     * @return Self reference
+     */
+    public Builder queryRelaxRule(final RuleBasedTryExactTermsQuery.RelaxRule
+        rule) {
+      this.relaxRule = Objects.requireNonNull(rule, "Relax rule was null.");
       return this;
     }
 
@@ -1007,33 +832,7 @@ public final class ImprovedClarityScore
     public ImprovedClarityScore build()
         throws BuildableException {
       validate();
-      try {
-        return ImprovedClarityScore.build(this);
-      } catch (IOException e) {
-        throw new BuildException(e);
-      }
-    }
-  }
-
-  /**
-   * Base class for {@link ImprovedClarityScore} specific {@link Exception}s.
-   */
-  public static class ImprovedClarityScoreCalculationException
-      extends ClarityScoreCalculationException {
-
-    public ImprovedClarityScoreCalculationException(final String msg) {
-      super(msg);
-    }
-  }
-
-  /**
-   * {@link Exception} indicating that there are no terms left to run a scoring
-   * query.
-   */
-  public final static class NoTermsLeftException
-      extends ImprovedClarityScoreCalculationException {
-    public NoTermsLeftException(final String msg) {
-      super(msg);
+      return new ImprovedClarityScore(this);
     }
   }
 
@@ -1044,13 +843,20 @@ public final class ImprovedClarityScore
       extends TargetFuncCall.TargetFunc<ByteArray> {
 
     /**
+     * Collection related metrics instance.
+     */
+    private final Metrics.CollectionMetrics collectionMetrics;
+
+    /**
      * Query terms. Must be non-unique!
      */
     private final List<ByteArray> queryTerms;
+
     /**
      * Ids of feedback documents to use.
      */
     private final Set<Integer> feedbackDocIds;
+
     /**
      * Final score to add calculation results to.
      */
@@ -1059,17 +865,20 @@ public final class ImprovedClarityScore
     /**
      * Create a new calculator for document models.
      *
+     * @param cMetrics Collection metrics instance
      * @param fbDocIds Feedback document ids
      * @param qTerms Query terms
      * @param result Result to add to
      */
-    ModelCalculatorTarget(final Set<Integer> fbDocIds,
+    @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
+    ModelCalculatorTarget(final Metrics.CollectionMetrics cMetrics,
+        final Set<Integer> fbDocIds,
         final List<ByteArray> qTerms, final AtomicDouble result) {
-      super();
       assert fbDocIds != null : "List of feedback document ids was null.";
       assert qTerms != null : "List of query terms was null.";
       assert result != null : "Calculation result target was null.";
 
+      this.collectionMetrics = cMetrics;
       this.queryTerms = qTerms;
       this.feedbackDocIds = fbDocIds;
       this.score = result;
@@ -1080,8 +889,8 @@ public final class ImprovedClarityScore
       if (term != null) {
         final double queryModel = getQueryModel(term, this.queryTerms,
             this.feedbackDocIds);
-        score.addAndGet(queryModel * MathUtils.log2(queryModel
-            / metrics.collection.relTf(term)));
+        this.score.addAndGet(queryModel * MathUtils.log2(queryModel
+            / this.collectionMetrics.relTf(term)));
       }
     }
   }
@@ -1091,6 +900,11 @@ public final class ImprovedClarityScore
    */
   private final class DocumentModelCalculatorTarget
       extends TargetFuncCall.TargetFunc<Integer> {
+    /**
+     * Constructor to allow parent class access.
+     */
+    DocumentModelCalculatorTarget() {
+    }
 
     @Override
     public void call(final Integer docId) {

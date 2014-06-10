@@ -90,55 +90,6 @@ public final class TextTable {
   }
 
   /**
-   * Check, if cells are globally defined. Throws an exception, if it's not the
-   * case.
-   */
-  private void hasCells() {
-    if (!this.hasCells) {
-      throw new IllegalArgumentException("Cells not specified.");
-    }
-  }
-
-  /**
-   * Check, if a default row format is defined. Throws an exception, if it's not
-   * the case.
-   */
-  private void hasRowFormat() {
-    if (!this.hasRowFormat) {
-      throw new IllegalArgumentException("Row format not specified.");
-    }
-  }
-
-  /**
-   * Repeat a string a given amount of times.
-   *
-   * @param times How many times to repeat
-   * @param string String to repeat
-   * @return New string with the given string <tt>times</tt> repeated
-   */
-  private String rPrint(final int times, final String string) {
-    if (times > 0) {
-      return new String(new char[times]).replace("\0", string);
-    } else {
-      return "";
-    }
-  }
-
-  /**
-   * Get the with of the specified cells, taking spacing into account.
-   *
-   * @param newCells Cells to use for calculation
-   * @return With used by the specified cells
-   */
-  private int getCellsWidth(final int... newCells) {
-    int width = 0;
-    for (final int newCell : newCells) {
-      width += newCell + 2; // add spacing
-    }
-    return width;
-  }
-
-  /**
    * Print a horizontal table cell line for the given cells with vertical line
    * start and end markers for each cell.
    *
@@ -146,16 +97,6 @@ public final class TextTable {
    */
   public void hLine(final int... newCells) {
     hLine(true, newCells);
-  }
-
-  /**
-   * Same as {@link #hLine(int...)}, but uses the globally specified cells.
-   */
-  @SuppressWarnings({"ConfusingArrayVararg",
-      "PrimitiveArrayArgumentToVariableArgMethod"})
-  public void hLine() {
-    hasCells();
-    hLine(true, this.cells);
   }
 
   /**
@@ -208,12 +149,74 @@ public final class TextTable {
   }
 
   /**
+   * Repeat a string a given amount of times.
+   *
+   * @param times How many times to repeat
+   * @param string String to repeat
+   * @return New string with the given string <tt>times</tt> repeated
+   */
+  private String rPrint(final int times, final CharSequence string) {
+    if (times > 0) {
+      return new String(new char[times]).replace("\0", string);
+    } else {
+      return "";
+    }
+  }
+
+  /**
+   * Same as {@link #hLine(int...)}, but uses the globally specified cells.
+   */
+  @SuppressWarnings({"ConfusingArrayVararg",
+      "PrimitiveArrayArgumentToVariableArgMethod"})
+  public void hLine() {
+    hasCells();
+    hLine(true, this.cells);
+  }
+
+  /**
+   * Check, if cells are globally defined. Throws an exception, if it's not the
+   * case.
+   */
+  private void hasCells() {
+    if (!this.hasCells) {
+      throw new IllegalArgumentException("Cells not specified.");
+    }
+  }
+
+  /**
    * Print a horizontal line of the given width.
    *
    * @param width Width of the line
    */
   public void hLine(final int width) {
     hLine(width, false, true, true);
+  }
+
+  /**
+   * Same as {@link #header(java.lang.String, int...)}, but uses the globally
+   * specified cells.
+   *
+   * @param title Title of the table
+   */
+  @SuppressWarnings({"ConfusingArrayVararg",
+      "PrimitiveArrayArgumentToVariableArgMethod"})
+  public void header(final String title) {
+    hasCells();
+    header(title, this.cells);
+  }
+
+  /**
+   * Prints a table heading (title).
+   *
+   * @param title Title of the table
+   * @param newCells Cell widths
+   */
+  @SuppressWarnings({"ConfusingArrayVararg",
+      "PrimitiveArrayArgumentToVariableArgMethod"})
+  public void header(final String title, final int... newCells) {
+    hLine(false, newCells);
+    printHeader(title, newCells);
+    hLine(false, newCells);
   }
 
   /**
@@ -234,30 +237,29 @@ public final class TextTable {
   }
 
   /**
-   * Prints a table heading (title).
+   * Get the with of the specified cells, taking spacing into account.
    *
-   * @param title Title of the table
-   * @param newCells Cell widths
+   * @param newCells Cells to use for calculation
+   * @return With used by the specified cells
    */
-  @SuppressWarnings({"ConfusingArrayVararg",
-      "PrimitiveArrayArgumentToVariableArgMethod"})
-  public void header(final String title, final int... newCells) {
-    hLine(false, newCells);
-    printHeader(title, newCells);
-    hLine(false, newCells);
+  private int getCellsWidth(final int... newCells) {
+    int width = 0;
+    for (final int newCell : newCells) {
+      width += newCell + 2; // add spacing
+    }
+    return width;
   }
 
   /**
-   * Same as {@link #header(java.lang.String, int...)}, but uses the globally
-   * specified cells.
+   * Same as {@link #header(java.lang.String, java.lang.String[], int[])}, but
+   * uses the globally specified cells.
    *
    * @param title Title of the table
+   * @param columns Column titles
    */
-  @SuppressWarnings({"ConfusingArrayVararg",
-      "PrimitiveArrayArgumentToVariableArgMethod"})
-  public void header(final String title) {
+  public void header(final String title, final String[] columns) {
     hasCells();
-    header(title, this.cells);
+    header(title, columns, this.cells);
   }
 
   /**
@@ -276,18 +278,6 @@ public final class TextTable {
     hLine(true, cellWidths);
     cHeader(columns, cellWidths);
     hLine(true, cellWidths);
-  }
-
-  /**
-   * Same as {@link #header(java.lang.String, java.lang.String[], int[])}, but
-   * uses the globally specified cells.
-   *
-   * @param title Title of the table
-   * @param columns Column titles
-   */
-  public void header(final String title, final String[] columns) {
-    hasCells();
-    header(title, columns, this.cells);
   }
 
   /**
@@ -334,11 +324,33 @@ public final class TextTable {
    * @return Array of table cell widths
    */
   public int[] getCellWidths(final String[] columns, final int[] dataWidth) {
-    int[] cellWidths = new int[columns.length];
+    final int[] cellWidths = new int[columns.length];
     for (int i = 0; i < columns.length; i++) {
       cellWidths[i] = Math.max(columns[i].length(), dataWidth[i]);
     }
     return cellWidths;
+  }
+
+  /**
+   * Same as {@link #row(java.lang.Object[], java.lang.String[])}, but uses the
+   * globally defined row format.
+   *
+   * @param data Data to print in a row
+   */
+  public void row(final Object[] data) {
+    hasCells();
+    hasRowFormat();
+    row(data, this.defaultRowFormat);
+  }
+
+  /**
+   * Check, if a default row format is defined. Throws an exception, if it's not
+   * the case.
+   */
+  private void hasRowFormat() {
+    if (!this.hasRowFormat) {
+      throw new IllegalArgumentException("Row format not specified.");
+    }
   }
 
   /**
@@ -357,17 +369,5 @@ public final class TextTable {
           + " |", data[i]);
     }
     this.out.print("\n");
-  }
-
-  /**
-   * Same as {@link #row(java.lang.Object[], java.lang.String[])}, but uses the
-   * globally defined row format.
-   *
-   * @param data Data to print in a row
-   */
-  public void row(final Object[] data) {
-    hasCells();
-    hasRowFormat();
-    row(data, this.defaultRowFormat);
   }
 }

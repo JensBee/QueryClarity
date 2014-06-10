@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jens Bertram
  */
-public class TestMethodInfo
+public final class TestMethodInfo
     extends TestWatcher {
 
   /**

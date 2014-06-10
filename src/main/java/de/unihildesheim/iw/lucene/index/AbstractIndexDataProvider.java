@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Jens Bertram
+ * Copyright (C) 2014 Jens Bertram <code@jens-bertram.net>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@ import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.Persistence;
 import de.unihildesheim.iw.SerializableByte;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
+import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
@@ -39,7 +40,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentNavigableMap;
@@ -58,68 +58,90 @@ abstract class AbstractIndexDataProvider
    */
   private static final Logger LOG = LoggerFactory.getLogger(
       AbstractIndexDataProvider.class);
+
   /**
    * Flag indicating, if this instance is temporary (no data is hold
    * persistent).
    */
   private final boolean isTemporary;
+
   /**
    * Flag indicating, if caches are filled (warmed).
    */
-  private boolean warmed;
+  private volatile boolean warmed;
+
   /**
    * Transient cached overall term frequency of the index.
    */
-  private Long idxTf;
+  private volatile Long idxTf;
+
   /**
    * Transient cached collection of all (non deleted) document-ids.
    */
-  private Set<Integer> idxDocumentIds;
+  private volatile Set<Integer> idxDocumentIds;
+
   /**
    * Transient cached document-frequency map for all terms in index.
    */
-  private ConcurrentNavigableMap<ByteArray, Integer> idxDfMap;
+  private volatile ConcurrentNavigableMap<ByteArray, Integer> idxDfMap;
+
   /**
    * List of stop-words to exclude from term frequency calculations.
    * Byte-encoded list for internal use.
    */
-  private Set<ByteArray> stopwords = Collections.<ByteArray>emptySet();
+  private volatile Set<ByteArray> stopwords = Collections.emptySet();
+
   /**
    * List of stop-words to exclude from term frequency calculations. Cached
    * String set.
    */
-  private Set<String> stopwordsStr = Collections.<String>emptySet();
+  private volatile Set<String> stopwordsStr = Collections.emptySet();
+
   /**
    * Transient cached collection of all index terms.
    */
-  private Set<ByteArray> idxTerms;
+  private volatile Set<ByteArray> idxTerms;
+
   /**
    * Persistent cached collection of all index terms mapped by document field.
-   * Mapping is {@code(Field, Term)} to {@code Frequency}. Fields are indexed by
-   * {@link #cachedFieldsMap}.
+   * Mapping is {@code (Field, Term)} to {@code Frequency}. Fields are indexed
+   * by {@link #cachedFieldsMap}. <br> The frequency value describes the number
+   * of times the term is found across all documents in the specific field.
+   *
+   * @see #cachedFieldsMap
    */
-  private ConcurrentNavigableMap<Fun.Tuple2<
+  private volatile ConcurrentNavigableMap<Fun.Tuple2<
       SerializableByte, ByteArray>, Long> idxTermsMap;
+
   /**
    * Persistent cached collection of all index terms mapped by document-field
-   * and document-id. Mapping is {@code(Term, Field, Document)} to {@code
-   * Frequency}. Fields are indexed by {@link #cachedFieldsMap}.
+   * and document-id. Mapping is {@code (Term, Field, Document)} to {@code
+   * Frequency}. Fields are indexed by {@link #cachedFieldsMap}.<br> The
+   * frequency value describes the times the term is found in the specific field
+   * of the specific document.
+   *
+   * @see #cachedFieldsMap
    */
-  private ConcurrentNavigableMap<Fun.Tuple3<
+  private volatile ConcurrentNavigableMap<Fun.Tuple3<
       ByteArray, SerializableByte, Integer>, Integer> idxDocTermsMap;
+
   /**
-   * List of fields cached by this instance. Mapping of field name to id value.
+   * List of fields cached by this instance. Mapping of {@code field name} to
+   * {@code id} value.
+   *
+   * @see #cachedFieldsMap
    */
-  private Map<String, SerializableByte> cachedFieldsMap;
+  private volatile Map<String, SerializableByte> cachedFieldsMap;
+
   /**
    * {@link IndexReader} to access the Lucene index.
    */
-  private IndexReader idxReader;
+  private volatile IndexReader idxReader;
 
   /**
    * List of document fields to operate on.
    */
-  private Set<String> documentFields;
+  private volatile Set<String> documentFields;
 
   /**
    * Last commit generation id of the Lucene index.
@@ -129,7 +151,7 @@ abstract class AbstractIndexDataProvider
   /**
    * Flag indicating, if this instance is closed.
    */
-  private transient boolean isDisposed;
+  private volatile boolean isDisposed;
 
   /**
    * Initializes the abstract instance.
@@ -148,7 +170,7 @@ abstract class AbstractIndexDataProvider
    *
    * @return Reader
    */
-  protected IndexReader getIndexReader() {
+  final IndexReader getIndexReader() {
     return this.idxReader;
   }
 
@@ -157,7 +179,7 @@ abstract class AbstractIndexDataProvider
    *
    * @param reader Reader to use
    */
-  protected void setIndexReader(final IndexReader reader) {
+  final void setIndexReader(final IndexReader reader) {
     this.idxReader = Objects.requireNonNull(reader, "IndexReader was null.");
   }
 
@@ -166,84 +188,166 @@ abstract class AbstractIndexDataProvider
    *
    * @return True, if caches have been loaded
    */
-  protected boolean cachesWarmed() {
+  final boolean areCachesWarmed() {
     return this.warmed;
   }
 
-  protected void setDisposed() {
+  /**
+   * Sets the flag indicating that this instance is disposed. This means, all
+   * data storages have been closed.
+   */
+  final void setDisposed() {
     this.isDisposed = true;
   }
 
-  protected void addFieldToCacheMap(final String field) {
-    if (Objects.requireNonNull(field, "Field was null.").trim().isEmpty()) {
+  /**
+   * Add a new field name to the list of cached fields.
+   *
+   * @param field Field name
+   */
+  final void addFieldToCacheMap(final String field) {
+    if (StringUtils.isStrippedEmpty(
+        Objects.requireNonNull(field, "Field was null."))) {
       throw new IllegalArgumentException("Field was empty.");
     }
 
     final Collection<SerializableByte> keys = new HashSet<>(
         this.cachedFieldsMap.values());
-    for (byte i = Byte.MIN_VALUE; i < Byte.MAX_VALUE; i++) {
+    for (byte i = Byte.MIN_VALUE; (int) i < (int) Byte.MAX_VALUE; i++) {
+      @SuppressWarnings("ObjectAllocationInLoop")
       final SerializableByte sByte = new SerializableByte(i);
-      if (!keys.contains(sByte)) {
-        getCachedFieldsMap().put(field, sByte);
-        keys.add(sByte);
+      if (keys.add(sByte)) {
+        this.cachedFieldsMap.put(field, sByte);
         break;
       }
     }
   }
 
-  protected Map<String, SerializableByte> getCachedFieldsMap() {
+  /**
+   * Get the mapping of cached fields. The mapping is {@code field name} to
+   * {@code Byte value}. The Byte value can be used to identify a field. <br>
+   * The collection field is exposed to the caller. All modifications are
+   * directly changing the original object.
+   *
+   * @return Mapping of {@code field name} to {@code Byte} value
+   * @see #cachedFieldsMap
+   */
+  @SuppressWarnings("ReturnOfCollectionOrArrayField")
+  final Map<String, SerializableByte> getCachedFieldsMap() {
     return this.cachedFieldsMap;
   }
 
-  protected void setCachedFieldsMap(final Map<String,
+  /**
+   * Sets the map of cached fields. <br> The collection is referenced from the
+   * caller. All modifications are directly changing the original object.
+   *
+   * @param newFieldsMap Mapping of {@code FieldName} to {@code Byte} value
+   * @see #cachedFieldsMap
+   */
+  final void setCachedFieldsMap(final Map<String,
       SerializableByte> newFieldsMap) {
     this.cachedFieldsMap = Objects.requireNonNull(newFieldsMap,
         "Cached fields map was null.");
   }
 
-  protected ConcurrentNavigableMap<Fun.Tuple2<
+  /**
+   * Gets the mapping of {@code (FieldByte, Term)} to field based {@code
+   * index-frequency}. <br> The collection field is exposed to the caller. All
+   * modifications are directly changing the original object.
+   *
+   * @return Per field term index-frequency mapping
+   * @see #idxTermsMap
+   */
+  @SuppressWarnings("ReturnOfCollectionOrArrayField")
+  final ConcurrentNavigableMap<Fun.Tuple2<
       SerializableByte, ByteArray>, Long> getIdxTermsMap() {
     return this.idxTermsMap;
   }
 
-  protected void setIdxTermsMap(final ConcurrentNavigableMap<Fun.Tuple2<
+  /**
+   * Sets the mapping of {@code (FieldByte, Term)} to field based {@code
+   * index-frequency}. <br> The collection is referenced from the caller. All
+   * modifications are directly changing the original object.
+   *
+   * @param newIdxTermsMap Per field term index-frequency mapping
+   * @see #idxTermsMap
+   */
+  final void setIdxTermsMap(final ConcurrentNavigableMap<Fun.Tuple2<
       SerializableByte, ByteArray>, Long> newIdxTermsMap) {
     this.idxTermsMap = Objects.requireNonNull(newIdxTermsMap,
         "Index terms map was null.");
   }
 
-  protected ConcurrentNavigableMap<Fun.Tuple3<
+  /**
+   * Gets the mapping of {@code (Term, Field, Document)} to {@code in-document
+   * frequency}. <br> The collection field is exposed to the caller. All
+   * modifications are directly changing the original object.
+   *
+   * @return Per Field in-document frequency for each term and document in index
+   * @see #idxDocTermsMap
+   */
+  @SuppressWarnings("ReturnOfCollectionOrArrayField")
+  final ConcurrentNavigableMap<Fun.Tuple3<
       ByteArray, SerializableByte, Integer>, Integer> getIdxDocTermsMap() {
     return this.idxDocTermsMap;
   }
 
-  protected void setIdxDocTermsMap(final ConcurrentNavigableMap<Fun.Tuple3<
+  /**
+   * Sets the mapping of {@code (Term, Field, Document)} to {@code in-document
+   * frequency}. <br> The collection is referenced from the caller. All
+   * modifications are directly changing the original object.
+   *
+   * @param newIdxDocTermsMap Data map to reference
+   * @see #idxDocTermsMap
+   */
+  final void setIdxDocTermsMap(final ConcurrentNavigableMap<Fun.Tuple3<
       ByteArray, SerializableByte, Integer>, Integer> newIdxDocTermsMap) {
     this.idxDocTermsMap = Objects.requireNonNull(newIdxDocTermsMap,
         "Index document term-frequency map was null.");
   }
 
-  protected void clearIdxTf() {
+  /**
+   * Clears the index term-frequency value.
+   *
+   * @see #idxTf
+   */
+  @SuppressWarnings("AssignmentToNull")
+  final void clearIdxTf() {
     this.idxTf = null;
   }
 
-  protected Long getIdxTf() {
+  /**
+   * Get the overall term-frequency value for the whole index.
+   *
+   * @return Frequency of all terms in the index
+   * @see #idxTf
+   */
+  final Long getIdxTf() {
     return this.idxTf;
   }
 
-  protected void setIdxTf(final Long tf) {
+  /**
+   * Set the overall term-frequency value for the whole index.
+   *
+   * @param tf Frequency of all terms in the index
+   * @see #idxTf
+   */
+  final void setIdxTf(final Long tf) {
     this.idxTf = Objects.requireNonNull(tf, "Term frequency value was null.");
   }
 
   /**
-   * Checks, if the given String is flagged as stopword.
+   * Check, if the given String is flagged as stopword.
    *
    * @param word Word to check
    * @return True, if it's a stopword
+   * @throws UnsupportedEncodingException Thrown, if the word could not be
+   * encoded to UTF-8 bytes
    */
   protected boolean isStopword(final String word)
       throws UnsupportedEncodingException {
-    if (Objects.requireNonNull(word, "Term was null.").trim().isEmpty()) {
+    if (StringUtils.isStrippedEmpty(
+        Objects.requireNonNull(word, "Term was null."))) {
       throw new IllegalArgumentException("Term was empty.");
     }
     return isStopword(new ByteArray(word.getBytes("UTF-8")));
@@ -255,7 +359,7 @@ abstract class AbstractIndexDataProvider
    * @param word Word to check
    * @return True, if it's a stopword
    */
-  protected boolean isStopword(final ByteArray word) {
+  final boolean isStopword(final ByteArray word) {
     return this.stopwords.contains(Objects.requireNonNull(word,
         "Term was null."));
   }
@@ -275,6 +379,7 @@ abstract class AbstractIndexDataProvider
    * Checks if this instance is temporary.
    *
    * @return True, if temporary
+   * @see #isTemporary
    */
   final boolean isTemporary() {
     return this.isTemporary;
@@ -282,7 +387,13 @@ abstract class AbstractIndexDataProvider
 
   /**
    * Default implementation of {@link #warmUpTerms()}.
+   *
+   * @return True, if data was loaded and not calculated in place
+   * @throws ProcessingException Thrown, if term processing encountered an
+   * error
+   * @see #idxTerms
    */
+  @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
   final boolean warmUpTerms_default()
       throws ProcessingException {
     final boolean loaded;
@@ -308,6 +419,9 @@ abstract class AbstractIndexDataProvider
    * list.
    *
    * @return Unique collection of all terms in index with stopwords removed
+   * @throws ProcessingException Thrown, if term processing encountered an
+   * error
+   * @see #idxTerms
    */
   final Collection<ByteArray> getTerms()
       throws ProcessingException {
@@ -337,9 +451,10 @@ abstract class AbstractIndexDataProvider
    *
    * @param fieldName Field name
    * @return Id of the field
+   * @see #cachedFieldsMap
    */
   final SerializableByte getFieldId(final String fieldName) {
-    if (Objects.requireNonNull(fieldName).trim().isEmpty()) {
+    if (StringUtils.isStrippedEmpty(Objects.requireNonNull(fieldName))) {
       throw new IllegalArgumentException("Field name was empty.");
     }
 
@@ -353,7 +468,11 @@ abstract class AbstractIndexDataProvider
 
   /**
    * Default implementation of {@link #warmUpIndexTermFrequencies()}.
+   *
+   * @return True, if data was loaded and not calculated in place
+   * @see #idxTf
    */
+  @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
   final boolean warmUpIndexTermFrequencies_default() {
     final boolean loaded;
     final TimeMeasure tStep = new TimeMeasure();
@@ -380,6 +499,8 @@ abstract class AbstractIndexDataProvider
 
   /**
    * {@inheritDoc} Stop-words will be skipped.
+   *
+   * @see #idxTf
    */
   @Override
   public final long getTermFrequency() {
@@ -400,7 +521,7 @@ abstract class AbstractIndexDataProvider
       if (!this.stopwords.isEmpty()) {
         Long tf;
         for (final ByteArray stopWord : this.stopwords) {
-          tf = _getTermFrequency(stopWord);
+          tf = getTermFrequencyIgnoringStopwords(stopWord);
           if (tf != null) {
             this.idxTf -= tf;
           }
@@ -417,7 +538,6 @@ abstract class AbstractIndexDataProvider
    * @throws DataProviderException
    */
   @Override
-  @SuppressWarnings("checkstyle:designforextension")
   public void warmUp()
       throws DataProviderException {
     if (this.warmed) {
@@ -439,24 +559,32 @@ abstract class AbstractIndexDataProvider
 
   /**
    * Pre-cache index terms.
+   *
+   * @throws DataProviderException Wraps any exception thrown during processing
    */
   protected abstract void warmUpTerms()
       throws DataProviderException;
 
   /**
    * Pre-cache term frequencies.
+   *
+   * @throws DataProviderException Wraps any exception thrown during processing
    */
   protected abstract void warmUpIndexTermFrequencies()
       throws DataProviderException;
 
   /**
    * Pre-cache document-ids.
+   *
+   * @throws DataProviderException Wraps any exception thrown during processing
    */
   protected abstract void warmUpDocumentIds()
       throws DataProviderException;
 
   /**
    * Pre-cache term-document frequencies.
+   *
+   * @throws DataProviderException Wraps any exception thrown during processing
    */
   abstract void warmUpDocumentFrequencies()
       throws DataProviderException;
@@ -471,7 +599,7 @@ abstract class AbstractIndexDataProvider
       // skip stop-words
       return 0L;
     }
-    return _getTermFrequency(term);
+    return getTermFrequencyIgnoringStopwords(term);
   }
 
   /**
@@ -497,7 +625,7 @@ abstract class AbstractIndexDataProvider
       throws DataProviderException {
     try {
       return getTerms().iterator();
-    } catch (ProcessingException e) {
+    } catch (final ProcessingException e) {
       throw new DataProviderException("Failed to get terms iterator.", e);
     }
   }
@@ -522,8 +650,8 @@ abstract class AbstractIndexDataProvider
   public final long getUniqueTermsCount()
       throws DataProviderException {
     try {
-      return getTerms().size();
-    } catch (ProcessingException e) {
+      return (long) getTerms().size();
+    } catch (final ProcessingException e) {
       throw new DataProviderException("Failed to get unique terms count.", e);
     }
   }
@@ -538,36 +666,41 @@ abstract class AbstractIndexDataProvider
 
   @Override
   public final long getDocumentCount() {
-    return getDocumentIds().size();
+    return (long) getDocumentIds().size();
   }
 
   @Override
-  public Long getLastIndexCommitGeneration() {
+  public final Long getLastIndexCommitGeneration() {
     return this.indexLastCommitGeneration;
   }
 
   @Override
-  public Set<String> getDocumentFields() {
+  public final Set<String> getDocumentFields() {
     return Collections.unmodifiableSet(this.documentFields);
   }
 
   /**
-   * Set the list of document fields to operate on.
+   * Set the list of document fields to operate on. <br> The collection directly
+   * referenced from the caller. All modifications are directly changing the
+   * original object.
    *
    * @param fields List of document field names
    */
-  protected void setDocumentFields(final Set<String> fields) {
+  @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
+  final void setDocumentFields(final Set<String> fields) {
     if (Objects.requireNonNull(fields, "Fields were null.").isEmpty()) {
       throw new IllegalArgumentException("Field list was empty.");
     }
     this.documentFields = fields;
   }
 
+  @SuppressWarnings("ReturnOfCollectionOrArrayField")
   @Override
-  public Set<String> getStopwords() {
+  public final Set<String> getStopwords() {
     return this.stopwordsStr;
   }
 
+  @SuppressWarnings("ReturnOfCollectionOrArrayField")
   @Override
   public Set<ByteArray> getStopwordsBytes() {
     return this.stopwords;
@@ -585,12 +718,13 @@ abstract class AbstractIndexDataProvider
    * @throws java.io.UnsupportedEncodingException Thrown, if a term could not be
    * encoded into the target charset (usually UTF-8)
    */
-  protected void setStopwords(final Set<String> words)
-      throws UnsupportedEncodingException {
+  final void setStopwords(final Set<String> words)
+  throws UnsupportedEncodingException {
     this.stopwordsStr = Objects.requireNonNull(words, "Stopwords were null.");
-    this.stopwords = new HashSet<>();
+    this.stopwords = new HashSet<>(this.stopwordsStr.size());
     for (final String word : words) {
       // terms in Lucene are UTF-8 encoded
+      @SuppressWarnings("ObjectAllocationInLoop")
       final ByteArray termBa = new ByteArray(word.getBytes("UTF-8"));
       this.stopwords.add(termBa);
     }
@@ -601,7 +735,7 @@ abstract class AbstractIndexDataProvider
    *
    * @param cGen Generation id
    */
-  protected void setLastIndexCommitGeneration(final Long cGen) {
+  final void setLastIndexCommitGeneration(final Long cGen) {
     this.indexLastCommitGeneration = Objects.requireNonNull(cGen,
         "Commit generation was null.");
   }
@@ -619,8 +753,7 @@ abstract class AbstractIndexDataProvider
    * @param term Term to lookup
    * @return Term frequency
    */
-  @SuppressWarnings("checkstyle:methodname")
-  final Long _getTermFrequency(final ByteArray term) {
+  final Long getTermFrequencyIgnoringStopwords(final ByteArray term) {
     Objects.requireNonNull(term, "Term was null.");
 
     Long tf = 0L;
@@ -638,11 +771,13 @@ abstract class AbstractIndexDataProvider
    * Get a list of field-ids of all available document fields.
    *
    * @return List of field ids
+   * @see #documentFields
    */
-  private Set<SerializableByte> getDocumentFieldIds() {
-    final Set<SerializableByte> fieldIds = new HashSet<>(this.documentFields
-        .size());
-    for (String fieldName : this.documentFields) {
+  final Collection<SerializableByte> getDocumentFieldIds() {
+    final Collection<SerializableByte> fieldIds =
+        new HashSet<>(this.documentFields
+            .size());
+    for (final String fieldName : this.documentFields) {
       fieldIds.add(getFieldId(fieldName));
     }
     assert !fieldIds.isEmpty();
@@ -672,68 +807,109 @@ abstract class AbstractIndexDataProvider
 
   /**
    * Default implementation of {@link #warmUpDocumentFrequencies()}.
+   *
+   * @throws ProcessingException Thrown, if calculating document frequencies in
+   * place encountered an error
    */
   final void warmUpDocumentFrequencies_default()
       throws ProcessingException {
     // cache document frequency values for each term
-    if (getIdxDfMap().isEmpty()) {
+    if (this.idxDfMap.isEmpty()) {
       final TimeMeasure tStep = new TimeMeasure().start();
       LOG.info("Cache warming: document frequencies..");
 
-      new Processing(new TargetFuncCall<>(
-          new CollectionSource<>(getIdxTerms()),
-          new DocumentFrequencyCollectorTarget()
-      )).process(getIdxTerms().size());
+      if (this.idxTerms.isEmpty()) {
+        LOG.warn("No index terms found.");
+      } else {
+        new Processing(new TargetFuncCall<>(
+            new CollectionSource<>(this.idxTerms),
+            new DocumentFrequencyCollectorTarget()
+        )).process(this.idxTerms.size());
+      }
 
       LOG.info("Cache warming: calculating document frequencies "
               + "for {} documents and {} terms took {}.",
-          getIdxDocumentIds().size(), getIdxTerms().size(),
+          this.idxDocumentIds.size(), this.idxTerms.size(),
           tStep.stop().getTimeString()
       );
     } else {
       LOG.info("Cache warming: Document frequencies "
               + "for {} documents and {} terms already loaded.",
-          getIdxDocumentIds().size(), getIdxTerms().size()
+          this.idxDocumentIds.size(), this.idxTerms.size()
       );
     }
   }
 
-  protected ConcurrentNavigableMap<ByteArray, Integer> getIdxDfMap() {
+  /**
+   * Get a mapping of {@code Term} to {@code DocumentFrequency}. <br> The
+   * collection field is exposed to the caller. All modifications are directly
+   * changing the original object.
+   *
+   * @return Document frequency by term
+   * @see #idxDfMap
+   */
+  @SuppressWarnings("ReturnOfCollectionOrArrayField")
+  final ConcurrentNavigableMap<ByteArray, Integer> getIdxDfMap() {
     return this.idxDfMap;
   }
 
   /**
-   * Get the index terms list.
+   * Set the index {@code Term} to {@code DocumentFrequency} mapping. <br> The
+   * collection is directly referenced from the caller. All modifications are
+   * directly changing the original object.
    *
-   * @return
+   * @param map Document-frequency by term
    */
-  protected Set<ByteArray> getIdxTerms() {
+  final void setIdxDfMap(final ConcurrentNavigableMap<ByteArray,
+      Integer> map) {
+    this.idxDfMap = Objects.requireNonNull(map, "Index document-frequency map" +
+        " was null.");
+  }
+
+  /**
+   * Get the index terms list. <br> The collection field is exposed to the
+   * caller. All modifications are directly changing the original object.
+   *
+   * @return Set of terms in the index
+   */
+  @SuppressWarnings("ReturnOfCollectionOrArrayField")
+  final Set<ByteArray> getIdxTerms() {
     return this.idxTerms;
   }
 
   /**
-   * Set the index terms list.
+   * Set the index terms list. <br> The collection is directly referenced from
+   * the caller. All modifications are directly changing the original object.
    *
-   * @param newIdxTerms
+   * @param newIdxTerms Set of terms in the index
    */
-  protected void setIdxTerms(final Set<ByteArray> newIdxTerms) {
+  final void setIdxTerms(final Set<ByteArray> newIdxTerms) {
     this.idxTerms = Objects.requireNonNull(newIdxTerms,
         "Index term set was null.");
   }
 
-  protected Set<Integer> getIdxDocumentIds() {
+  /**
+   * Get the list of document-ids from the index. <br> The collection field is
+   * exposed to the caller. All modifications are directly changing the original
+   * object.
+   *
+   * @return Set of document ids
+   */
+  @SuppressWarnings("ReturnOfCollectionOrArrayField")
+  final Set<Integer> getIdxDocumentIds() {
     return this.idxDocumentIds;
   }
 
-  protected void setIdxDocumentIds(final Set<Integer> docIds) {
+  /**
+   * Set the list of document-ids from the index. <br> The collection is
+   * directly referenced from the caller. All modifications are directly
+   * changing the original object.
+   *
+   * @param docIds Set of document ids
+   */
+  final void setIdxDocumentIds(final Set<Integer> docIds) {
     this.idxDocumentIds = Objects.requireNonNull(docIds,
         "Document ids were null.");
-  }
-
-  protected void setIdxDfMap(final ConcurrentNavigableMap<ByteArray,
-      Integer> map) {
-    this.idxDfMap = Objects.requireNonNull(map, "Index document-frequency map" +
-        " was null.");
   }
 
   /**
@@ -743,34 +919,37 @@ abstract class AbstractIndexDataProvider
   private final class DocumentFrequencyCollectorTarget
       extends TargetFuncCall.TargetFunc<ByteArray> {
 
-    private final Collection<Integer> docIds;
+    /**
+     * List of ids linked with currently active document fields.
+     *
+     * @see #cachedFieldsMap
+     */
     private final Collection<SerializableByte> docFieldIds;
-    private final NavigableSet<Fun.Tuple3<
-        ByteArray, SerializableByte, Integer>> docFieldTermSet;
 
-    DocumentFrequencyCollectorTarget()
-        throws ProcessingException {
-      super();
-      this.docIds = getDocumentIds();
+    /**
+     * Create a new Target collecting document frequency values. The currently
+     * known fields and term will be used for calculation.
+     */
+    DocumentFrequencyCollectorTarget() {
       this.docFieldIds = getDocumentFieldIds();
-      this.docFieldTermSet = getIdxDocTermsMap().keySet();
     }
 
     @Override
     public void call(final ByteArray term) {
       if (term != null) {
+        @SuppressWarnings("CollectionWithoutInitialCapacity")
         final Set<Integer> matchedDocs = new HashSet<>();
 
         for (final SerializableByte fieldId : this.docFieldIds) {
           // iterate only a reduced set of documents
           for (final Integer docId :
-              Fun.filter(this.docFieldTermSet, term, fieldId)) {
+              Fun.filter(getIdxDocTermsMap().keySet(), term, fieldId)) {
             matchedDocs.add(docId);
           }
         }
 
         assert !matchedDocs.isEmpty();
-        getIdxDfMap().put(term, matchedDocs.size());
+        getIdxDfMap().put(term.clone(), matchedDocs.size());
       }
     }
   }
@@ -782,26 +961,11 @@ abstract class AbstractIndexDataProvider
   private final class TermCollectorTarget
       extends TargetFuncCall.TargetFunc<String> {
 
-    /**
-     * Set to get terms from.
-     */
-    private final NavigableSet<Fun.Tuple2<SerializableByte, ByteArray>>
-        terms;
-
-    /**
-     * Create a new {@link Processing} {@link Target} for collecting index
-     * terms.
-     */
-    private TermCollectorTarget() {
-      super();
-      this.terms = getIdxTermsMap().keySet();
-    }
-
     @Override
     public void call(final String fieldName) {
       if (fieldName != null) {
-        for (final ByteArray byteArray : Fun.filter(this.terms, getFieldId(
-            fieldName))) {
+        for (final ByteArray byteArray : Fun
+            .filter(getIdxTermsMap().keySet(), getFieldId(fieldName))) {
           getIdxTerms().add(byteArray.clone());
         }
       }

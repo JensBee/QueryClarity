@@ -18,28 +18,62 @@
 package de.unihildesheim.iw.lucene.index;
 
 /**
+ * Exceptions for {@link IndexDataProvider} implementations.
+ *
  * @author Jens Bertram
  */
 public class DataProviderException
     extends Exception {
-  public DataProviderException(final String msg, final Exception ex) {
-    super(msg, ex);
+  /**
+   * Serialization id.
+   */
+  private static final long serialVersionUID = -149719728275656149L;
+
+  /**
+   * General Exception including a {@link Throwable}.
+   *
+   * @param msg Message
+   * @param t Throwable
+   */
+  public DataProviderException(final String msg, final Throwable t) {
+    super(msg, t);
   }
 
+  /**
+   * General Exception.
+   *
+   * @param msg Message
+   */
   public DataProviderException(final String msg) {
     super(msg);
   }
 
-  public DataProviderException(final Exception ex) {
-    super(ex);
-  }
-
+  /**
+   * Specific Exception class for errors related to data caches.
+   */
+  @SuppressWarnings("PublicInnerClass")
   public static final class CacheException
       extends DataProviderException {
-    public CacheException(final String msg, final Exception ex) {
-      super(msg, ex);
+    /**
+     * Serialization id.
+     */
+    private static final long serialVersionUID = 2072304946896607453L;
+
+    /**
+     * General Exception including a {@link Throwable}.
+     *
+     * @param msg Message
+     * @param t Throwable
+     */
+    public CacheException(final String msg, final Throwable t) {
+      super(msg, t);
     }
 
+    /**
+     * General exception.
+     *
+     * @param msg Message
+     */
     public CacheException(final String msg) {
       super(msg);
     }

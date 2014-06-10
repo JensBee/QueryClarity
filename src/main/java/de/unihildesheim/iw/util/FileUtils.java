@@ -53,7 +53,8 @@ public final class FileUtils {
    * @return Given path with a trailing separator char
    */
   public static String makePath(final String path) {
-    if (Objects.requireNonNull(path, "Path was null.").trim().isEmpty()) {
+    if (StringUtils.isStrippedEmpty(
+        Objects.requireNonNull(path, "Path was null."))) {
       throw new IllegalArgumentException("Path was empty.");
     }
     if (path.charAt(path.length() - 1) != File.separatorChar) {

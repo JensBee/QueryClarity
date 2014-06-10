@@ -17,6 +17,8 @@
 
 package de.unihildesheim.iw.util.concurrent.processing;
 
+import org.slf4j.LoggerFactory;
+
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -28,18 +30,29 @@ import java.util.concurrent.atomic.AtomicLong;
 public class TestTargets {
 
   /**
+   * Logger instance for this class.
+   */
+  static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
+      TestTargets.class);
+
+  /**
    * Plain {@link Target} implementation.
    *
    * @param <T> Type of items being processed
    */
-  public final static class Plain<T>
+  @SuppressWarnings("PublicInnerClass")
+  public static final class Plain<T>
       extends Target<T> {
 
+    /**
+     * Item counter.
+     */
     private final AtomicLong c;
 
     /**
      * Create a new {@link Target} with a specific {@link Source}.
      *
+     * @param counter Item counter
      * @param newSource <tt>Source</tt> to use
      */
     public Plain(final AtomicLong counter, final Source<T> newSource) {
@@ -56,10 +69,9 @@ public class TestTargets {
     public void runProcess()
         throws Exception {
       while (!isTerminating()) {
-        final T data;
         try {
-          data = getSource().next();
-        } catch (SourceException.SourceHasFinishedException ex) {
+          getSource().next();
+        } catch (final SourceException.SourceHasFinishedException ex) {
           break;
         }
 
@@ -73,19 +85,29 @@ public class TestTargets {
    *
    * @param <T> Type of items being processed
    */
-  public final static class FuncCall<T>
+  @SuppressWarnings("PublicInnerClass")
+  public static final class FuncCall<T>
       extends TargetFuncCall.TargetFunc<T> {
 
+    /**
+     * Item counter.
+     */
     private final AtomicLong c;
 
+    /**
+     * Initializes the testing target function.
+     *
+     * @param counter Item counter
+     */
     public FuncCall(final AtomicLong counter) {
       this.c = counter;
     }
 
+    @SuppressWarnings("VariableNotUsedInsideIf")
     @Override
     public void call(final T data) {
       if (data != null) {
-        c.incrementAndGet();
+        this.c.incrementAndGet();
       }
     }
   }

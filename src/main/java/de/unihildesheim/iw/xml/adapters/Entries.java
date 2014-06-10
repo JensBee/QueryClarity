@@ -33,17 +33,21 @@ import java.util.List;
  */
 class Entries {
   static class Tuple2ListEntry {
+    @SuppressWarnings("PackageVisibleField")
     @XmlAttribute
     String key;
 
+    @SuppressWarnings("PackageVisibleField")
     List<Tuple.Tuple2<String, String>> t2List = new ArrayList<>();
 
+    @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
     Tuple2ListEntry(final String newKey, final List<Tuple.Tuple2<String,
         String>> newT2List) {
       this.key = newKey;
       this.t2List = newT2List;
     }
 
+    @SuppressWarnings("ReturnOfCollectionOrArrayField")
     @XmlElement(name = "entries")
     @XmlJavaTypeAdapter(ListAdapter.Tuple2ListValue.class)
     List<Tuple.Tuple2<String, String>> getList() {
@@ -57,9 +61,9 @@ class Entries {
     @XmlValue
     String value;
 
-    StringValueEntry(final String key, final String value) {
-      this.key = key;
-      this.value = value;
+    StringValueEntry(final String newKey, final String newValue) {
+      this.key = newKey;
+      this.value = newValue;
     }
   }
 }

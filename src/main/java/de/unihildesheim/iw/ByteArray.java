@@ -16,6 +16,8 @@
  */
 package de.unihildesheim.iw;
 
+import org.mapdb.BTreeKeySerializer;
+import org.mapdb.BTreeMap;
 import org.mapdb.Fun;
 import org.mapdb.Hasher;
 import org.mapdb.Serializer;
@@ -37,10 +39,20 @@ public final class ByteArray
     implements Comparable<ByteArray>, Serializable, Cloneable {
 
   /**
-   * Serializer for this class.
+   * MapDB {@link Serializer} for this class instances.
    */
   public static final ByteArraySerializer SERIALIZER
       = new ByteArraySerializer();
+  /**
+   * MapDB {@link BTreeKeySerializer} for this class instances.
+   */
+  public static final ByteArrayKeySerializer SERIALIZER_KEY =
+      new ByteArrayKeySerializer();
+  /**
+   * Comparator for this class instances.
+   */
+  public static final ByteArrayComparator COMPARATOR = new
+      ByteArrayComparator();
   /**
    * Serialization id.
    */
@@ -48,11 +60,11 @@ public final class ByteArray
   /**
    * Bytes held by this instance.
    */
-  public final byte[] bytes;
+  @SuppressWarnings("PublicField")
+  public byte[] bytes;
 
   /**
-   * Create a new {@link ByteArray} from the given bytes taking a local copy of
-   * them.
+   * Create a new ByteArray from the given bytes taking a local copy of them.
    *
    * @param existingBytes Bytes to copy
    */
@@ -65,9 +77,9 @@ public final class ByteArray
   }
 
   /**
-   * Create a new {@link ByteArray} from the given bytes taking a local copy of
-   * them. Bytes will be copied starting at <tt>offset</tt> (inclusive) using
-   * the given <tt>length</tt>.
+   * Create a new ByteArray from the given bytes taking a local copy of them.
+   * Bytes will be copied starting at <tt>offset</tt> (inclusive) using the
+   * given <tt>length</tt>.
    *
    * @param existingBytes Bytes array to copy from
    * @param offset Start offset
@@ -78,30 +90,10 @@ public final class ByteArray
     if (Objects.requireNonNull(existingBytes, "Bytes were null.").length == 0) {
       throw new IllegalArgumentException("Empty bytes given.");
     }
-    if (existingBytes.length < (offset + length)) {
+    if (existingBytes.length < (offset + length) || length == 0) {
       throw new IllegalArgumentException("Not enough bytes to copy.");
     }
     this.bytes = Arrays.copyOfRange(existingBytes, offset, length);
-  }
-
-  /**
-   * Create a clone of this byte array.
-   *
-   * @return Cloned copy
-   */
-  @Override
-  public ByteArray clone() {
-    //return new ByteArray(this.bytes);
-    try {
-      return (ByteArray) super.clone();
-    } catch (CloneNotSupportedException ex) {
-      throw new IllegalStateException("Clone not supported.");
-    }
-  }
-
-  @Override
-  public String toString() {
-    return "ByteArray: " + Arrays.toString(this.bytes);
   }
 
   /**
@@ -117,9 +109,6 @@ public final class ByteArray
   @Override
   public int compareTo(
       @SuppressWarnings("NullableProblems") final ByteArray o) {
-    if (o == null) {
-      return 1;
-    }
     return Fun.BYTE_ARRAY_COMPARATOR.compare(this.bytes, o.bytes);
   }
 
@@ -130,9 +119,48 @@ public final class ByteArray
 
   @Override
   public boolean equals(final Object o) {
-    return this == o || !((o == null) || !(o instanceof ByteArray)) &&
-        compareTo((ByteArray) o) == 0;
+    return this == o
+        || (o instanceof ByteArray
+        && Fun.BYTE_ARRAY_COMPARATOR.compare(
+        this.bytes, ((ByteArray) o).bytes) == 0);
+  }
 
+  /**
+   * Create a clone of this byte array.
+   *
+   * @return Cloned copy
+   */
+  @Override
+  public ByteArray clone() {
+    try {
+      final ByteArray clonedByteArray = (ByteArray) super.clone();
+      clonedByteArray.bytes = this.bytes.clone();
+      return clonedByteArray;
+    } catch (final CloneNotSupportedException ex) {
+      throw new IllegalStateException("Clone not supported.", ex);
+    }
+  }
+
+  @Override
+  public String toString() {
+    return "ByteArray: " + Arrays.toString(this.bytes);
+  }
+
+  /**
+   * Comparator for ByteArray instances.
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public static final class ByteArrayComparator
+      implements Comparator<ByteArray>, Serializable {
+    /**
+     * Serialization id.
+     */
+    private static final long serialVersionUID = -2948227099968496081L;
+
+    @Override
+    public int compare(final ByteArray o1, final ByteArray o2) {
+      return Fun.BYTE_ARRAY_COMPARATOR.compare(o1.bytes, o2.bytes);
+    }
   }
 
   /**
@@ -150,19 +178,60 @@ public final class ByteArray
     @Override
     public void serialize(final DataOutput out, final ByteArray value)
         throws IOException {
+      if (value == null || value.bytes == null || value.bytes.length == 0) {
+        throw new IllegalArgumentException("ByteArray was null or empty.");
+      }
       Serializer.BYTE_ARRAY.serialize(out, value.bytes);
     }
 
     @Override
     public ByteArray deserialize(final DataInput in, final int available)
         throws IOException {
-      return new ByteArray(
-          Serializer.BYTE_ARRAY.deserialize(in, available));
+      final byte[] value = Serializer.BYTE_ARRAY.deserialize(in, available);
+      return new ByteArray(value);
     }
 
     @Override
     public int fixedSize() {
       return -1;
+    }
+  }
+
+  /**
+   * Custom MapDB {@link BTreeKeySerializer} for {@link ByteArray} objects.
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public static final class ByteArrayKeySerializer
+      extends BTreeKeySerializer<ByteArray>
+      implements Serializable {
+    /**
+     * Serialization id.
+     */
+    private static final long serialVersionUID = 7764157372999916555L;
+
+    @Override
+    public void serialize(final DataOutput out, final int start, final int end,
+        final Object[] keys)
+        throws IOException {
+      for (int i = start; i < end; i++) {
+        SERIALIZER.serialize(out, (ByteArray) keys[i]);
+      }
+    }
+
+    @Override
+    public ByteArray[] deserialize(final DataInput in, final int start,
+        final int end, final int size)
+        throws IOException {
+      final ByteArray[] ret = new ByteArray[size];
+      for (int i = start; i < end; i++) {
+        ret[i] = SERIALIZER.deserialize(in, -1);
+      }
+      return ret;
+    }
+
+    @Override
+    public Comparator<ByteArray> getComparator() {
+      return BTreeMap.COMPARABLE_COMPARATOR;
     }
   }
 }

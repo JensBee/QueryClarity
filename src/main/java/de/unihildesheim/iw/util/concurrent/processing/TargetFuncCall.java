@@ -17,6 +17,9 @@
 
 package de.unihildesheim.iw.util.concurrent.processing;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Objects;
 
 /**
@@ -28,6 +31,12 @@ import java.util.Objects;
 @SuppressWarnings("PublicInnerClass")
 public final class TargetFuncCall<T>
     extends Target<T> {
+
+  /**
+   * Logger instance for this class.
+   */
+  static final Logger LOG = LoggerFactory.getLogger(
+      TargetFuncCall.class);
 
   /**
    * Function to call for each element.
@@ -58,10 +67,9 @@ public final class TargetFuncCall<T>
       final T data;
       try {
         data = getSource().next();
-      } catch (SourceException.SourceHasFinishedException ex) {
+      } catch (final SourceException.SourceHasFinishedException ex) {
         break;
       }
-
       this.tFunc.call(data);
     }
   }
@@ -78,6 +86,7 @@ public final class TargetFuncCall<T>
      * Gets called with the current item
      *
      * @param data Current item
+     * @throws Exception Any exception from implementing class
      */
     public abstract void call(final T data)
         throws Exception;

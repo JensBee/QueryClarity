@@ -15,22 +15,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.util;
+package de.unihildesheim.iw.lucene.query;
 
-import org.junit.Test;
+import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.search.Query;
 
 /**
- * Test for {@link ConfigurationFile}.
- *
  * @author Jens Bertram
  */
-public final class ConfigurationFileTest {
+public interface RelaxableQuery {
+  /**
+   * Relaxes (simplifies) the query, e.g. to get more results.
+   *
+   * @return True, if query was relaxed, false otherwise
+   */
+  boolean relax()
+      throws ParseException;
 
-  @Test
-  public void testSave()
-      throws Exception {
-    final ConfigurationFile cf = new ConfigurationFile("testconf.properties");
-    cf.getAndAddString("foo", "bar");
-    cf.save();
-  }
+  /**
+   * Get the Query object.
+   *
+   * @return Query object
+   */
+  Query getQueryObj();
 }

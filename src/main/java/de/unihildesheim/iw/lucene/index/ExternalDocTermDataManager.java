@@ -17,6 +17,7 @@
 package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.ByteArray;
+import de.unihildesheim.iw.util.StringUtils;
 import org.mapdb.BTreeKeySerializer;
 import org.mapdb.DB;
 import org.mapdb.Fun;
@@ -43,16 +44,21 @@ public final class ExternalDocTermDataManager {
    */
   private static final Logger LOG = LoggerFactory.getLogger(
       ExternalDocTermDataManager.class);
+
   /**
    * Database handling storage.
    */
+
   private final DB db;
+
   /**
    * Prefix to use for any keys.
    */
   private final String prefix;
+
   /**
-   * Map that holds term data.
+   * Map that holds term data. Mapping is {@code (Identifier, DocumentId, Term)}
+   * to {@code Value}.
    */
   private ConcurrentNavigableMap<
       Fun.Tuple3<String, Integer, ByteArray>, Object> map;
@@ -61,12 +67,13 @@ public final class ExternalDocTermDataManager {
    * Initialize the manager.
    *
    * @param newDb Database
-   * @param newPrefix Prefix
+   * @param newPrefix Storage prefix used to distinguish data from various
+   * instances
    */
   public ExternalDocTermDataManager(final DB newDb, final String newPrefix) {
     Objects.requireNonNull(newDb, "DB was null.");
-    if (Objects.requireNonNull(newPrefix, "Prefix was null.").trim().isEmpty
-        ()) {
+    if (StringUtils.isStrippedEmpty(
+        Objects.requireNonNull(newPrefix, "Prefix was null."))) {
       throw new IllegalArgumentException("Prefix was empty.");
     }
     this.db = newDb;
@@ -81,25 +88,24 @@ public final class ExternalDocTermDataManager {
    * @param newPrefix Prefix to load
    */
   private void getMap(final String newPrefix) {
-    if (Objects.requireNonNull(newPrefix, "Prefix was null.").trim().length()
-        == 0) {
+    if (StringUtils.isStrippedEmpty(
+        Objects.requireNonNull(newPrefix, "Prefix was null."))) {
       throw new IllegalArgumentException("No prefix specified.");
     }
     // stored data
-    if (!db.exists(this.prefix)) {
+    if (!this.db.exists(this.prefix)) {
       LOG.debug("Creating a new docTermData map with prefix '{}'",
           this.prefix);
     }
 
     final BTreeKeySerializer mapKeySerializer
         = new BTreeKeySerializer.Tuple3KeySerializer<>(null, null,
-        Serializer.STRING_INTERN, Serializer.INTEGER,
-        ByteArray.SERIALIZER);
-    final DB.BTreeMapMaker mapMkr = db.createTreeMap(this.prefix)
-        .keySerializer(mapKeySerializer)
-        .valueSerializer(Serializer.BASIC)
-        .nodeSize(16)
-        .valuesOutsideNodesEnable();
+        Serializer.STRING_INTERN, Serializer.INTEGER, ByteArray.SERIALIZER);
+    final DB.BTreeMapMaker mapMkr = this.db.createTreeMap(this.prefix)
+//        .valueSerializer(Serializer.BASIC)
+//        .nodeSize(16)
+//        .valuesOutsideNodesEnable()
+        .keySerializer(mapKeySerializer);
     this.map = mapMkr.makeOrGet();
   }
 
@@ -120,7 +126,7 @@ public final class ExternalDocTermDataManager {
    */
   public <T> void setData(final int documentId, final String key, final
   Map<ByteArray, T> data) {
-    for (Map.Entry<ByteArray, T> d : data.entrySet()) {
+    for (final Map.Entry<ByteArray, T> d : data.entrySet()) {
       setData(documentId, d.getKey(), key, d.getValue());
     }
   }
@@ -140,7 +146,8 @@ public final class ExternalDocTermDataManager {
     Objects.requireNonNull(term, "Term was null.");
     Objects.requireNonNull(value, "Value was null.");
 
-    if (Objects.requireNonNull(key, "Key was null.").trim().isEmpty()) {
+    if (StringUtils.isStrippedEmpty(
+        Objects.requireNonNull(key, "Key was null."))) {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
     @SuppressWarnings("unchecked")
@@ -160,10 +167,12 @@ public final class ExternalDocTermDataManager {
    */
   public <T> Map<ByteArray, T> getData(final int documentId,
       final String key) {
-    if (Objects.requireNonNull(key, "Key was null.").trim().isEmpty()) {
+    if (StringUtils.isStrippedEmpty(
+        Objects.requireNonNull(key, "Key was null."))) {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
 
+    @SuppressWarnings("unchecked")
     final SortedSet<Fun.Tuple3<String, Integer, ByteArray>> subSet =
         ((NavigableSet) this.map.keySet()).subSet(
             Fun.t3(key, documentId, null),
@@ -187,10 +196,12 @@ public final class ExternalDocTermDataManager {
    * @return Value stored for the given combination, or null if there was no
    * data stored
    */
+  @SuppressWarnings("unchecked")
   public <T> T getData(final int documentId, final ByteArray term,
       final String key) {
     Objects.requireNonNull(term, "Term was null.");
-    if (Objects.requireNonNull(key, "Key was null.").trim().isEmpty()) {
+    if (StringUtils.isStrippedEmpty(
+        Objects.requireNonNull(key, "Key was null."))) {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
     return (T) this.map.get(Fun.t3(key, documentId, term));

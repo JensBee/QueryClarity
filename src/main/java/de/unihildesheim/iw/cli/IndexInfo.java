@@ -57,11 +57,11 @@ public final class IndexInfo {
       "MismatchedQueryAndUpdateOfCollection"})
   private final List<String> runCommand = new ArrayList<>();
 
+  @Parameter(names = CliParams.INDEX_DIR_P, description = CliParams
+      .INDEX_DIR_U, required = true)
   /**
    * CLI-parameter to specify the Lucene index directory.
    */
-  @Parameter(names = CliParams.INDEX_DIR_P, description = CliParams
-      .INDEX_DIR_U, required = true)
   private String indexDir;
 
   /**
@@ -79,8 +79,8 @@ public final class IndexInfo {
     final JCommander jc = new JCommander(ii);
     try {
       jc.parse(args);
-    } catch (ParameterException ex) {
-      System.out.println(ex.getMessage() + "\n");
+    } catch (final ParameterException ex) {
+      System.out.println(ex.getMessage());
       jc.usage();
       System.exit(1);
     }
@@ -99,24 +99,33 @@ public final class IndexInfo {
       // open index
       final Directory directory = FSDirectory.open(new File(this.indexDir));
       this.reader = DirectoryReader.open(directory);
-    } catch (IOException ex) {
+    } catch (final IOException ex) {
       ex.printStackTrace();
       System.exit(1);
     }
 
     final Shell shell = ShellFactory.createConsoleShell("cmd", "IndexInfo",
         this);
-    if (!this.runCommand.isEmpty()) {
+    if (this.runCommand.isEmpty()) {
+      shell.commandLoop();
+    } else {
       final String[] command = this.runCommand.toArray(
           new String[this.runCommand.size()]);
       try {
         shell.processLine(StringUtils.join(command, " "));
-      } catch (CLIException ex) {
+      } catch (final CLIException ex) {
         ex.printStackTrace();
       }
-    } else {
-      shell.commandLoop();
     }
+  }
+
+  /**
+   * Quit the instance.
+   */
+  @Command(abbrev = ShellCmds.QUIT_S, name = ShellCmds.QUIT_L, description
+      = ShellCmds.QUIT_U)
+  public static void quit() {
+    System.exit(0);
   }
 
   /**
@@ -193,14 +202,5 @@ public final class IndexInfo {
         bytesRef = fieldTermsEnum.next();
       }
     }
-  }
-
-  /**
-   * Quit the instance.
-   */
-  @Command(abbrev = ShellCmds.QUIT_S, name = ShellCmds.QUIT_L, description
-      = ShellCmds.QUIT_U)
-  public void quit() {
-    System.exit(0);
   }
 }

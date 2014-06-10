@@ -29,11 +29,15 @@ import java.util.Map;
  */
 public class MapAdapter {
 
+  /**
+   * XML processing of mapping from key to Tuple2.
+   */
   @SuppressWarnings("PublicInnerClass")
   public static class Tuple2ListValue
       extends XmlAdapter<Entries.Tuple2ListEntry[], Map<String,
       List<Tuple.Tuple2<String, String>>>> {
 
+    @SuppressWarnings("ReturnOfNull")
     @Override
     public Map<String, List<Tuple.Tuple2<String, String>>> unmarshal(
         final Entries.Tuple2ListEntry[] value)
@@ -49,6 +53,7 @@ public class MapAdapter {
       return retMap;
     }
 
+    @SuppressWarnings("ObjectAllocationInLoop")
     @Override
     public Entries.Tuple2ListEntry[] marshal(
         final Map<String, List<Tuple.Tuple2<String, String>>> value)
@@ -66,6 +71,9 @@ public class MapAdapter {
     }
   }
 
+  /**
+   * XML processing of mapping from key to String.
+   */
   @SuppressWarnings("PublicInnerClass")
   public static class StringValue
       extends XmlAdapter<Entries.StringValueEntry[], Map<String, String>> {

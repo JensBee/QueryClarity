@@ -18,6 +18,7 @@ package de.unihildesheim.iw;
 
 import de.unihildesheim.iw.util.FileUtils;
 import de.unihildesheim.iw.util.RandomValue;
+import de.unihildesheim.iw.util.StringUtils;
 import org.mapdb.Atomic;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
@@ -29,6 +30,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
@@ -42,28 +44,120 @@ public final class Persistence {
   /**
    * Logger instance for this class.
    */
-  private static final Logger LOG = LoggerFactory.getLogger(Persistence.class);
+  static final Logger LOG = LoggerFactory.getLogger(Persistence.class);
+
+  /**
+   * Global identifier of this class. Used for configurations.
+   */
   private static final String IDENTIFIER = "Persistence";
-  private static final String CONF_PREFIX = GlobalConfiguration.mkPrefix
+
+  /**
+   * Prefix for {@link GlobalConfiguration configuration} items.
+   */
+  static final String CONF_PREFIX = GlobalConfiguration.mkPrefix
       (IDENTIFIER);
+
   /**
    * Database reference.
    */
-  public DB db;
+  private final DB db;
+
   /**
    * Object storing meta information about the current Lucene index state and
-   * the runtime configuration.
+   * the runtime {@link GlobalConfiguration configuration}.
    */
-  private StorageMeta meta;
+  private final StorageMeta meta;
+
   /**
    * Flag indicating, if the {@link DB} instance uses transactions.
    */
-  private boolean supportsTransaction;
+  private final boolean supportsTransaction;
 
-  private String dataDir;
-  private Long indexCommitGen;
+  /**
+   * Commit generation of the Lucene index.
+   */
+  private final Long indexCommitGen;
 
-  private Persistence() {
+  /**
+   * Constructor using builder object.
+   *
+   * @param builder Builder
+   * @param empty If true, the database is expected as being empty (new)
+   */
+  Persistence(final Builder builder, final boolean empty) {
+    Objects.requireNonNull(builder, "Builder was null.");
+
+    LOG.info("Opening database {}.", builder.dbMkr.getDbFile());
+    this.db = builder.dbMkr.make();
+//    this.db = new DB(new StoreHeap());
+    this.meta = new StorageMeta();
+    this.supportsTransaction = builder.dbMkr.supportsTransaction();
+    this.indexCommitGen = builder.lastCommitGeneration;
+
+    if (empty) {
+      this.getMetaData(true);
+      this.updateMetaData(builder.documentFields, builder.stopwords);
+    } else {
+      this.getMetaData(false);
+    }
+  }
+
+  /**
+   * Get the meta-information about the store.
+   *
+   * @param create If true, current meta information will be written, before
+   * returning the data.
+   */
+  private void getMetaData(final boolean create) {
+    if (this.db.exists(Storage.PERSISTENCE_IDX_COMMIT_GEN.name())) {
+      if (create) {
+        if (this.indexCommitGen == null) {
+          this.db.getAtomicLong(Storage.PERSISTENCE_IDX_COMMIT_GEN.name())
+              .set(-1L);
+        } else {
+          this.db.getAtomicLong(Storage.PERSISTENCE_IDX_COMMIT_GEN.name())
+              .set(this.indexCommitGen);
+        }
+      }
+    } else {
+      this.db
+          .createAtomicLong(Storage.PERSISTENCE_IDX_COMMIT_GEN.name(), -1L);
+    }
+
+    this.meta.setIndexCommitGen(
+        this.db.getAtomicLong(Storage.PERSISTENCE_IDX_COMMIT_GEN.name()));
+
+    if (create && this.db.exists(Storage.PERSISTENCE_FIELDS.name())) {
+      this.db.delete(Storage.PERSISTENCE_FIELDS.name());
+    }
+
+    this.meta.setFields(this.db
+        .createHashSet(Storage.PERSISTENCE_FIELDS.name()).
+            serializer(Serializer.STRING)
+        .<String>makeOrGet());
+
+    if (create && this.db.exists(Storage.PERSISTENCE_STOPWORDS.name())) {
+      this.db.delete(Storage.PERSISTENCE_STOPWORDS.name());
+    }
+    this.meta.setStopWords(this.db
+        .createHashSet(Storage.PERSISTENCE_STOPWORDS.
+            name()).serializer(Serializer.STRING)
+        .<String>makeOrGet());
+  }
+
+  /**
+   * Update the field and stopwords meta-data records. This does not commit data
+   * to the database.
+   *
+   * @param fields Field names to set
+   * @param stopwords Stopwords to set
+   */
+  public void updateMetaData(final Set<String> fields,
+      final Set<String> stopwords) {
+    LOG.info("Updating meta-data.");
+    this.meta.setFields(Objects.requireNonNull(fields, "Fields were null."));
+    this.meta.setStopWords(Objects.requireNonNull(stopwords,
+        "Stopwords were null."));
   }
 
   /**
@@ -75,9 +169,10 @@ public final class Persistence {
    * does not exist an could not be created or if reading/writing to this
    * directory is not allowed.
    */
-  public static final File tryCreateDataPath(final String filePath)
+  public static File tryCreateDataPath(final String filePath)
       throws IOException {
-    if (Objects.requireNonNull(filePath, "Path was null.").trim().isEmpty()) {
+    if (StringUtils.isStrippedEmpty(
+        Objects.requireNonNull(filePath, "Path was null."))) {
       throw new IllegalArgumentException("Data path was empty.");
     }
 
@@ -99,88 +194,19 @@ public final class Persistence {
     return dataDir;
   }
 
-  protected static final Persistence build(final Builder builder,
-      final boolean empty) {
-    Objects.requireNonNull(builder, "Builder was null.");
-
-    final Persistence instance = new Persistence();
-    LOG.info("Opening database {}.", builder.getMaker().getDbFile());
-    instance.db = builder.getMaker().make();
-    instance.meta = new StorageMeta();
-    instance.supportsTransaction = builder.getMaker().supportsTransaction();
-    instance.dataDir = builder.dataPath;
-    instance.indexCommitGen = builder.getLastCommitGeneration();
-
-    if (empty) {
-      instance.getMetaData(true);
-      instance.updateMetaData(builder.getDocumentFields(),
-          builder.getStopwords());
-    } else {
-      instance.getMetaData(false);
-    }
-
-    return instance;
-  }
-
   /**
-   * Get the meta-information about the store.
-   *
-   * @param create If true, current meta information will be written, before
-   * returning the data.
+   * Clear the meta-data after loading the database.
    */
-  private void getMetaData(final boolean create) {
-    if (this.db.exists(Storage.PERSISTENCE_IDX_COMMIT_GEN.name())) {
-      if (create) {
-        if (this.indexCommitGen == null) {
-          this.db.getAtomicLong(Storage.PERSISTENCE_IDX_COMMIT_GEN.name())
-              .set(-1);
-        } else {
-          this.db.getAtomicLong(Storage.PERSISTENCE_IDX_COMMIT_GEN.name())
-              .set(this.indexCommitGen);
-        }
-      }
-    } else {
-      this.db.createAtomicLong(Storage.PERSISTENCE_IDX_COMMIT_GEN.name(), -1);
-    }
-
-    meta.indexCommitGen =
-        this.db.getAtomicLong(Storage.PERSISTENCE_IDX_COMMIT_GEN.name());
-
-    if (create && this.db.exists(Storage.PERSISTENCE_FIELDS.name())) {
-      this.db.delete(Storage.PERSISTENCE_FIELDS.name());
-    }
-
-    meta.fields = this.db.createHashSet(Storage.PERSISTENCE_FIELDS.name()).
-        serializer(Serializer.STRING).<String>makeOrGet();
-
-    if (create && this.db.exists(Storage.PERSISTENCE_STOPWORDS.name())) {
-      this.db.delete(Storage.PERSISTENCE_STOPWORDS.name());
-    }
-    meta.stopWords = this.db.createHashSet(Storage.PERSISTENCE_STOPWORDS.
-        name()).serializer(Serializer.STRING).<String>makeOrGet();
-  }
-
-  /**
-   * Update the field and stopwords meta-data records. This does not commit data
-   * to the database.
-   */
-  public void updateMetaData(final Set<String> fields,
-      final Set<String> stopwords) {
-    LOG.info("Updating meta-data.");
-    meta.setFields(Objects.requireNonNull(fields, "Fields were null."));
-    meta.setStopWords(Objects.requireNonNull(stopwords,
-        "Stopwords were null."));
-  }
-
-  public String getDataDir() {
-    return this.dataDir;
-  }
-
   public void clearMetaData() {
     getMetaData(true);
   }
 
-  public boolean supportsTransaction() {
+  /**
+   * Check, if the database supports transactions (keeps a transaction log).
+   *
+   * @return True, if transaction log is used
+   */
+  public boolean isTransactionSupported() {
     return this.supportsTransaction;
   }
 
@@ -191,6 +217,15 @@ public final class Persistence {
    */
   public StorageMeta getMetaData() {
     return this.meta;
+  }
+
+  /**
+   * Get the database reference.
+   *
+   * @return Database instance
+   */
+  public DB getDb() {
+    return this.db;
   }
 
   /**
@@ -219,38 +254,27 @@ public final class Persistence {
   public static final class StorageMeta {
 
     /**
-     * Latest index commit generation visible when last updating this store.
+     * Index commit generation value.
      */
-    Atomic.Long indexCommitGen;
+    private Atomic.Long indexCommitGen;
     /**
-     * Fields set when last updating this store.
+     * List of document fields.
      */
-    Set<String> fields;
+    private Set<String> fields;
     /**
-     * Stopwords set when last updating this store.
+     * List of stopwords.
      */
-    Set<String> stopWords;
-
-    /**
-     * Set the Lucene index commit generation.
-     *
-     * @param newIndexCommitGen Generation
-     */
-    protected void setIndexCommitGen(final Long newIndexCommitGen) {
-      this.indexCommitGen.set(Objects.requireNonNull(newIndexCommitGen,
-          "Commit generation was null."));
-    }
+    private Set<String> stopWords;
 
     /**
      * Set the current active Lucene document fields.
      *
      * @param newFields Fields list
      */
-    protected void setFields(final Set<String> newFields) {
+    void setFields(final Set<String> newFields) {
       Objects.requireNonNull(newFields, "Fields were null.");
 
-      this.fields.clear();
-      this.fields.addAll(newFields);
+      this.fields = new HashSet<>(newFields);
     }
 
     /**
@@ -258,11 +282,10 @@ public final class Persistence {
      *
      * @param newStopwords List of stopwords
      */
-    protected void setStopWords(final Set<String> newStopwords) {
+    void setStopWords(final Set<String> newStopwords) {
       Objects.requireNonNull(newStopwords, "Stopwords were null.");
 
-      this.stopWords.clear();
-      this.stopWords.addAll(newStopwords);
+      this.stopWords = new HashSet<>(newStopwords);
     }
 
     /**
@@ -272,7 +295,7 @@ public final class Persistence {
      * @param currentFields List of fields to check
      * @return True, if both contain the same field names.
      */
-    public boolean fieldsCurrent(final Set<String> currentFields) {
+    public boolean areFieldsCurrent(final Set<String> currentFields) {
       Objects.requireNonNull(currentFields, "Fields were null.");
 
       if (this.fields == null) {
@@ -289,7 +312,7 @@ public final class Persistence {
      * @param currentWords List of stopwords to check
      * @return True, if both contain the same list of stopwords.
      */
-    public boolean stopwordsCurrent(final Set<String> currentWords) {
+    public boolean areStopwordsCurrent(final Set<String> currentWords) {
       Objects.requireNonNull(currentWords, "Stopwords were null.");
 
       if (this.stopWords == null) {
@@ -299,6 +322,11 @@ public final class Persistence {
           && this.stopWords.containsAll(currentWords);
     }
 
+    /**
+     * Check, if a index commit generation value is set.
+     *
+     * @return True, if a value is set
+     */
     public boolean hasGenerationValue() {
       return this.indexCommitGen.get() != -1;
     }
@@ -307,9 +335,10 @@ public final class Persistence {
      * Checks the current index commit generation against the version stored in
      * the meta-information.
      *
+     * @param currentGen Generation value to test
      * @return True, if both generation numbers are the same.
      */
-    public boolean generationCurrent(final Long currentGen) {
+    public boolean isGenerationCurrent(final Long currentGen) {
       Objects.requireNonNull(currentGen, "Commit generation was null.");
 
       if (this.indexCommitGen == null) {
@@ -319,6 +348,15 @@ public final class Persistence {
       LOG.debug("Generations: this={} that={}", this.indexCommitGen.get(),
           currentGen);
       return this.indexCommitGen.get() == currentGen;
+    }
+
+    /**
+     * Set the index commit generation value.
+     *
+     * @param newIndexCommitGen New value
+     */
+    void setIndexCommitGen(final Atomic.Long newIndexCommitGen) {
+      this.indexCommitGen = newIndexCommitGen;
     }
   }
 
@@ -333,15 +371,36 @@ public final class Persistence {
      * Database file prefix.
      */
     private static final String PREFIX = "persist_";
+
     /**
      * Builder used to create a new database.
      */
-    private final ExtDBMaker dbMkr;
+    @SuppressWarnings("PackageVisibleField")
+    final ExtDBMaker dbMkr;
+
     /**
      * Random string to prefix a temporary storage with.
      */
     private final String randNameSuffix;
-    String dataPath;
+    /**
+     * List of stopwords to use.
+     */
+    @SuppressWarnings("PackageVisibleField")
+    Set<String> stopwords;
+    /**
+     * List of document fields to use.
+     */
+    @SuppressWarnings("PackageVisibleField")
+    Set<String> documentFields;
+    /**
+     * Last commit generation id of the Lucene index.
+     */
+    @SuppressWarnings("PackageVisibleField")
+    Long lastCommitGeneration;
+    /**
+     * Directory where the database files should be stored.
+     */
+    private String dataPath;
     /**
      * Database async write flush delay.
      */
@@ -357,23 +416,13 @@ public final class Persistence {
      */
     private String name;
     /**
-     * List of stopwords to use.
-     */
-    private Set<String> stopwords;
-    /**
-     * List of document fields to use.
-     */
-    private Set<String> documentFields;
-    /**
-     * Last commit generation id of the Lucene index.
-     */
-    private Long lastCommitGeneration;
-    /**
      * Flag indicating, if the new instance will be temporary. If it's temporary
      * any data may be deleted on JVM exit.
      */
     private boolean isTemporary;
-
+    /**
+     * Initializes the builder with default values.
+     */
     public Builder() {
       this.dbMkr = new ExtDBMaker();
       this.dbMkr
@@ -381,25 +430,39 @@ public final class Persistence {
           .mmapFileEnableIfSupported()
           .compressionEnable()
           .strictDBGet()
+          .asyncWriteEnable()
           .asyncWriteFlushDelay(DB_ASYNC_WRITEFLUSH_DELAY)
           .closeOnJvmShutdown();
       this.cacheInstruction = LoadInstruction.MAKE_OR_GET;
-      this.stopwords = Collections.<String>emptySet();
-      this.documentFields = Collections.<String>emptySet();
+      this.stopwords = Collections.emptySet();
+      this.documentFields = Collections.emptySet();
       this.randNameSuffix = RandomValue.getString(32);
     }
 
+    /**
+     * Sets the path for storing database files.
+     *
+     * @param newDataPath Storage path
+     * @return Self reference
+     */
     public Builder dataPath(final String newDataPath) {
-      if (Objects.requireNonNull(newDataPath, "Path was null.").trim().isEmpty
-          ()) {
+      if (StringUtils.isStrippedEmpty(Objects.requireNonNull(newDataPath,
+          "Path was null."))) {
         throw new IllegalArgumentException("Empty data path.");
       }
       this.dataPath = newDataPath;
       return this;
     }
 
+    /**
+     * Sets the database name.
+     *
+     * @param newName Name
+     * @return Self reference
+     */
     public Builder name(final String newName) {
-      if (Objects.requireNonNull(newName, "Name was null.").trim().isEmpty()) {
+      if (StringUtils.isStrippedEmpty(
+          Objects.requireNonNull(newName, "Name was null."))) {
         throw new IllegalArgumentException("Empty cache name.");
       }
       if (this.isTemporary) {
@@ -411,14 +474,10 @@ public final class Persistence {
     }
 
     /**
-     * Return a {@link DBMaker} with the current configuration.
+     * Set the instruction to load the database in read-only mode.
      *
-     * @return Maker instance
+     * @return Self reference
      */
-    public ExtDBMaker getMaker() {
-      return this.dbMkr;
-    }
-
     public Builder readOnly() {
       this.dbMkr.readOnly(true);
       return this;
@@ -445,28 +504,22 @@ public final class Persistence {
      * Set the last commit generation id of the Lucene index.
      *
      * @param cGen Commit generation id
+     * @return Self reference
      */
     public Builder lastCommitGeneration(final long cGen) {
       this.lastCommitGeneration = cGen;
       return this;
     }
 
-    protected Long getLastCommitGeneration() {
-      return this.lastCommitGeneration;
-    }
-
     /**
      * Set a list of stopwords to use by this instance.
      *
      * @param words List of stopwords. May be empty.
+     * @return Self reference
      */
     public Builder stopwords(final Set<String> words) {
       this.stopwords = Objects.requireNonNull(words, "Stopwords were null.");
       return this;
-    }
-
-    protected Set<String> getStopwords() {
-      return this.stopwords;
     }
 
     /**
@@ -479,10 +532,6 @@ public final class Persistence {
         final Set<String> fields) {
       this.documentFields = Objects.requireNonNull(fields, "Fields were null.");
       return this;
-    }
-
-    protected Set<String> getDocumentFields() {
-      return this.documentFields;
     }
 
     /**
@@ -515,21 +564,33 @@ public final class Persistence {
       return this;
     }
 
+    /**
+     * Get the instruction on how to load the cache
+     *
+     * @return Cache loading instruction
+     */
     public LoadInstruction getCacheLoadInstruction() {
       return this.cacheInstruction;
     }
 
+    /**
+     * Checks, if a database with the current filename already exists.
+     *
+     * @return True, if it exist
+     * @throws ConfigurationException Thrown, if no data-path or filename is
+     * set
+     */
+    @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
     public boolean dbExists()
         throws ConfigurationException {
-      if (this.dataPath == null || this.dataPath.trim().isEmpty()) {
+      if (this.dataPath == null || StringUtils.isStrippedEmpty(this.dataPath)) {
         throw new ConfigurationException("Data path not set.");
       }
-      if (this.name == null || this.name.trim().isEmpty()) {
+      if (this.name == null || StringUtils.isStrippedEmpty(this.name)) {
         throw new ConfigurationException("Empty storage name.");
       }
       return new File(
-          FileUtils.makePath(this.dataPath) + Builder.PREFIX + "_" + this
-              .name
+          FileUtils.makePath(this.dataPath) + PREFIX + "_" + this.name
       ).exists();
     }
 
@@ -545,12 +606,12 @@ public final class Persistence {
         throws ConfigurationException, BuildException {
       validate();
       try {
-        Persistence.tryCreateDataPath(this.dataPath);
-      } catch (IOException e) {
+        tryCreateDataPath(this.dataPath);
+      } catch (final IOException e) {
         throw new BuildException("Failed to create data path.", e);
       }
       final File dbFile = new File(
-          FileUtils.makePath(this.dataPath) + Builder.PREFIX + "_" + this.name);
+          FileUtils.makePath(this.dataPath) + PREFIX + "_" + this.name);
       this.dbMkr.dbFile(dbFile);
 
       // debug dump configuration
@@ -575,7 +636,7 @@ public final class Persistence {
             }
             break;
         }
-      } catch (IOException e) {
+      } catch (final IOException e) {
         throw new BuildException(e);
       }
       if (this.isTemporary) {
@@ -587,6 +648,7 @@ public final class Persistence {
     /**
      * Tries to load an existing database and create the instance.
      *
+     * @param dbFile Database file to create
      * @return Instance with current builder configuration
      * @throws FileNotFoundException Thrown, if the database could not be found
      */
@@ -595,31 +657,32 @@ public final class Persistence {
       if (!dbFile.exists()) {
         throw new FileNotFoundException("Database file not found.");
       }
-      return Persistence.build(this, false);
+      return new Persistence(this, false);
     }
 
     /**
      * Tries to create a new database and create the instance.
      *
+     * @param dbFile Database file to create
      * @return Instance with current builder configuration
      * @throws IOException Thrown on low-level I/O errors
      */
     private Persistence makeInstance(final File dbFile)
         throws IOException {
       if (dbFile.exists()) {
-        throw new IOException("Database file exists: " + dbFile.toString());
+        throw new IOException("Database file exists: " + dbFile);
       }
       LOG.debug("New fileDB @ {}", dbFile);
-      return Persistence.build(this, true);
+      return new Persistence(this, true);
     }
 
     @Override
     public void validate()
         throws ConfigurationException {
-      if (this.dataPath == null || this.dataPath.trim().isEmpty()) {
+      if (this.dataPath == null || StringUtils.isStrippedEmpty(this.dataPath)) {
         throw new ConfigurationException("Data path not set.");
       }
-      if (this.name == null || this.name.trim().isEmpty()) {
+      if (this.name == null || StringUtils.isStrippedEmpty(this.name)) {
         throw new ConfigurationException("Empty storage name.");
       }
       if (this.documentFields == null) {
@@ -654,42 +717,67 @@ public final class Persistence {
      */
     private static final class ExtDBMaker
         extends DBMaker {
-      private ExtDBMaker() {
-        super();
+
+      /**
+       * Empty constructor for parent class access.
+       */
+      ExtDBMaker() {
       }
 
+      /**
+       * Debug dump the current {@link DBMaker} configuration.
+       */
       void debugDump() {
-        for (final Object k : props.keySet()) {
-          LOG.debug("Prop k={} v={}", k.toString(), props.get(k));
+        for (final Object k : this.props.keySet()) {
+          LOG.debug("Prop k={} v={}", k, this.props.get(k));
         }
       }
 
+      /**
+       * Allows to open the database in read-only mode.
+       *
+       * @param state True, if it should be opened read-only
+       */
       void readOnly(final boolean state) {
         if (state) {
-          props.setProperty(Keys.readOnly, TRUE);
+          this.props.setProperty(Keys.readOnly, this.TRUE);
         } else {
-          props.setProperty(Keys.readOnly, "false");
+          this.props.setProperty(Keys.readOnly, "false");
         }
       }
 
       /**
        * Check, if this db instance uses transactions.
        *
-       * @return
+       * @return True, if transactions are supported
        */
+      @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
       boolean supportsTransaction() {
         return !this.TRUE.equals(this.props.get(Keys.transactionDisable));
       }
 
+      /**
+       * Sets the database file
+       *
+       * @param file Database file
+       * @return Self reference
+       */
       ExtDBMaker dbFile(final File file) {
-        props.setProperty(Keys.file, file.getPath());
+        this.props.setProperty(Keys.file, file.getPath());
         return this;
       }
 
+      /**
+       * Gets the database file name
+       *
+       * @return Database file name
+       */
       String getDbFile() {
-        return props.getProperty(Keys.file);
+        return this.props.getProperty(Keys.file);
       }
     }
+
+
 
 
   }

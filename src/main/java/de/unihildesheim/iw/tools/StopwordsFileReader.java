@@ -17,6 +17,8 @@
 
 package de.unihildesheim.iw.tools;
 
+import de.unihildesheim.iw.util.StringUtils;
+
 import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -25,13 +27,19 @@ import java.nio.charset.Charset;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Simple file reader to build a list of stopwords.
  *
  * @author Jens Bertram
  */
-public class StopwordsFileReader {
+public final class StopwordsFileReader {
+
+  /**
+   * Whitespace split pattern.
+   */
+  private static final Pattern WS_SPLIT = Pattern.compile(" ");
 
   /**
    * Private empty constructor for utility class.
@@ -39,19 +47,29 @@ public class StopwordsFileReader {
   private StopwordsFileReader() {
   }
 
+  /**
+   * Reads stopwords from a file using a defined format.
+   *
+   * @param format Format to expect
+   * @param source Source file path
+   * @param cs Charset
+   * @return Set of stopwords extracted from the given file
+   * @throws IOException Thrown on  low-level I/O errors
+   */
   public static Set<String> readWords(final Format format,
       final String source, final Charset cs)
       throws IOException {
     Objects.requireNonNull(format, "Format was null.");
-    if (Objects.requireNonNull(source, "Source was null.").trim().isEmpty()) {
+    if (StringUtils.isStrippedEmpty(
+        Objects.requireNonNull(source, "Source was null."))) {
       throw new IllegalArgumentException("Empty source.");
     }
 
-    Set<String> words;
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
+    final Set<String> words = new HashSet<>();
+
     try (BufferedReader reader = new BufferedReader(
         new InputStreamReader(new FileInputStream(source), cs))) {
-
-      words = new HashSet<>();
 
       String line;
       while ((line = reader.readLine()) != null) {
@@ -63,12 +81,12 @@ public class StopwordsFileReader {
         }
 
         // skip snowball comment lines
-        if (Format.SNOWBALL.equals(format) && line.charAt(0) == '|') {
+        if (Format.SNOWBALL == format && line.charAt(0) == '|') {
           continue;
         }
 
         // add the first word
-        words.add(line.split(" ", 2)[0]);
+        words.add(WS_SPLIT.split(line, 2)[0]);
       }
     }
     return words;
@@ -80,8 +98,10 @@ public class StopwordsFileReader {
    * @param format String naming the format
    * @return Format or null, if none is matching
    */
+  @SuppressWarnings("ReturnOfNull")
   public static Format getFormatFromString(final String format) {
-    if (Objects.requireNonNull(format, "Format was null.").trim().isEmpty()) {
+    if (StringUtils.isStrippedEmpty(
+        Objects.requireNonNull(format, "Format was null."))) {
       throw new IllegalArgumentException("Format type string was empty.");
     }
     if (Format.PLAIN.name().equalsIgnoreCase(format)) {
@@ -92,6 +112,9 @@ public class StopwordsFileReader {
     return null;
   }
 
+  /**
+   * Known stopword file formats.
+   */
   public enum Format {
     /**
      * Plain file with one word per line.

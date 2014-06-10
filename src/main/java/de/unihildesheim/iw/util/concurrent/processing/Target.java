@@ -50,7 +50,7 @@ public abstract class Target<T>
   private CountDownLatch latch;
 
   /**
-   * Create a new {@link Target} with a specific {@link Source}.
+   * Create a new Target with a specific {@link Source}.
    *
    * @param newSource <tt>Source</tt> to use
    */
@@ -93,9 +93,10 @@ public abstract class Target<T>
   }
 
   /**
-   * Create a new {@link Target} instance.
+   * Create a new Target instance.
    *
-   * @return New {@link Target} instance
+   * @return New Target instance
+   * @throws Exception Any exception thrown by implementing class
    */
   public abstract Target<T> newInstance()
       throws Exception;
@@ -109,40 +110,39 @@ public abstract class Target<T>
     this.latch = Objects.requireNonNull(newLatch, "Latch was null.");
   }
 
+  @Override
   public final Boolean call()
       throws Exception {
     Boolean success = Boolean.FALSE;
     try {
       LOG.trace("({}) Starting.", getName());
-      getSource().awaitStart();
+      this.source.awaitStart();
       runProcess();
       success = Boolean.TRUE;
-      return success; // simple flag indication success
+      return true; // simple flag indication success
+    } catch (final Throwable t) {
+      LOG.debug("({}) Terminating with error.", getName(), t);
+      throw t;
     } finally {
       this.terminate = true;
-      if (success) {
-        LOG.debug("({}) Terminating normal.", getName());
-      } else {
-        LOG.debug("({}) Terminating with error.", getName());
-      }
       this.latch.countDown();
     }
   }
 
   /**
-   * Get the {@link Source} for this {@link Target} instance.
+   * Equivalent for <tt>run()</tt> function called by abstract Target class.
    *
-   * @return {@link Source} used by this {@link Target}.
+   * @throws Exception Any exception thrown by implementing class
+   */
+  public abstract void runProcess()
+      throws Exception;
+
+  /**
+   * Get the {@link Source} for this Target instance.
+   *
+   * @return {@link Source} used by this Target.
    */
   public final Source<T> getSource() {
     return this.source;
   }
-
-  /**
-   * Equivalent for <tt>run()</tt> function called by abstract Target class.
-   *
-   * @throws java.lang.Exception
-   */
-  public abstract void runProcess()
-      throws Exception;
 }

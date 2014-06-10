@@ -47,12 +47,17 @@ public final class InternMap<K, V>
    * @param newMaxSize Maximum size of the map
    */
   public InternMap(final int newMaxSize) {
-    super();
     this.maxSize = newMaxSize;
+  }
+
+  @SuppressWarnings("CloneDoesntCallSuperClone")
+  @Override
+  public InternMap clone() {
+    throw new UnsupportedOperationException("Not supported.");
   }
 
   @Override
   protected boolean removeEldestEntry(final Map.Entry<K, V> eldest) {
-    return size() > maxSize;
+    return size() > this.maxSize;
   }
 }

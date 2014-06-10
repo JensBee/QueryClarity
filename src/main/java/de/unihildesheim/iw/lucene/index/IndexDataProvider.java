@@ -27,17 +27,15 @@ import java.util.Iterator;
 import java.util.Set;
 
 /**
- * IndexDataProvider provides statistical data from the underlying Lucene
- * index.
- * <p/>
- * Calculated values may be cached. So any call to those functions may not
+ * IndexDataProvider provides statistical data from the underlying Lucene index.
+ * <br> Calculated values may be cached. So any call to those functions may not
  * trigger a recalculation of the values. If this is not desired, then needed
- * update functions must be provided by the implementing class.
- * <p/>
- * Also, any restriction to a subset of index fields must be applied by the
- * implementing class as they are no enforced.
+ * update functions must be provided by the implementing class. <br> Also, any
+ * restriction to a subset of index fields must be applied by the implementing
+ * class as they are no enforced.
  */
-public interface IndexDataProvider {
+public interface IndexDataProvider
+    extends AutoCloseable {
 
   /**
    * Get the frequency of all terms in the index.
@@ -49,7 +47,7 @@ public interface IndexDataProvider {
   /**
    * Instructs the data provider to pre-fill caches, etc.
    *
-   * @throws Exception Thrown, if any warm-up method fails
+   * @throws DataProviderException Thrown in case of errors
    */
   void warmUp()
       throws DataProviderException;
@@ -83,12 +81,13 @@ public interface IndexDataProvider {
    * Close this instance. This is meant for handling cleanups after using this
    * instance. The behavior of functions called after this is undefined.
    */
-  void dispose();
+  void close();
 
   /**
    * Get an {@link Iterator} over a unique set of all terms from the index.
    *
    * @return Unique terms iterator
+   * @throws DataProviderException Thrown in case of errors
    */
   Iterator<ByteArray> getTermsIterator()
       throws DataProviderException;
@@ -97,6 +96,7 @@ public interface IndexDataProvider {
    * Get a {@link Source} providing all known terms.
    *
    * @return {@link Source} providing all known terms
+   * @throws ProcessingException Thrown in case of Processing errors
    */
   Source<ByteArray> getTermsSource()
       throws ProcessingException;
@@ -119,6 +119,7 @@ public interface IndexDataProvider {
    * Get the number of unique terms in the index.
    *
    * @return Number of unique terms in the index
+   * @throws DataProviderException Thrown in case of errors
    */
   long getUniqueTermsCount()
       throws DataProviderException;
@@ -163,6 +164,7 @@ public interface IndexDataProvider {
    * @param term Term to lookup
    * @return True, if it contains the term, false otherwise
    */
+  @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
   boolean documentContains(final int documentId, final ByteArray term);
 
   /**

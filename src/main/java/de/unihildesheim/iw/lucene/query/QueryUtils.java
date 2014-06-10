@@ -18,10 +18,14 @@ package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.ByteArray;
+import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.queryparser.classic.ParseException;
 
+import java.io.IOException;
+import java.io.StringReader;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -38,58 +42,86 @@ import java.util.Set;
  */
 public final class QueryUtils {
 
-
+  /**
+   * Document fields to use.
+   */
   private final Set<String> fields;
+  /**
+   * Reader to access Lucene index.
+   */
   private final IndexReader reader;
+  /**
+   * Query analyzer.
+   */
   private final Analyzer analyzer;
 
+  /**
+   * New instance with defined analyzer, reader and fields to query.
+   *
+   * @param newAnalyzer Query analyzer
+   * @param newReader IndexReader
+   * @param newFields Document fields to query
+   */
   public QueryUtils(final Analyzer newAnalyzer, final IndexReader newReader,
       final Set<String> newFields) {
     Objects.requireNonNull(newReader, "IndexReader was null.");
     if (Objects.requireNonNull(newFields, "Fields were null.").isEmpty()) {
       throw new IllegalArgumentException("Fields list was empty.");
     }
-    this.fields = newFields;
+    this.fields = new HashSet<>(newFields);
     this.reader = newReader;
     this.analyzer = newAnalyzer;
   }
 
   /**
+   * Tokenizes a query string using Lucenes analyzer. This also removes
+   * stopwords from the query string.
+   *
+   * @param query Query string to tokenize
+   * @param newAnalyzer Analyzer to use
+   * @return Tokenized query string with stop-words removed
+   */
+  public static List<String> tokenizeQueryString(final String query,
+      final Analyzer newAnalyzer) {
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
+    final List<String> result = new ArrayList<>();
+    try (TokenStream stream = newAnalyzer.tokenStream(null,
+        new StringReader(query))) {
+      stream.reset();
+      while (stream.incrementToken()) {
+        result.add(stream.getAttribute(CharTermAttribute.class).toString());
+      }
+    } catch (final IOException e) {
+      // not thrown b/c we're using a string reader
+    }
+    return result;
+  }
+
+  /**
    * Extract all unique terms from the query. Stopwords are not removed.
    *
-   * @param query Query to extract terms from
-   * @return Collection of terms from the query string
+   * @param query Query to parse
+   * @return List of unique query terms extracted from the given query
    * @throws java.io.UnsupportedEncodingException Thrown, if encoding a term to
    * UTF-8 fails
-   * @throws org.apache.lucene.queryparser.classic.ParseException Thrown, if
-   * query string could not be parsed
    */
-  public Set<ByteArray> getUniqueQueryTerms(final String query)
-      throws UnsupportedEncodingException, ParseException,
-             Buildable.ConfigurationException, Buildable.BuildException {
-    if (Objects.requireNonNull(query, "Query was null.").trim().isEmpty()) {
-      throw new IllegalArgumentException("Query was empty.");
-    }
-    return new HashSet<>(extractTerms(
-        new SimpleTermsQueryBuilder(this.reader, this.fields)
-            .analyzer(this.analyzer).query(query).build()
-    ));
+  public static Set<ByteArray> getUniqueQueryTerms(
+      final TermsProvidingQuery query)
+      throws UnsupportedEncodingException {
+    return new HashSet<>(extractTerms(query));
   }
 
   /**
    * Break down a query to it's single terms. Stopwords are not removed.
    *
    * @param query Query to extract terms from
-   * @return Term extracted from the query
+   * @return Collection of all terms from the query string
    * @throws java.io.UnsupportedEncodingException Thrown, if encoding a term to
    * UTF-8 fails
-   * @throws org.apache.lucene.queryparser.classic.ParseException Thrown, if
-   * query string could not be parsed
    */
-  private List<ByteArray> extractTerms(final TermsProvidingQuery query)
-      throws
-      UnsupportedEncodingException, ParseException,
-      Buildable.ConfigurationException, Buildable.BuildException {
+  @SuppressWarnings("ObjectAllocationInLoop")
+  private static List<ByteArray> extractTerms(final TermsProvidingQuery query)
+      throws UnsupportedEncodingException {
     assert query != null;
 
     final Collection<String> qTerms = query.getQueryTerms();
@@ -106,56 +138,66 @@ public final class QueryUtils {
   }
 
   /**
+   * Extract all terms from the query. Stopwords are not removed.
+   *
+   * @param query Query to parse
+   * @return Collection of all terms from the query string
+   * @throws java.io.UnsupportedEncodingException Thrown, if encoding a term to
+   * UTF-8 fails
+   */
+  public static List<ByteArray> getAllQueryTerms(
+      final TermsProvidingQuery query)
+      throws UnsupportedEncodingException {
+    return extractTerms(query);
+  }
+
+  /**
    * Extract all unique terms from the query. Stopwords are not removed.
    *
-   * @param query
-   * @return
-   * @throws Buildable.ConfigurationException
-   * @throws Buildable.BuildException
-   * @throws ParseException
-   * @throws UnsupportedEncodingException
+   * @param query Query to extract terms from
+   * @return Collection of terms from the query string
+   * @throws java.io.UnsupportedEncodingException Thrown, if encoding a term to
+   * UTF-8 fails
+   * @throws Buildable.BuildException Thrown, if building the query object
+   * failed
+   * @throws Buildable.ConfigurationException Thrown, if building the query
+   * object failed
    */
-  public Set<ByteArray> getUniqueQueryTerms(final TermsProvidingQuery query)
-      throws Buildable.ConfigurationException, Buildable.BuildException,
-             ParseException, UnsupportedEncodingException {
-    return new HashSet<>(extractTerms(query));
+  public Set<ByteArray> getUniqueQueryTerms(final String query)
+      throws UnsupportedEncodingException,
+             Buildable.ConfigurationException, Buildable.BuildException {
+    if (StringUtils.isStrippedEmpty(
+        Objects.requireNonNull(query, "Query was null."))) {
+      throw new IllegalArgumentException("Query was empty.");
+    }
+    return new HashSet<>(extractTerms(
+        new SimpleTermsQuery.Builder(this.reader, this.fields)
+            .analyzer(this.analyzer).query(query).build()
+    ));
   }
 
   /**
    * Extract all terms from the query. Stopwords are not removed.
    *
    * @param query Query to extract terms from
-   * @return Collection of terms from the query string
+   * @return Collection of all terms from the query string
    * @throws java.io.UnsupportedEncodingException Thrown, if encoding a term to
    * UTF-8 fails
-   * @throws org.apache.lucene.queryparser.classic.ParseException Thrown, if
-   * query string could not be parsed
+   * @throws Buildable.BuildException Thrown, if building the query object
+   * failed
+   * @throws Buildable.ConfigurationException Thrown, if building the query
+   * object failed
    */
   public List<ByteArray> getAllQueryTerms(final String query)
-      throws UnsupportedEncodingException, ParseException,
+      throws UnsupportedEncodingException,
              Buildable.ConfigurationException, Buildable.BuildException {
-    if (Objects.requireNonNull(query, "Query was null.").trim().isEmpty()) {
+    if (StringUtils.isStrippedEmpty(
+        Objects.requireNonNull(query, "Query was null."))) {
       throw new IllegalArgumentException("Query was empty.");
     }
     return extractTerms(
-        new SimpleTermsQueryBuilder(this.reader, this.fields)
+        new SimpleTermsQuery.Builder(this.reader, this.fields)
             .analyzer(this.analyzer).query(query).build()
     );
-  }
-
-  /**
-   * Extract all terms from the query. Stopwords are not removed.
-   *
-   * @param query
-   * @return
-   * @throws Buildable.ConfigurationException
-   * @throws Buildable.BuildException
-   * @throws ParseException
-   * @throws UnsupportedEncodingException
-   */
-  public List<ByteArray> getAllQueryTerms(final SimpleTermsQuery query)
-      throws Buildable.ConfigurationException, Buildable.BuildException,
-             ParseException, UnsupportedEncodingException {
-    return extractTerms(query);
   }
 }

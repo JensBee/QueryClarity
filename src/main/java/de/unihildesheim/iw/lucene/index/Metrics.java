@@ -26,38 +26,72 @@ import de.unihildesheim.iw.util.MathUtils;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.WeakHashMap;
 
 /**
  * High level wrapper for {@link IndexDataProvider} to provide collection and
- * document related metrics.
- * <p/>
- * Beware that {@link DocumentModel}s get cached (per {@link Metrics} instance).
- * If you change parameters that affect the contents of the {@link
- * DocumentModel}s (e.g. stopwords, document fields) you should create a new
- * {@link Metrics} instance with a fresh cache.
+ * document related metrics. <br> Beware that {@link DocumentModel}s get cached
+ * (per {@link Metrics} instance). If you change parameters that affect the
+ * contents of the {@link DocumentModel}s (e.g. stopwords, document fields) you
+ * should create a new {@link Metrics} instance with a fresh cache.
  *
  * @author Jens Bertram
  */
 public final class Metrics {
+  /**
+   * Collection related metrics are gathered in this object.
+   */
+  private final CollectionMetrics collection;
 
-  private static final Map<IndexDataProvider, Metrics> CACHE = new
-      WeakHashMap<>();
-  public final CollectionMetrics collection;
+  /**
+   * DataProvider to access statistical data.
+   */
   private final IndexDataProvider dataProv;
+
+  /**
+   * Cache for created {@link DocumentModel}s.
+   */
   private final Map<Integer, DocumentModel> docModelCache = new SoftHashMap<>();
 
+  /**
+   * Creates a new instance using the provided DataProvider for statistical
+   * data.
+   *
+   * @param dataProvider Provider for statistical data
+   */
   public Metrics(final IndexDataProvider dataProvider) {
     this.dataProv = Objects.requireNonNull(dataProvider,
         "IndexDataProvider was null.");
     this.collection = new CollectionMetrics();
   }
 
+  /**
+   * Get the DataProvider used for statistical data.
+   *
+   * @return DataProvider in use
+   */
+  public IndexDataProvider getDataProvider() {
+    return this.dataProv;
+  }
+
+  /**
+   * Get document-metrics for the document identified by the provided Lucene
+   * document-id.
+   *
+   * @param docId Lucene document-id of the target document
+   * @return Metrics instance for the specific document
+   */
   public DocumentMetrics document(final int docId) {
     return document(getDocumentModel(docId));
   }
 
-  public DocumentMetrics document(final DocumentModel docModel) {
+  /**
+   * Get document-metrics for the document identified by the Lucene document-id
+   * extracted from the provided Model.
+   *
+   * @param docModel Document model describing the target document
+   * @return Metrics instance for the specific document
+   */
+  public static DocumentMetrics document(final DocumentModel docModel) {
     return new DocumentMetrics(Objects.requireNonNull(docModel,
         "Document-model was null."));
   }
@@ -69,25 +103,42 @@ public final class Metrics {
    * @return Document-model for the given document id
    */
   public DocumentModel getDocumentModel(final int documentId) {
-    DocumentModel d;
-    d = docModelCache.get(documentId);
+    DocumentModel d = this.docModelCache.get(documentId);
     if (d == null) {
-      d = dataProv.getDocumentModel(documentId);
-      docModelCache.put(documentId, d);
+      d = this.dataProv.getDocumentModel(documentId);
+      this.docModelCache.put(documentId, d);
     }
     return d;
   }
 
   /**
+   * Get an object providing all collection related metrics.
+   *
+   * @return Collection metrics
+   */
+  public CollectionMetrics collection() {
+    assert this.collection != null;
+    return this.collection;
+  }
+
+  /**
    * High level wrapper for {@link IndexDataProvider} to provide document
    * related metrics.
-   *
-   * @author Jens Bertram
    */
+  @SuppressWarnings("PublicInnerClass")
   public static final class DocumentMetrics {
 
+    /**
+     * Model to retrieve data from.
+     */
     private final DocumentModel docModel;
 
+    /**
+     * Create a new metrics instance for the document described by the provided
+     * model.
+     *
+     * @param documentModel Model describing the target document
+     */
     public DocumentMetrics(final DocumentModel documentModel) {
       this.docModel = Objects.requireNonNull(documentModel,
           "Document-model was null.");
@@ -101,7 +152,7 @@ public final class Metrics {
      */
     public double wdf(final ByteArray term) {
       Objects.requireNonNull(term, "Term was null.");
-      return MathUtils.log2(tf(term).doubleValue() + 1) /
+      return MathUtils.log2(tf(term).doubleValue() + 1d) /
           MathUtils.log2(tf().doubleValue());
     }
 
@@ -113,7 +164,7 @@ public final class Metrics {
      */
     public Long tf(final ByteArray term) {
       Objects.requireNonNull(term, "Term was null.");
-      final Long freq = this.docModel.termFreqMap.get(term);
+      final Long freq = this.docModel.getTermFreqMap().get(term);
       if (freq == null) {
         return 0L;
       }
@@ -156,7 +207,6 @@ public final class Metrics {
      * @param term Term to lookup
      * @param smoothing Smoothing parameter
      * @return Smoothed relative term frequency
-     * @see #smoothedRelativeTermFrequency(ByteArray, double)
      */
     public double smoothedRelativeTermFrequency(final ByteArray term,
         final double smoothing) {
@@ -164,7 +214,8 @@ public final class Metrics {
       final double termFreq = this.docModel.tf(term).doubleValue();
       final double relCollFreq = relTf(term);
       return ((termFreq + smoothing) * relCollFreq) / (termFreq + (Integer.
-          valueOf(this.docModel.termFreqMap.size()).doubleValue() * smoothing));
+          valueOf(this.docModel.getTermFreqMap().size()).doubleValue() *
+          smoothing));
     }
 
     /**
@@ -189,18 +240,19 @@ public final class Metrics {
   /**
    * High level wrapper for {@link IndexDataProvider} to provide collection
    * related metrics.
-   *
-   * @author Jens Bertram
    */
+  @SuppressWarnings("PublicInnerClass")
   public final class CollectionMetrics {
     /**
      * Get the number of unique terms in the index.
      *
      * @return Number of unique terms in index
+     * @throws DataProviderException Thrown on errors retrieving values from the
+     * DataProvider
      */
     public Long numberOfUniqueTerms()
         throws DataProviderException {
-      return dataProv.getUniqueTermsCount();
+      return getDataProvider().getUniqueTermsCount();
     }
 
     /**
@@ -210,8 +262,8 @@ public final class Metrics {
      * @return Collection frequency of the given term
      */
     public Long tf(final ByteArray term) {
-      return dataProv.getTermFrequency(Objects.requireNonNull(term,
-          "Term was null."));
+      return getDataProvider()
+          .getTermFrequency(Objects.requireNonNull(term, "Term was null."));
     }
 
     /**
@@ -220,20 +272,21 @@ public final class Metrics {
      * @return Collection term frequency
      */
     public Long tf() {
-      return dataProv.getTermFrequency();
+      return getDataProvider().getTermFrequency();
     }
 
     /**
      * Get the relative frequency of a term. The relative frequency is the
-     * frequency <tt>tF</tt> of term <tt>t</tt> divided by the frequency
-     * <tt>F</tt> of all terms.
+     * frequency {@code tF} of term {@code t}t divided by the frequency {@code
+     * F} of all terms.
      *
      * @param term Term to lookup
      * @return Relative collection frequency of the given term
      */
     public Double relTf(final ByteArray term) {
-      return dataProv.getRelativeTermFrequency(Objects.requireNonNull(term,
-          "Term was null."));
+      return getDataProvider()
+          .getRelativeTermFrequency(Objects.requireNonNull(term,
+              "Term was null."));
     }
 
     /**
@@ -257,7 +310,8 @@ public final class Metrics {
      */
     public Double idf(final ByteArray term, final double logBase) {
       Objects.requireNonNull(term, "Term was null.");
-      return MathUtils.logN(logBase, 1 + (numberOfDocuments() / df(term)));
+      return MathUtils.logN(logBase,
+          (1d + (numberOfDocuments().doubleValue() / df(term).doubleValue())));
     }
 
     /**
@@ -266,7 +320,7 @@ public final class Metrics {
      * @return Number of documents in index
      */
     public Long numberOfDocuments() {
-      return dataProv.getDocumentCount();
+      return getDataProvider().getDocumentCount();
     }
 
     /**
@@ -276,7 +330,7 @@ public final class Metrics {
      * @return Document frequency of the given term
      */
     public Integer df(final ByteArray term) {
-      return dataProv.getDocumentFrequency(Objects.requireNonNull(term,
+      return getDataProvider().getDocumentFrequency(Objects.requireNonNull(term,
           "Term was null."));
     }
 
@@ -300,9 +354,11 @@ public final class Metrics {
      * @return Inverse document frequency BM25 (logN)
      */
     public Double idfBM25(final ByteArray term, final double logBase) {
-      final int docFreq = df(Objects.requireNonNull(term, "Term was null."));
-      return MathUtils.logN(logBase, (numberOfDocuments() - docFreq + 0.5)
-          / (docFreq + 0.5));
+      final double docFreq = df(Objects.requireNonNull(term,
+          "Term was null.")).doubleValue();
+      return MathUtils.logN(logBase,
+          (numberOfDocuments().doubleValue() - docFreq + 0.5)
+              / (docFreq + 0.5));
     }
 
     /**
@@ -310,22 +366,27 @@ public final class Metrics {
      * frequency.
      *
      * @return Iterator providing <tt>term, index</tt> frequency value pairs
+     * @throws DataProviderException Thrown, if an error occurred while
+     * retrieving data from the provider
      */
     public Iterator<Tuple.Tuple2<ByteArray, Long>> termFrequencyIterator()
         throws DataProviderException {
       return new Iterator<Tuple.Tuple2<ByteArray, Long>>() {
+        /**
+         * All index terms iterator.
+         */
         private final Iterator<ByteArray> idxTerms =
-            dataProv.getTermsIterator();
+            getDataProvider().getTermsIterator();
 
         @Override
         public boolean hasNext() {
-          return idxTerms.hasNext();
+          return this.idxTerms.hasNext();
         }
 
         @Override
         public Tuple.Tuple2<ByteArray, Long> next() {
-          final ByteArray term = idxTerms.next();
-          return Tuple.tuple2(term, dataProv.getTermFrequency(term));
+          final ByteArray term = this.idxTerms.next();
+          return Tuple.tuple2(term, getDataProvider().getTermFrequency(term));
         }
 
         @Override

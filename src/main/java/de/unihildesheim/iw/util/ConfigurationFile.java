@@ -40,7 +40,7 @@ public class ConfigurationFile
   /**
    * Logger instance for this class.
    */
-  private static final Logger LOG = LoggerFactory.getLogger(
+  static final Logger LOG = LoggerFactory.getLogger(
       ConfigurationFile.class);
 
   /**
@@ -56,34 +56,7 @@ public class ConfigurationFile
   /**
    * Flag indicating, if a ShutdownHook is already set.
    */
-  private boolean hasShutdownHook = false;
-
-  public ConfigurationFile(final String newFileName, final boolean create)
-      throws IOException {
-    super();
-    if (Objects.requireNonNull(newFileName, "Filename was null.").trim()
-        .isEmpty()) {
-      throw new IllegalArgumentException("Empty filename.");
-    }
-
-    this.prop = new Properties();
-    this.confFile = new File(newFileName);
-
-    if (confFile.exists()) {
-      try (FileReader reader = new FileReader(confFile)) {
-        this.prop.load(reader);
-        LOG.info("Configuration loaded from '{}'", newFileName);
-      }
-    } else if (create) {
-      confFile.createNewFile();
-      LOG.info("New configuration created '{}'", newFileName);
-    } else {
-      throw new FileNotFoundException("Configuration file '" + this.confFile
-          .getPath() + "' not found.");
-    }
-
-    setProperties(prop);
-  }
+  private boolean hasShutdownHook;
 
   /**
    * Creates a new file-backed configuration storage with the given name.
@@ -97,36 +70,77 @@ public class ConfigurationFile
   }
 
   /**
-   * Saves the current configuration to disk.
+   * New configuration file manager with a given file. File is created on
+   * request.
    *
-   * @throws IOException Thrown on low-level I/O errors
+   * @param newFileName File name for storing configuration
+   * @param create If true, file will be created, if it does not exist
+   * @throws IOException Thrown, if file was not found or could not be created
    */
-  public void save()
+  @SuppressWarnings("BooleanParameter")
+  public ConfigurationFile(final String newFileName, final boolean create)
       throws IOException {
-    try (OutputStream output = new FileOutputStream(this.confFile)) {
-      prop.store(output, null);
-      output.close();
+    if (Objects.requireNonNull(newFileName, "Filename was null.").trim()
+        .isEmpty()) {
+      throw new IllegalArgumentException("Empty filename.");
     }
+
+    this.prop = new Properties();
+    this.confFile = new File(newFileName);
+
+    if (this.confFile.exists()) {
+      try (FileReader reader = new FileReader(this.confFile)) {
+        this.prop.load(reader);
+        LOG.info("Configuration loaded from '{}'", newFileName);
+      }
+    } else if (create) {
+      if (this.confFile.createNewFile()) {
+        LOG.info("New configuration created '{}'", newFileName);
+      } else {
+        throw new IOException(
+            "Error creating configuration file '" + this.confFile
+                .getPath() + "'.");
+      }
+    } else {
+      throw new FileNotFoundException("Configuration file '" + this.confFile
+          .getPath() + "' not found.");
+    }
+
+    setProperties(this.prop);
   }
 
   /**
    * Activates the storing of the configuration to disk when the runtime is
    * terminated.
    */
-  public void saveOnExit() {
-    if (hasShutdownHook) {
+  public final void saveOnExit() {
+    if (this.hasShutdownHook) {
       return;
     }
     Runtime.getRuntime().addShutdownHook(new Thread() {
+      @Override
       public void run() {
         try {
           save();
-        } catch (IOException e) {
+        } catch (final IOException e) {
           LOG.error("Error saving configuration.", e);
         }
         LOG.info("Configuration saved.");
       }
     });
     this.hasShutdownHook = true;
+  }
+
+  /**
+   * Saves the current configuration to disk.
+   *
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  public final void save()
+      throws IOException {
+    try (OutputStream output = new FileOutputStream(this.confFile)) {
+      this.prop.store(output, null);
+      output.close();
+    }
   }
 }

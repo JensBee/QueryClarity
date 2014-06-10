@@ -26,40 +26,22 @@ import java.util.Random;
 public final class RandomValue {
 
   /**
-   * Private constructor for utility class.
-   */
-  private RandomValue() {
-    // empty
-  }
-
-  /**
    * Randomized number generator.
    */
-  private static final Random rand = new Random();
-
+  private static final Random RANDOM = new Random();
   /**
    * Character source for random query term generation.
    */
-  private static final char[] RAND_TERM_LETTERS = new char[]{'a', 'b', 'c',
+  private static final char[] RAND_TERM_LETTERS = {'a', 'b', 'c',
       'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q',
       'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '1', '2', '3', '4', '5',
       '6', '7', '8', '9', '0'};
 
   /**
-   * Returns a pseudo-random number between min and max, inclusive. The
-   * difference between min and max can be at most <code>Integer.MAX_VALUE -
-   * 1</code>.
-   * <p/>
-   * https://stackoverflow.com/a/363692
-   *
-   * @param min Minimum value
-   * @param max Maximum value. Must be greater than min.
-   * @return Integer between min and max, inclusive.
+   * Private constructor for utility class.
    */
-  public static int getInteger(final int min, final int max) {
-    // nextInt is normally exclusive of the top value,
-    // so add 1 to make it inclusive
-    return rand.nextInt((max - min) + 1) + min;
+  private RandomValue() {
+    // empty
   }
 
   /**
@@ -68,22 +50,44 @@ public final class RandomValue {
    * @return Random int
    */
   public static int getInteger() {
-    return rand.nextInt();
+    return RANDOM.nextInt();
+  }
+
+  /**
+   * Get a random byte value.
+   *
+   * @return Random byte
+   */
+  public static byte getByte() {
+    return (byte) getInteger(Byte.MIN_VALUE, Byte.MAX_VALUE);
+  }
+
+  /**
+   * Returns a pseudo-random number between min and max, inclusive. The
+   * difference between min and max can be at most <code>Integer.MAX_VALUE -
+   * 1</code>. <br> https://stackoverflow.com/a/363692
+   *
+   * @param min Minimum value
+   * @param max Maximum value. Must be greater than min.
+   * @return Integer between min and max, inclusive.
+   */
+  public static int getInteger(final int min, final int max) {
+    // nextInt is normally exclusive of the top value,
+    // so add 1 to make it inclusive
+    return RANDOM.nextInt((max - min) + 1) + min;
   }
 
   /**
    * Returns a pseudo-random number between min and max, inclusive. The
    * difference between min and max can be at most <code>Double.MAX_VALUE -
-   * 1</code>.
-   * <p/>
-   * https://stackoverflow.com/a/363692
+   * 1</code>. <br> https://stackoverflow.com/a/363692
    *
    * @param min Minimum value
    * @param max Maximum value. Must be greater than min.
    * @return Double between min and max, inclusive.
    */
   public static double getDouble(final double min, final double max) {
-    return min + 1 + (max - min) * rand.nextDouble();
+    return min + 1d + (max - min) * RANDOM.nextDouble();
   }
 
   /**
@@ -92,18 +96,7 @@ public final class RandomValue {
    * @return Double value
    */
   public static double getDouble() {
-    return rand.nextDouble();
-  }
-
-  /**
-   * Get a random char from the list of chars {@link #RAND_TERM_LETTERS} allowed
-   * for random term generation.
-   *
-   * @return a random chosen char
-   */
-  public static char getCharacter() {
-    final int idx = (int) (rand.nextDouble() * RAND_TERM_LETTERS.length);
-    return RAND_TERM_LETTERS[idx];
+    return RANDOM.nextDouble();
   }
 
   /**
@@ -135,11 +128,22 @@ public final class RandomValue {
   }
 
   /**
+   * Get a random char from the list of chars {@link #RAND_TERM_LETTERS} allowed
+   * for random term generation.
+   *
+   * @return a random chosen char
+   */
+  public static char getCharacter() {
+    return RAND_TERM_LETTERS[getInteger(0, RAND_TERM_LETTERS.length - 1)];
+  }
+
+  /**
    * Get a random boolean value.
    *
    * @return Random boolean value
    */
+  @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
   public static boolean getBoolean() {
-    return rand.nextBoolean();
+    return RANDOM.nextBoolean();
   }
 }

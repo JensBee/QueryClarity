@@ -21,6 +21,7 @@ import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.Persistence;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.util.FileUtils;
+import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.slf4j.Logger;
@@ -33,7 +34,7 @@ import java.util.Objects;
 /**
  * @author Jens Bertram
  */
-public abstract class AbstractClarityScoreCalculationBuilder<T extends
+abstract class AbstractClarityScoreCalculationBuilder<T extends
     AbstractClarityScoreCalculationBuilder<T>>
     implements Buildable {
 
@@ -43,28 +44,38 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
   static final Logger LOG = LoggerFactory.getLogger(
       AbstractClarityScoreCalculationBuilder.class);
   /**
+   * Wrapped builder to create the persistent data storage.
+   */
+  @SuppressWarnings("PackageVisibleField")
+  final Persistence.Builder persistenceBuilder = new Persistence.Builder();
+  /**
    * Implementation identifier used for proper cache naming.
    */
   private final String identifier;
-  protected Persistence.Builder persistenceBuilder = new Persistence.Builder();
   /**
    * {@link IndexDataProvider} to use.
    */
-  protected IndexDataProvider idxDataProvider;
+  @SuppressWarnings("PackageVisibleField")
+  IndexDataProvider idxDataProvider;
 
   /**
    * {@link IndexReader} to access the Lucene index.
    */
-  protected IndexReader idxReader;
+  @SuppressWarnings("PackageVisibleField")
+  IndexReader idxReader;
 
   /**
    * Flag indicating, if the new instance will be temporary.
    */
-  protected boolean isTemporary;
+  @SuppressWarnings("PackageVisibleField")
+  boolean isTemporary;
+
   /**
    * Analyzer to use for parsing queries.
    */
-  protected Analyzer analyzer;
+  @SuppressWarnings("PackageVisibleField")
+  Analyzer analyzer;
+
   /**
    * File path where the working data will be stored.
    */
@@ -75,7 +86,7 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
    *
    * @param newIdentifier Implementation identifier for the cache
    */
-  protected AbstractClarityScoreCalculationBuilder(final String newIdentifier) {
+  AbstractClarityScoreCalculationBuilder(final String newIdentifier) {
     if (Objects.requireNonNull(newIdentifier, "Identifier was null.").trim()
         .isEmpty()) {
       throw new IllegalArgumentException("Identifier was empty.");
@@ -89,13 +100,18 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
    * @param dataProv Data provider
    * @return Self reference
    */
-  public T indexDataProvider(final IndexDataProvider dataProv) {
+  public final T indexDataProvider(final IndexDataProvider dataProv) {
     this.idxDataProvider = Objects.requireNonNull(dataProv,
         "IndexDataProvider was null.");
     return getThis();
   }
 
-  protected abstract T getThis();
+  /**
+   * Get a self reference.
+   *
+   * @return Self reference
+   */
+  abstract T getThis();
 
   /**
    * Set the reader to access the Lucene index.
@@ -103,7 +119,7 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
    * @param newIdxReader Reader
    * @return Self reference
    */
-  public T indexReader(final IndexReader newIdxReader) {
+  public final T indexReader(final IndexReader newIdxReader) {
     this.idxReader = Objects.requireNonNull(newIdxReader,
         "IndexReader was null.");
     return getThis();
@@ -115,7 +131,7 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
    * @param newAnalyzer Analyzer
    * @return Self reference
    */
-  public T analyzer(final Analyzer newAnalyzer) {
+  public final T analyzer(final Analyzer newAnalyzer) {
     this.analyzer = newAnalyzer;
     return getThis();
   }
@@ -123,10 +139,9 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
   /**
    * Set the instance a being temporary.
    *
-   * @return self reference
+   * @return Self reference
    */
-  public T temporary()
-      throws IOException {
+  public final T temporary() {
     this.isTemporary = true;
     return getThis();
   }
@@ -137,7 +152,7 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
    * @param name Cache name
    * @return Self reference
    */
-  public T loadCache(final String name) {
+  public final T loadCache(final String name) {
     this.persistenceBuilder.name(createCacheName(name));
     this.persistenceBuilder.get();
     return getThis();
@@ -151,7 +166,8 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
    * @return Cache name prefixed with current identifier
    */
   private String createCacheName(final String name) {
-    if (Objects.requireNonNull(name, "Cache name was null.").trim().isEmpty()) {
+    if (StringUtils.isStrippedEmpty(Objects.requireNonNull(name,
+        "Cache name was null."))) {
       throw new IllegalArgumentException("Empty cache name.");
     }
     return this.identifier + "_" + name;
@@ -163,7 +179,7 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
    * @param name Cache name
    * @return Self reference
    */
-  public T createCache(final String name) {
+  public final T createCache(final String name) {
     this.persistenceBuilder.name(createCacheName(name));
     this.persistenceBuilder.make();
     return getThis();
@@ -175,7 +191,7 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
    * @param name Cache name
    * @return Self reference
    */
-  public T loadOrCreateCache(
+  public final T loadOrCreateCache(
       final String name) {
     this.persistenceBuilder.name(createCacheName(name));
     this.persistenceBuilder.makeOrGet();
@@ -192,6 +208,7 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
    * directory is not allowed.
    * @see Persistence#tryCreateDataPath(String)
    */
+  @SuppressWarnings("AssignmentToNull")
   public final T dataPath(final String filePath)
       throws IOException {
     Objects.requireNonNull(filePath, "Data-path was null.");

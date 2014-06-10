@@ -19,7 +19,6 @@ package de.unihildesheim.iw.lucene.query;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
-import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import org.junit.Test;
@@ -86,7 +85,7 @@ public final class QueryUtilsTest
       terms.add(term);
     }
 
-    final String queryString = TestIndexDataProvider.util.getQueryString(
+    final String queryString = this.referenceIndex.util().getQueryString(
         terms.toArray(new String[terms.size()]));
     LOG.debug("QS->{}", queryString);
     final Set<ByteArray> result = new QueryUtils(referenceIndex
@@ -135,7 +134,7 @@ public final class QueryUtilsTest
     terms.addAll(terms);
     termsBw.addAll(termsBw);
 
-    final String queryString = TestIndexDataProvider.util.getQueryString(
+    final String queryString = this.referenceIndex.util().getQueryString(
         terms.toArray(new String[termsCount]));
     final Collection<ByteArray> result = new QueryUtils(
         referenceIndex.getAnalyzer(),

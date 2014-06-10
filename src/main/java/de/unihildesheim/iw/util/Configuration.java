@@ -49,6 +49,7 @@ public class Configuration {
    *
    * @param prop Properties provided by overriding class
    */
+  @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
   protected Configuration(final Properties prop) {
     this.data = prop;
   }
@@ -83,7 +84,13 @@ public class Configuration {
     }
   }
 
-  protected void setProperties(final Properties prop) {
+  /**
+   * Set the properties object directly.
+   *
+   * @param prop Properties to set
+   */
+  @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
+  protected final void setProperties(final Properties prop) {
     this.data = prop;
   }
 
@@ -132,7 +139,8 @@ public class Configuration {
    */
   public final String getString(final String key,
       final String defaultValue) {
-    if (Objects.requireNonNull(key, "Key was null.").trim().isEmpty()) {
+    if (StringUtils.isStrippedEmpty(
+        Objects.requireNonNull(key, "Key was null."))) {
       throw new IllegalArgumentException("Key was empty.");
     }
     return this.data.getProperty(key, defaultValue);
@@ -149,8 +157,15 @@ public class Configuration {
     this.data.setProperty(key, value);
   }
 
-  protected void checkKeyValue(final String key, final Object value) {
-    if (Objects.requireNonNull(key, "Key was null.").trim().isEmpty()) {
+  /**
+   * Checks if key and value are valid (i.e. not null).
+   *
+   * @param key Key
+   * @param value Value
+   */
+  protected static void checkKeyValue(final String key, final Object value) {
+    if (StringUtils.isStrippedEmpty(
+        Objects.requireNonNull(key, "Key was null."))) {
       throw new IllegalArgumentException("Key was empty.");
     }
     Objects.requireNonNull(value, "Value was null.");
@@ -184,7 +199,7 @@ public class Configuration {
     } else {
       try {
         return Integer.parseInt(value);
-      } catch (NumberFormatException ex) {
+      } catch (final NumberFormatException ex) {
         LOG.warn("Failed to restore integer value. key={} val={}", key, value);
         return defaultValue;
       }
@@ -262,7 +277,7 @@ public class Configuration {
     } else {
       try {
         return Double.parseDouble(value);
-      } catch (NumberFormatException ex) {
+      } catch (final NumberFormatException ex) {
         LOG.warn("Failed to restore double value. key={} val={}", key, value);
         return defaultValue;
       }
@@ -300,13 +315,23 @@ public class Configuration {
     this.data.setProperty(key, value.toString());
   }
 
+  /**
+   * Get an iterator for all configuration entries.
+   *
+   * @return Iterator over all configuration entries
+   */
   public Iterator<Entry<Object, Object>> iterator() {
     return Collections.unmodifiableSet(this.data.entrySet()).iterator();
   }
 
+  /**
+   * Creates a mapping of the current configuration.
+   *
+   * @return Configuration values mapped as key, value pairs
+   */
   public Map<String, String> entryMap() {
     final Map<String, String> entries = new HashMap<>(this.data.size());
-    for (Entry<Object, Object> e : this.data.entrySet()) {
+    for (final Entry<Object, Object> e : this.data.entrySet()) {
       entries.put(e.getKey().toString(), e.getValue().toString());
     }
     return entries;

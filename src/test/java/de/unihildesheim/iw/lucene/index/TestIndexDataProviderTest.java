@@ -22,6 +22,7 @@ import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.File;
@@ -34,11 +35,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.regex.Pattern;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Test for {@link TestIndexDataProvider}.
@@ -60,7 +56,7 @@ public final class TestIndexDataProviderTest
    */
   public TestIndexDataProviderTest()
       throws Exception {
-    super(new TestIndexDataProvider(TestIndexDataProvider.DEFAULT_INDEX_SIZE));
+    super(new TestIndexDataProvider());
   }
 
   /**
@@ -72,8 +68,8 @@ public final class TestIndexDataProviderTest
   public void testGetIndexDir()
       throws Exception {
     initEnvironment(null, null);
-    assertTrue("Index dir does not exist.",
-        new File(TestIndexDataProvider.reference.getIndexDir()).exists());
+    Assert.assertTrue("Index dir does not exist.",
+        new File(this.referenceIndex.reference().getIndexDir()).exists());
   }
 
   /**
@@ -83,8 +79,8 @@ public final class TestIndexDataProviderTest
    * @param stopwords Stopwords to use (may be null)
    * @throws Exception Any exception indicates an error
    */
-  private void initEnvironment(final Set<String> fields,
-      final Set<String> stopwords)
+  private void initEnvironment(final Iterable<String> fields,
+      final Collection<String> stopwords)
       throws Exception {
     this.referenceIndex.prepareTestEnvironment(fields, stopwords);
   }
@@ -98,22 +94,24 @@ public final class TestIndexDataProviderTest
   public void testGetQueryString_0args()
       throws Exception {
     initEnvironment(null, null);
-    final String qString = TestIndexDataProvider.util.getQueryString();
+    final String qString = this.referenceIndex.util().getQueryString();
     final Collection<ByteArray> qTerms;
     qTerms = new QueryUtils(
         this.referenceIndex.getAnalyzer(),
-        this.referenceIndex.getIndexReader(),
+        TestIndexDataProvider.getIndexReader(),
         this.referenceIndex.getDocumentFields()).getUniqueQueryTerms(qString);
-    final Collection<ByteArray> sWords = TestIndexDataProvider.reference
-        .getStopwords();
+    final Collection<ByteArray> sWords = this.referenceIndex
+        .getStopwordsBytes();
 
     if (sWords != null) { // test only, if stopwords are set
       for (final ByteArray qTerm : qTerms) {
         if (sWords.contains(qTerm)) {
           final long result = this.referenceIndex.getTermFrequency(qTerm);
-          assertEquals("Stopword has term frequency >0.", 0L, result);
+          Assert.assertEquals("Stopword has term frequency >0.", 0L, result);
         } else {
-          assertNotEquals(this, this.referenceIndex.getTermFrequency(qTerm));
+          Assert
+              .assertNotEquals(this,
+                  this.referenceIndex.getTermFrequency(qTerm));
         }
       }
     }
@@ -125,17 +123,18 @@ public final class TestIndexDataProviderTest
    * @throws Exception Any exception indicates an error
    */
   @Test
-  @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
   public void testGetQueryObj_0args()
       throws Exception {
     initEnvironment(null, null);
     // stopwords are already removed
-    final Collection<String> qTerms = TestIndexDataProvider.util
+    final Collection<String> qTerms = this.referenceIndex.util()
         .getQueryObj().getQueryTerms();
     for (final String term : qTerms) {
+      @SuppressWarnings("ObjectAllocationInLoop")
       final long result = this.referenceIndex.getTermFrequency(new ByteArray
           (term.getBytes("UTF-8")));
-      assertNotEquals("Term frequency was 0 for search term.", 0L, result);
+      Assert
+          .assertNotEquals("Term frequency was 0 for search term.", 0L, result);
     }
   }
 
@@ -148,14 +147,14 @@ public final class TestIndexDataProviderTest
   public void testGetUniqueQueryString()
       throws Exception {
     initEnvironment(null, null);
-    final String result = TestIndexDataProvider.util.getUniqueQueryString();
+    final String result = this.referenceIndex.util().getUniqueQueryString();
     final Collection<ByteArray> qTerms =
         new QueryUtils(
             this.referenceIndex.getAnalyzer(),
-            this.referenceIndex.getIndexReader(),
+            TestIndexDataProvider.getIndexReader(),
             this.referenceIndex.getDocumentFields()).getAllQueryTerms(result);
     final Collection<ByteArray> qTermsUnique = new HashSet<>(qTerms);
-    assertEquals("Query string was not made of unique terms.",
+    Assert.assertEquals("Query string was not made of unique terms.",
         (long) qTerms.size(), (long) qTermsUnique.size());
   }
 
@@ -168,19 +167,21 @@ public final class TestIndexDataProviderTest
   public void testGetQueryString_StringArr()
       throws Exception {
     initEnvironment(null, null);
-    final String exStr = TestIndexDataProvider.util.getQueryString();
+    final String exStr = this.referenceIndex.util().getQueryString();
     final String[] exArr = WS_SPLIT.split(exStr);
     final Collection<String> exColl = Arrays.asList(exArr);
 
-    final String resStr = TestIndexDataProvider.util.getQueryString(exArr);
+    final String resStr = this.referenceIndex.util().getQueryString(exArr);
     final String[] resArr = WS_SPLIT.split(resStr);
     final Collection<String> resColl = Arrays.asList(resArr);
 
-    assertEquals("Query terms size differs.",
+    Assert.assertEquals("Query terms size differs.",
         (long) exArr.length, (long) resArr.length);
-    assertEquals("Query terms size differs.",
+    Assert.assertEquals("Query terms size differs.",
         (long) exColl.size(), (long) resColl.size());
-    assertTrue("Query terms content differs.", resColl.containsAll(exColl));
+    Assert
+        .assertTrue("Query terms content differs.",
+            resColl.containsAll(exColl));
   }
 
   /**
@@ -189,14 +190,15 @@ public final class TestIndexDataProviderTest
    * @throws Exception Any exception indicates an error
    */
   @Test
-  @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
+  @SuppressWarnings(
+      {"PMD.AvoidInstantiatingObjectsInLoops", "ObjectAllocationInLoop"})
   public void testGetQueryObj_StringArr()
       throws Exception {
     initEnvironment(null, null);
-    final String exStr = TestIndexDataProvider.util.getQueryString();
+    final String exStr = this.referenceIndex.util().getQueryString();
     final Collection<ByteArray> oQueryTerms = new QueryUtils(
         this.referenceIndex.getAnalyzer(),
-        this.referenceIndex.getIndexReader(),
+        TestIndexDataProvider.getIndexReader(),
         this.referenceIndex.getDocumentFields()).getAllQueryTerms(exStr);
     final Collection<String> oQueryTermsStr = new ArrayList<>(oQueryTerms.
         size());
@@ -204,22 +206,25 @@ public final class TestIndexDataProviderTest
       oQueryTermsStr.add(ByteArrayUtils.utf8ToString(qTerm));
     }
     // stopwords are already removed
-    final Collection<String> qTerms = TestIndexDataProvider.util.getSTQueryObj
-        (oQueryTermsStr.toArray(new String[oQueryTermsStr.size()]))
-        .getQueryTerms();
+    final Collection<String> qTerms = new ArrayList<>(
+        this.referenceIndex.util().getSTQueryObj(
+            oQueryTermsStr.toArray(new String[oQueryTermsStr.size()])
+        ).getQueryTerms());
     for (final String term : qTerms) {
       final long result =
           this.referenceIndex.getTermFrequency(new ByteArray(term.getBytes(
               "UTF-8")));
-      assertNotEquals("Term frequency was 0 for search term.", 0L, result);
-      assertTrue("Unknown term found.", oQueryTermsStr.contains(term));
+      Assert
+          .assertNotEquals("Term frequency was 0 for search term.", 0L, result);
+      Assert.assertTrue("Unknown term found.", oQueryTermsStr.contains(term));
     }
 
     qTerms.removeAll(oQueryTermsStr);
     if (!qTerms.isEmpty()) {
       final Collection<String> stopwords = this.referenceIndex.getStopwords();
       for (final String term : qTerms) {
-        assertTrue("Found term - expected stopword.", stopwords.contains(term));
+        Assert.assertTrue("Found term - expected stopword.",
+            stopwords.contains(term));
       }
     }
   }
@@ -233,11 +238,10 @@ public final class TestIndexDataProviderTest
   public void testGetRandomFields()
       throws Exception {
     initEnvironment(null, null);
-    final Collection<String> result = TestIndexDataProvider.util
-        .getRandomFields();
-    final Iterator<String> fields =
-        MultiFields.getFields(this.referenceIndex.getIndex().
-            getReader()).iterator();
+    final Collection<String> result =
+        this.referenceIndex.util().getRandomFields();
+    final Iterator<String> fields = MultiFields.getFields(
+        TestIndexDataProvider.getIndex().getReader()).iterator();
     @SuppressWarnings("CollectionWithoutInitialCapacity")
     final Collection<String> fieldNames = new ArrayList<>();
     while (fields.hasNext()) {
@@ -245,7 +249,7 @@ public final class TestIndexDataProviderTest
     }
 
     for (final String field : result) {
-      assertTrue(
+      Assert.assertTrue(
           "Unknown field. f=" + field,
           fieldNames.contains(field));
     }
@@ -259,19 +263,19 @@ public final class TestIndexDataProviderTest
   @Test
   public void testGetActiveFieldNames()
       throws Exception {
-    final Set<String> aFields = this.referenceIndex.util.getRandomFields();
+    final Set<String> aFields = this.referenceIndex.util().getRandomFields();
     initEnvironment(aFields, null);
     final Collection<String> result = this.referenceIndex.getDocumentFields();
 
-    assertEquals(
+    Assert.assertEquals(
         "Number of fields differs.",
-        aFields.size(), result.size());
-    assertTrue(
+        (long) aFields.size(), (long) result.size());
+    Assert.assertTrue(
         "Not all fields found.",
         result.containsAll(aFields));
-    assertNotEquals(
+    Assert.assertNotEquals(
         "Expected fields >0.",
-        result.size(), 0);
+        0L, (long) result.size());
   }
 
   /**
@@ -284,21 +288,21 @@ public final class TestIndexDataProviderTest
   public void testGetDocumentTermFrequencyMap()
       throws Exception {
     initEnvironment(null, null);
-    for (int i = 0; i < this.referenceIndex.getDocumentCount(); i++) {
+    for (int i = 0; (long) i < this.referenceIndex.getDocumentCount(); i++) {
       final DocumentModel docModel = this.referenceIndex.getDocumentModel(i);
-      final Map<ByteArray, Long> dtfMap = TestIndexDataProvider.reference
+      final Map<ByteArray, Long> dtfMap = this.referenceIndex.reference()
           .getDocumentTermFrequencyMap(i);
-      assertEquals(
+      Assert.assertEquals(
           "Document model term list size != DocumentTermFrequencyMap.size().",
-          dtfMap.size(), docModel.termFreqMap.size());
-      assertTrue(
+          (long) dtfMap.size(), (long) docModel.getTermFreqMap().size());
+      Assert.assertTrue(
           "Document model term list != DocumentTermFrequencyMap keys.",
-          dtfMap.keySet().containsAll(docModel.termFreqMap.keySet()));
+          dtfMap.keySet().containsAll(docModel.getTermFreqMap().keySet()));
       for (final Entry<ByteArray, Long> e : dtfMap.entrySet()) {
-        assertEquals(
+        Assert.assertEquals(
             "Frequency value mismatch.",
             e.getValue(),
-            docModel.termFreqMap.get(e.getKey()));
+            docModel.getTermFreqMap().get(e.getKey()));
       }
     }
   }
@@ -312,23 +316,23 @@ public final class TestIndexDataProviderTest
   public void testGetTermList()
       throws Exception {
     initEnvironment(null, null);
-    final Collection<ByteArray> result = TestIndexDataProvider.reference
+    final Collection<ByteArray> result = this.referenceIndex.reference()
         .getTermList();
-    final Collection<ByteArray> tSet = new HashSet<>(result);
+    final Iterable<ByteArray> tSet = new HashSet<>(result);
 
-    assertEquals(
+    Assert.assertEquals(
         "Overall term frequency and term list size differs.",
-        this.referenceIndex.getTermFrequency(), result.size()
+        this.referenceIndex.getTermFrequency(), (long) result.size()
     );
 
-    long overAllFreq = 0;
+    long overAllFreq = 0L;
     for (final ByteArray term : tSet) {
       overAllFreq += this.referenceIndex.getTermFrequency(term);
     }
 
-    assertEquals(
+    Assert.assertEquals(
         "Calculated overall frequency != term list size.",
-        overAllFreq, result.size());
+        overAllFreq, (long) result.size());
   }
 
   /**
@@ -340,29 +344,16 @@ public final class TestIndexDataProviderTest
   public void testGetTermSet()
       throws Exception {
     initEnvironment(null, null);
-    final Collection<ByteArray> result = TestIndexDataProvider.reference
+    final Collection<ByteArray> result = this.referenceIndex.reference()
         .getTermSet();
 
-    assertFalse("Empty terms set.", result.isEmpty());
-    assertEquals(
+    Assert.assertFalse("Empty terms set.", result.isEmpty());
+    Assert.assertEquals(
         "Different count of unique terms reported.",
-        this.referenceIndex.getUniqueTermsCount(), result.size());
-    assertEquals(
-        "Unique term count differs.", result.size(),
+        this.referenceIndex.getUniqueTermsCount(), (long) result.size());
+    Assert.assertEquals(
+        "Unique term count differs.", (long) result.size(),
         this.referenceIndex.getUniqueTermsCount());
-  }
-
-  /**
-   * Test of isInitialized method, of class TestIndexDataProvider.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  @Test
-  public void testIsInitialized()
-      throws Exception {
-    initEnvironment(null, null);
-    assertTrue("Index should be initialized.",
-        TestIndexDataProvider.isInitialized());
   }
 
   /**
@@ -370,7 +361,7 @@ public final class TestIndexDataProviderTest
    */
   @Test
   public void testGetIndex() {
-    this.referenceIndex.getIndex();
+    TestIndexDataProvider.getIndex();
   }
 
   /**
@@ -382,12 +373,13 @@ public final class TestIndexDataProviderTest
         .getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
-      final Collection<ByteArray> result = TestIndexDataProvider.reference
-          .getDocumentTermSet(docId, this.referenceIndex);
-      final Collection<ByteArray> exp = TestIndexDataProvider.reference
+      final Collection<ByteArray> result = this.referenceIndex.reference()
+          .getDocumentTermSet(docId);
+      final Collection<ByteArray> exp = this.referenceIndex.reference()
           .getDocumentTermFrequencyMap(docId).keySet();
-      assertEquals("Term count mismatch.", exp.size(), result.size());
-      assertTrue("Term list content mismatch.", result.containsAll(exp));
+      Assert.assertEquals("Term count mismatch.",
+          (long) exp.size(), (long) result.size());
+      Assert.assertTrue("Term list content mismatch.", result.containsAll(exp));
     }
   }
 
@@ -401,6 +393,6 @@ public final class TestIndexDataProviderTest
       final IndexReader reader, final Set<String> fields,
       final Set<String> stopwords)
       throws Exception {
-    return new TestIndexDataProvider(TestIndexDataProvider.DEFAULT_INDEX_SIZE);
+    return new TestIndexDataProvider(fields, stopwords);
   }
 }

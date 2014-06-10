@@ -31,104 +31,13 @@ public final class ImprovedClarityScoreConfiguration
   /**
    * Default initial configuration.
    */
-  private static final Map<String, String> defaults;
-
-  /**
-   * Keys to identify properties in the configuration.
-   */
-  private static enum Keys {
-
-    /**
-     * Document-model calculation alpha parameter.
-     */
-    docModelParamLambda,
-    /**
-     * Document-model calculation beta parameter.
-     */
-    docModelParamBeta,
-    /**
-     * Smoothing parameter for document model calculation.
-     */
-    docModelSmoothing,
-    /**
-     * Minimum number of feedback documents to retrieve.
-     */
-    fbDocsMin,
-    /**
-     * Maximum number of feedback documents to retrieve.
-     */
-    fbDocsMax,
-    /**
-     * Policy to use for simplifying queries. See {@link
-     * ImprovedClarityScore.QuerySimplifyPolicy}.
-     */
-    querySimplifyingPolicy,
-    /**
-     * Document-frequency threshold to pick terms from feedback documents.
-     */
-    termSelectionThreshold
-  }
-
-  // initialize defaults map
-  static {
-    defaults = new HashMap<>(Keys.values().length);
-    /**
-     * Lambda value for calculating document models.
-     * <p>
-     * Hauff, Murdock & Baeza-Yates used the value 1 for their tests.
-     */
-    defaults.put(Keys.docModelParamLambda.name(), "1");
-    /**
-     * Beta value for calculating document models. This is related to the
-     * lambda value used in the original Clarity Score.
-     * <p>
-     * Cronen-Townsend, Steve, Yun Zhou, and W. Bruce Croft used 0.6 for this
-     * parameter.
-     */
-    defaults.put(Keys.docModelParamBeta.name(), "0.6");
-    /**
-     * Smoothing parameter (mu) for document model calculation.
-     * <p>
-     * Hauff, Murdock & Baeza-Yates used the values 100, 500, 1000, 1500,
-     * 2000, 2500, 3000 and 5000 for their tests.
-     */
-    defaults.put(Keys.docModelSmoothing.name(), "100");
-    /**
-     * Minimum number of feedback documents to retrieve. If the amount of
-     * feedback documents retrieved is lower than this value, the query will
-     * be simplified to retrieve more results.
-     * <p>
-     * Hauff, Murdock & Baeza-Yates used a value of 10 for theirs tests.
-     */
-    defaults.put(Keys.fbDocsMin.name(), "10");
-    /**
-     * Maximum number of feedback documents to use.
-     * <p>
-     * Hauff, Murdock & Baeza-Yates used a value of 1000 for theirs tests.
-     */
-    defaults.put(Keys.fbDocsMax.name(), "1000");
-    /**
-     * Default policy to use for simplifying the query, if the number of
-     * feedback documents is lower than the required minimum.
-     */
-    defaults.put(Keys.querySimplifyingPolicy.name(),
-        ImprovedClarityScore.QuerySimplifyPolicy.HIGHEST_DOCFREQ.name());
-    /**
-     * Threshold to select terms from feedback documents. A term from a
-     * feedback document must occurs in equal or more than n% of the documents
-     * in the index. If it's not the case it will be ignored.
-     * <p>
-     * Hauff, Murdock & Baeza-Yates evaluated n with 1% (0.01), 10% (0.1),
-     * 100% (1).
-     */
-    defaults.put(Keys.termSelectionThreshold.name(), "0.1");
-  }
+  private static final Map<String, String> DEFAULTS;
 
   /**
    * Create a new configuration object with a default configuration set.
    */
   public ImprovedClarityScoreConfiguration() {
-    super(defaults);
+    super(DEFAULTS);
   }
 
   /**
@@ -137,7 +46,7 @@ public final class ImprovedClarityScoreConfiguration
    * @return Maximum number of feedback documents to get
    */
   public Integer getMaxFeedbackDocumentsCount() {
-    return getInteger(Keys.fbDocsMax.name());
+    return getInteger(Keys.FB_DOCS_MAX.name());
   }
 
   /**
@@ -146,7 +55,7 @@ public final class ImprovedClarityScoreConfiguration
    * @param count Maximum number of feedback documents to get
    */
   public void setMaxFeedbackDocumentsCount(final int count) {
-    add(Keys.fbDocsMax.name(), count);
+    add(Keys.FB_DOCS_MAX.name(), count);
   }
 
   /**
@@ -155,7 +64,7 @@ public final class ImprovedClarityScoreConfiguration
    * @return Minimum number of feedback documents to get
    */
   public Integer getMinFeedbackDocumentsCount() {
-    return getInteger(Keys.fbDocsMin.name());
+    return getInteger(Keys.FB_DOCS_MIN.name());
   }
 
   /**
@@ -164,7 +73,7 @@ public final class ImprovedClarityScoreConfiguration
    * @param count Minimum number of feedback documents to get
    */
   public void setMinFeedbackDocumentsCount(final int count) {
-    add(Keys.fbDocsMin.name(), count);
+    add(Keys.FB_DOCS_MIN.name(), count);
   }
 
   /**
@@ -174,7 +83,7 @@ public final class ImprovedClarityScoreConfiguration
    * @return Query simplifying policy to use
    */
   public ImprovedClarityScore.QuerySimplifyPolicy getQuerySimplifyingPolicy() {
-    final String policy = getString(Keys.querySimplifyingPolicy.name());
+    final String policy = getString(Keys.QUERY_SIMPLIFYING_POLICY.name());
     return ImprovedClarityScore.QuerySimplifyPolicy.valueOf(policy);
   }
 
@@ -187,7 +96,7 @@ public final class ImprovedClarityScoreConfiguration
   public void setQuerySimplifyingPolicy(
       final ImprovedClarityScore.QuerySimplifyPolicy policy) {
     Objects.requireNonNull(policy, "Policy was null.");
-    add(Keys.querySimplifyingPolicy.name(), policy.name());
+    add(Keys.QUERY_SIMPLIFYING_POLICY.name(), policy.name());
   }
 
   /**
@@ -196,7 +105,7 @@ public final class ImprovedClarityScoreConfiguration
    * @return Smoothing parameter value
    */
   public Double getDocumentModelSmoothingParameter() {
-    return getDouble(Keys.docModelSmoothing.name());
+    return getDouble(Keys.DOC_MODEL_SMOOTHING.name());
   }
 
   /**
@@ -205,7 +114,7 @@ public final class ImprovedClarityScoreConfiguration
    * @param param Smoothing parameter value
    */
   public void setDocumentModelSmoothingParameter(final double param) {
-    add(Keys.docModelSmoothing.name(), param);
+    add(Keys.DOC_MODEL_SMOOTHING.name(), param);
   }
 
   /**
@@ -214,7 +123,7 @@ public final class ImprovedClarityScoreConfiguration
    * @return Threshold value
    */
   public Double getFeedbackTermSelectionThreshold() {
-    return getDouble(Keys.termSelectionThreshold.name());
+    return getDouble(Keys.TERM_SELECTION_THRESHOLD.name());
   }
 
   /**
@@ -224,7 +133,7 @@ public final class ImprovedClarityScoreConfiguration
    * @param threshold Threshold % expressed as double value
    */
   public void setFeedbackTermSelectionThreshold(final double threshold) {
-    add(Keys.termSelectionThreshold.name(), threshold);
+    add(Keys.TERM_SELECTION_THRESHOLD.name(), threshold);
   }
 
   /**
@@ -233,7 +142,7 @@ public final class ImprovedClarityScoreConfiguration
    * @return Lambda parameter value used for document model calculation
    */
   public Double getDocumentModelParamLambda() {
-    return getDouble(Keys.docModelParamLambda.name());
+    return getDouble(Keys.DOC_MODEL_PARAM_LAMBDA.name());
   }
 
   /**
@@ -243,7 +152,7 @@ public final class ImprovedClarityScoreConfiguration
    * This value should be greater than 0 and lower or equal than/to 1.
    */
   public void setDocumentModelParamLambda(final double lambda) {
-    add(Keys.docModelParamLambda.name(), lambda);
+    add(Keys.DOC_MODEL_PARAM_LAMBDA.name(), lambda);
   }
 
   /**
@@ -252,7 +161,7 @@ public final class ImprovedClarityScoreConfiguration
    * @return Beta parameter value used for document model calculation.
    */
   public Double getDocumentModelParamBeta() {
-    return getDouble(Keys.docModelParamBeta.name());
+    return getDouble(Keys.DOC_MODEL_PARAM_BETA.name());
   }
 
   /**
@@ -262,11 +171,11 @@ public final class ImprovedClarityScoreConfiguration
    * value should be greater than 0 and lower than 1.
    */
   public void setDocumentModelParamBeta(final double beta) {
-    add(Keys.docModelParamBeta.name(), beta);
+    add(Keys.DOC_MODEL_PARAM_BETA.name(), beta);
   }
 
   /**
-   * Compacts the configration into a more accessible Object.
+   * Compacts the configuration into a more accessible Object.
    *
    * @return Compact configuration object
    */
@@ -275,19 +184,136 @@ public final class ImprovedClarityScoreConfiguration
   }
 
   /**
+   * Keys to identify properties in the configuration.
+   */
+  private static enum Keys {
+
+    /**
+     * Document-model calculation alpha parameter.
+     */
+    DOC_MODEL_PARAM_LAMBDA,
+    /**
+     * Document-model calculation beta parameter.
+     */
+    DOC_MODEL_PARAM_BETA,
+    /**
+     * Smoothing parameter for document model calculation.
+     */
+    DOC_MODEL_SMOOTHING,
+    /**
+     * Minimum number of feedback documents to retrieve.
+     */
+    FB_DOCS_MIN,
+    /**
+     * Maximum number of feedback documents to retrieve.
+     */
+    FB_DOCS_MAX,
+    /**
+     * Policy to use for simplifying queries. See {@link
+     * ImprovedClarityScore.QuerySimplifyPolicy}.
+     */
+    QUERY_SIMPLIFYING_POLICY,
+    /**
+     * Document-frequency threshold to pick terms from feedback documents.
+     */
+    TERM_SELECTION_THRESHOLD
+  }
+
+  // initialize defaults map
+  static {
+    DEFAULTS = new HashMap<>(Keys.values().length);
+    /**
+     * Lambda value for calculating document models.
+     * <br>
+     * Hauff, Murdock & Baeza-Yates used the value 1 for their tests.
+     */
+    DEFAULTS.put(Keys.DOC_MODEL_PARAM_LAMBDA.name(), "1");
+    /**
+     * Beta value for calculating document models. This is related to the
+     * lambda value used in the original Clarity Score.
+     * <br>
+     * Cronen-Townsend, Steve, Yun Zhou, and W. Bruce Croft used 0.6 for this
+     * parameter.
+     */
+    DEFAULTS.put(Keys.DOC_MODEL_PARAM_BETA.name(), "0.6");
+    /**
+     * Smoothing parameter (mu) for document model calculation.
+     * <br>
+     * Hauff, Murdock & Baeza-Yates used the values 100, 500, 1000, 1500,
+     * 2000, 2500, 3000 and 5000 for their tests.
+     */
+    DEFAULTS.put(Keys.DOC_MODEL_SMOOTHING.name(), "100");
+    /**
+     * Minimum number of feedback documents to retrieve. If the amount of
+     * feedback documents retrieved is lower than this value, the query will
+     * be simplified to retrieve more results.
+     * <br>
+     * Hauff, Murdock & Baeza-Yates used a value of 10 for theirs tests.
+     */
+    DEFAULTS.put(Keys.FB_DOCS_MIN.name(), "10");
+    /**
+     * Maximum number of feedback documents to use.
+     * <br>
+     * Hauff, Murdock & Baeza-Yates used a value of 1000 for theirs tests.
+     */
+    DEFAULTS.put(Keys.FB_DOCS_MAX.name(), "1000");
+    /**
+     * Default policy to use for simplifying the query, if the number of
+     * feedback documents is lower than the required minimum.
+     */
+    DEFAULTS.put(Keys.QUERY_SIMPLIFYING_POLICY.name(),
+        ImprovedClarityScore.QuerySimplifyPolicy.HIGHEST_DOCFREQ.name());
+    /**
+     * Threshold to select terms from feedback documents. A term from a
+     * feedback document must occurs in equal or more than n% of the documents
+     * in the index. If it's not the case it will be ignored.
+     * <br>
+     * Hauff, Murdock & Baeza-Yates evaluated n with 1% (0.01), 10% (0.1),
+     * 100% (1).
+     */
+    DEFAULTS.put(Keys.TERM_SELECTION_THRESHOLD.name(), "0.1");
+  }
+
+  /**
    * Compact configuration Object holding all information from the parent
    * configuration Object.
    */
-  public class Conf {
+  @SuppressWarnings("PublicInnerClass")
+  public final class Conf {
+    /**
+     * @see Keys#DOC_MODEL_PARAM_BETA
+     */
     public final Double beta;
+    /**
+     * @see Keys#DOC_MODEL_PARAM_LAMBDA
+     */
     public final Double lambda;
+    /**
+     * @see Keys#DOC_MODEL_SMOOTHING
+     */
     public final Double smoothing;
+    /**
+     * @see Keys#TERM_SELECTION_THRESHOLD
+     */
     public final Double threshold;
+    /**
+     * @see Keys#FB_DOCS_MAX
+     */
     public final Integer fbMax;
+    /**
+     * @see Keys#FB_DOCS_MIN
+     */
     public final Integer fbMin;
+    /**
+     * @see Keys#QUERY_SIMPLIFYING_POLICY
+     */
+    @SuppressWarnings("PublicField")
     public final ImprovedClarityScore.QuerySimplifyPolicy policy;
 
-    protected Conf() {
+    /**
+     * Creates a compact configuration from the currently set options.
+     */
+    Conf() {
       this.beta = getDocumentModelParamBeta();
       this.lambda = getDocumentModelParamLambda();
       this.smoothing = getDocumentModelSmoothingParameter();
@@ -297,7 +323,10 @@ public final class ImprovedClarityScoreConfiguration
       this.policy = getQuerySimplifyingPolicy();
     }
 
-    public void debugDump() {
+    /**
+     * Debug dump configuration options.
+     */
+    public final void debugDump() {
       ImprovedClarityScoreConfiguration.this.debugDump();
     }
   }

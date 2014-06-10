@@ -78,9 +78,8 @@ public class SourceException
 
   /**
    * Exception to indicate that the {@link Source} is not ready to serve items.
-   * <p/>
-   * Should be thrown, if the {@link Source} has not yet been initialized and
-   * items or other information is being requested, but not available yet.
+   * <br> Should be thrown, if the {@link Source} has not yet been initialized
+   * and items or other information is being requested, but not available yet.
    */
   public static final class SourceNotReadyException
       extends ProcessingException {
@@ -105,10 +104,8 @@ public class SourceException
   }
 
   /**
-   * Exception to indicate that the {@link Source} has no more items to
-   * process.
-   * <p/>
-   * Should be thrown, if a {@link Target} requests an item, but the {@link
+   * Exception to indicate that the {@link Source} has no more items to process.
+   * <br> Should be thrown, if a {@link Target} requests an item, but the {@link
    * Source} has already been finished with providing items.
    */
   public static final class SourceHasFinishedException
@@ -137,9 +134,8 @@ public class SourceException
 
   /**
    * Exception to indicate that the {@link Source} has already been started.
-   * <p/>
-   * Should be thrown, if the {@link Source} is tried to be started more than
-   * once.
+   * <br> Should be thrown, if the {@link Source} is tried to be started more
+   * than once.
    */
   public static final class SourceIsRunningException
       extends RuntimeException {

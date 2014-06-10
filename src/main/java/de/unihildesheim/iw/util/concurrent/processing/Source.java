@@ -23,16 +23,13 @@ import org.slf4j.LoggerFactory;
 import java.util.concurrent.Callable;
 
 /**
- * Base class for all {@link Source} implementations.
- * <p/>
- * A {@link Source} is meant to be used once, so starting it more than one time
- * may lead to unexpected behavior.
- * <p/>
- * If the {@link Source} has finished processing items it should decrement the
- * latch (if set), to indicate it has finished. This is handled by {@link
- * #stop()} which must be called by the implementing class when finished.
+ * Base class for all Source implementations. <br> A Source is meant to be used
+ * once, so starting it more than one time may lead to unexpected behavior. <br>
+ * If the Source has finished processing items it should decrement the latch (if
+ * set), to indicate it has finished. This is handled by {@link #stop()} which
+ * must be called by the implementing class when finished.
  *
- * @param <T> Type this {@link Source} provides
+ * @param <T> Type this Source provides
  */
 public abstract class Source<T>
     implements Callable<Long> {
@@ -43,11 +40,11 @@ public abstract class Source<T>
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       Source.class);
   /**
-   * Flag indicating if this {@link Source} is running.
+   * Flag indicating if this Source is running.
    */
   private volatile boolean isRunning;
   /**
-   * Flag indicating if this {@link Source} has finished.
+   * Flag indicating if this Source has finished.
    */
   private volatile boolean isFinished;
 
@@ -70,7 +67,7 @@ public abstract class Source<T>
     setRunning();
     try {
       awaitTermination();
-    } catch (InterruptedException ex) {
+    } catch (final InterruptedException ex) {
       LOG.error("Interrupted.", ex);
     }
     stop();
@@ -96,13 +93,11 @@ public abstract class Source<T>
   }
 
   /**
-   * Set the flag indicating this {@link Source} is running.
+   * Set the flag indicating this Source is running.
    */
-  protected final void setRunning() {
-    synchronized (this) {
-      this.isRunning = true;
-      this.notifyAll();
-    }
+  protected final synchronized void setRunning() {
+    this.isRunning = true;
+    this.notifyAll();
   }
 
   /**
@@ -110,18 +105,17 @@ public abstract class Source<T>
    *
    * @throws java.lang.InterruptedException Thrown, if thread gets interrupted
    */
-  protected final synchronized void awaitTermination()
-      throws
-      InterruptedException {
+  protected synchronized final void awaitTermination()
+      throws InterruptedException {
     while (this.isRunning) {
       this.wait();
     }
   }
 
   /**
-   * Signal the {@link Source}, that it should stop generating items.
+   * Signal the Source, that it should stop generating items.
    */
-  protected final synchronized void stop() {
+  protected synchronized final void stop() {
     this.isRunning = false;
     this.isFinished = true;
     this.notifyAll();
@@ -161,23 +155,19 @@ public abstract class Source<T>
    * not the case.
    *
    * @return True, if running
-   * @throws SourceNotReadyException Thrown, if the {@link Source} has not been
-   * started and <tt>fail</tt> is <tt>true</tt>
+   * @throws SourceNotReadyException Thrown, if the Source has not been started
+   * and {@code fail} is {@code true}
    */
   @SuppressWarnings("SameReturnValue")
   protected final synchronized boolean checkRunStatus()
-      throws
-      SourceNotReadyException {
+      throws SourceNotReadyException {
     if (this.isRunning) {
       return true;
     }
     if (this.isFinished) {
       throw new SourceException.SourceHasFinishedException();
     }
-    if (!this.isRunning) {
-      throw new SourceNotReadyException();
-    }
-    return true;
+    throw new SourceNotReadyException();
   }
 
   /**
@@ -195,5 +185,4 @@ public abstract class Source<T>
       }
     }
   }
-
 }

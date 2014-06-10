@@ -47,17 +47,16 @@ public final class TempDiskIndex {
   /**
    * Logger instance for this class.
    */
-  private static final Logger LOG = LoggerFactory.getLogger(
+  static final Logger LOG = LoggerFactory.getLogger(
       TempDiskIndex.class);
-
   /**
    * Lucene index.
    */
-  final Directory index;
+  private final Directory index;
   /**
    * Writer for the temporary index.
    */
-  final IndexWriter writer;
+  private final IndexWriter writer;
   /**
    * File directory of the index.
    */
@@ -113,20 +112,19 @@ public final class TempDiskIndex {
         @Override
         public void run() {
           try {
-            writer.close();
-          } catch (IOException ex) {
-            LOG.error("Caught exception while closing index writer.",
-                ex);
+            getWriter().close();
+          } catch (final IOException ex) {
+            LOG.error("Caught exception while closing index writer.", ex);
           }
           try {
-            index.close();
-          } catch (IOException ex) {
+            getIndex().close();
+          } catch (final IOException ex) {
             LOG.error("Caught exception while closing index.", ex);
           }
         }
       }, TempDiskIndex.class.getSimpleName() + "_shutdownHandler");
       Runtime.getRuntime().addShutdownHook(shutdownHandler);
-    } catch (IllegalArgumentException ex) {
+    } catch (final IllegalArgumentException ex) {
       // already registered, or shutdown is currently happening
     }
   }
@@ -150,21 +148,39 @@ public final class TempDiskIndex {
   }
 
   /**
+   * Get the index writer.
+   *
+   * @return Index writer
+   */
+  IndexWriter getWriter() {
+    return this.writer;
+  }
+
+  /**
+   * Get the Lucene index.
+   *
+   * @return Lucene index Directory
+   */
+  Directory getIndex() {
+    return this.index;
+  }
+
+  /**
    * Add a document to the index.
    *
-   * @param writer Index writer instance
+   * @param indexWriter Index writer instance
    * @param content Content of the document
    * @throws IOException Thrown, if index could not be accessed
    */
-  @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
-  private void addDoc(final IndexWriter writer, final String[] content)
+  @SuppressWarnings("ObjectAllocationInLoop")
+  private void addDoc(final IndexWriter indexWriter, final String[] content)
       throws IOException {
     final Document doc = new Document();
     for (int i = 0; i < content.length; i++) {
       doc.add(new VecTextField(this.idxFields[i], content[i],
           Field.Store.NO));
     }
-    writer.addDocument(doc);
+    indexWriter.addDocument(doc);
   }
 
   /**

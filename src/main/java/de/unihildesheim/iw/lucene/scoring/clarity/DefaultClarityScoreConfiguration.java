@@ -32,7 +32,50 @@ public final class DefaultClarityScoreConfiguration
   /**
    * Default initial configuration.
    */
-  private static final Map<String, String> defaults;
+  private static final Map<String, String> DEFAULTS;
+
+  /**
+   * Create a new configuration object with a default configuration set.
+   */
+  public DefaultClarityScoreConfiguration() {
+    super(DEFAULTS);
+  }
+
+  /**
+   * Get the language model weight parameter.
+   *
+   * @return Language model weight parameter value
+   */
+  public Double getLangModelWeight() {
+    return getDouble(Keys.LANG_MODEL_WEIGHT.name());
+  }
+
+  /**
+   * Set the language model weight parameter.
+   *
+   * @param newWeight New language model weight parameter value
+   */
+  public void setLangModelWeight(final double newWeight) {
+    add(Keys.LANG_MODEL_WEIGHT.name(), newWeight);
+  }
+
+  /**
+   * Get the number of feedback documents used.
+   *
+   * @return Number of feedback documents
+   */
+  public Integer getFeedbackDocCount() {
+    return getInteger(Keys.FB_DOC_COUNT.name());
+  }
+
+  /**
+   * Set the number of feedback documents to use.
+   *
+   * @param newCount Number of feedback documents to use
+   */
+  public void setFeedbackDocCount(final int newCount) {
+    add(Keys.FB_DOC_COUNT.name(), newCount);
+  }
 
   /**
    * Keys to identify properties in the configuration.
@@ -42,71 +85,28 @@ public final class DefaultClarityScoreConfiguration
     /**
      * Number of feedback documents to use.
      */
-    fbDocCount,
+    FB_DOC_COUNT,
     /**
      * Document-model calculation weighting parameter.
      */
-    langModelWeight
+    LANG_MODEL_WEIGHT
   }
 
   // initialize defaults map
   static {
-    defaults = new HashMap<>(Keys.values().length);
+    DEFAULTS = new HashMap<>(Keys.values().length);
     /**
      * Number of feedback documents to use.
-     * <p>
+     * <br>
      * Cronen-Townsend et al. recommend 500 documents.
      */
-    defaults.put(Keys.fbDocCount.name(), "500");
+    DEFAULTS.put(Keys.FB_DOC_COUNT.name(), "500");
     /**
      * Default multiplier value for relative term frequency inside documents.
-     * <p>
+     * <br>
      * Cronen-Townsend, Steve, Yun Zhou, and W. Bruce Croft used 0.6 for this
      * parameter.
      */
-    defaults.put(Keys.langModelWeight.name(), "0.6");
-  }
-
-  /**
-   * Create a new configuration object with a default configuration set.
-   */
-  public DefaultClarityScoreConfiguration() {
-    super(defaults);
-  }
-
-  /**
-   * Get the language model weight parameter.
-   *
-   * @return Language model weight parameter value
-   */
-  public Double getLangModelWeight() {
-    return getDouble(Keys.langModelWeight.name());
-  }
-
-  /**
-   * Set the language model weight parameter.
-   *
-   * @param newWeight New language model weight parameter value
-   */
-  public void setLangModelWeight(final double newWeight) {
-    add(Keys.langModelWeight.name(), newWeight);
-  }
-
-  /**
-   * Get the number of feedback documents used.
-   *
-   * @return Number of feedback documents
-   */
-  public Integer getFeedbackDocCount() {
-    return getInteger(Keys.fbDocCount.name());
-  }
-
-  /**
-   * Set the number of feedback documents to use.
-   *
-   * @param newCount Number of feedback documents to use
-   */
-  public void setFeedbackDocCount(final int newCount) {
-    add(Keys.fbDocCount.name(), newCount);
+    DEFAULTS.put(Keys.LANG_MODEL_WEIGHT.name(), "0.6");
   }
 }

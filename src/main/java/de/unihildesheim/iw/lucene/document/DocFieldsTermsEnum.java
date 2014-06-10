@@ -29,8 +29,10 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Enumerator iterating over the terms of multiple document fields in lucene
- * index. This steps through each {@link TermsEnum} for each specified field.
+ * Enumerator iterating terms of multiple document fields in a Lucene index. The
+ * fields to enumerate are set via constructor. Single documents are set by
+ * calling {@link #setDocument(int)} after an instance is created. <br>
+ * Internally steps through each {@link TermsEnum} for each specified field.
  *
  * @author Jens Bertram
  */
@@ -46,14 +48,17 @@ public final class DocFieldsTermsEnum {
    * Lucene fields to operate on.
    */
   private final String[] fields;
+
   /**
    * {@link IndexReader} used by this instance.
    */
   private final IndexReader reader;
+
   /**
    * Currently active enumerator.
    */
   private TermsEnum currentEnum;
+
   /**
    * Lucene document-id for the target document to enumerate over.
    */
@@ -75,12 +80,12 @@ public final class DocFieldsTermsEnum {
   private Fields docFields;
 
   /**
-   * Generic reusable {@link DocFieldsTermsEnum} instance. To actually reuse
-   * this instance the {@link #setDocument(int)} function must be called before
-   * {@link #next()} can be used, to set the document to operate on.
+   * Generic reusable instance. To actually reuse this instance the {@link
+   * #setDocument(int)} function must be called before {@link #next()} can be
+   * used, to set the document to operate on.
    *
    * @param indexReader {@link IndexReader} instance to use
-   * @param targetFields Lucene index fields to operate on
+   * @param targetFields Document fields to operate on
    * @throws java.io.IOException Thrown on low-level I/O errors
    */
   public DocFieldsTermsEnum(final IndexReader indexReader,
@@ -90,12 +95,11 @@ public final class DocFieldsTermsEnum {
   }
 
   /**
-   * {@link DocFieldsTermsEnum} instance with initial document set.
+   * Creates a reusable instance with an initial document set.
    *
-   * @param documentId Lucene document-id for which the enumeration should be
-   * done
+   * @param documentId Lucene document-id whose fields gets enumerated
    * @param indexReader {@link IndexReader} instance to use
-   * @param targetFields Lucene index fields to operate on
+   * @param targetFields Document fields to operate on
    * @throws java.io.IOException Thrown on low-level I/O errors
    */
   private DocFieldsTermsEnum(final IndexReader indexReader,
@@ -161,46 +165,6 @@ public final class DocFieldsTermsEnum {
   }
 
   /**
-   * Get the total number of occurrences of this term in the current field.
-   *
-   * @return The total number of occurrences
-   * @throws IOException If there is a low-level I/O error
-   */
-  public long getTotalTermFreq()
-      throws IOException {
-    return this.currentEnum.totalTermFreq();
-  }
-
-  /**
-   * Try to get the next value from the {@link TermsEnum} instance.
-   *
-   * @return The next {@link BytesRef} value or <code>null</code>, if there a no
-   * more values
-   * @throws IOException If there is a low-level I/O error
-   */
-  private BytesRef getNextValue()
-      throws IOException {
-    // try to get an iterator which has a value
-    BytesRef nextValue;
-    if (!this.hasEnum) {
-      nextValue = null;
-    } else {
-      nextValue = this.currentEnum.next();
-    }
-
-    while (nextValue == null && this.currentFieldIdx < this.fields.length) {
-      updateCurrentEnum();
-      if (!this.hasEnum) {
-        nextValue = null;
-      } else {
-        nextValue = this.currentEnum.next();
-      }
-    }
-
-    return nextValue;
-  }
-
-  /**
    * Get the next {@link TermsEnum} pointing at the next field in list. This
    * will try to get the TermVector stored for a field and creates a new {@link
    * TermsEnum} instance for those. If there are no TermVectors stored it will
@@ -226,5 +190,46 @@ public final class DocFieldsTermsEnum {
       }
       this.currentFieldIdx++;
     }
+  }
+
+  /**
+   * Try to get the next value from the {@link TermsEnum} instance.
+   *
+   * @return The next {@link BytesRef} value or {@code null}, if there a no more
+   * values
+   * @throws IOException If there is a low-level I/O error
+   */
+  @SuppressWarnings("AssignmentToNull")
+  private BytesRef getNextValue()
+      throws IOException {
+    // try to get an iterator which has a value
+    BytesRef nextValue;
+    if (this.hasEnum) {
+      nextValue = this.currentEnum.next();
+    } else {
+      nextValue = null;
+    }
+
+    while (nextValue == null && this.currentFieldIdx < this.fields.length) {
+      updateCurrentEnum();
+      if (this.hasEnum) {
+        nextValue = this.currentEnum.next();
+      } else {
+        nextValue = null;
+      }
+    }
+
+    return nextValue;
+  }
+
+  /**
+   * Get the total number of occurrences of this term in the current field.
+   *
+   * @return The total number of occurrences
+   * @throws IOException If there is a low-level I/O error
+   */
+  public long getTotalTermFreq()
+      throws IOException {
+    return this.currentEnum.totalTermFreq();
   }
 }

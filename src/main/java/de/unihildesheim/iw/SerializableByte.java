@@ -50,7 +50,8 @@ public final class SerializableByte
   /**
    * The value.
    */
-  public final byte value;
+  @SuppressWarnings("PublicField")
+  public byte value;
 
   /**
    * Create a new byte value.
@@ -61,31 +62,22 @@ public final class SerializableByte
     this.value = newValue;
   }
 
+  @SuppressWarnings("NullableProblems")
   @Override
-  @SuppressWarnings("AccessingNonPublicFieldOfAnotherObject")
-  public int compareTo(
-      @SuppressWarnings("NullableProblems") final SerializableByte o) {
-    if (o == null) {
-      return 1;
-    }
-    return this.value - o.value;
+  public int compareTo(final SerializableByte o) {
+    return Byte.compare(this.value, o.value);
+  }
+
+  @Override
+  public int hashCode() {
+    return (int) this.value;
   }
 
   @Override
   @SuppressWarnings("AccessingNonPublicFieldOfAnotherObject")
   public boolean equals(final Object obj) {
-    return obj instanceof SerializableByte &&
-        this.value == ((SerializableByte) obj).value;
-  }
-
-  @Override
-  public int hashCode() {
-    return this.value;
-  }
-
-  @Override
-  public String toString() {
-    return "SerializableByte: " + Byte.toString(value);
+    return (obj instanceof SerializableByte) &&
+        (this.value == ((SerializableByte) obj).value);
   }
 
   /**
@@ -95,7 +87,18 @@ public final class SerializableByte
    */
   @Override
   public SerializableByte clone() {
-    return new SerializableByte(this.value);
+    try {
+      final SerializableByte cloned = (SerializableByte) super.clone();
+      cloned.value = Byte.valueOf(this.value);
+      return cloned;
+    } catch (final CloneNotSupportedException ex) {
+      throw new IllegalStateException("Clone not supported.", ex);
+    }
+  }
+
+  @Override
+  public String toString() {
+    return "SerializableByte: " + Byte.toString(this.value);
   }
 
   /**
@@ -114,7 +117,7 @@ public final class SerializableByte
     @Override
     public int compare(final SerializableByte o1,
         final SerializableByte o2) {
-      return o1.compareTo(o2);
+      return Byte.compare(o1.value, o2.value);
     }
 
   }
@@ -134,15 +137,16 @@ public final class SerializableByte
     private static final long serialVersionUID = -3411415692071715362L;
 
     @Override
-    public void serialize(final DataOutput out,
-        final SerializableByte value)
+    public void serialize(final DataOutput out, final SerializableByte aByte)
         throws IOException {
-      out.writeByte(value.value);
+      if (aByte == null) {
+        throw new IllegalArgumentException("Value was null.");
+      }
+      out.writeByte((int) aByte.value);
     }
 
     @Override
-    public SerializableByte deserialize(final DataInput in,
-        final int available)
+    public SerializableByte deserialize(final DataInput in, final int available)
         throws IOException {
       return new SerializableByte(in.readByte());
     }

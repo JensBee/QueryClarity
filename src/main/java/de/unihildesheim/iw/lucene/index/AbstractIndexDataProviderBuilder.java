@@ -20,17 +20,17 @@ package de.unihildesheim.iw.lucene.index;
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.Persistence;
 import de.unihildesheim.iw.util.FileUtils;
+import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
@@ -39,15 +39,15 @@ import java.util.Set;
  *
  * @author Jens Bertram
  */
-public abstract class AbstractIndexDataProviderBuilder<T extends
+abstract class AbstractIndexDataProviderBuilder<T extends
     AbstractIndexDataProviderBuilder<T>>
     implements Buildable {
 
   /**
-   * Logger instance for this class.
+   * Builder used to create a proper caching backend.
    */
-  private static final Logger LOG = LoggerFactory.getLogger(
-      AbstractIndexDataProviderBuilder.class);
+  @SuppressWarnings("PackageVisibleField")
+  final Persistence.Builder persistenceBuilder = new Persistence.Builder();
   /**
    * Implementation identifier used for proper cache naming.
    */
@@ -55,38 +55,49 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
   /**
    * List of stopwords to use.
    */
-  protected Set<String> stopwords = Collections.<String>emptySet();
+  @SuppressWarnings("PackageVisibleField")
+  Set<String> stopwords = Collections.emptySet();
   /**
    * List of document fields to use.
    */
-  protected Set<String> documentFields = Collections.<String>emptySet();
+  @SuppressWarnings("PackageVisibleField")
+  Set<String> documentFields = Collections.emptySet();
   /**
    * Flag indicating, if the new instance will be temporary. How to handle this
    * state is up to the specific implementation.
    */
-  protected boolean isTemporary;
+  @SuppressWarnings("PackageVisibleField")
+  boolean isTemporary;
   /**
    * {@link IndexReader} to use for accessing the Lucene index.
    */
-  protected IndexReader idxReader;
-  /**
-   * Builder used to create a proper caching backend.
-   */
-  protected Persistence.Builder persistenceBuilder = new Persistence.Builder();
+  @SuppressWarnings("PackageVisibleField")
+  IndexReader idxReader;
   /**
    * Warm-up the instance right after building it?
    */
-  protected boolean doWarmUp;
+  @SuppressWarnings("PackageVisibleField")
+  boolean doWarmUp;
+
   /**
    * Last commit generation of the Lucene index (if it's a {@link Directory}
    * index). May be {@code null}.
    */
-  protected Long lastCommitGeneration;
+  @SuppressWarnings("PackageVisibleField")
+  Long lastCommitGeneration;
+
   /**
    * File path where the working data will be stored.
    */
-  protected File dataPath;
-  protected String cacheName;
+  @SuppressWarnings("PackageVisibleField")
+  File dataPath;
+
+  /**
+   * (File-)Name of the cache to create.
+   */
+  @SuppressWarnings("PackageVisibleField")
+  String cacheName;
+
   /**
    * {@link Directory} instance pointing at the Lucene index.
    */
@@ -97,7 +108,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    *
    * @param newIdentifier Implementation identifier for the cache
    */
-  protected AbstractIndexDataProviderBuilder(final String newIdentifier) {
+  AbstractIndexDataProviderBuilder(final String newIdentifier) {
     if (Objects.requireNonNull(newIdentifier, "Identifier was null.").isEmpty
         ()) {
       throw new IllegalArgumentException("Empty identifier name.");
@@ -125,14 +136,19 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * @param name Cache name
    * @return Cache name prefixed with current identifier
    */
-  protected String createCacheName(final String name) {
+  final String createCacheName(final String name) {
     if (Objects.requireNonNull(name, "Cache name was null.").isEmpty()) {
       throw new IllegalArgumentException("Empty cache name.");
     }
     return this.identifier + "_" + name;
   }
 
-  protected abstract T getThis();
+  /**
+   * Get a self-reference of the implementing class.
+   *
+   * @return Self reference of implementing class instance
+   */
+  abstract T getThis();
 
   /**
    * Set the instruction to newly create the named cache.
@@ -153,7 +169,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * @param name Cache name
    * @return Self reference
    */
-  public T loadOrCreateCache(final String name) {
+  public final T loadOrCreateCache(final String name) {
     this.cacheName = name;
     this.persistenceBuilder.name(createCacheName(name));
     this.persistenceBuilder.makeOrGet();
@@ -181,7 +197,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
   public final T documentFields(
       final Set<String> fields) {
     Objects.requireNonNull(fields, "Field were null.");
-    this.documentFields = fields;
+    this.documentFields = new HashSet<>(fields);
     this.persistenceBuilder.documentFields(this.documentFields);
     return getThis();
   }
@@ -207,8 +223,8 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    */
   public final T indexPath(final String filePath)
       throws IOException {
-    if (Objects.requireNonNull(filePath, "Index path was null").trim().isEmpty
-        ()) {
+    if (StringUtils.isStrippedEmpty(
+        Objects.requireNonNull(filePath, "Index path was null"))) {
       throw new IllegalArgumentException("Index path was empty.");
     }
 
@@ -250,7 +266,8 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * directory is not allowed.
    * @see Persistence#tryCreateDataPath(String)
    */
-  public T dataPath(final String filePath)
+  @SuppressWarnings("AssignmentToNull")
+  public final T dataPath(final String filePath)
       throws IOException {
     this.dataPath = null;
     this.dataPath = Persistence.tryCreateDataPath(filePath);
@@ -261,10 +278,10 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
   /**
    * Set the {@link IndexReader} to access the Lucene index.
    *
-   * @param reader
+   * @param reader Reader to access the Lucene index
    * @return Self reference
    */
-  public T indexReader(final IndexReader reader) {
+  public final T indexReader(final IndexReader reader) {
     this.idxReader = Objects.requireNonNull(reader, "IndexReader was null.");
     return getThis();
   }
@@ -274,7 +291,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    *
    * @return Self reference
    */
-  public T warmup() {
+  public final T warmUp() {
     this.doWarmUp = true;
     return getThis();
   }
@@ -305,7 +322,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
       }
       try {
         this.idxReader = DirectoryReader.open(this.luceneDir);
-      } catch (IOException e) {
+      } catch (final IOException e) {
         throw new ConfigurationException("Filed to open Lucene index.", e);
       }
     }
@@ -316,7 +333,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
         this.lastCommitGeneration = SegmentInfos.getLastCommitGeneration(this
             .luceneDir);
         this.persistenceBuilder.lastCommitGeneration(this.lastCommitGeneration);
-      } catch (IOException e) {
+      } catch (final IOException e) {
         throw new ConfigurationException("Filed to get Lucene segment " +
             "information.", e);
       }

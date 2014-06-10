@@ -16,36 +16,29 @@
  */
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
-import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.lucene.index.DataProviderException;
-import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.util.MathUtils;
+import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.queryparser.classic.ParseException;
 import org.slf4j.LoggerFactory;
 
 import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Simplified Clarity Score implementation as described by He, Ben, and Iadh
- * Ounis.
- * <p/>
- * Reference:
- * <p/>
- * He, Ben, and Iadh Ounis. “Inferring Query Performance Using Pre-Retrieval
- * Predictors.” In String Processing and Information Retrieval, edited by
- * Alberto Apostolico and Massimo Melucci, 43–54. Lecture Notes in Computer
- * Science 3246. Springer Berlin Heidelberg, 2004. http://link.springer
- * .com/chapter/10.1007/978-3-540-30213-1_5.
+ * Ounis. <br> Reference: <br> He, Ben, and Iadh Ounis. “Inferring Query
+ * Performance Using Pre-Retrieval Predictors.” In String Processing and
+ * Information Retrieval, edited by Alberto Apostolico and Massimo Melucci,
+ * 43–54. Lecture Notes in Computer Science 3246. Springer Berlin Heidelberg,
+ * 2004. http://link.springer .com/chapter/10.1007/978-3-540-30213-1_5.
  *
  * @author Jens Bertram
  */
@@ -55,104 +48,86 @@ public final class SimplifiedClarityScore
   /**
    * Prefix used to identify externally stored data.
    */
-  static final String IDENTIFIER = "SCS";
+  private static final String IDENTIFIER = "SCS";
+
   /**
    * Logger instance for this class.
    */
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       SimplifiedClarityScore.class);
+
   /**
    * Provider for general index metrics.
    */
-  Metrics metrics;
-  /**
-   * {@link IndexDataProvider} to use.
-   */
-  private IndexDataProvider dataProv;
-  /**
-   * Reader to access the Lucene index.
-   */
-  private IndexReader idxReader;
+  @SuppressWarnings("PackageVisibleField")
+  final Metrics metrics;
+
   /**
    * Lucene query analyzer.
    */
-  private Analyzer analyzer;
+  private final Analyzer analyzer;
 
   /**
    * Default constructor. Called from builder.
-   */
-  private SimplifiedClarityScore() {
-    super();
-  }
-
-  /**
-   * Builder method to create a new instance.
    *
    * @param builder Builder to use for constructing the instance
-   * @return New instance
    */
-  protected static SimplifiedClarityScore build(final Builder
-      builder) {
+  SimplifiedClarityScore(final Builder builder) {
     Objects.requireNonNull(builder, "Builder was null.");
-    final SimplifiedClarityScore instance = new SimplifiedClarityScore();
 
     // set configuration
-    instance.dataProv = builder.idxDataProvider;
-    instance.idxReader = builder.idxReader;
-    instance.metrics = new Metrics(builder.idxDataProvider);
-    instance.analyzer = builder.analyzer;
-
-    return instance;
+    this.metrics = new Metrics(builder.idxDataProvider);
+    this.analyzer = builder.analyzer;
   }
 
   @Override
   public ClarityScoreResult calculateClarity(final String query)
       throws ClarityScoreCalculationException {
-    if (Objects.requireNonNull(query, "Query was null.").trim().isEmpty()) {
+    if (StringUtils.isStrippedEmpty(
+        Objects.requireNonNull(query, "Query was null."))) {
       throw new IllegalArgumentException("Query was empty.");
     }
+    final Result result = new Result();
 
     // pre-check query terms
     final Collection<ByteArray> queryTerms;
     try {
       // get all query terms - list must NOT be unique!
-      final QueryUtils queryUtils =
-          new QueryUtils(this.analyzer, this.idxReader,
-              this.dataProv.getDocumentFields());
-      queryTerms = queryUtils.getAllQueryTerms(query);
-      // remove stopwords from query
-      queryTerms.removeAll(this.dataProv.getStopwordsBytes());
-    } catch (ParseException | UnsupportedEncodingException e) {
+      final List<String> qTerms =
+          QueryUtils.tokenizeQueryString(query, this.analyzer);
+      queryTerms = new ArrayList<>(qTerms.size());
+      for (final String term : qTerms) {
+        @SuppressWarnings("ObjectAllocationInLoop")
+        final ByteArray termBa = new ByteArray(term.getBytes("UTF-8"));
+        queryTerms.add(termBa);
+      }
+    } catch (final UnsupportedEncodingException e) {
       throw new ClarityScoreCalculationException(
           "Caught exception while preparing calculation.", e);
-    } catch (Buildable.BuildableException e) {
-      throw new ClarityScoreCalculationException(
-          "Caught exception while building query.", e);
     }
-    if (queryTerms == null || queryTerms.isEmpty()) {
-      throw new IllegalStateException("No query terms.");
+    if (queryTerms.isEmpty()) {
+      result.setEmpty("No query terms.");
+      return result;
     }
+    result.setQueryTerms(queryTerms);
 
     LOG.info("Calculating clarity score. query={}", query);
     final TimeMeasure timeMeasure = new TimeMeasure().start();
 
     final double score;
-    try {
-      score = calculateScore(queryTerms);
-    } catch (DataProviderException e) {
-      throw new ClarityScoreCalculationException(e);
-    }
+    score = calculateScore(queryTerms);
 
     LOG.debug("Calculation results: query={} score={}.", query, score);
 
     LOG.debug("Calculating simplified clarity score for query {} "
         + "took {}. {}", query, timeMeasure.getTimeString(), score);
 
-    return new Result(this.getClass(), score);
+    result.setScore(score);
+    return result;
   }
 
   @Override
-  public final String getIdentifier() {
+  public String getIdentifier() {
     return IDENTIFIER;
   }
 
@@ -162,14 +137,13 @@ public final class SimplifiedClarityScore
    * @param queryTerms Query terms to use for calculation
    * @return The calculated score
    */
-  private double calculateScore(final Collection<ByteArray> queryTerms)
-      throws DataProviderException {
+  private double calculateScore(final Collection<ByteArray> queryTerms) {
     // length of the (rewritten) query
     final int queryLength = queryTerms.size();
     // number of terms in collection
-    final long collTermCount = this.metrics.collection.tf();
+    final long collTermCount = this.metrics.collection().tf();
     // create a unique list of query terms
-    final Set<ByteArray> uniqueQueryTerms = new HashSet<>(queryTerms);
+    final Iterable<ByteArray> uniqueQueryTerms = new HashSet<>(queryTerms);
 
     double result = 0d;
 
@@ -190,8 +164,8 @@ public final class SimplifiedClarityScore
       final double pMl =
           Integer.valueOf(termCount).doubleValue() / Integer.valueOf(
               queryLength);
-      final double pColl = this.metrics.collection.tf(queryTerm).doubleValue()
-          / collTermCount;
+      final double pColl = this.metrics.collection().tf(queryTerm).doubleValue()
+          / (double) collTermCount;
       result += pMl * MathUtils.log2(pMl / pColl);
     }
 
@@ -201,45 +175,51 @@ public final class SimplifiedClarityScore
   /**
    * Builder to create a new {@link SimplifiedClarityScore} instance.
    */
+  @SuppressWarnings("PublicInnerClass")
   public static final class Builder
       extends AbstractClarityScoreCalculationBuilder<Builder> {
 
+    /**
+     * Initializes the builder.
+     */
     public Builder() {
       super(IDENTIFIER);
     }
 
+    @Override
     protected Builder getThis() {
       return this;
-    }
-
-    @Override
-    public void validate()
-        throws ConfigurationException {
-      super.validate();
     }
 
     @Override
     public SimplifiedClarityScore build()
         throws ConfigurationException {
       validate();
-      return SimplifiedClarityScore.build(this);
+      return new SimplifiedClarityScore(this);
     }
   }
 
+  /**
+   * Wraps the calculation reslt and additional meta information.
+   */
   @SuppressWarnings("PublicInnerClass")
   public static final class Result
       extends ClarityScoreResult {
 
-    Result(
-        final Class<? extends ClarityScoreCalculation> cscType,
-        final double clarityScore) {
-      super(cscType, clarityScore);
+    /**
+     * Initializes the result.
+     */
+    Result() {
+      super(SimplifiedClarityScore.class);
     }
 
     @Override
     public ScoringResultXml getXml() {
-      // TODO: implement
-      throw new UnsupportedOperationException("Not implemented yet.");
+      final ScoringResultXml xml = new ScoringResultXml();
+
+      getXml(xml);
+
+      return xml;
     }
   }
 }

@@ -59,7 +59,7 @@ public final class FakeIndexDataProvider
   }
 
   @Override
-  public void dispose() {
+  public void close() {
     // NOP
   }
 

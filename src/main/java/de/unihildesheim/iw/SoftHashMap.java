@@ -12,13 +12,11 @@ import java.util.Set;
 
 /**
  * Based on code from "The Java(tm) Specialists' Newsletter" by  Dr. Heinz M.
- * Kabutz
- * <p/>
- * See http://www.javaspecialists.eu/archive/Issue098.html
+ * Kabutz <br> See http://www.javaspecialists.eu/archive/Issue098.html
  *
  * @author Jens Bertram
  */
-public class SoftHashMap<K, V>
+public final class SoftHashMap<K, V>
     extends AbstractMap<K, V>
     implements Serializable {
   /**
@@ -34,6 +32,11 @@ public class SoftHashMap<K, V>
    * Reference queue for cleared SoftReference objects.
    */
   private final ReferenceQueue<V> queue = new ReferenceQueue<V>();
+
+  public int size() {
+    expungeStaleEntries();
+    return hash.size();
+  }
 
   public V get(final Object key) {
     expungeStaleEntries();
@@ -85,11 +88,6 @@ public class SoftHashMap<K, V>
   public void clear() {
     hash.clear();
     reverseLookup.clear();
-  }
-
-  public int size() {
-    expungeStaleEntries();
-    return hash.size();
   }
 
   /**

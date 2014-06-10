@@ -23,6 +23,7 @@ import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import org.apache.lucene.search.Query;
+import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -31,16 +32,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
-
 /**
  * Test for {@link Feedback}.
  *
  * @author Jens Bertram
  */
+@SuppressWarnings("ParameterizedParametersStaticCollection")
 @RunWith(Parameterized.class)
 public final class FeedbackTest
     extends MultiIndexDataProviderTestCase {
@@ -68,10 +65,11 @@ public final class FeedbackTest
     // try to get some random results
     final long maxDocCount = this.index.getDocumentCount();
     Collection<Integer> result;
-    for (int i = 1; i < maxDocCount; i += 10) {
-      result = Feedback.get(referenceIndex.getIndexReader(),
-          TestIndexDataProvider.util.getQueryObj().getQueryObj(), i);
-      assertNotEquals(msg("There must be results."), 0, result.size());
+    for (int i = 1; (long) i < maxDocCount; i += 10) {
+      result = Feedback.get(TestIndexDataProvider.getIndexReader(),
+          referenceIndex.util().getQueryObj().getQueryObj(), i);
+      Assert.assertNotEquals(msg("There must be results."), 0,
+          (long) result.size());
     }
   }
 
@@ -84,11 +82,11 @@ public final class FeedbackTest
   public void testGet_Query_int__all()
       throws Exception {
     // try to get some random results
-    Collection<Integer> result;
-    result = Feedback.get(referenceIndex.getIndexReader(),
-        TestIndexDataProvider.util.getQueryObj().getQueryObj(), -1);
-    assertNotEquals(msg("No documents retrieved from feedback."), 0,
-        result.size());
+    final Collection<Integer> result;
+    result = Feedback.get(TestIndexDataProvider.getIndexReader(),
+        referenceIndex.util().getQueryObj().getQueryObj(), -1);
+    Assert.assertNotEquals(msg("No documents retrieved from feedback."), 0L,
+        (long) result.size());
   }
 
   /**
@@ -96,44 +94,46 @@ public final class FeedbackTest
    *
    * @throws Exception Any exception thrown indicates an error
    */
+  @SuppressWarnings("ReuseOfLocalVariable")
   @Test
   public void testGet_Query_int__matching()
       throws Exception {
     // check if a matching document is in the result set
     Collection<Integer> result;
+    assert this.index.getDocumentCount() > 0L;
     final DocumentModel docModel = this.index.getDocumentModel(RandomValue
         .getInteger(0, (int) this.index.getDocumentCount() - 1));
-    final String[] singleTermQuery = new String[]{""};
+    final String[] singleTermQuery = {""};
     final String[] multiTermQuery = new String[RandomValue.getInteger(2,
-        docModel.termFreqMap.size() - 1)];
+        docModel.getTermFreqMap().size() - 1)];
     int termIdx = 0;
-    for (final ByteArray term : docModel.termFreqMap.keySet()) {
+    for (final ByteArray term : docModel.getTermFreqMap().keySet()) {
       multiTermQuery[termIdx] = ByteArrayUtils.utf8ToString(term);
       if (++termIdx >= multiTermQuery.length) {
         break;
       }
     }
-    final List<ByteArray> terms = new ArrayList<>(docModel.termFreqMap.
+    final List<ByteArray> terms = new ArrayList<>(docModel.getTermFreqMap().
         keySet());
     final int idx = RandomValue.getInteger(0, terms.size() - 1);
     singleTermQuery[0] = ByteArrayUtils.utf8ToString(terms.get(idx));
 
     boolean foundDoc = false;
-    final Query query = TestIndexDataProvider.util.getSTQueryObj
+    final Query query = referenceIndex.util().getSTQueryObj
         (singleTermQuery).getQueryObj();
-    result = Feedback.get(referenceIndex.getIndexReader(), query, -1);
+    result = Feedback.get(TestIndexDataProvider.getIndexReader(), query, -1);
     for (final Integer docId : result) {
       if (docId.equals(docModel.id)) {
         foundDoc = true;
       }
     }
-    assertTrue(msg("Document not in single-term query result set. result="
-        + result.size() + " query=" + query + " docs=" + result
+    Assert.assertTrue(msg("Document not in single-term query result set. " +
+        "result=" + result.size() + " query=" + query + " docs=" + result
         + " searchId=" + docModel.id), foundDoc);
 
     foundDoc = false;
-    result = Feedback.get(referenceIndex.getIndexReader(),
-        TestIndexDataProvider.util.getSTQueryObj(multiTermQuery).getQueryObj(),
+    result = Feedback.get(TestIndexDataProvider.getIndexReader(),
+        referenceIndex.util().getSTQueryObj(multiTermQuery).getQueryObj(),
         -1
     );
     for (final Integer docId : result) {
@@ -141,7 +141,8 @@ public final class FeedbackTest
         foundDoc = true;
       }
     }
-    assertTrue(msg("Document not in multi-term query result set."), foundDoc);
+    Assert.assertTrue(msg("Document not in multi-term query result set."),
+        foundDoc);
   }
 
   /**
@@ -155,11 +156,11 @@ public final class FeedbackTest
     final long maxDocCount = this.index.getDocumentCount();
     Collection<Integer> result;
     // try to get some random results
-    for (int i = 1; i < maxDocCount; i += 10) {
-      result = Feedback.getFixed(referenceIndex.getIndexReader(),
-          TestIndexDataProvider.util.getQueryObj().getQueryObj(), i);
-      assertEquals(msg("Less than expected documents returned."), i, result.
-          size());
+    for (int i = 1; (long) i < maxDocCount; i += 10) {
+      result = Feedback.getFixed(TestIndexDataProvider.getIndexReader(),
+          referenceIndex.util().getQueryObj().getQueryObj(), i);
+      Assert.assertEquals(msg("Less than expected documents returned."),
+          (long) i, (long) result.size());
     }
   }
 
@@ -173,12 +174,14 @@ public final class FeedbackTest
       throws Exception {
     // try to get more documents than available
     final long maxDocCount = this.index.getDocumentCount();
-    Collection<Integer> result;
-    result = Feedback.getFixed(referenceIndex.getIndexReader(),
-        TestIndexDataProvider.util.getQueryObj().getQueryObj(),
+    final Collection<Integer> result;
+    result = Feedback.getFixed(TestIndexDataProvider.getIndexReader(),
+        referenceIndex.util().getQueryObj().getQueryObj(),
         (int) maxDocCount + 100);
-    assertEquals(msg("Less than expected documents returned."), maxDocCount,
-        result.size());
+    Assert
+        .assertEquals(msg("Less than expected documents returned."),
+            maxDocCount,
+            (long) result.size());
   }
 
   /**
@@ -195,11 +198,11 @@ public final class FeedbackTest
     // check if a matching document is in the result set
     final DocumentModel docModel = this.index.getDocumentModel(RandomValue.
         getInteger(0, (int) this.index.getDocumentCount() - 1));
-    final String[] singleTermQuery = new String[]{""};
+    final String[] singleTermQuery = {""};
     final String[] multiTermQuery = new String[RandomValue.getInteger(2,
-        docModel.termFreqMap.size())];
+        docModel.getTermFreqMap().size())];
     int termIdx = 0;
-    for (final ByteArray term : docModel.termFreqMap.keySet()) {
+    for (final ByteArray term : docModel.getTermFreqMap().keySet()) {
       if (singleTermQuery[0].isEmpty() && RandomValue.getBoolean()) {
         singleTermQuery[0] = ByteArrayUtils.utf8ToString(term);
       }
@@ -209,19 +212,25 @@ public final class FeedbackTest
       }
     }
 
-    result = Feedback.getFixed(referenceIndex.getIndexReader(),
-        TestIndexDataProvider.util.getSTQueryObj(singleTermQuery).getQueryObj(),
-        (int) maxDocCount
-    );
-    assertTrue(msg("Document not in single-term query result set."), result.
-        contains(docModel.id));
+    // backup, if query is still empty
+    if (singleTermQuery[0].isEmpty()) {
+      singleTermQuery[0] = multiTermQuery[0];
+    }
 
-    result = Feedback.getFixed(referenceIndex.getIndexReader(),
-        TestIndexDataProvider.util.getSTQueryObj(multiTermQuery).getQueryObj(),
+    result = Feedback.getFixed(TestIndexDataProvider.getIndexReader(),
+        referenceIndex.util().getSTQueryObj(singleTermQuery).getQueryObj(),
+        (int) maxDocCount);
+    Assert.assertTrue(msg("Document not in single-term query result set."),
+        result.
+            contains(docModel.id));
+
+    result = Feedback.getFixed(TestIndexDataProvider.getIndexReader(),
+        referenceIndex.util().getSTQueryObj(multiTermQuery).getQueryObj(),
         (int) maxDocCount
     );
-    assertTrue(msg("Document not in multi-term query result set."), result.
-        contains(docModel.id));
+    Assert
+        .assertTrue(msg("Document not in multi-term query result set."), result.
+            contains(docModel.id));
   }
 
   /**
@@ -233,9 +242,9 @@ public final class FeedbackTest
   public void testGet_3args()
       throws Exception {
     // wrapper function - just test if it succeeds
-    assertFalse(msg("No results."),
-        Feedback.get(referenceIndex.getIndexReader(),
-            TestIndexDataProvider.util.getQueryObj().getQueryObj(),
+    Assert.assertFalse(msg("No results."),
+        Feedback.get(TestIndexDataProvider.getIndexReader(),
+            referenceIndex.util().getQueryObj().getQueryObj(),
             RandomValue.getInteger(1, (int) this.index.getDocumentCount())
         ).isEmpty()
     );
@@ -251,10 +260,11 @@ public final class FeedbackTest
       throws Exception {
     System.out.println("getFixed [reader, query, docCount]");
     // wrapper function - just test if it succeeds
-    assertFalse(msg("No results."), Feedback.getFixed(referenceIndex.
-            getIndexReader(),
-        TestIndexDataProvider.util.getQueryObj().getQueryObj(),
-        RandomValue.getInteger(1, (int) this.index.getDocumentCount())
-    ).isEmpty());
+    Assert.assertFalse(msg("No results."),
+        Feedback.getFixed(TestIndexDataProvider.
+                getIndexReader(),
+            referenceIndex.util().getQueryObj().getQueryObj(),
+            RandomValue.getInteger(1, (int) this.index.getDocumentCount())
+        ).isEmpty());
   }
 }

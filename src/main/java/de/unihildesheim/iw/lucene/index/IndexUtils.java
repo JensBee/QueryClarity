@@ -46,6 +46,7 @@ public final class IndexUtils {
   /**
    * Get a list of fields available in the index.
    *
+   * @param reader Reader to access Lucene index
    * @return Fields list
    */
   public static Collection<String> getFields(final IndexReader reader) {

@@ -16,6 +16,8 @@
  */
 package de.unihildesheim.iw.util.concurrent.processing;
 
+import org.slf4j.LoggerFactory;
+
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Objects;
@@ -31,6 +33,11 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class CollectionSource<T>
     extends Source<T> {
 
+  /**
+   * Logger instance for this class.
+   */
+  private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
+      CollectionSource.class);
   /**
    * Wrapped collection acting as source.
    */
@@ -49,12 +56,12 @@ public final class CollectionSource<T>
    *
    * @param coll Collection to wrap
    */
+  @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
   public CollectionSource(final Collection<T> coll) {
-    super();
     if (Objects.requireNonNull(coll, "Collection was null.").isEmpty()) {
       throw new IllegalArgumentException("Empty collection.");
     }
-    this.sourcedItemCount = new AtomicLong(0);
+    this.sourcedItemCount = new AtomicLong(0L);
     this.collection = coll;
   }
 
@@ -73,10 +80,9 @@ public final class CollectionSource<T>
     return this.sourcedItemCount.get();
   }
 
+  @SuppressWarnings("ReturnOfNull")
   @Override
-  public synchronized T next()
-      throws ProcessingException,
-             InterruptedException {
+  public synchronized T next() {
     if (isFinished()) {
       throw new SourceException.SourceHasFinishedException();
     }

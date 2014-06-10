@@ -18,35 +18,26 @@ package de.unihildesheim.iw.util.concurrent.processing;
 
 import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.util.RandomValue;
-import org.junit.Rule;
+import org.junit.Assert;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
-
 /**
  * Test for {@link Processing}.
  *
  * @author Jens Bertram
  */
-public class ProcessingTest
+public final class ProcessingTest
     extends TestCase {
 
   /**
-   * General rule to catch expected exceptions.
-   */
-  @Rule
-  @java.lang.SuppressWarnings("PublicField")
-  public ExpectedException exception = ExpectedException.none();
-
-  /**
    * Test of setSource method, of class Processing.
+   *
+   * @throws Exception Any exception thrown indicates an error
    */
   @Test
   public void testSetSource()
@@ -57,16 +48,27 @@ public class ProcessingTest
     final Processing instance = new Processing();
     instance.setSource(newSource);
 
-    exception.expect(IllegalStateException.class);
     // should throw - no target set
-    instance.process();
-    exception.expect(IllegalArgumentException.class);
+    try {
+      instance.process();
+      Assert.fail("Expected to catch an exception.");
+    } catch (final IllegalStateException e) {
+      // pass
+    }
+
     // should throw - source is null
-    instance.setSource(null);
+    try {
+      instance.setSource(null);
+      Assert.fail("Expected to catch an exception.");
+    } catch (final NullPointerException e) {
+      // pass
+    }
   }
 
   /**
    * Test of setSourceAndTarget method, of class Processing.
+   *
+   * @throws Exception Any exception thrown indicates an error
    */
   @Test
   public void testSetSourceAndTarget()
@@ -76,18 +78,24 @@ public class ProcessingTest
     final Source<String> newSource = new CollectionSource<>(coll);
     final Processing instance = new Processing();
     final TargetFuncCall target = new TargetFuncCall<>(newSource,
-        new TestTargets.FuncCall<String>(new AtomicLong(0)));
+        new TestTargets.FuncCall<String>(new AtomicLong(0L)));
 
     instance.setSourceAndTarget(target);
 
     instance.process();
 
-    exception.expect(IllegalArgumentException.class);
-    instance.setSourceAndTarget(null);
+    try {
+      instance.setSourceAndTarget(null);
+      Assert.fail("Expected to catch an exception.");
+    } catch (final NullPointerException e) {
+      // pass
+    }
   }
 
   /**
    * Test of setTarget method, of class Processing.
+   *
+   * @throws Exception Any exception thrown indicates an error
    */
   @Test
   public void testSetTarget()
@@ -98,54 +106,30 @@ public class ProcessingTest
 
     final Processing instance = new Processing();
     final TargetFuncCall target = new TargetFuncCall<>(newSource,
-        new TestTargets.FuncCall<String>(new AtomicLong(0)));
+        new TestTargets.FuncCall<String>(new AtomicLong(0L)));
 
     instance.setTarget(target);
 
-    exception.expect(IllegalStateException.class);
     // should throw - no source set
-    instance.process();
-
-    exception.expect(IllegalArgumentException.class);
-    instance.setTarget(null);
-  }
-
-  /**
-   * Test of shutDown method, of class Processing.
-   */
-  @Test
-  @SuppressWarnings("unchecked")
-  public void testShutDown()
-      throws Exception {
-    Collection<String> coll = new ArrayList<>(1);
-    coll.add(RandomValue.getString(1, 10));
-    Source<String> newSource = new CollectionSource<>(coll);
-
-    final AtomicLong counter = new AtomicLong(0);
-    final Processing instance = new Processing();
-    TargetFuncCall target = new TargetFuncCall<>(newSource,
-        new TestTargets.FuncCall<String>(counter));
-
-    instance.setSourceAndTarget(target);
-    instance.process(coll.size());
-    Processing.shutDown();
-    instance.process();
-
-    final int collSize = RandomValue.getInteger(100, 10000);
-    coll = new ArrayList<>(collSize);
-    for (int i = 0; i < collSize; i++) {
-      coll.add(RandomValue.getString(1, 10));
+    try {
+      instance.process();
+      Assert.fail("Expected to catch an exception.");
+    } catch (final IllegalStateException e) {
+      // pass
     }
-    newSource = new CollectionSource<>(coll);
-    target = new TargetFuncCall<>(newSource,
-        new TestTargets.FuncCall<String>(counter));
-    Processing.shutDown();
-    instance.setSourceAndTarget(target);
-    instance.process();
+
+    try {
+      instance.setTarget(null);
+      Assert.fail("Expected to catch an exception.");
+    } catch (final NullPointerException e) {
+      // pass
+    }
   }
 
   /**
    * Test of debugTestSource method, of class Processing.
+   *
+   * @throws Exception Any exception thrown indicates an error
    */
   @Test
   public void testDebugTestSource()
@@ -157,7 +141,7 @@ public class ProcessingTest
     }
     final Source<String> newSource = new CollectionSource<>(coll);
 
-    final AtomicLong counter = new AtomicLong(0);
+    final AtomicLong counter = new AtomicLong(0L);
     new Processing(
         new TargetFuncCall<>(
             newSource,
@@ -165,12 +149,14 @@ public class ProcessingTest
         )
     ).process(coll.size());
 
-    assertEquals("Not all items provided by source.", collSize,
-        counter.intValue());
+    Assert.assertEquals("Not all items provided by source.", (long) collSize,
+        counter.longValue());
   }
 
   /**
    * Test of process method, of class Processing.
+   *
+   * @throws Exception Any exception thrown indicates an error
    */
   @Test
   public void testProcess_0args()
@@ -186,18 +172,20 @@ public class ProcessingTest
     final Source<String> newSource = new CollectionSource<>(coll);
 
     final Processing instance = new Processing();
-    final AtomicLong counter = new AtomicLong(0);
+    final AtomicLong counter = new AtomicLong(0L);
     final TargetFuncCall target = new TargetFuncCall<>(newSource,
         new TestTargets.FuncCall<String>(counter));
 
     instance.setSourceAndTarget(target).process();
 
-    assertEquals("Number of processed items differs.", collSize,
-        counter.intValue());
+    Assert.assertEquals("Number of processed items differs.", (long) collSize,
+        counter.longValue());
   }
 
   /**
    * Test of process method, of class Processing.
+   *
+   * @throws Exception Any exception thrown indicates an error
    */
   @Test
   public void testProcess_int()
@@ -211,18 +199,21 @@ public class ProcessingTest
 
     final Source<String> newSource = new CollectionSource<>(coll);
     final Processing instance = new Processing();
-    final AtomicLong counter = new AtomicLong(0);
-    TargetFuncCall target = new TargetFuncCall<>(newSource,
+    final AtomicLong counter = new AtomicLong(0L);
+    final TargetFuncCall target = new TargetFuncCall<>(newSource,
         new TestTargets.FuncCall<String>(counter));
 
     instance.setSourceAndTarget(target).process(
         RandomValue.getInteger(1, Runtime.getRuntime().
             availableProcessors())
     );
-    assertEquals("Number of processed items differs.", collSize,
-        counter.intValue());
+    Assert.assertEquals("Number of processed items differs.", (long) collSize,
+        counter.longValue());
   }
 
+  /**
+   * @throws Exception Any exception thrown indicates an error
+   */
   @Test
   public void testExceptionThrowing()
       throws Exception {
@@ -241,12 +232,15 @@ public class ProcessingTest
                   collSize - 1)))
           )
       ).process(coll.size());
-      fail("Expected an Exception to be thrown");
-    } catch (TargetException.TargetFailedException e) {
+      Assert.fail("Expected an Exception to be thrown");
+    } catch (final TargetException.TargetFailedException e) {
       // pass
     }
   }
 
+  /**
+   * @throws Exception Any exception thrown indicates an error
+   */
   @Test
   public void testAssertThrowing()
       throws Exception {
@@ -265,8 +259,8 @@ public class ProcessingTest
                   collSize - 1)))
           )
       ).process(coll.size());
-      fail("Expected an Exception to be thrown");
-    } catch (TargetException.TargetFailedException e) {
+      Assert.fail("Expected an Exception to be thrown");
+    } catch (final TargetException.TargetFailedException e) {
       // pass
     }
   }
@@ -275,11 +269,19 @@ public class ProcessingTest
    * Simple {@link TargetFuncCall.TargetFunc} throwing an {@link Exception} if a
    * defined string is matched.
    */
-  private final static class ExceptionThrowingTarget
+  private static final class ExceptionThrowingTarget
       extends TargetFuncCall.TargetFunc<String> {
 
+    /**
+     * Value to throw an exception at.
+     */
     private final String throwAt;
 
+    /**
+     * New instance with exception throwing String set.
+     *
+     * @param throwAtStr String to throw an exception at, if matched
+     */
     ExceptionThrowingTarget(final String throwAtStr) {
       this.throwAt = throwAtStr;
     }
@@ -296,11 +298,19 @@ public class ProcessingTest
    * Simple {@link TargetFuncCall.TargetFunc} throwing an {@link AssertionError}
    * if a defined string is matched.
    */
-  private final static class AssertThrowingTarget
+  private static final class AssertThrowingTarget
       extends TargetFuncCall.TargetFunc<String> {
 
+    /**
+     * Value to throw an assertion error at.
+     */
     private final String throwAt;
 
+    /**
+     * New instance with assertion error throwing String set.
+     *
+     * @param throwAtStr String to throw an assertion error at, if matched
+     */
     AssertThrowingTarget(final String throwAtStr) {
       this.throwAt = throwAtStr;
     }

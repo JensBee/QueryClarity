@@ -17,8 +17,6 @@
 
 package de.unihildesheim.iw.lucene.query;
 
-import org.apache.lucene.search.Query;
-
 import java.util.Collection;
 
 /**
@@ -31,11 +29,4 @@ public interface TermsProvidingQuery {
    * @return List of query terms (with stop-words removed)
    */
   Collection<String> getQueryTerms();
-
-  /**
-   * Get the Query object.
-   *
-   * @return Query object
-   */
-  Query getQueryObj();
 }

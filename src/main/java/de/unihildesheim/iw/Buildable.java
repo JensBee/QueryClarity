@@ -42,8 +42,10 @@ public interface Buildable<T> {
   void validate()
       throws ConfigurationException;
 
-  public static abstract class BuildableException
+  public abstract class BuildableException
       extends Exception {
+    private static final long serialVersionUID = -7502921394560275176L;
+
     BuildableException(final String msg, final Throwable e) {
       super(msg, e);
     }
@@ -59,13 +61,13 @@ public interface Buildable<T> {
    *
    * @author Jens Bertram
    */
-  public static final class ConfigurationException
+  public final class ConfigurationException
       extends BuildableException {
     public ConfigurationException(final String msg) {
       super(msg);
     }
 
-    public ConfigurationException(final String msg, Throwable ex) {
+    public ConfigurationException(final String msg, final Throwable ex) {
       super(msg, ex);
     }
   }
@@ -76,7 +78,7 @@ public interface Buildable<T> {
    *
    * @author Jens Bertram
    */
-  public static final class BuildException
+  public final class BuildException
       extends BuildableException {
     public BuildException(final Throwable ex) {
       super("Failed to build instance.", ex);
@@ -86,7 +88,7 @@ public interface Buildable<T> {
       super(msg);
     }
 
-    public BuildException(final String msg, Throwable ex) {
+    public BuildException(final String msg, final Throwable ex) {
       super(msg, ex);
     }
   }

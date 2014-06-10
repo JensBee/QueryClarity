@@ -21,6 +21,7 @@ import de.unihildesheim.iw.lucene.index.DirectIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.iw.util.RandomValue;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -33,8 +34,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 
-import static org.junit.Assert.assertTrue;
-
 /**
  * Test case utilities for testing with multiple {@link IndexDataProvider}s.
  */
@@ -46,21 +45,168 @@ public class MultiIndexDataProviderTestCase
    */
   private static final Logger LOG = LoggerFactory.getLogger(
       MultiIndexDataProviderTestCase.class);
-
+  /**
+   * Test documents referenceIndex.
+   */
+  @SuppressWarnings({"ProtectedField", "StaticNonFinalField"})
+  protected static TestIndexDataProvider referenceIndex;
   /**
    * Index configuration type.
    */
   private final RunType runType;
-
-  private final DataProviders dpType;
-
   /**
-   * Test documents referenceIndex.
+   * DataProvider type.
+   */
+  private final DataProviders dpType;
+  /**
+   * Current DataProvider instance being tested.
    */
   @SuppressWarnings("ProtectedField")
-  protected static TestIndexDataProvider referenceIndex;
-
   protected IndexDataProvider index;
+
+  /**
+   * Initialize the generic test case.
+   *
+   * @param dataProv DataProvider
+   * @param rType DataProvider configuration
+   */
+  protected MultiIndexDataProviderTestCase(final DataProviders dataProv,
+      final RunType rType) {
+    assert dataProv != null;
+    assert rType != null;
+    this.dpType = dataProv;
+    this.runType = rType;
+  }
+
+  /**
+   * Static initializer run before all tests.
+   *
+   * @throws Exception Any exception thrown indicates an error
+   */
+  @BeforeClass
+  public static void setUpClass()
+      throws Exception {
+    referenceIndex = new TestIndexDataProvider();
+  }
+
+  /**
+   * Run after all tests have finished.
+   */
+  @SuppressWarnings("StaticVariableUsedBeforeInitialization")
+  @AfterClass
+  public static void tearDownClass() {
+    // close the test referenceIndex
+    referenceIndex.close();
+  }
+
+  /**
+   * Get parameters for parameterized test.
+   *
+   * @return Test parameters
+   */
+  @SuppressWarnings("ObjectAllocationInLoop")
+  @Parameterized.Parameters
+  public static Collection<Object[]> data() {
+    final Collection<Object[]> params = new ArrayList<>(DataProviders.values
+        ().length);
+
+    for (final DataProviders dp : DataProviders.values()) {
+      for (final RunType r : RunType.values()) {
+        params.add(new Object[]{dp, r});
+      }
+    }
+    return params;
+  }
+
+  /**
+   * Run before each test starts.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Before
+  public final void setUp()
+      throws Exception {
+    LOG.info(
+        "MutilindexDataProviderTestCase SetUp dataProvider={} configuration={}",
+        this.dpType.name(), this.runType.name()
+    );
+
+    final Set<String> fields;
+    final Set<String> stopwords;
+
+    switch (this.runType) {
+      case RANDOM_FIELDS:
+        fields = referenceIndex.util().getRandomFields();
+        stopwords = Collections.emptySet();
+        break;
+      case RANDOM_FIELDS_AND_STOPPED:
+        fields = referenceIndex.util().getRandomFields();
+        stopwords = referenceIndex.util().getRandomStopWords();
+        break;
+      case STOPPED:
+        fields = referenceIndex.reference().getDocumentFields();
+        stopwords = referenceIndex.util().getRandomStopWords();
+        break;
+      case PLAIN:
+      default:
+        fields = referenceIndex.reference().getDocumentFields();
+        stopwords = Collections.emptySet();
+        break;
+    }
+
+    referenceIndex.prepareTestEnvironment(fields, stopwords);
+
+    switch (this.dpType) {
+      case DIRECT:
+        this.index = new DirectIndexDataProvider.Builder()
+            .temporary()
+            .documentFields(fields)
+            .stopwords(stopwords)
+            .dataPath(referenceIndex.reference().getDataDir())
+            .indexPath(referenceIndex.reference().getIndexDir())
+            .indexReader(TestIndexDataProvider.getIndexReader())
+            .createCache("test-" + RandomValue.getString(16))
+            .warmUp() // important!
+            .build();
+        break;
+      default:
+        this.index = referenceIndex;
+        break;
+    }
+    referenceIndex.warmUp();
+    LOG.info("MutilindexDataProviderTestCase SetUp finished "
+            + "dataProvider={} configuration={}",
+        this.dpType.name(), this.runType.name()
+    );
+  }
+
+  @After
+  public final void tearDown() {
+    if (this.index != null) {
+      this.index.close();
+    }
+  }
+
+  /**
+   * Prepend a message string with the current {@link IndexDataProvider} name
+   * and the testing type.
+   *
+   * @param msg Message to prepend
+   * @return Message prepended with testing information
+   */
+  protected final String msg(final String msg) {
+    return "(" + getDataProviderName() + ", " + this.runType.name() + ", " +
+        TestIndexDataProvider.getIndexConfName() + ") " + msg;
+  }
+
+  /**
+   * Get the name of the {@link IndexDataProvider} currently in use.
+   *
+   * @return DataProvider name
+   */
+  protected final String getDataProviderName() {
+    return this.index.getClass().getCanonicalName();
+  }
 
   /**
    * Types of configurations ran.
@@ -87,6 +233,10 @@ public class MultiIndexDataProviderTestCase
 
   }
 
+  /**
+   * Data provider types.
+   */
+  @SuppressWarnings("ProtectedInnerClass")
   protected enum DataProviders {
     /**
      * {@link TestIndexDataProvider}
@@ -96,145 +246,5 @@ public class MultiIndexDataProviderTestCase
      * {@link DirectIndexDataProvider}
      */
     DIRECT
-  }
-
-  /**
-   * Initialize the generic test case.
-   *
-   * @param dataProv DataProvider
-   * @param rType DataProvider configuration
-   */
-  protected MultiIndexDataProviderTestCase(final DataProviders dataProv,
-      final RunType rType) {
-    super();
-    assert dataProv != null;
-    assert rType != null;
-    this.dpType = dataProv;
-    this.runType = rType;
-  }
-
-  /**
-   * Static initializer run before all tests.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @BeforeClass
-  public static final void setUpClass()
-      throws Exception {
-    referenceIndex = new TestIndexDataProvider(TestIndexDataProvider
-        .DEFAULT_INDEX_SIZE);
-    assertTrue("TestIndex is not initialized.", TestIndexDataProvider.
-        isInitialized());
-  }
-
-  /**
-   * Run after all tests have finished.
-   */
-  @AfterClass
-  public static final void tearDownClass() {
-    // close the test referenceIndex
-    referenceIndex.dispose();
-  }
-
-  /**
-   * Run before each test starts.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Before
-  public final void setUp()
-      throws Exception {
-    LOG.info(
-        "MutilindexDataProviderTestCase SetUp dataProvider={} configuration={}",
-        this.dpType.name(), this.runType.name()
-    );
-
-    final Set<String> fields;
-    final Set<String> stopwords;
-
-    switch (this.runType) {
-      case RANDOM_FIELDS:
-        fields = TestIndexDataProvider.util.getRandomFields();
-        stopwords = Collections.<String>emptySet();
-        break;
-      case RANDOM_FIELDS_AND_STOPPED:
-        fields = TestIndexDataProvider.util.getRandomFields();
-        stopwords = TestIndexDataProvider.util.getRandomStopWords();
-        break;
-      case STOPPED:
-        fields = TestIndexDataProvider.reference.getDocumentFields();
-        stopwords = TestIndexDataProvider.util.getRandomStopWords();
-        break;
-      case PLAIN:
-      default:
-        fields = TestIndexDataProvider.reference.getDocumentFields();
-        stopwords = Collections.<String>emptySet();
-        break;
-    }
-
-    referenceIndex.prepareTestEnvironment(fields, stopwords);
-
-    switch (this.dpType) {
-      case DIRECT:
-        this.index = new DirectIndexDataProvider.Builder()
-            .temporary()
-            .documentFields(fields)
-            .stopwords(stopwords)
-            .dataPath(TestIndexDataProvider.reference.getDataDir())
-            .indexPath(TestIndexDataProvider.reference.getIndexDir())
-            .indexReader(referenceIndex.getIndexReader())
-            .createCache("test-" + RandomValue.getString(16))
-            .build();
-        break;
-      default:
-        this.index = referenceIndex;
-        break;
-    }
-    referenceIndex.warmUp();
-    this.index.warmUp();
-    LOG.info("MutilindexDataProviderTestCase SetUp finished "
-            + "dataProvider={} configuration={}",
-        this.dpType.name(), this.runType.name()
-    );
-  }
-
-  /**
-   * Get parameters for parameterized test.
-   *
-   * @return Test parameters
-   */
-  @Parameterized.Parameters
-  @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
-  public static final Collection<Object[]> data() {
-    final Collection<Object[]> params = new ArrayList<>(DataProviders.values
-        ().length);
-
-    for (final DataProviders dp : DataProviders.values()) {
-      for (final RunType r : RunType.values()) {
-        params.add(new Object[]{dp, r});
-      }
-    }
-    return params;
-  }
-
-  /**
-   * Prepend a message string with the current {@link IndexDataProvider} name
-   * and the testing type.
-   *
-   * @param msg Message to prepend
-   * @return Message prepended with testing information
-   */
-  protected final String msg(final String msg) {
-    return "(" + getDataProviderName() + ", " + this.runType.name() + ", " +
-        TestIndexDataProvider.getIndexConfName() + ") " + msg;
-  }
-
-  /**
-   * Get the name of the {@link IndexDataProvider} currently in use.
-   *
-   * @return DataProvider name
-   */
-  protected final String getDataProviderName() {
-    return this.index.getClass().getCanonicalName();
   }
 }

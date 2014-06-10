@@ -26,7 +26,7 @@ import java.io.IOException;
  *
  * @author Jens Bertram
  */
-public class GlobalConfiguration
+public final class GlobalConfiguration
     extends ConfigurationFile {
 
   /**
@@ -42,7 +42,7 @@ public class GlobalConfiguration
   static {
     try {
       INSTANCE = new GlobalConfiguration(FILE_NAME);
-    } catch (IOException e) {
+    } catch (final IOException e) {
       throw new ExceptionInInitializerError(e);
     }
   }
@@ -60,7 +60,13 @@ public class GlobalConfiguration
     saveOnExit();
   }
 
-  public static final String mkPrefix(final String identifier) {
+  /**
+   * Create a filename prefix from the provided identifier.
+   *
+   * @param identifier Identifier
+   * @return Filename prefix using the identifier string
+   */
+  public static String mkPrefix(final String identifier) {
     return identifier + "_";
   }
 
@@ -69,7 +75,7 @@ public class GlobalConfiguration
    *
    * @return Instance
    */
-  public static final GlobalConfiguration conf() {
+  public static GlobalConfiguration conf() {
     return INSTANCE;
   }
 }

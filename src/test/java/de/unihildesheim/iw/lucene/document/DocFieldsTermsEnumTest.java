@@ -41,6 +41,7 @@ import static org.junit.Assert.assertTrue;
  *
  * @author Jens Bertram
  */
+@SuppressWarnings("ParameterizedParametersStaticCollection")
 @RunWith(Parameterized.class)
 public final class DocFieldsTermsEnumTest
     extends MultiIndexDataProviderTestCase {
@@ -51,9 +52,8 @@ public final class DocFieldsTermsEnumTest
    * @param dataProv {@link IndexDataProvider} to use
    * @param rType Data provider configuration
    */
-  public DocFieldsTermsEnumTest(
-      final DataProviders dataProv,
-      final MultiIndexDataProviderTestCase.RunType rType) {
+  public DocFieldsTermsEnumTest(final DataProviders dataProv,
+      final RunType rType) {
     super(dataProv, rType);
   }
 
@@ -65,8 +65,8 @@ public final class DocFieldsTermsEnumTest
   @Test
   public void testSetDocument()
       throws Exception {
-    final DocFieldsTermsEnum instance = new DocFieldsTermsEnum(referenceIndex
-        .getIndexReader(), this.index.getDocumentFields());
+    final DocFieldsTermsEnum instance = new DocFieldsTermsEnum(
+        TestIndexDataProvider.getIndexReader(), this.index.getDocumentFields());
     final Iterator<Integer> docIdIt = this.index.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       instance.setDocument(docIdIt.next());
@@ -81,26 +81,31 @@ public final class DocFieldsTermsEnumTest
   @Test
   public void testReset()
       throws Exception {
-    final DocFieldsTermsEnum instance = new DocFieldsTermsEnum(referenceIndex
-        .getIndexReader(), this.index.getDocumentFields());
+    final DocFieldsTermsEnum instance = new DocFieldsTermsEnum(
+        TestIndexDataProvider.getIndexReader(), this.index.getDocumentFields());
     final Iterator<Integer> docIdIt = this.index.getDocumentIdIterator();
+
+    BytesRef br;
     while (docIdIt.hasNext()) {
       instance.setDocument(docIdIt.next());
       int count = 0;
       int oldCount = 0;
-      BytesRef br = instance.next();
+
+      br = instance.next();
       while (br != null) {
         oldCount++;
         br = instance.next();
       }
+
       instance.reset();
+
       br = instance.next();
       while (br != null) {
         count++;
         br = instance.next();
       }
-      assertEquals(msg("Re-set iteration yields different count."), oldCount,
-          count);
+      assertEquals(msg("Re-set iteration yields different count."),
+          (long) oldCount, (long) count);
     }
   }
 
@@ -113,21 +118,19 @@ public final class DocFieldsTermsEnumTest
   public void testNext()
       throws Exception {
     final DocFieldsTermsEnum instance =
-        new DocFieldsTermsEnum(referenceIndex.getIndexReader(),
+        new DocFieldsTermsEnum(TestIndexDataProvider.getIndexReader(),
             this.index.getDocumentFields());
-    final Collection<ByteArray> stopwords = TestIndexDataProvider.reference
-        .getStopwords();
-    final boolean excludeStopwords = TestIndexDataProvider.reference
-        .hasStopwords();
+    final Collection<ByteArray> stopwords = referenceIndex.getStopwordsBytes();
+    final boolean excludeStopwords = referenceIndex.hasStopwords();
     final Metrics metrics = new Metrics(this.index);
 
     final Iterator<Integer> docIdIt =
         this.index.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
-      final Map<ByteArray, Long> tfMap = metrics.getDocumentModel(docId)
-          .termFreqMap;
-      @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
+      final Map<ByteArray, Long> tfMap =
+          metrics.getDocumentModel(docId).getTermFreqMap();
+      @SuppressWarnings("ObjectAllocationInLoop")
       final Map<ByteArray, Long> dftMap = new HashMap<>(tfMap.size());
 
       instance.setDocument(docId);
@@ -150,7 +153,7 @@ public final class DocFieldsTermsEnumTest
       assertEquals(
           msg("Term map sizes differs (stopped: " + excludeStopwords
               + ")."),
-          tfMap.size(), dftMap.size()
+          (long) tfMap.size(), (long) dftMap.size()
       );
       assertTrue(
           msg("Not all terms are present (stopped: " + excludeStopwords
@@ -161,7 +164,7 @@ public final class DocFieldsTermsEnumTest
       for (final Entry<ByteArray, Long> tfEntry : tfMap.entrySet()) {
         assertEquals(
             msg("Term frequency values differs (stopped: " + excludeStopwords +
-                "). docId=" + docId + " term=" + tfEntry.toString()),
+                "). docId=" + docId + " term=" + tfEntry),
             tfEntry.getValue(), dftMap.get(tfEntry.getKey())
         );
       }
@@ -177,19 +180,18 @@ public final class DocFieldsTermsEnumTest
   public void testGetTotalTermFreq()
       throws Exception {
     final DocFieldsTermsEnum instance =
-        new DocFieldsTermsEnum(referenceIndex.getIndexReader(),
+        new DocFieldsTermsEnum(TestIndexDataProvider.getIndexReader(),
             this.index.getDocumentFields());
-    final Collection<ByteArray> stopwords = TestIndexDataProvider.reference
-        .getStopwords();
-    final boolean excludeStopwords = TestIndexDataProvider.reference
-        .hasStopwords();
+    final Collection<ByteArray> stopwords =
+        referenceIndex.getStopwordsBytes();
+    final boolean excludeStopwords = referenceIndex.hasStopwords();
 
     final Iterator<Integer> docIdIt = this.index.getDocumentIdIterator();
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
-      final Map<ByteArray, Long> tfMap = TestIndexDataProvider.reference
+      final Map<ByteArray, Long> tfMap = referenceIndex.reference()
           .getDocumentTermFrequencyMap(docId);
-      @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
+      @SuppressWarnings("ObjectAllocationInLoop")
       final Map<ByteArray, Long> dftMap = new HashMap<>(tfMap.size());
 
       instance.setDocument(docId);
@@ -210,7 +212,7 @@ public final class DocFieldsTermsEnumTest
 
       assertEquals(
           msg("Term map sizes differ (stopped: " + excludeStopwords + ")."),
-          tfMap.size(), dftMap.size()
+          (long) tfMap.size(), (long) dftMap.size()
       );
       assertTrue(msg("Not all terms are present (stopped: " + excludeStopwords
               + ")."),
@@ -220,7 +222,7 @@ public final class DocFieldsTermsEnumTest
       for (final Entry<ByteArray, Long> tfEntry : tfMap.entrySet()) {
         assertEquals(
             msg("Term frequency values differ (stopped: " + excludeStopwords +
-                "). docId=" + docId + " term=" + tfEntry.toString()),
+                "). docId=" + docId + " term=" + tfEntry),
             tfEntry.getValue(), dftMap.get(tfEntry.getKey())
         );
       }

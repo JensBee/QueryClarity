@@ -55,6 +55,38 @@ public final class TimeMeasure {
   }
 
   /**
+   * Get a string representation of the elapsed time formatted as <tt>DDd
+   * HH:MM:SS</tt> string.
+   *
+   * @param elapsedTime Elapsed seconds to convert
+   * @return Formatted elapsed time string
+   */
+  public static String getTimeString(final long elapsedTime) {
+    final StringBuilder timeStr = new StringBuilder(20);
+
+    final int day = (int) TimeUnit.SECONDS.toDays(elapsedTime);
+    final long hours =
+        TimeUnit.SECONDS.toHours(elapsedTime) - ((long) day * 24L);
+    final long minutes = TimeUnit.SECONDS.toMinutes(elapsedTime)
+        - (TimeUnit.SECONDS.toHours(elapsedTime) * 60L);
+    final long seconds = TimeUnit.SECONDS.toSeconds(elapsedTime)
+        - (TimeUnit.SECONDS.toMinutes(elapsedTime) * 60L);
+
+    if (day > 0) {
+      timeStr.append(day).append("d ").append(hours).append("h ").append(
+          minutes).append("m ").append(seconds).append('s');
+    } else if (hours > 0L) {
+      timeStr.append(hours).append("h ").append(minutes).append("m ").append(
+          seconds).append('s');
+    } else if (minutes > 0L) {
+      timeStr.append(minutes).append("m ").append(seconds).append('s');
+    } else {
+      timeStr.append(seconds).append('s');
+    }
+    return timeStr.toString();
+  }
+
+  /**
    * Start the time measurement. If the measurement was paused, it will continue
    * measuring. If it was stopped before it will be reset.
    *
@@ -90,7 +122,7 @@ public final class TimeMeasure {
    * @return Elapsed nanoseconds
    */
   private long getNanos() {
-    return System.nanoTime() - startTime;
+    return System.nanoTime() - this.startTime;
   }
 
   /**
@@ -114,7 +146,7 @@ public final class TimeMeasure {
    */
   public double getElapsedMillis() {
     final double nanos = getElapsedNanos();
-    return nanos > 0 ? nanos / 1000000.0 : 0d;
+    return nanos > 0d ? nanos / 1000000.0 : 0d;
   }
 
   /**
@@ -123,15 +155,15 @@ public final class TimeMeasure {
    * @return elapsed nanoseconds, or <tt>0</tt> if no time was recorded
    */
   public double getElapsedNanos() {
-    double nanos;
-    if (!this.stopped) {
-      nanos = this.elapsed + getNanos();
-    } else {
-      if (this.elapsed > 0) {
-        nanos = this.elapsed;
+    final double nanos;
+    if (this.stopped) {
+      if (this.elapsed > 0L) {
+        nanos = (double) this.elapsed;
       } else {
         nanos = 0d;
       }
+    } else {
+      nanos = (double) (this.elapsed + getNanos());
     }
     return nanos;
   }
@@ -147,43 +179,12 @@ public final class TimeMeasure {
   }
 
   /**
-   * Get a string representation of the elapsed time formatted as <tt>DDd
-   * HH:MM:SS</tt> string.
-   *
-   * @param elapsedTime Elapsed seconds to convert
-   * @return Formatted elapsed time string
-   */
-  public static String getTimeString(final long elapsedTime) {
-    final StringBuilder timeStr = new StringBuilder(20);
-
-    final int day = (int) TimeUnit.SECONDS.toDays(elapsedTime);
-    final long hours = TimeUnit.SECONDS.toHours(elapsedTime) - (day * 24L);
-    final long minutes = TimeUnit.SECONDS.toMinutes(elapsedTime)
-        - (TimeUnit.SECONDS.toHours(elapsedTime) * 60L);
-    final long seconds = TimeUnit.SECONDS.toSeconds(elapsedTime)
-        - (TimeUnit.SECONDS.toMinutes(elapsedTime) * 60L);
-
-    if (day > 0) {
-      timeStr.append(day).append("d ").append(hours).append("h ").append(
-          minutes).append("m ").append(seconds).append('s');
-    } else if (hours > 0) {
-      timeStr.append(hours).append("h ").append(minutes).append("m ").append(
-          seconds).append('s');
-    } else if (minutes > 0) {
-      timeStr.append(minutes).append("m ").append(seconds).append('s');
-    } else {
-      timeStr.append(seconds).append('s');
-    }
-    return timeStr.toString();
-  }
-
-  /**
    * Get the elapsed seconds of the current measurement.
    *
-   * @return elapsed seconds, or <tt>0</tt> if no time was recorded
+   * @return elapsed seconds, or {@code 0} if no time was recorded
    */
   public double getElapsedSeconds() {
     final double nanos = getElapsedNanos();
-    return nanos > 0 ? nanos / 1000000000.0 : 0d;
+    return nanos > 0d ? nanos / 1000000000.0 : 0d;
   }
 }

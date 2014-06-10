@@ -18,9 +18,11 @@ package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.Tuple;
+import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.util.RandomValue;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.util.CharArraySet;
 
 import java.io.UnsupportedEncodingException;
 import java.util.Collection;
@@ -31,18 +33,12 @@ import java.util.HashSet;
  *
  * @author Jens Bertram
  */
-public final class IndexTestUtil {
-
-  /**
-   * Logger instance for this class.
-   */
-  private static final Logger LOG = LoggerFactory.getLogger(
-      IndexTestUtil.class);
+public final class IndexTestUtils {
 
   /**
    * Private constructor for utility class.
    */
-  private IndexTestUtil() {
+  private IndexTestUtils() {
     // empty
   }
 
@@ -84,11 +80,14 @@ public final class IndexTestUtil {
    */
   public static Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>>
   generateTermData(final IndexDataProvider index,
-      final Integer documentId, String key, final int amount)
+      final Integer documentId, final String key, final int amount)
       throws UnsupportedEncodingException {
     assert amount > 0;
+    final String finalKey;
     if (key == null) {
-      key = RandomValue.getString(1, 5);
+      finalKey = RandomValue.getString(1, 5);
+    } else {
+      finalKey = key;
     }
 
     final Collection<Tuple.Tuple3<Integer, ByteArray, String>> unique
@@ -106,21 +105,43 @@ public final class IndexTestUtil {
     }
 
     for (int i = 0; i < amount; ) {
-      int docId;
+      final int docId;
       if (documentId == null) {
         docId = RandomValue.getInteger(minDocId, maxDocId);
       } else {
         docId = documentId;
       }
-      @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
+      @SuppressWarnings("ObjectAllocationInLoop")
       final ByteArray term = new ByteArray(RandomValue.getString(1, 20).
           getBytes("UTF-8"));
       final int val = RandomValue.getInteger();
-      if (unique.add(Tuple.tuple3(docId, term, key)) && termData.add(Tuple.
-          tuple4(docId, term, key, val))) {
+      if (unique.add(Tuple.tuple3(docId, term, finalKey)) && termData.add(Tuple.
+          tuple4(docId, term, finalKey, val))) {
         i++; // ensure only unique items are added
       }
     }
     return termData;
+  }
+
+  /**
+   * Get a {@link StandardAnalyzer} initialized with the supplied stopwords
+   * set.
+   *
+   * @param stopwords List of stopwords to set
+   * @return Analyzer with current stopwords set
+   */
+  public static Analyzer getAnalyzer(final Collection<String> stopwords) {
+    return new StandardAnalyzer(LuceneDefaults.VERSION,
+        new CharArraySet(LuceneDefaults.VERSION, stopwords, true)
+    );
+  }
+
+  /**
+   * Get a {@link StandardAnalyzer} without any stopwords set.
+   *
+   * @return Analyzer
+   */
+  public static Analyzer getAnalyzer() {
+    return new StandardAnalyzer(LuceneDefaults.VERSION, CharArraySet.EMPTY_SET);
   }
 }

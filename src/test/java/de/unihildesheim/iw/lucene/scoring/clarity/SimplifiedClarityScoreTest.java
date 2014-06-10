@@ -20,6 +20,7 @@ import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.lucene.index.FixedTestIndexDataProvider;
+import de.unihildesheim.iw.lucene.index.IndexTestUtils;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import org.junit.Assert;
@@ -48,31 +49,6 @@ public final class SimplifiedClarityScoreTest
    */
   private static final FixedTestIndexDataProvider FIXED_INDEX =
       FixedTestIndexDataProvider.getInstance();
-
-  private SimplifiedClarityScore.Builder getInstanceBuilder()
-      throws IOException {
-    return new SimplifiedClarityScore.Builder()
-        .indexReader(FixedTestIndexDataProvider.TMP_IDX.getReader())
-        .indexDataProvider(FIXED_INDEX);
-  }
-
-  /**
-   * Get the amount of times a string is in a list of strings.
-   *
-   * @param coll String collection to search
-   * @param term Term to search for
-   * @return Times the term is found in the collection
-   */
-  private int timesInCollection(final List<String> coll,
-      final String term) {
-    int counter = 0;
-    for (final String aTerm : coll) {
-      if (term.equals(aTerm)) {
-        counter++;
-      }
-    }
-    return counter;
-  }
 
   /**
    * Test of calculateClarity method, of class SimplifiedClarityScore.
@@ -108,5 +84,31 @@ public final class SimplifiedClarityScoreTest
       score += qMod * MathUtils.log2(qMod / relTf);
     }
     Assert.assertEquals(score, result.getScore(), DELTA_SCORE);
+  }
+
+  private SimplifiedClarityScore.Builder getInstanceBuilder()
+      throws IOException {
+    return new SimplifiedClarityScore.Builder()
+        .indexReader(FixedTestIndexDataProvider.TMP_IDX.getReader())
+        .analyzer(IndexTestUtils.getAnalyzer())
+        .indexDataProvider(FIXED_INDEX);
+  }
+
+  /**
+   * Get the amount of times a string is in a list of strings.
+   *
+   * @param coll String collection to search
+   * @param term Term to search for
+   * @return Times the term is found in the collection
+   */
+  private int timesInCollection(final List<String> coll,
+      final String term) {
+    int counter = 0;
+    for (final String aTerm : coll) {
+      if (term.equals(aTerm)) {
+        counter++;
+      }
+    }
+    return counter;
   }
 }

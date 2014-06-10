@@ -34,34 +34,34 @@ import java.util.Collection;
  *
  * @author Jens Bertram
  */
-public class PersistenceTest
+public final class PersistenceTest
     extends TestCase {
 
   /**
    * Create a temporary directory. Will be deleted after tests have finished.
    */
+  @SuppressWarnings("PublicField")
   @Rule
   public TemporaryFolder tmpDir = new TemporaryFolder();
 
   /**
-   * Test for {@link Persistence#tryCreateDataPath(String)}.
-   * <p/>
-   * Check illegal arguments for target path.
+   * Test for {@link Persistence#tryCreateDataPath(String)}. <br> Check illegal
+   * arguments for target path.
    *
-   * @throws Exception
+   * @throws Exception Any exception thrown indicates an error
    */
   @Test
   public void testTryCreateDataPath_fail()
       throws Exception {
-    final Collection<String> illegalArguments = new ArrayList<>();
+    final Collection<String> illegalArguments = new ArrayList<>(2);
     illegalArguments.add("");
     illegalArguments.add("  ");
 
-    for (String arg : illegalArguments) {
+    for (final String arg : illegalArguments) {
       try {
         Persistence.tryCreateDataPath(arg);
         Assert.fail("Expected an Exception to be thrown.");
-      } catch (IllegalArgumentException e) {
+      } catch (final IllegalArgumentException e) {
         // pass
       }
     }
@@ -69,68 +69,72 @@ public class PersistenceTest
     try {
       Persistence.tryCreateDataPath(null);
       Assert.fail("Expected an Exception to be thrown.");
-    } catch (NullPointerException e) {
+    } catch (final NullPointerException e) {
       // pass
     }
   }
 
   /**
-   * Test for {@link Persistence#tryCreateDataPath(String)}.
-   * <p/>
-   * Target directory already exists as a file with same name.
+   * Test for {@link Persistence#tryCreateDataPath(String)}. <br> Target
+   * directory already exists as a file with same name.
    *
-   * @throws Exception
+   * @throws Exception Any exception thrown indicates an error
    */
   @Test
   public void testTryCreateDataPath_existsAsFile()
       throws Exception {
     final String fName = "testCreateExistAsFile";
-    tmpDir.newFile(fName);
-    final String path = FileUtils.makePath(tmpDir.getRoot().getPath()) + fName;
+    this.tmpDir.newFile(fName);
+    final String path =
+        FileUtils.makePath(this.tmpDir.getRoot().getPath()) + fName;
     try {
       Persistence.tryCreateDataPath(path);
       Assert.fail("Expected an Exception to be thrown.");
-    } catch (IOException e) {
+    } catch (final IOException e) {
       // pass
     }
   }
 
   /**
-   * Test for {@link Persistence#tryCreateDataPath(String)}.
-   * <p/>
-   * Test create single directory.
+   * Test for {@link Persistence#tryCreateDataPath(String)}. <br> Test create
+   * single directory.
    *
-   * @throws Exception
+   * @throws Exception Any exception thrown indicates an error
    */
   @Test
   public void testTryCreateDataPath_single()
       throws Exception {
-    final String path = FileUtils.makePath(tmpDir.getRoot().getPath()) +
+    final String path = FileUtils.makePath(this.tmpDir.getRoot().getPath()) +
         "testCreate";
     Persistence.tryCreateDataPath(path);
   }
 
   /**
-   * Test for {@link Persistence#tryCreateDataPath(String)}.
-   * <p/>
-   * Test create multiple subdirectories at once.
+   * Test for {@link Persistence#tryCreateDataPath(String)}. <br> Test create
+   * multiple subdirectories at once.
    *
-   * @throws Exception
+   * @throws Exception Any exception thrown indicates an error
    */
   @Test
   public void testTryCreateDataPath_multiple()
       throws Exception {
-    final String path = FileUtils.makePath(tmpDir.getRoot().getPath()) +
+    final String path = FileUtils.makePath(this.tmpDir.getRoot().getPath()) +
         "testCreate0" + File.separatorChar + "testCreate1" + File
         .separatorChar + "testCreate2";
     Persistence.tryCreateDataPath(path);
   }
 
+  /**
+   * Test building a {@link Persistence} instance.
+   *
+   * @throws Exception Any exception thrown indicates an error
+   */
   @Test
   public void testBuild()
       throws Exception {
-    final String dataPath = FileUtils.makePath(tmpDir.getRoot().getPath()) +
-        "data";
+    final String dataPath =
+        FileUtils.makePath(this.tmpDir.getRoot().getPath()) +
+            "data";
 
     final Persistence.Builder pb = new Persistence.Builder();
     pb.dataPath(dataPath);

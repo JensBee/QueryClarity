@@ -25,6 +25,7 @@ import de.unihildesheim.iw.util.RandomValue;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -50,14 +51,14 @@ public class FixedTestIndexDataProviderTest
 
   @Test
   public void testDispose() {
-    INSTANCE.dispose();
+    INSTANCE.close();
   }
 
   @Test
   public void testIsDisposed() {
     Assert.assertFalse("Instance is able to be disposed.",
         INSTANCE.isDisposed());
-    INSTANCE.dispose();
+    INSTANCE.close();
     Assert.assertFalse("Instance is able to be disposed.",
         INSTANCE.isDisposed());
   }
@@ -67,19 +68,21 @@ public class FixedTestIndexDataProviderTest
     final Set<String> fields = INSTANCE.getDocumentFields();
     Assert.assertFalse("Empty fields list.", fields.isEmpty());
     Assert.assertEquals("Field count mismatch.",
-        FixedTestIndexDataProvider.KnownData.FIELD_COUNT,
-        fields.size());
+        (long) FixedTestIndexDataProvider.KnownData.FIELD_COUNT,
+        (long) fields.size());
   }
 
+  @SuppressWarnings("ObjectAllocationInLoop")
   @Test
   public void testGetDocumentFrequency()
       throws Exception {
     for (final String term : FixedTestIndexDataProvider.KnownData.IDX_TERMFREQ
         .keySet()) {
       Assert.assertEquals("Document frequency mismatch. t=" + term,
-          FixedTestIndexDataProvider.KnownData
-              .IDX_DOCFREQ.get(term).intValue(),
-          INSTANCE.getDocumentFrequency(new ByteArray(term.getBytes("UTF-8")))
+          (long) FixedTestIndexDataProvider.KnownData
+              .IDX_DOCFREQ.get(term),
+          (long) INSTANCE.getDocumentFrequency(
+              new ByteArray(term.getBytes("UTF-8")))
       );
     }
   }
@@ -93,7 +96,7 @@ public class FixedTestIndexDataProviderTest
   @Test
   public void testGetDocumentCount() {
     Assert.assertEquals("Document count mismatch.",
-        FixedTestIndexDataProvider.KnownData.DOC_COUNT,
+        (long) FixedTestIndexDataProvider.KnownData.DOC_COUNT,
         INSTANCE.getDocumentCount());
   }
 
@@ -107,7 +110,7 @@ public class FixedTestIndexDataProviderTest
           FixedTestIndexDataProvider.KnownData.DOC_COUNT) {
         break;
       } else if (!INSTANCE.hasDocument(i) && i < 0) {
-        continue;
+        // pass
       } else {
         Assert.assertTrue("Document id not found. id=" + i,
             INSTANCE.hasDocument(i));
@@ -117,7 +120,7 @@ public class FixedTestIndexDataProviderTest
 
   @Test
   public void testGetDocumentsTermSet() {
-    final Set<Integer> docIds = new HashSet<>(
+    final Collection<Integer> docIds = new HashSet<>(
         FixedTestIndexDataProvider.KnownData.DOC_COUNT);
     for (int i = 0; i < FixedTestIndexDataProvider.KnownData.DOC_COUNT; i++) {
       docIds
@@ -128,8 +131,8 @@ public class FixedTestIndexDataProviderTest
     final Set<ByteArray> docTerms;
     docTerms = INSTANCE.getDocumentsTermSet(docIds);
     boolean found = false;
-    for (ByteArray term : docTerms) {
-      for (Integer docId : docIds) {
+    for (final ByteArray term : docTerms) {
+      for (final Integer docId : docIds) {
         if (INSTANCE.documentContains(docId, term)) {
           found = true;
           break;
@@ -148,7 +151,7 @@ public class FixedTestIndexDataProviderTest
   public void testGetDocumentModel() {
     for (int i = 0; i < FixedTestIndexDataProvider.KnownData.DOC_COUNT; i++) {
       final DocumentModel docModel = INSTANCE.getDocumentModel(i);
-      for (ByteArray term : docModel.termFreqMap.keySet()) {
+      for (final ByteArray term : docModel.getTermFreqMap().keySet()) {
         Assert.assertTrue("Term in model, but not in index.", INSTANCE
             .documentContains(i, term));
       }

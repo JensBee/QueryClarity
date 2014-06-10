@@ -26,23 +26,19 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
  * applications such as atomic accumulation, and cannot be used as a replacement
  * for a {@link Double}. However, this class does extend {@code Number} to allow
  * uniform access by tools and utilities that deal with numerically-based
- * classes.
- * <p/>
- * <p/>
- * This class compares primitive {@code double} values in methods such as {@link
- * #compareAndSet} by comparing their bitwise representation using {@link
- * Double#doubleToRawLongBits}, which differs from both the primitive double
- * {@code ==} operator and from {@link Double#equals}, as if implemented by:
+ * classes. <br> <br> This class compares primitive {@code double} values in
+ * methods such as {@link #compareAndSet} by comparing their bitwise
+ * representation using {@link Double#doubleToRawLongBits}, which differs from
+ * both the primitive double {@code ==} operator and from {@link Double#equals},
+ * as if implemented by:
  * <pre> {@code
  * static boolean bitEquals(double x, double y) {
  *   long xBits = Double.doubleToRawLongBits(x);
  *   long yBits = Double.doubleToRawLongBits(y);
  *   return xBits == yBits;
  * }}</pre>
- * <p/>
- * <p/>
- * It is possible to write a more scalable updater, at the cost of giving up
- * strict atomicity. See for example <a href="http://gee.cs.oswego
+ * <br> <br> It is possible to write a more scalable updater, at the cost of
+ * giving up strict atomicity. See for example <a href="http://gee.cs.oswego
  * .edu/dl/jsr166/dist/jsr166edocs/jsr166e/DoubleAdder.html"> DoubleAdder</a>
  * and <a href="http://gee.cs.oswego
  * .edu/dl/jsr166/dist/jsr166edocs/jsr166e/DoubleMaxUpdater.html">
@@ -57,17 +53,15 @@ public final class AtomicDouble
    * Serialization id.
    */
   private static final long serialVersionUID = 1041898478390238059L;
-
-  /**
-   * Current value.
-   */
-  private transient volatile long value;
-
   /**
    * Updater to atomatically set a new value.
    */
   private static final AtomicLongFieldUpdater<AtomicDouble> UPDATER
       = AtomicLongFieldUpdater.newUpdater(AtomicDouble.class, "value");
+  /**
+   * Current value.
+   */
+  private transient volatile long value;
 
   /**
    * Creates a new {@code AtomicDouble} with the given initial value.
@@ -75,7 +69,6 @@ public final class AtomicDouble
    * @param initialValue the initial value
    */
   public AtomicDouble(final double initialValue) {
-    super();
     this.value = Double.doubleToRawLongBits(initialValue);
   }
 
@@ -83,26 +76,7 @@ public final class AtomicDouble
    * Creates a new {@code AtomicDouble} with initial value {@code 0.0}.
    */
   public AtomicDouble() {
-    super();
     assert Double.doubleToRawLongBits(0.0) == 0L;
-  }
-
-  /**
-   * Gets the current value.
-   *
-   * @return the current value
-   */
-  public double get() {
-    return Double.longBitsToDouble(this.value);
-  }
-
-  /**
-   * Sets to the given value.
-   *
-   * @param newValue the new value
-   */
-  public void set(final double newValue) {
-    this.value = Double.doubleToRawLongBits(newValue);
   }
 
   /**
@@ -112,7 +86,7 @@ public final class AtomicDouble
    */
   public void lazySet(final double newValue) {
     final long next = Double.doubleToRawLongBits(newValue);
-    AtomicDouble.UPDATER.lazySet(this, next);
+    UPDATER.lazySet(this, next);
   }
 
   /**
@@ -123,7 +97,7 @@ public final class AtomicDouble
    */
   public double getAndSet(final double newValue) {
     final long next = Double.doubleToRawLongBits(newValue);
-    return Double.longBitsToDouble(AtomicDouble.UPDATER.getAndSet(this, next));
+    return Double.longBitsToDouble(UPDATER.getAndSet(this, next));
   }
 
   /**
@@ -135,18 +109,17 @@ public final class AtomicDouble
    * @return {@code true} if successful. False return indicates that the actual
    * value was not bitwise equal to the expected value.
    */
+  @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
   public boolean compareAndSet(final double expect,
       final double update) {
-    return AtomicDouble.UPDATER.compareAndSet(this,
+    return UPDATER.compareAndSet(this,
         Double.doubleToRawLongBits(expect),
         Double.doubleToRawLongBits(update));
   }
 
   /**
    * Atomically sets the value to the given updated value if the current value
-   * is <a href="#bitEquals">bitwise equal</a> to the expected value.
-   * <p/>
-   * <p/>
+   * is <a href="#bitEquals">bitwise equal</a> to the expected value. <br> <br>
    * May <a href="http://download.oracle
    * .com/javase/7/docs/api/java/util/concurrent/atomic/package-summary
    * .html#Spurious"> fail spuriously</a> and does not provide ordering
@@ -157,9 +130,10 @@ public final class AtomicDouble
    * @param update the new value
    * @return {@code true} if successful
    */
+  @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
   public boolean weakCompareAndSet(final double expect,
       final double update) {
-    return AtomicDouble.UPDATER
+    return UPDATER
         .weakCompareAndSet(this, Double.doubleToRawLongBits(
                 expect),
             Double.doubleToRawLongBits(update)
@@ -178,7 +152,7 @@ public final class AtomicDouble
       final double currentVal = Double.longBitsToDouble(current);
       final double nextVal = currentVal + delta;
       final long next = Double.doubleToRawLongBits(nextVal);
-      if (AtomicDouble.UPDATER.compareAndSet(this, current, next)) {
+      if (UPDATER.compareAndSet(this, current, next)) {
         return currentVal;
       }
     }
@@ -196,7 +170,7 @@ public final class AtomicDouble
       final double currentVal = Double.longBitsToDouble(current);
       final double nextVal = currentVal + delta;
       final long next = Double.doubleToRawLongBits(nextVal);
-      if (AtomicDouble.UPDATER.compareAndSet(this, current, next)) {
+      if (UPDATER.compareAndSet(this, current, next)) {
         return nextVal;
       }
     }
@@ -210,6 +184,15 @@ public final class AtomicDouble
   @Override
   public String toString() {
     return Double.toString(get());
+  }
+
+  /**
+   * Gets the current value.
+   *
+   * @return the current value
+   */
+  public double get() {
+    return Double.longBitsToDouble(this.value);
   }
 
   /**
@@ -280,5 +263,14 @@ public final class AtomicDouble
              ClassNotFoundException {
     s.defaultReadObject();
     set(s.readDouble());
+  }
+
+  /**
+   * Sets to the given value.
+   *
+   * @param newValue the new value
+   */
+  public void set(final double newValue) {
+    this.value = Double.doubleToRawLongBits(newValue);
   }
 }

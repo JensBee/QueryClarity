@@ -35,10 +35,23 @@ public class CliBase {
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(CliBase.class);
-  protected final DefaultCliParams defaultCliParams;
+  /**
+   * Object holding default commandline parameters.
+   */
+  @SuppressWarnings("PackageVisibleField")
+  final DefaultCliParams defaultCliParams;
+  /**
+   * Header banner for cli output.
+   */
   private final String header;
+  /**
+   * Info banner for cli output.
+   */
   private final String info;
-  private boolean helpPrinted = false;
+  /**
+   * True, if help was already printed.
+   */
+  private boolean helpPrinted;
 
   /**
    * Initialize the cli base class.
@@ -52,17 +65,32 @@ public class CliBase {
     this.defaultCliParams = new DefaultCliParams();
   }
 
+  /**
+   * Parse the commandline and print the help message.
+   *
+   * @param bean Bean containing cli params definitions
+   * @param args Commandline parameters
+   * @return Cli arguments parser instance
+   */
   protected CmdLineParser parseWithHelp(final Object bean,
       final String[] args) {
     final CmdLineParser parser = parse(bean, args);
 
-    if (!helpPrinted) {
+    if (!this.helpPrinted) {
       this.defaultCliParams.printHelpAndExit(parser, System.out, 0, false);
     }
     return parser;
   }
 
-  protected CmdLineParser parse(final Object bean, final String[] args) {
+  /**
+   * Parse the commandline and print a help message, if requested. Also quits
+   * the instance, if an error occurred.
+   *
+   * @param bean Bean containing cli params definitions
+   * @param args Commandline parameters
+   * @return Cli arguments parser instance
+   */
+  CmdLineParser parse(final Object bean, final String[] args) {
     final CmdLineParser parser = new CmdLineParser(this.defaultCliParams);
     final ClassParser beanOpts = new ClassParser();
     beanOpts.parse(bean, parser);
@@ -71,12 +99,12 @@ public class CliBase {
 
     try {
       parser.parseArgument(args);
-    } catch (CmdLineException ex) {
+    } catch (final CmdLineException ex) {
       if (this.defaultCliParams.printHelp) {
         // succeeds in case help is requested
         printInfo(System.out);
         parser.printUsage(System.out);
-        helpPrinted = true;
+        this.helpPrinted = true;
       } else {
         // succeeds, if there is an error
         LOG.error(ex.getMessage());
@@ -92,7 +120,7 @@ public class CliBase {
    *
    * @param out Output stream
    */
-  protected void printHeader(final PrintStream out) {
+  void printHeader(final PrintStream out) {
     out.println(this.header);
   }
 
@@ -101,17 +129,22 @@ public class CliBase {
    *
    * @param out Output stream
    */
-  protected void printInfo(final PrintStream out) {
+  void printInfo(final PrintStream out) {
     out.println(this.info);
   }
 
   /**
    * Default commandline parameters shared by all instances.
    */
+  @SuppressWarnings("ProtectedInnerClass")
   protected final class DefaultCliParams {
+    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-h", aliases = "--help", usage = "Usage help",
         required = false)
-    boolean printHelp;
+    /**
+     * True, if help message was requested.
+     */
+        boolean printHelp;
 
     /**
      * Prints a help string and exists, if requested by cli params.
@@ -122,9 +155,9 @@ public class CliBase {
      * @param force If true, printing is forces, regardless if it's requested by
      * cli param
      */
-    protected void printHelpAndExit(final CmdLineParser parser,
+    void printHelpAndExit(final CmdLineParser parser,
         final PrintStream out, final int exitCode, final boolean force) {
-      if (printHelp || force) {
+      if (this.printHelp || force) {
         printInfo(out);
         parser.printUsage(out);
         System.exit(exitCode);

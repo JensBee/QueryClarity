@@ -20,6 +20,7 @@ import java.text.BreakIterator;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -111,10 +112,10 @@ public final class StringUtils {
   public static Collection<String> split(final String str,
       final String separator) {
     Objects.requireNonNull(str, "String was null.");
-    Objects.requireNonNull(separator, "Seperator was null.");
+    Objects.requireNonNull(separator, "Separator was null.");
 
     if (str.isEmpty() || str.length() <= 1) {
-      return Arrays.asList(new String[]{str});
+      return Collections.singletonList(str);
     }
     return Arrays.asList(str.split(separator));
   }
@@ -126,9 +127,9 @@ public final class StringUtils {
    * @param input String to check
    * @return True, if String will be empty after stripping those characters
    */
-  public static boolean isTrimmedEmpty(final String input) {
+  public static boolean isTrimmedEmpty(final CharSequence input) {
     for (int i = 0; i < input.length(); i++) {
-      if (input.charAt(i) > ' ') {
+      if ((int) input.charAt(i) > (int) ' ') {
         return false;
       }
     }
@@ -148,7 +149,7 @@ public final class StringUtils {
     if (isStrippedEmpty(input) || isAllUpper(input)) {
       return input;
     }
-    final StringBuffer sb = new StringBuffer(input.length());
+    final StringBuilder sb = new StringBuilder(input.length());
     // manual transform to uppercase to avoid locale problems
     for (int i = 0; i < input.length(); i++) {
       sb.append(Character.toChars(Character.toUpperCase(input.codePointAt(i))));
@@ -192,10 +193,9 @@ public final class StringUtils {
   }
 
   /**
-   * Counts the occurrence of words in the given string.
-   * <p/>
-   * Based on: http://tutorials.jenkov
-   * .com/java-internationalization/breakiterator.html#word-boundaries
+   * Counts the occurrence of words in the given string. <br> Based on:
+   * http://tutorials.jenkov .com/java-internationalization/breakiterator
+   * .html#word-boundaries
    *
    * @param text String to extract words from
    * @param locale Locale to use
@@ -206,6 +206,7 @@ public final class StringUtils {
     Objects.requireNonNull(text, "String was null.");
     Objects.requireNonNull(locale, "Locale was null.");
 
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
     final Map<String, Integer> wordCounts = new HashMap<>();
 
     // short circuit, if string is empty
@@ -219,7 +220,7 @@ public final class StringUtils {
     int wordBoundaryIndex = breakIterator.first();
     int prevIndex = 0;
     while (wordBoundaryIndex != BreakIterator.DONE) {
-      final String word = StringUtils.lowerCase(text.substring(prevIndex,
+      final String word = lowerCase(text.substring(prevIndex,
           wordBoundaryIndex));
       if (isWord(word)) {
         Integer wordCount = wordCounts.get(word);
@@ -249,7 +250,7 @@ public final class StringUtils {
     if (isStrippedEmpty(input) || isAllLower(input)) {
       return input;
     }
-    final StringBuffer sb = new StringBuffer(input.length());
+    final StringBuilder sb = new StringBuilder(input.length());
     // manual transform to lowercase to avoid locale problems
     for (int i = 0; i < input.length(); i++) {
       sb.append(Character.toChars(Character.toLowerCase(input.codePointAt(i))));
@@ -266,8 +267,6 @@ public final class StringUtils {
    * @return True, if it's a character or number
    */
   private static boolean isWord(final String word) {
-    assert word != null;
-
     if (word == null) {
       return false;
     }

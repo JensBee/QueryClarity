@@ -55,7 +55,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -68,7 +67,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.ConcurrentMap;
 
 /**
  * {@link IndexDataProvider} implementation directly accessing the Lucene index
@@ -80,245 +78,92 @@ public final class DirectIndexDataProvider
     extends AbstractIndexDataProvider {
 
   /**
-   * Prefix used to store configuration.
+   * Prefix used to store {@link GlobalConfiguration configuration} data.
    */
-  public static final String IDENTIFIER = "DirectIDP";
+  static final String IDENTIFIER = "DirectIDP";
 
   /**
    * Logger instance for this class.
    */
-  static final Logger LOG = LoggerFactory.getLogger(
-      DirectIndexDataProvider.class);
-
+  static final Logger LOG =
+      LoggerFactory.getLogger(DirectIndexDataProvider.class);
   /**
-   * Persistent disk backed storage backend.
+   * Data storage encapsulating class.
    */
-  private DB dbStatic;
-
-  /**
-   * Transient disk backed storage backend.
-   */
-  private DB dbTransient;
-
+  private final Cache cache;
   /**
    * Wrapper for persistent data storage (static data).
    */
-  private Persistence persistStatic;
-
+  private volatile Persistence persistStatic;
   /**
    * Wrapper for persistent data storage (transient data).
    */
-  private Persistence persistTransient;
+  private volatile Persistence persistTransient;
 
   /**
-   * Default constructor.
-   *
-   * @param isTemporary If true, data is held temporary only.
-   */
-  private DirectIndexDataProvider(final boolean isTemporary) {
-    super(isTemporary);
-  }
-
-  /**
-   * Builder method to create a new instance.
+   * Builder based constructor.
    *
    * @param builder Builder to use for constructing the instance
-   * @return New instance
    * @throws Buildable.BuildException Thrown, if initializing the instance with
    * the provided builder has failed
    * @throws DataProviderException Thrown, if initializing the instance data
    * failed
    */
-  static DirectIndexDataProvider build(final Builder builder)
-      throws DataProviderException, Buildable.BuildException {
-    Objects.requireNonNull(builder, "Builder was null.");
-
-    final DirectIndexDataProvider instance = new DirectIndexDataProvider
-        (builder.isTemporary);
+  DirectIndexDataProvider(final Builder builder)
+      throws Buildable.BuildException, DataProviderException {
+    super(Objects.requireNonNull(builder, "Builder was null.").isTemporary);
 
     // set configuration
-    instance.setIndexReader(builder.idxReader);
-    instance.setDocumentFields(builder.documentFields);
-    instance.setLastIndexCommitGeneration(builder.lastCommitGeneration);
+    this.setIndexReader(builder.idxReader);
+    this.setDocumentFields(builder.documentFields);
+    this.setLastIndexCommitGeneration(builder.lastCommitGeneration);
     try {
-      instance.setStopwords(builder.stopwords);
+      this.setStopwords(builder.stopwords);
     } catch (final UnsupportedEncodingException e) {
       throw new Buildable.BuildException("Error parsing stopwords.", e);
     }
 
     // initialize
     try {
-      instance.initCache(builder);
-    } catch (Buildable.BuildableException | IOException e) {
-      throw new DataProviderException("Failed to initialize cache.", e);
+      this.cache = new Cache(builder);
+    } catch (final Buildable.BuildableException |
+        ProcessingException | IOException e) {
+      this.close();
+      throw new DataProviderException.CacheException(
+          "Failed to initialize cache.", e);
     }
 
     if (builder.doWarmUp) {
-      instance.warmUp();
-    }
-
-    return instance;
-  }
-
-  /**
-   * Initialize the database with a default configuration.
-   *
-   * @param builder Builder instance
-   * @throws IOException Thrown on low-level I/O errors
-   * @throws Buildable.BuildableException Thrown if {@link Persistence}
-   * initialization fails
-   * @throws DataProviderException Thrown, if the cache building failed
-   */
-  private void initCache(final Builder builder)
-      throws IOException, Buildable.BuildableException, DataProviderException {
-    boolean clearTmpCache = false; // clear temporary caches
-    boolean needsUpdate = false; // persistent index needs update
-
-    final Persistence.Builder psb = builder.persistenceBuilder;
-
-    switch (psb.getCacheLoadInstruction()) {
-      case MAKE:
-        this.persistStatic = psb.make().build();
-        clearTmpCache = true;
-        needsUpdate = true;
-        break;
-      case GET:
-        this.persistStatic = psb.get().build();
-        break;
-      default:
-        if (!psb.dbExists()) {
-          clearTmpCache = true;
-          needsUpdate = true;
-        }
-        this.persistStatic = psb.makeOrGet().build();
-        break;
-    }
-
-    this.dbStatic = this.persistStatic.db;
-    LOG.info("Opening transient database.");
-
-    if (!builder.persistenceBuilderTransient.dbExists()) {
-      clearTmpCache = true;
-    }
-    this.persistTransient = builder.persistenceBuilderTransient.build();
-    this.dbTransient = this.persistTransient.db;
-
-    if (!needsUpdate) {
-      if (!this.dbStatic.exists(DbMakers.Stores.IDX_TERMS_MAP.name())) {
-        throw new IllegalStateException(
-            "Invalid database state. 'idxTermsMap' does not exist.");
-      }
-
-      if (getLastIndexCommitGeneration() == null || !this.persistStatic
-          .getMetaData().hasGenerationValue()) {
-        LOG.warn("Index commit generation not available. Assuming an " +
-            "unchanged index!");
-      } else {
-        if (!this.persistStatic.getMetaData().generationCurrent(
-            getLastIndexCommitGeneration())) {
-          throw new IllegalStateException("Invalid database state. " +
-              "Index changed since last caching.");
-        }
-      }
-      // check, if fields have changed
-      if (!this.persistStatic.getMetaData()
-          .fieldsCurrent(getDocumentFields())) {
-        LOG.info("Fields changed. Caches needs to be rebuild.");
-        needsUpdate = true;
-      }
-    }
-
-    // check, if stopwords have changed
-    if (this.persistTransient.getMetaData().stopwordsCurrent(getStopwords())) {
-      LOG.info("Stopwords ({}) unchanged.", getStopwords().size());
-    } else {
-      LOG.info("Stopwords changed. Caches needs to be rebuild.");
-      clearTmpCache = true;
-    }
-
-    if (isTemporary()) {
-      setCachedFieldsMap(
-          new HashMap<String, SerializableByte>(getDocumentFields().size()));
-    } else {
-      setCachedFieldsMap(DbMakers.cachedFieldsMapMaker(this.dbStatic)
-          .<String, SerializableByte>makeOrGet());
-    }
-
-    if (!needsUpdate && getCachedFieldsMap().isEmpty()) {
-      throw new IllegalStateException("Cached fields map is empty. Index " +
-          "is corrupted.");
-    }
-
-    LOG.debug("Fields: cached={} active={}", getCachedFieldsMap().keySet(),
-        getDocumentFields());
-
-    setIdxDocTermsMap(DbMakers.idxDocTermsMapMkr(this.dbStatic)
-        .<Fun.Tuple3<ByteArray, SerializableByte, Integer>,
-            Integer>makeOrGet());
-    setIdxTermsMap(DbMakers.idxTermsMapMkr(this.dbStatic)
-        .<Fun.Tuple2<SerializableByte, ByteArray>, Long>makeOrGet());
-
-    // caches are current
-    if (!clearTmpCache) {
-      // read cached values
-      readDbCaches();
-
-      // finally check if any fields failed to index, returns true,
-      // if any fields have been removed
-      needsUpdate = checkForIncompleteIndexedFields();
-    }
-
-    // caches are not current, or their have been incomplete indexed fields
-    if (clearTmpCache) {
-      // re-create cached values
-      clearDbCaches();
-    }
-
-    if (needsUpdate) {
       try {
-        buildCache(getDocumentFields());
-        this.persistTransient
-            .updateMetaData(getDocumentFields(), getStopwords());
-        commitDb(false);
-      } catch (final ProcessingException e) {
-        throw new DataProviderException("Cache building failed.", e);
+        this.warmUp();
+      } catch (final DataProviderException e) {
+        this.close();
+        throw e;
       }
-    }
-
-    // re-open database read-only
-    LOG.info("Re-opening static information storage read-only.");
-    this.dbStatic.close();
-    this.persistStatic = psb.readOnly().get().build();
-    this.dbStatic = this.persistStatic.db;
-
-    if (!isTemporary()) {
-      setCachedFieldsMap(DbMakers.cachedFieldsMapMaker(this.dbStatic)
-          .<String, SerializableByte>makeOrGet());
-      setIdxDocTermsMap(DbMakers.idxDocTermsMapMkr(this.dbStatic)
-          .<Fun.Tuple3<ByteArray, SerializableByte, Integer>,
-              Integer>makeOrGet());
-      setIdxTermsMap(DbMakers.idxTermsMapMkr(this.dbStatic)
-          .<Fun.Tuple2<SerializableByte, ByteArray>, Long>makeOrGet());
-      readDbCaches();
     }
   }
 
   @Override
   public void warmUp()
       throws DataProviderException {
-    if (!cachesWarmed()) {
+    if (this.persistTransient == null) {
+      throw new DataProviderException("Cache not initialized.");
+    }
+
+    if (!areCachesWarmed()) {
       super.warmUp();
 
       if (getIdxTf() == null || getIdxTf() == 0) {
         throw new IllegalStateException("Zero term frequency.");
       }
 
-      if (this.dbTransient.exists(DbMakers.Caches.IDX_TF.name())) {
-        this.dbTransient.getAtomicLong(DbMakers.Caches.IDX_TF.name())
-            .set(getIdxTf());
+      if (this.persistTransient.getDb()
+          .exists(CacheDbMakers.Caches.IDX_TF.name())) {
+        this.persistTransient.getDb().getAtomicLong(
+            CacheDbMakers.Caches.IDX_TF.name()).set(getIdxTf());
       } else {
-        this.dbTransient
-            .createAtomicLong(DbMakers.Caches.IDX_TF.name(), getIdxTf());
+        this.persistTransient.getDb().createAtomicLong(
+            CacheDbMakers.Caches.IDX_TF.name(), getIdxTf());
       }
 
 
@@ -331,283 +176,7 @@ public final class DirectIndexDataProvider
       }
 
       this.persistTransient.updateMetaData(getDocumentFields(), getStopwords());
-      commitDb(false);
-    }
-  }
-
-  /**
-   * Read dynamic caches from the database and validate their state.
-   */
-  private void readDbCaches() {
-    // check if terms collector task has finished completely
-    if (this.dbTransient
-        .exists(DbMakers.Flags.IDX_TERMS_COLLECTING_RUN.name())) {
-      LOG.warn("Found incomplete terms index. This index will " +
-          "be deleted and rebuilt on warm-up.");
-      this.dbTransient.delete(DbMakers.Flags.IDX_TERMS_COLLECTING_RUN.name());
-      this.dbTransient.delete(DbMakers.Caches.IDX_TERMS.name());
-    }
-
-    // load terms index
-    setIdxTerms(
-        DbMakers.idxTermsMaker(this.dbTransient).<ByteArray>makeOrGet());
-    final int idxTermsSize = getIdxTerms().size();
-    if (idxTermsSize == 0) {
-      LOG.info("Index terms cache is empty. Will be rebuild on warm-up.");
-    } else {
-      LOG.info("Loaded index terms cache with {} entries.", idxTermsSize);
-    }
-
-    // try load overall term frequency
-    if (this.dbTransient.exists(DbMakers.Caches.IDX_TF.name())) {
-      setIdxTf(
-          this.dbTransient.getAtomicLong(DbMakers.Caches.IDX_TF.name()).get());
-      LOG.info("Term frequency value loaded ({}).", getIdxTf());
-    } else {
-      LOG.info("No term frequency value found. Will be re-calculated on " +
-          "warm-up.");
-      clearIdxTf();
-    }
-
-    // check if document-frequency calculation task has finished completely
-    if (this.dbTransient.exists(DbMakers.Flags.IDX_DOC_FREQ_CALC_RUN.name())) {
-      LOG.warn("Found incomplete document-frequency map. This map will " +
-          "be deleted and rebuilt on warm-up.");
-      this.dbTransient.delete(DbMakers.Flags.IDX_DOC_FREQ_CALC_RUN.name());
-      this.dbTransient.delete(DbMakers.Caches.IDX_DFMAP.name());
-    }
-    setIdxDfMap(DbMakers.idxDfMapMaker(this.dbTransient).<ByteArray,
-        Integer>makeOrGet());
-    if (getIdxDfMap().isEmpty()) {
-      LOG.info(
-          "Document-frequency cache is empty. Will be rebuild on warm-up.");
-    } else {
-      LOG.info("Loaded document-frequency cache with {} entries.",
-          getIdxDfMap().size());
-    }
-  }
-
-  /**
-   * Check, if field indexing was not completed in last run. Will remove any
-   * field data that is flagged as being incomplete (due to crashes,
-   * interruption, etc.).
-   * <p/>
-   * Cached data have to been loaded already to allow modifications.
-   *
-   * @return True, if indexed fields have changed
-   */
-  private boolean checkForIncompleteIndexedFields() {
-    if (!this.dbTransient.exists(DbMakers.Flags.IDX_FIELDS_BEING_INDEXED.name()
-    )) {
-      return false; // no changes
-    }
-
-    final Set<String> flaggedFields = this.dbTransient.createHashSet(DbMakers
-        .Flags.IDX_FIELDS_BEING_INDEXED.name()).makeOrGet();
-
-    if (flaggedFields.isEmpty()) {
-      return false; // no changes
-    } else {
-      for (final String field : flaggedFields) {
-        final SerializableByte fieldId = getFieldId(field);
-
-        // remove all field contents from persistent index terms map
-        final Iterator<ByteArray> idxTMapIt =
-            Fun.filter(getIdxTermsMap().keySet(), fieldId).iterator();
-        while (idxTMapIt.hasNext()) {
-          idxTMapIt.next();
-          idxTMapIt.remove();
-        }
-
-        // remove all field contents from persistent document terms map
-        for (final ByteArray term : getIdxTerms()) {
-          final Iterator<Integer> docTMapIt =
-              Fun.filter(getIdxDocTermsMap().keySet(), term, fieldId)
-                  .iterator();
-          while (docTMapIt.hasNext()) {
-            docTMapIt.next();
-            docTMapIt.remove();
-          }
-        }
-      }
-      LOG.warn("Incompletely index fields found ({}). This fields have been " +
-          "removed from cache. Cache rebuilding is needed.", flaggedFields);
-      commitDb(false);
-      return true; // fields were removed from cache
-    }
-  }
-
-  /**
-   * Clear all dynamic caches. This must be called, if the fields or stop-words
-   * have changed.
-   */
-  void clearDbCaches() {
-    LOG.info("Clearing temporary caches.");
-    // index terms cache (content depends on current fields & stopwords)
-    if (this.dbTransient.exists(DbMakers.Caches.IDX_TERMS.name())) {
-      this.dbTransient.delete(DbMakers.Caches.IDX_TERMS.name());
-    }
-    setIdxTerms(DbMakers.idxTermsMaker(this.dbTransient).<ByteArray>make());
-
-    // document term-frequency map
-    // (content depends on current fields)
-    if (this.dbTransient.exists(DbMakers.Caches.IDX_DFMAP.name())) {
-      this.dbTransient.delete(DbMakers.Caches.IDX_DFMAP.name());
-    }
-    setIdxDfMap(
-        DbMakers.idxDfMapMaker(this.dbTransient).<ByteArray, Integer>make());
-
-    clearIdxTf();
-  }
-
-  /**
-   * Build a cache of the current index.
-   *
-   * @param fields List of fields to cache
-   * @throws ProcessingException Thrown, if any parallel data processing method
-   * is failing
-   * @throws IOException Thrown on low-level I/O errors
-   */
-  private void buildCache(final Set<String> fields)
-      throws ProcessingException, IOException {
-    final Set<String> updatingFields = new HashSet<>(fields);
-
-    final boolean update = new HashSet<>(getCachedFieldsMap().keySet())
-        .removeAll(updatingFields);
-    updatingFields.removeAll(getCachedFieldsMap().keySet());
-
-    // check, if there's anything to update
-    if (!update && updatingFields.isEmpty()) {
-      return;
-    }
-
-    if (updatingFields.isEmpty()) {
-      LOG.info("Updating persistent index term cache. {} -> {}",
-          getCachedFieldsMap().keySet(), fields);
-      return;
-    } else {
-      LOG.info("Building persistent index term cache. {}",
-          updatingFields);
-    }
-
-    // pre-check, if field has the information we need
-    final FieldInfos fieldInfos = MultiFields.getMergedFieldInfos
-        (getIndexReader());
-    for (final String field : getDocumentFields()) {
-      if (FieldInfo.IndexOptions.DOCS_ONLY == fieldInfos.fieldInfo(field)
-          .getIndexOptions()) {
-        throw new IllegalStateException("Field '" + field + "' indexed with " +
-            "DOCS_ONLY option. No term frequencies and position information " +
-            "available.");
-      }
-    }
-
-    // generate a field-id
-    if (!updatingFields.isEmpty()) {
-      for (final String field : updatingFields) {
-        addFieldToCacheMap(field);
-      }
-    }
-
-    // Store fields being update to database. The list will be emptied after
-    // indexing. This will be used to identify incomplete indexed fields
-    // caused by interruptions.
-    final Set<String> flaggedFields = this.dbTransient.createHashSet(DbMakers
-        .Flags.IDX_FIELDS_BEING_INDEXED.name()).make();
-    flaggedFields.addAll(updatingFields);
-    commitDb(false); // store before processing
-
-    final List<AtomicReaderContext> arContexts =
-        getIndexReader().getContext().leaves();
-
-    final Processing processing = new Processing();
-    final TimedCommit autoCommit = new TimedCommit(UserConf.AUTOCOMMIT_DELAY);
-    if (arContexts.size() == 1) {
-      LOG.debug("Build strategy: concurrent field(s)");
-
-      final AtomicReader reader = arContexts.get(0).reader();
-      @SuppressWarnings("ObjectAllocationInLoop")
-      Set<ByteArray> termSet;
-      Terms terms;
-      TermsEnum termsEnum = TermsEnum.EMPTY;
-      BytesRef term;
-      SerializableByte fieldId;
-
-      for (final String field : updatingFields) {
-        fieldId = getFieldId(field);
-        termSet = new HashSet<>();
-        terms = reader.terms(field);
-        if (terms == null) {
-          LOG.warn("No terms. field={}", field);
-        } else {
-          termsEnum = terms.iterator(termsEnum);
-          term = termsEnum.next();
-          while (term != null) {
-            if (termsEnum.seekExact(term)) {
-              termSet.add(BytesRefUtils.toByteArray(term));
-            }
-            term = termsEnum.next();
-          }
-        }
-        assert !termSet.isEmpty();
-
-        LOG.info("Building persistent index term cache. field={}", field);
-        autoCommit.start();
-        @SuppressWarnings("ObjectAllocationInLoop")
-        final IndexTermsCollectorTarget target =
-            new IndexTermsCollectorTarget(
-                new CollectionSource<>(termSet), field, fieldId,
-                arContexts.get(0), getIdxTermsMap(), getIdxDocTermsMap());
-        processing.setSourceAndTarget(target).process(termSet.size());
-        autoCommit.stop();
-      }
-    } else {
-      LOG.debug("Build strategy: segments ({})", arContexts.size());
-      // we have multiple index segments, process every segment separately
-      autoCommit.start();
-      processing.setSourceAndTarget(
-          new TargetFuncCall<>(
-              new CollectionSource<>(arContexts),
-              new IndexSegmentTermsCollectorTarget(updatingFields)
-          )
-      ).process(arContexts.size());
-      autoCommit.stop();
-    }
-    autoCommit.stop();
-
-    // all fields successful updated
-    this.dbTransient.delete(DbMakers.Flags.IDX_FIELDS_BEING_INDEXED.name());
-
-    commitDb(true);
-  }
-
-  /**
-   * Try to commit the database and optionally run compaction. Commits will only
-   * be done, if transaction is supported.
-   *
-   * @param compact If true, compaction will be run after committing
-   */
-  void commitDb(final boolean compact) {
-    TimeMeasure tm = null;
-
-    if (this.persistStatic.supportsTransaction()) {
-      tm = new TimeMeasure().start();
-      LOG.info("Updating storage.");
-      // TODO: split by db
-      this.dbStatic.commit();
-      this.dbTransient.commit();
-      LOG.info("Storage updated. ({})", tm.stop().getTimeString());
-    }
-
-    if (compact) {
-      LOG.warn("Compaction currently disabled.");
-//      if (tm == null) {
-//        tm = new TimeMeasure();
-//      }
-//      tm.start();
-//      LOG.info("Compacting storage.");
-//      this.db.compact();
-//      LOG.info("Storage compacted. ({})", tm.stop().getTimeString());
+      this.cache.commit(false);
     }
   }
 
@@ -615,13 +184,14 @@ public final class DirectIndexDataProvider
   protected void warmUpTerms()
       throws DataProviderException {
     try {
-      this.dbTransient.createAtomicBoolean(DbMakers.Flags
+      this.persistTransient.getDb().createAtomicBoolean(CacheDbMakers.Flags
           .IDX_TERMS_COLLECTING_RUN.name(), true);
 
       warmUpTerms_default();
 
-      this.dbTransient.delete(DbMakers.Flags.IDX_TERMS_COLLECTING_RUN.name());
-      commitDb(false);
+      this.persistTransient.getDb().delete(
+          CacheDbMakers.Flags.IDX_TERMS_COLLECTING_RUN.name());
+      this.cache.commit(false);
     } catch (final ProcessingException e) {
       throw new DataProviderException("Failed to warm-up terms", e);
     }
@@ -641,12 +211,12 @@ public final class DirectIndexDataProvider
   protected void warmUpDocumentFrequencies()
       throws DataProviderException {
     try {
-      this.dbTransient
-          .createAtomicBoolean(DbMakers.Flags.IDX_DOC_FREQ_CALC_RUN.name()
-              , true);
+      this.persistTransient.getDb().createAtomicBoolean(
+          CacheDbMakers.Flags.IDX_DOC_FREQ_CALC_RUN.name(), true);
       warmUpDocumentFrequencies_default();
-      this.dbTransient.delete(DbMakers.Flags.IDX_DOC_FREQ_CALC_RUN.name());
-      commitDb(false);
+      this.persistTransient.getDb()
+          .delete(CacheDbMakers.Flags.IDX_DOC_FREQ_CALC_RUN.name());
+      this.cache.commit(false);
     } catch (final ProcessingException e) {
       throw new DataProviderException("Failed to warm-up document " +
           "frequencies", e);
@@ -689,41 +259,38 @@ public final class DirectIndexDataProvider
    *
    * @param term Current term that is being collected
    * @param fieldId Id of the field that gets processed
-   * @param targetIdxTerms Target map for storing index term frequency values
-   * @param targetDocTerms Target map to store document term-frequency values
    * @param docsEnum Enum initialized with the given term
    * @param ttf Total term frequency (in index) of the given term
    * @param docBase DocBase value {@see AtomicReaderContext#docBase} to
    * calculate the read document-id
    * @throws IOException Thrown on low-level i/o errors
    */
-  static void collectTerms(
+  void collectTerms(
       final ByteArray term, final SerializableByte fieldId,
-      final ConcurrentMap<Fun.Tuple2<SerializableByte,
-          ByteArray>, Long> targetIdxTerms,
-      final ConcurrentMap<Fun.Tuple3<ByteArray, SerializableByte, Integer>,
-          Integer> targetDocTerms,
       final DocsEnum docsEnum,
       final long ttf, final int docBase)
       throws IOException {
     // initialize the document iterator
     int docId = docsEnum.nextDoc();
 
+    final ByteArray aTerm = term.clone();
+    final SerializableByte aFieldId = fieldId.clone();
+    assert aTerm != null;
+    assert aFieldId != null;
+
     // build term frequency map for each document
-    Integer oldDTFValue;
     while (docId != DocIdSetIterator.NO_MORE_DOCS) {
-      docId += docBase;
+      final int basedDocId = docId + docBase;
       final int docTermFreq = docsEnum.freq();
 
-      oldDTFValue =
-          targetDocTerms.putIfAbsent(Fun.t3(term, fieldId, docId),
-              docTermFreq);
+      Integer oldDTFValue = getIdxDocTermsMap().putIfAbsent(Fun.t3(aTerm,
+          aFieldId, basedDocId), docTermFreq);
       if (oldDTFValue != null) {
         final Fun.Tuple3<ByteArray, SerializableByte, Integer>
-            idxDocTfMapKey = Fun.t3(term, fieldId, docId);
-        while (!targetDocTerms
-            .replace(idxDocTfMapKey, oldDTFValue, oldDTFValue + docTermFreq)) {
-          oldDTFValue = targetDocTerms.get(idxDocTfMapKey);
+            idxDocTfMapKey = Fun.t3(aTerm, aFieldId, basedDocId);
+        while (!getIdxDocTermsMap().replace(
+            idxDocTfMapKey, oldDTFValue, oldDTFValue + docTermFreq)) {
+          oldDTFValue = getIdxDocTermsMap().get(idxDocTfMapKey);
         }
       }
 
@@ -731,23 +298,60 @@ public final class DirectIndexDataProvider
     }
 
     // add whole index term frequency map
-    Long oldValue = targetIdxTerms.putIfAbsent(Fun.t2(fieldId, term), ttf);
+    Long oldValue = getIdxTermsMap().putIfAbsent(Fun.t2(aFieldId, aTerm), ttf);
     if (oldValue != null) {
       final Fun.Tuple2<SerializableByte, ByteArray> idxTfMapKey =
-          Fun.t2(fieldId, term);
-      while (!targetIdxTerms.replace(idxTfMapKey, oldValue, oldValue + ttf)) {
-        oldValue = targetIdxTerms.get(idxTfMapKey);
+          Fun.t2(aFieldId, aTerm);
+      while (!getIdxTermsMap().replace(idxTfMapKey, oldValue, oldValue + ttf)) {
+        oldValue = getIdxTermsMap().get(idxTfMapKey);
       }
     }
   }
 
   /**
-   * Get the persistent storage manager.
+   * Get the cache manager object.
    *
-   * @return Persistence instance
+   * @return Cache manager
    */
-  Persistence getPersistence() {
+  Cache getCache() {
+    return this.cache;
+  }
+
+  /**
+   * Get the persistent storage manager for the static database.
+   *
+   * @return Persistence instance (static data)
+   */
+  Persistence getPersistStatic() {
     return this.persistStatic;
+  }
+
+  /**
+   * Set the persistent storage manager for the static database.
+   *
+   * @param newPersistStatic Persistent storage manager for the static database
+   */
+  void setPersistStatic(final Persistence newPersistStatic) {
+    this.persistStatic = newPersistStatic;
+  }
+
+  /**
+   * Get the persistent storage manager for the transient database.
+   *
+   * @return Persistence instance (transient data)
+   */
+  Persistence getPersistTransient() {
+    return this.persistTransient;
+  }
+
+  /**
+   * Set the persistent storage manager for the transient database.
+   *
+   * @param newPersistTransient Persistent storage manager for the transient
+   * database
+   */
+  void setPersistTransient(final Persistence newPersistTransient) {
+    this.persistTransient = newPersistTransient;
   }
 
   /**
@@ -772,16 +376,23 @@ public final class DirectIndexDataProvider
   }
 
   @Override
-  public void dispose() {
-    if (this.dbStatic != null && !this.dbStatic.isClosed()) {
-      commitDb(false);
+  public void close() {
+    LOG.debug("Disposing instance.");
+    if (this.persistStatic != null && this.persistStatic.getDb() != null &&
+        !this.persistStatic.getDb().isClosed()) {
+      if (this.cache != null) {
+        this.cache.commit(false);
+      }
       LOG.info("Closing static information storage.");
-      this.dbStatic.close();
+      this.persistStatic.getDb().close();
     }
-    if (this.dbTransient != null && !this.dbTransient.isClosed()) {
-      commitDb(false);
+    if (this.persistTransient != null && this.persistTransient.getDb() !=
+        null && !this.persistTransient.getDb().isClosed()) {
+      if (this.cache != null) {
+        this.cache.commit(false);
+      }
       LOG.info("Closing transient information storage.");
-      this.dbTransient.close();
+      this.persistTransient.getDb().close();
     }
     setDisposed();
   }
@@ -792,6 +403,7 @@ public final class DirectIndexDataProvider
    * @param docId Document-id to create the model from
    * @return Model for the given document
    */
+  @SuppressWarnings("ReturnOfNull")
   @Override
   public DocumentModel getDocumentModel(final int docId) {
     checkDocId(docId);
@@ -855,6 +467,7 @@ public final class DirectIndexDataProvider
     }
 
     final Iterable<Integer> uniqueDocIds = new HashSet<>(docIds);
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
     final Set<ByteArray> terms = new HashSet<>();
     final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum(getIndexReader(),
         getDocumentFields());
@@ -923,91 +536,27 @@ public final class DirectIndexDataProvider
    * Wrapper for externally configurable options.
    */
   private static final class UserConf {
+    /**
+     * Delay to use for auto-commiting the database, if a transaction log is
+     * used.
+     */
     static final int AUTOCOMMIT_DELAY = GlobalConfiguration.conf()
         .getAndAddInteger(key("db-autocommit-delay"), 60000);
 
+    /**
+     * Generates the persistence file name.
+     *
+     * @param name Name of the database
+     * @return Filename build from {@link #IDENTIFIER} and the provided name
+     */
     private static String key(final String name) {
       return IDENTIFIER + "_" + name;
     }
   }
 
-  @SuppressWarnings("StaticNonFinalField")
-  private static final class IndexTermsCollectorTarget
-      extends Target<ByteArray> {
-
-    private static ConcurrentMap<Fun.Tuple2<SerializableByte,
-        ByteArray>, Long> targetIdxTerms;
-    private static ConcurrentMap<Fun.Tuple3<ByteArray, SerializableByte,
-        Integer>, Integer> targetDocTerms;
-    private static AtomicReader reader;
-    private static String field;
-    private static int docBase;
-    private static SerializableByte fieldId;
-
-    @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
-    IndexTermsCollectorTarget(
-        final Source<ByteArray> newSource,
-        final String newField, final SerializableByte newFieldId,
-        final AtomicReaderContext context,
-        final ConcurrentMap<Fun.Tuple2<SerializableByte, ByteArray>,
-            Long> idxTermsMap,
-        final ConcurrentMap<Fun.Tuple3<ByteArray, SerializableByte, Integer>,
-            Integer> idxDocTermsMap) {
-      super(newSource);
-      targetIdxTerms = idxTermsMap;
-      targetDocTerms = idxDocTermsMap;
-      field = newField;
-      fieldId = newFieldId;
-      reader = context.reader();
-      docBase = context.docBase;
-    }
-
-    private IndexTermsCollectorTarget(final Source<ByteArray> source) {
-      super(source);
-    }
-
-    @Override
-    public Target<ByteArray> newInstance() {
-      return new IndexTermsCollectorTarget(getSource());
-    }
-
-    @Override
-    public void runProcess()
-        throws Exception {
-      ByteArray term;
-      @SuppressWarnings("ObjectAllocationInLoop")
-      DocsEnum docsEnum;
-      final TermsEnum termsEnum = reader.terms(field).iterator(TermsEnum.EMPTY);
-      @SuppressWarnings("ObjectAllocationInLoop")
-      BytesRef termBr;
-
-      while (!isTerminating()) {
-        try {
-          term = getSource().next();
-        } catch (final SourceException.SourceHasFinishedException ex) {
-          break;
-        }
-
-        if (term != null) {
-          termBr = new BytesRef(term.bytes);
-
-          if (termsEnum.seekExact(termBr)) {
-            docsEnum = reader.termDocsEnum(new Term(field, termBr));
-
-            if (docsEnum == null) {
-              // field or term does not exist
-              LOG.warn("Field or term does not exist. f={} t={}", field,
-                  ByteArrayUtils.utf8ToString(term));
-            } else {
-              collectTerms(term, fieldId, targetIdxTerms, targetDocTerms,
-                  docsEnum, termsEnum.totalTermFreq(), docBase);
-            }
-          }
-        }
-      }
-    }
-  }
-
+  /**
+   * Builder for creating a new {@link DirectIndexDataProvider}.
+   */
   @SuppressWarnings("PublicInnerClass")
   public static final class Builder
       extends AbstractIndexDataProviderBuilder<Builder> {
@@ -1016,13 +565,31 @@ public final class DirectIndexDataProvider
      * Builder used to create a proper caching backend.
      */
     @SuppressWarnings("PackageVisibleField")
-    Persistence.Builder persistenceBuilderTransient = new Persistence.Builder();
+    final Persistence.Builder persistenceBuilderTransient =
+        new Persistence.Builder();
+    /**
+     * Do not re-open the persistent database read-only. Only meant for unit
+     * testing.
+     */
+    @SuppressWarnings("PackageVisibleField")
+    boolean noOpenReadOnly;
 
     /**
      * Default constructor.
      */
     public Builder() {
       super(IDENTIFIER);
+    }
+
+    /**
+     * Stops the DataProvider from re-opening the database read-only after all
+     * caches are verified. Meant for debugging only.
+     *
+     * @return Self reference
+     */
+    Builder noReadOnly() {
+      this.noOpenReadOnly = true;
+      return this;
     }
 
     @Override
@@ -1056,7 +623,7 @@ public final class DirectIndexDataProvider
           .makeOrGet();
 
       try {
-        return DirectIndexDataProvider.build(this);
+        return new DirectIndexDataProvider(this);
       } catch (final DataProviderException e) {
         throw new BuildException(e);
       }
@@ -1066,29 +633,30 @@ public final class DirectIndexDataProvider
   /**
    * DBMaker helpers to create storage objects on the database.
    */
-  @SuppressWarnings("PublicInnerClass")
-  public static final class DbMakers {
+  @SuppressWarnings("PackageVisibleInnerClass")
+  static final class CacheDbMakers {
 
     /**
      * Serializer to use for {@link #idxTermsMap}.
      */
     static final BTreeKeySerializer IDX_TERMSMAP_KEYSERIALIZER
         = new BTreeKeySerializer.Tuple2KeySerializer<>(
-        SerializableByte.COMPARATOR, SerializableByte.SERIALIZER,
-        ByteArray.SERIALIZER);
+        SerializableByte.COMPARATOR,
+        SerializableByte.SERIALIZER, ByteArray.SERIALIZER);
 
     /**
      * Serializer to use for {@link #idxDocTermsMap}.
      */
     static final BTreeKeySerializer IDX_DOCTERMSMAP_KEYSERIALIZER
         = new BTreeKeySerializer.Tuple3KeySerializer<>(
-        null, null,
-        ByteArray.SERIALIZER, SerializableByte.SERIALIZER, Serializer.INTEGER);
+        ByteArray.COMPARATOR, SerializableByte.COMPARATOR,
+        ByteArray.SERIALIZER, SerializableByte.SERIALIZER,
+        Serializer.INTEGER);
 
     /**
      * Private empty constructor for utility class.
      */
-    private DbMakers() { // empty
+    private CacheDbMakers() { // empty
     }
 
     /**
@@ -1100,9 +668,8 @@ public final class DirectIndexDataProvider
     static DB.BTreeSetMaker idxTermsMaker(final DB db) {
       return Objects.requireNonNull(db, "DB was null.")
           .createTreeSet(Caches.IDX_TERMS.name())
-          .serializer(new BTreeKeySerializer.BasicKeySerializer(
-              ByteArray.SERIALIZER))
-          .nodeSize(18)
+          .serializer(ByteArray.SERIALIZER_KEY)
+//          .nodeSize(18)
           .counterEnable();
     }
 
@@ -1115,9 +682,9 @@ public final class DirectIndexDataProvider
     static DB.BTreeMapMaker idxDfMapMaker(final DB db) {
       return Objects.requireNonNull(db, "DB was null.")
           .createTreeMap(Caches.IDX_DFMAP.name())
-          .keySerializerWrap(ByteArray.SERIALIZER)
+          .keySerializer(ByteArray.SERIALIZER_KEY)
           .valueSerializer(Serializer.INTEGER)
-          .nodeSize(18)
+//          .nodeSize(18)
           .counterEnable();
     }
 
@@ -1132,8 +699,8 @@ public final class DirectIndexDataProvider
           .createTreeMap(Stores.IDX_TERMS_MAP.name())
           .keySerializer(IDX_TERMSMAP_KEYSERIALIZER)
           .valueSerializer(Serializer.LONG)
-          .counterEnable()
-          .nodeSize(16);
+//          .nodeSize(16)
+          .counterEnable();
     }
 
     /**
@@ -1147,8 +714,8 @@ public final class DirectIndexDataProvider
           .createTreeMap(Stores.IDX_DOC_TERMS_MAP.name())
           .keySerializer(IDX_DOCTERMSMAP_KEYSERIALIZER)
           .valueSerializer(Serializer.INTEGER)
-          .counterEnable()
-          .nodeSize(8);
+//          .nodeSize(8)
+          .counterEnable();
     }
 
     /**
@@ -1159,55 +726,17 @@ public final class DirectIndexDataProvider
      */
     static DB.BTreeMapMaker cachedFieldsMapMaker(final DB db) {
       return Objects.requireNonNull(db, "DB was null.")
-          .createTreeMap(Caches.IDX_FIELDS.name())
-          .keySerializer(BTreeKeySerializer.STRING)
+          .createTreeMap(Stores.IDX_FIELDS.name())
           .valueSerializer(SerializableByte.SERIALIZER)
-          .nodeSize(8)
+//          .nodeSize(8)
           .counterEnable();
-    }
-
-    /**
-     * Checks all {@link Stores} against the DB, collecting missing ones.
-     *
-     * @param db Database reference
-     * @return List of missing {@link Stores}
-     */
-    static Collection<Stores> checkStores(final DB db) {
-      Objects.requireNonNull(db, "DB was null.");
-
-      final Collection<Stores> miss = new ArrayList<>(Stores.values().length);
-      for (final Stores s : Stores.values()) {
-        if (!db.exists(s.name())) {
-          miss.add(s);
-        }
-      }
-      return miss;
-    }
-
-    /**
-     * Checks all {@link Stores} against the DB, collecting missing ones.
-     *
-     * @param db Database reference
-     * @return List of missing {@link Stores}
-     */
-    static Collection<Caches> checkCaches(final DB db) {
-      Objects.requireNonNull(db, "DB was null.");
-
-      final Collection<Caches> miss =
-          new ArrayList<>(Caches.values().length);
-      for (final Caches c : Caches.values()) {
-        if (!db.exists(c.name())) {
-          miss.add(c);
-        }
-      }
-      return miss;
     }
 
     /**
      * Ids of flags being stored in the database. Those values are needed to
      * ensure data is consistent.
      */
-    public enum Flags {
+    private enum Flags {
       /**
        * List of fields currently being indexed. Used to recover from crashes.
        */
@@ -1226,11 +755,16 @@ public final class DirectIndexDataProvider
     /**
      * Ids of persistent data held in the database.
      */
-    public enum Stores {
+    @SuppressWarnings("PackageVisibleInnerClass")
+    enum Stores {
       /**
        * Mapping of all document terms.
        */
       IDX_DOC_TERMS_MAP,
+      /**
+       * Cached fields mapping.
+       */
+      IDX_FIELDS,
       /**
        * Mapping of all index terms.
        */
@@ -1240,7 +774,8 @@ public final class DirectIndexDataProvider
     /**
      * Ids of temporary data caches held in the database.
      */
-    public enum Caches {
+    @SuppressWarnings("PackageVisibleInnerClass")
+    enum Caches {
 
       /**
        * Set of all terms.
@@ -1251,13 +786,753 @@ public final class DirectIndexDataProvider
        */
       IDX_DFMAP,
       /**
-       * Fields mapping.
-       */
-      IDX_FIELDS,
-      /**
        * Overall term frequency.
        */
       IDX_TF
+    }
+  }
+
+  /**
+   * Utility class managing disk based caches for this DataProvider.
+   */
+  private final class Cache {
+    /**
+     * True, if the static database is all new.
+     */
+    private boolean newStaticDb;
+
+    /**
+     * If true, the whole index needs to be rebuild. This happens, if the commit
+     * generation has changed or any essential index value is missing.
+     */
+    private boolean flagCacheRebuild;
+    /**
+     * True, if the list of document fields have changed and needs to be
+     * re-indexed.
+     */
+    private boolean flagFieldUpdate;
+    /**
+     * True, if there are incompletely indexed document fields.
+     */
+    private boolean flagFieldInvalid;
+    /**
+     * True, if the list of stopwords has changed.
+     */
+    private boolean flagStopwordsChanged;
+
+    /**
+     * Initializes the cache from the supplied builder settings.
+     *
+     * @param builder Builder to get settings from
+     * @throws Buildable.BuildException Thrown, if the {@link Persistence}
+     * storage could not be initialized
+     * @throws Buildable.ConfigurationException Thrown, if the {@link
+     * Persistence} storage could not be initialized
+     * @throws IOException Thrown on low-level I/O errors
+     * @throws ProcessingException Thrown, if field indexing fails
+     */
+    Cache(final Builder builder)
+        throws Buildable.BuildException, Buildable.ConfigurationException,
+               IOException, ProcessingException {
+      openStaticDb(builder.persistenceBuilder);
+      openTransientDb(builder.persistenceBuilderTransient);
+
+      if (!this.newStaticDb) {
+        checkStaticDbState();
+        if (this.flagCacheRebuild) {
+          clearPersistentCaches();
+        }
+      }
+
+      loadPersistentDb();
+
+      if (this.newStaticDb) {
+        checkStaticDbState();
+      } else if (this.flagFieldInvalid) {
+        removeIncompletelyIndexedFields();
+      }
+
+      if (this.flagFieldUpdate
+          || this.flagFieldInvalid
+          || this.flagCacheRebuild
+          || this.newStaticDb) {
+        indexFields();
+        commit(false);
+      }
+
+      if (!builder.noOpenReadOnly) {
+        LOG.info("Re-opening persistent database read-only.");
+        commit(false);
+        getPersistStatic().getDb().close();
+        builder.persistenceBuilder.readOnly();
+        builder.persistenceBuilder.get();
+        openStaticDb(builder.persistenceBuilder);
+        loadPersistentDb();
+      }
+
+      checkTransientDbState();
+      if (this.flagStopwordsChanged
+          || this.flagCacheRebuild
+          || this.flagFieldUpdate
+          || this.flagFieldInvalid) {
+        clearTransientCaches();
+        getPersistTransient().updateMetaData(getDocumentFields(),
+            getStopwords());
+        commit(false);
+      }
+      loadTransientDb();
+    }
+
+    /**
+     * Opens or creates the main database.
+     *
+     * @param psb Database builder for static database
+     * @throws Buildable.BuildException Thrown, if building the database manager
+     * failed
+     * @throws Buildable.ConfigurationException Thrown, if the database builder
+     * was configured incorrectly
+     */
+    private void openStaticDb(final Persistence.Builder psb)
+        throws Buildable.BuildException, Buildable.ConfigurationException {
+      switch (psb.getCacheLoadInstruction()) {
+        case MAKE:
+          LOG.info("Creating new static database.");
+          setPersistStatic(psb.make().build());
+          this.newStaticDb = true;
+          break;
+        case GET:
+          LOG.info("Opening static database.");
+          setPersistStatic(psb.get().build());
+          break;
+        default: // make or get
+          if (psb.dbExists()) {
+            LOG.info("Creating new static database.");
+          } else {
+            // make
+            LOG.info("Opening static database.");
+            this.newStaticDb = true;
+          }
+          setPersistStatic(psb.makeOrGet().build());
+          break;
+      }
+    }
+
+    /**
+     * Opens or creates the secondary database.
+     *
+     * @param psb Database builder for static database
+     * @throws Buildable.BuildException Thrown, if building the database manager
+     * failed
+     * @throws Buildable.ConfigurationException Thrown, if the database builder
+     * was configured incorrectly
+     */
+    private void openTransientDb(final Persistence.Builder psb)
+        throws Buildable.ConfigurationException, Buildable.BuildException {
+      LOG.info("Opening transient database.");
+      setPersistTransient(psb.build());
+    }
+
+    /**
+     * Check the state of the static database. The appropriate flags are set, if
+     * some required data is missing.
+     */
+    private void checkStaticDbState() {
+      LOG.info("Checking static database state.");
+      // check, if index has changed since last caching
+      if (getLastIndexCommitGeneration() == null ||
+          !getPersistStatic().getMetaData().hasGenerationValue()) {
+        LOG.warn("Index commit generation not available. Assuming an " +
+            "unchanged index!");
+      } else {
+        if (!getPersistStatic().getMetaData()
+            .isGenerationCurrent(getLastIndexCommitGeneration())) {
+          LOG.warn("Invalid database state. " +
+              "Index changed since last caching. " +
+              "Database needs to be rebuild.");
+          this.flagCacheRebuild = true;
+        }
+      }
+
+      if (this.flagCacheRebuild) {
+        return; // no more checks needed, we have to rebuild from scratch
+      }
+
+      // check all required caches
+      for (final CacheDbMakers.Stores store : CacheDbMakers.Stores.values()) {
+        if (!getPersistStatic().getDb().exists(store.name())) {
+          this.flagCacheRebuild = true;
+          switch (store) {
+            case IDX_FIELDS:
+              LOG.warn(
+                  "Invalid database state. Cached fields list not found. " +
+                      "Database needs to be rebuild.");
+              break;
+            case IDX_DOC_TERMS_MAP:
+              LOG.warn(
+                  "Invalid database state. Document terms map not found. " +
+                      "Database needs to be rebuild.");
+              break;
+            case IDX_TERMS_MAP:
+              LOG.warn("Invalid database state. Index terms map not found. " +
+                  "Database needs to be rebuild.");
+              break;
+          }
+        }
+      }
+
+      if (this.flagCacheRebuild) {
+        return; // no more checks needed, we have to rebuild from scratch
+      }
+
+      // checks, if any fields are incompletely indexed
+      if (getPersistStatic().getDb().exists(
+          CacheDbMakers.Flags.IDX_FIELDS_BEING_INDEXED.name())) {
+        LOG.warn("Invalid database state. Found incompletely indexed fields. " +
+            "Those fields will be removed and will be re-indexed.");
+        this.flagFieldInvalid = true;
+      }
+
+      // check, if fields have changed
+      if (!this.flagFieldInvalid && !getPersistStatic().getMetaData()
+          .areFieldsCurrent(getDocumentFields())) {
+        LOG.info("Fields changed. Caches needs to be rebuild.");
+        this.flagFieldUpdate = true;
+      }
+    }
+
+    /**
+     * Clears the persistent caches.
+     */
+    private void clearPersistentCaches() {
+      LOG.warn("Clearing persistent caches.");
+      for (final CacheDbMakers.Stores store : CacheDbMakers.Stores.values()) {
+        if (getPersistStatic().getDb().exists(store.name())) {
+          getPersistStatic().getDb().delete(store.name());
+        }
+        switch (store) {
+          case IDX_TERMS_MAP:
+            CacheDbMakers.idxTermsMapMkr(getPersistStatic().getDb()).make();
+            break;
+          case IDX_DOC_TERMS_MAP:
+            CacheDbMakers.idxDocTermsMapMkr(getPersistStatic().getDb()).make();
+            break;
+          case IDX_FIELDS:
+            CacheDbMakers.cachedFieldsMapMaker(getPersistStatic().getDb())
+                .make();
+            break;
+        }
+      }
+    }
+
+    /**
+     * Tries to load cached values from the database. Creates the appropriate
+     * storage objects on demand, if they do not already exist.
+     */
+    private void loadPersistentDb() {
+      LOG.info("Loading persistent database.");
+
+      // load mapping of cached fields
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("hasCachedFieldsMap: {}", getPersistStatic().getDb().exists
+            (CacheDbMakers.Stores.IDX_FIELDS.name()));
+      }
+      setCachedFieldsMap(CacheDbMakers.cachedFieldsMapMaker(
+          getPersistStatic().getDb()).<String, SerializableByte>makeOrGet());
+
+      // load document-term map
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("hasIdxDocTermsMap: {}", getPersistStatic().getDb().exists
+            (CacheDbMakers.Stores.IDX_DOC_TERMS_MAP.name()));
+      }
+      setIdxDocTermsMap(CacheDbMakers.idxDocTermsMapMkr(
+          getPersistStatic().getDb())
+          .<Fun.Tuple3<ByteArray, SerializableByte, Integer>,
+              Integer>makeOrGet());
+
+      // load index term-map
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("hasIdxTermsMap: {}", getPersistStatic().getDb().exists
+            (CacheDbMakers.Stores.IDX_TERMS_MAP.name()));
+      }
+      setIdxTermsMap(CacheDbMakers.idxTermsMapMkr(
+          getPersistStatic().getDb())
+          .<Fun.Tuple2<SerializableByte, ByteArray>, Long>makeOrGet());
+    }
+
+    /**
+     * Will remove any field data that is flagged as being incomplete (due to
+     * crashes, interruption, etc.). <br> Cached data have to been loaded
+     * already to allow modifications.
+     */
+    private void removeIncompletelyIndexedFields() {
+      LOG.info("Removing incompletely indexed fields.");
+      final Set<String> flaggedFields =
+          getPersistTransient().getDb().createHashSet(
+              CacheDbMakers.Flags.IDX_FIELDS_BEING_INDEXED.name()).makeOrGet();
+
+      if (flaggedFields.isEmpty()) {
+        return;
+      }
+
+      for (final String field : flaggedFields) {
+        final SerializableByte fieldId = getFieldId(field);
+
+        // remove all field contents from persistent index terms map
+        final Iterator<ByteArray> idxTMapIt =
+            Fun.filter(getIdxTermsMap().keySet(), fieldId).iterator();
+        while (idxTMapIt.hasNext()) {
+          idxTMapIt.next();
+          idxTMapIt.remove();
+        }
+
+        // remove all field contents from persistent document terms map
+        for (final ByteArray term : getIdxTerms()) {
+          final Iterator<Integer> docTMapIt =
+              Fun.filter(getIdxDocTermsMap().keySet(), term, fieldId)
+                  .iterator();
+          while (docTMapIt.hasNext()) {
+            docTMapIt.next();
+            docTMapIt.remove();
+          }
+        }
+      }
+      LOG.warn(
+          "Incompletely index fields found ({}). This fields have been " +
+              "removed from cache. Cache rebuilding is needed.",
+          flaggedFields);
+      commit(false);
+    }
+
+    /**
+     * Build a cache of the current index.
+     *
+     * @throws ProcessingException Thrown, if any parallel data processing
+     * method is failing
+     * @throws IOException Thrown on low-level I/O errors
+     */
+    @SuppressWarnings(
+        {"ObjectAllocationInLoop", "CollectionWithoutInitialCapacity"})
+    private void indexFields()
+        throws ProcessingException, IOException {
+      final Set<String> updatingFields = new HashSet<>(getDocumentFields());
+
+      final boolean update = new HashSet<>(getCachedFieldsMap().keySet())
+          .removeAll(updatingFields);
+      updatingFields.removeAll(getCachedFieldsMap().keySet());
+
+      // check, if there's anything to update
+      if (!update && updatingFields.isEmpty()) {
+        return;
+      }
+
+      LOG.info("Building persistent index term cache. {}", updatingFields);
+
+      // pre-check, if field has the information we need
+      final FieldInfos fieldInfos = MultiFields.getMergedFieldInfos
+          (getIndexReader());
+      for (final String field : getDocumentFields()) {
+        if (FieldInfo.IndexOptions.DOCS_ONLY == fieldInfos.fieldInfo(field)
+            .getIndexOptions()) {
+          throw new IllegalStateException(
+              "Field '" + field + "' indexed with " +
+                  "DOCS_ONLY option. No term frequencies and position " +
+                  "information " +
+                  "available.");
+        }
+      }
+
+      // generate a field-id
+      for (final String field : updatingFields) {
+        addFieldToCacheMap(field);
+      }
+
+      // Store fields being update to database. The list will be emptied after
+      // indexing. This will be used to identify incomplete indexed fields
+      // caused by interruptions.
+      final Set<String> flaggedFields =
+          getPersistStatic().getDb()
+              .createHashSet(
+                  CacheDbMakers.Flags.IDX_FIELDS_BEING_INDEXED.name())
+              .make();
+      flaggedFields.addAll(updatingFields);
+      commit(false); // store before processing
+
+      final List<AtomicReaderContext> arContexts =
+          getIndexReader().getContext().leaves();
+
+      final Processing processing = new Processing();
+      final TimedCommit autoCommit = new TimedCommit(UserConf.AUTOCOMMIT_DELAY);
+      if (arContexts.size() == 1) {
+        LOG.debug("Build strategy: concurrent field(s)");
+
+        final AtomicReader reader = arContexts.get(0).reader();
+        Terms terms;
+        TermsEnum termsEnum = TermsEnum.EMPTY;
+        BytesRef term;
+
+        for (final String field : updatingFields) {
+          final Set<ByteArray> termSet = new HashSet<>();
+          terms = reader.terms(field);
+          if (terms == null) {
+            LOG.warn("No terms. field={}", field);
+          } else {
+            termsEnum = terms.iterator(termsEnum);
+            term = termsEnum.next();
+            while (term != null) {
+              if (termsEnum.seekExact(term)) {
+                termSet.add(BytesRefUtils.toByteArray(term));
+              }
+              term = termsEnum.next();
+            }
+          }
+          assert !termSet.isEmpty();
+
+          LOG.info("Building persistent index term cache. field={}", field);
+          autoCommit.start();
+//          @SuppressWarnings("ObjectAllocationInLoop")
+//          final IndexTermsCollectorTarget target =
+//              new IndexTermsCollectorTarget(
+//                  new CollectionSource<>(termSet),
+//                  field, arContexts.get(0)
+//              );
+//          processing.setSourceAndTarget(target).process(termSet.size());
+          processing.setSourceAndTarget(
+              new TargetFuncCall<>(
+                  new CollectionSource<>(termSet),
+                  new IndexFieldsTermsCollectorTarget(field)
+              )
+          ).process(termSet.size());
+          autoCommit.stop();
+        }
+      } else {
+        LOG.debug("Build strategy: segments ({})", arContexts.size());
+        // we have multiple index segments, process every segment separately
+        autoCommit.start();
+        processing.setSourceAndTarget(
+            new TargetFuncCall<>(
+                new CollectionSource<>(arContexts),
+                new IndexSegmentTermsCollectorTarget(updatingFields)
+            )
+        ).process(arContexts.size());
+        autoCommit.stop();
+      }
+      autoCommit.stop();
+
+      // all fields successful updated
+      getPersistStatic().getDb()
+          .delete(CacheDbMakers.Flags.IDX_FIELDS_BEING_INDEXED.name());
+
+      commit(true);
+    }
+
+    /**
+     * Try to commit the database and optionally run compaction. Commits will
+     * only be done, if transaction is supported.
+     *
+     * @param compact If true, compaction will be run after committing
+     */
+    synchronized final void commit(final boolean compact) {
+      final TimeMeasure tm = new TimeMeasure();
+
+      if (getPersistStatic().isTransactionSupported()) {
+        tm.start();
+        LOG.info("Updating storage.");
+        // TODO: split by db
+        getPersistStatic().getDb().commit();
+        getPersistTransient().getDb().commit();
+        LOG.info("Storage updated. ({})", tm.stop().getTimeString());
+      }
+
+      if (compact) {
+        LOG.warn("Compaction currently disabled.");
+//      if (tm == null) {
+//        tm = new TimeMeasure();
+//      }
+//      tm.start();
+//      LOG.info("Compacting storage.");
+//      this.db.compact();
+//      LOG.info("Storage compacted. ({})", tm.stop().getTimeString());
+      }
+    }
+
+    /**
+     * Check for incomplete indexing tasks and if stopwords have changed. If
+     * incomplete tasks are found those storage objects are removed.
+     */
+    private void checkTransientDbState() {
+      LOG.info("Checking transient database state.");
+      for (final CacheDbMakers.Flags flag : CacheDbMakers.Flags.values()) {
+        if (getPersistTransient().getDb()
+            .exists(flag.name())) {
+          switch (flag) {
+            case IDX_TERMS_COLLECTING_RUN:
+              LOG.warn("Found incomplete terms index. " +
+                  "This index will be deleted and rebuilt on warm-up.");
+              getPersistTransient().getDb()
+                  .delete(CacheDbMakers.Flags.IDX_TERMS_COLLECTING_RUN.name());
+              getPersistTransient().getDb()
+                  .delete(CacheDbMakers.Caches.IDX_TERMS.name());
+              break;
+            case IDX_DOC_FREQ_CALC_RUN:
+              LOG.warn("Found incomplete document-frequency map. " +
+                  "This map will be deleted and rebuilt on warm-up.");
+              getPersistTransient().getDb()
+                  .delete(CacheDbMakers.Flags.IDX_DOC_FREQ_CALC_RUN.name());
+              getPersistTransient().getDb()
+                  .delete(CacheDbMakers.Caches.IDX_DFMAP.name());
+              break;
+          }
+        }
+      }
+
+      // check, if stopwords have changed
+      if (getPersistTransient()
+          .getMetaData().areStopwordsCurrent(getStopwords())) {
+        LOG.info("Stopwords ({}) unchanged.", getStopwords().size());
+      } else {
+        LOG.info("Stopwords changed. Caches needs to be rebuild.");
+        this.flagStopwordsChanged = true;
+      }
+    }
+
+    /**
+     * Clears all transient caches.
+     */
+    private void clearTransientCaches() {
+      LOG.info("Clearing temporary caches.");
+      // index terms cache (content depends on current fields & stopwords)
+      if (getPersistTransient().getDb().exists(
+          CacheDbMakers.Caches.IDX_TERMS.name())) {
+        getPersistTransient().getDb().delete(
+            CacheDbMakers.Caches.IDX_TERMS.name());
+      }
+
+      // document term-frequency map (content depends on current fields)
+      if (getPersistTransient().getDb().exists(
+          CacheDbMakers.Caches.IDX_DFMAP.name())) {
+        getPersistTransient().getDb().delete(
+            CacheDbMakers.Caches.IDX_DFMAP.name());
+      }
+
+      // clear index term frequency value
+      clearIdxTf();
+    }
+
+    /**
+     * Tries to load cached values from the database. Creates the appropriate
+     * storage objects on demand, if they do not already exist.
+     */
+    private void loadTransientDb() {
+      LOG.info("Loading transient database.");
+      // load terms index
+      setIdxTerms(CacheDbMakers.idxTermsMaker(getPersistTransient().getDb())
+          .<ByteArray>makeOrGet());
+      final int idxTermsSize = getIdxTerms().size();
+      if (idxTermsSize == 0) {
+        LOG.info("Index terms cache is empty. Will be rebuild on warm-up.");
+      } else {
+        LOG.info("Loaded index terms cache with {} entries.", idxTermsSize);
+      }
+
+      // try load overall term frequency
+      if (getPersistTransient().getDb()
+          .exists(CacheDbMakers.Caches.IDX_TF.name())) {
+        setIdxTf(getPersistTransient().getDb()
+            .getAtomicLong(CacheDbMakers.Caches.IDX_TF.name()).get());
+        LOG.info("Term frequency value loaded ({}).", getIdxTf());
+      } else {
+        LOG.info("No term frequency value found. " +
+            "Will be re-calculated on warm-up.");
+        clearIdxTf();
+      }
+
+      // try load document-frequency map
+      setIdxDfMap(CacheDbMakers.idxDfMapMaker(
+          getPersistTransient().getDb()).<ByteArray,
+          Integer>makeOrGet());
+      if (getIdxDfMap().isEmpty()) {
+        LOG.info("Document-frequency cache is empty. " +
+            "Will be rebuild on warm-up.");
+      } else {
+        LOG.info("Loaded document-frequency cache with {} entries.",
+            getIdxDfMap().size());
+      }
+    }
+  }
+
+  /**
+   * {@link Processing} {@link Target} for collecting all terms from the current
+   * Lucene index.
+   */
+  private final class IndexTermsCollectorTarget
+      extends Target<ByteArray> {
+
+    /**
+     * Reader to access the Lucene index.
+     */
+    private final AtomicReaderContext context;
+
+    /**
+     * Field to index
+     */
+    private final String field;
+
+    /**
+     * Id of the field that gets indexed.
+     */
+    private final SerializableByte fieldId;
+
+    /**
+     * Initialize the terms collector.
+     *
+     * @param newSource Source providing terms
+     * @param newField Field to index
+     * @param newContext Context to use
+     */
+    IndexTermsCollectorTarget(
+        final Source<ByteArray> newSource, final String newField,
+        final AtomicReaderContext newContext) {
+      super(newSource);
+      this.field = newField;
+      this.fieldId = getFieldId(this.field);
+      this.context = newContext;
+    }
+
+    /**
+     * Internal constructor used by {@link #newInstance()}.
+     *
+     * @param newSource Source to use
+     * @param newField Field to index
+     * @param newFieldId Id of the field to index
+     * @param newContext Context to use
+     */
+    private IndexTermsCollectorTarget(
+        final Source<ByteArray> newSource,
+        final String newField, final SerializableByte newFieldId,
+        final AtomicReaderContext newContext) {
+      super(newSource);
+      this.field = newField;
+      this.fieldId = newFieldId.clone();
+      this.context = newContext;
+    }
+
+    @Override
+    public Target<ByteArray> newInstance() {
+      return new IndexTermsCollectorTarget(getSource(), this.field,
+          this.fieldId, this.context);
+    }
+
+    @SuppressWarnings("ObjectAllocationInLoop")
+    @Override
+    public void runProcess()
+        throws IOException, InterruptedException, ProcessingException {
+      DocsEnum docsEnum;
+      final TermsEnum termsEnum =
+          this.context.reader().terms(this.field).iterator(TermsEnum.EMPTY);
+      BytesRef termBr;
+      Term termIdx;
+
+      while (!isTerminating()) {
+        final ByteArray term;
+        try {
+          term = getSource().next();
+        } catch (final SourceException.SourceHasFinishedException ex) {
+          break;
+        }
+
+        if (term != null) {
+          termBr = new BytesRef(term.bytes);
+
+          if (termsEnum.seekExact(termBr)) {
+            termIdx = new Term(this.field, termBr);
+            docsEnum = this.context.reader().termDocsEnum(termIdx);
+
+            if (docsEnum == null) {
+              // field or term does not exist
+              LOG.warn("Field or term does not exist. f={} t={}", this.field,
+                  ByteArrayUtils.utf8ToString(term));
+            } else {
+              collectTerms(term.clone(), this.fieldId, docsEnum,
+                  termsEnum.totalTermFreq(), this.context.docBase);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private final class IndexFieldsTermsCollectorTarget
+      extends TargetFuncCall.TargetFunc<ByteArray> {
+
+    private final String field;
+
+    IndexFieldsTermsCollectorTarget(final String fieldName) {
+      this.field = fieldName;
+    }
+
+    @Override
+    public void call(final ByteArray term)
+        throws Exception {
+      if (term != null) {
+        final TermsEnum termsEnum =
+            getIndexReader().getContext().leaves().get(0).reader().terms(this
+                .field).iterator(TermsEnum.EMPTY);
+        final BytesRef termBr = new BytesRef(term.bytes);
+
+        if (termsEnum.seekExact(termBr)) {
+          Term termIdx = new Term(this.field, termBr);
+          final DocsEnum docsEnum =
+              getIndexReader().getContext().leaves().get(0).reader()
+                  .termDocsEnum(termIdx);
+
+          if (docsEnum == null) {
+            // field or term does not exist
+            LOG.warn("Field or term does not exist. f={} t={}", this.field,
+                ByteArrayUtils.utf8ToString(term));
+          } else {
+//            collectTerms(term.clone(), getFieldId(this.field), docsEnum,
+//                termsEnum.totalTermFreq(), this.context.docBase);
+
+            int docId = docsEnum.nextDoc();
+            while (docId != DocIdSetIterator.NO_MORE_DOCS) {
+              final int basedDocId =
+                  docId + getIndexReader().getContext().leaves().get(0).docBase;
+              final int docTermFreq = docsEnum.freq();
+
+              assert term.clone() != null;
+              assert getFieldId(this.field) != null;
+
+              Integer oldDTFValue = getIdxDocTermsMap().putIfAbsent(Fun.t3
+                      (term.clone(), getFieldId(this.field), basedDocId),
+                  docTermFreq);
+              if (oldDTFValue != null) {
+                final Fun.Tuple3<ByteArray, SerializableByte, Integer>
+                    idxDocTfMapKey =
+                    Fun.t3(term.clone(), getFieldId(this.field), basedDocId);
+                while (!getIdxDocTermsMap().replace(
+                    idxDocTfMapKey, oldDTFValue, oldDTFValue + docTermFreq)) {
+                  oldDTFValue = getIdxDocTermsMap().get(idxDocTfMapKey);
+                }
+              }
+              docId = docsEnum.nextDoc();
+            }
+
+            // add whole index term frequency map
+            Long oldValue =
+                getIdxTermsMap().putIfAbsent(Fun.t2(getFieldId(this.field),
+                    term.clone()), termsEnum.totalTermFreq());
+            if (oldValue != null) {
+              final Fun.Tuple2<SerializableByte, ByteArray> idxTfMapKey =
+                  Fun.t2(getFieldId(this.field), term.clone());
+              while (!getIdxTermsMap()
+                  .replace(idxTfMapKey, oldValue,
+                      oldValue + termsEnum.totalTermFreq())) {
+                oldValue = getIdxTermsMap().get(idxTfMapKey);
+              }
+            }
+          }
+        }
+      }
     }
   }
 
@@ -1293,16 +1568,14 @@ public final class DirectIndexDataProvider
       }
 
       TermsEnum termsEnum = TermsEnum.EMPTY;
-      @SuppressWarnings("ObjectAllocationInLoop")
       DocsEnum docsEnum;
       Terms terms;
       final int docBase = rContext.docBase;
       final AtomicReader reader = rContext.reader();
-      SerializableByte fieldId;
       BytesRef term;
 
       for (final String field : this.fields) {
-        fieldId = getFieldId(field);
+        final SerializableByte fieldId = getFieldId(field);
         terms = reader.terms(field);
 
         if (terms == null) {
@@ -1313,7 +1586,9 @@ public final class DirectIndexDataProvider
 
           while (term != null) {
             if (termsEnum.seekExact(term)) {
-              docsEnum = reader.termDocsEnum(new Term(field, term));
+              @SuppressWarnings("ObjectAllocationInLoop")
+              final Term t = new Term(field, term);
+              docsEnum = reader.termDocsEnum(t);
 
               if (docsEnum == null) {
                 // field or term does not exist
@@ -1321,7 +1596,6 @@ public final class DirectIndexDataProvider
                     term.utf8ToString());
               } else {
                 collectTerms(BytesRefUtils.toByteArray(term), fieldId,
-                    getIdxTermsMap(), getIdxDocTermsMap(),
                     docsEnum, termsEnum.totalTermFreq(), docBase);
               }
             }
@@ -1332,35 +1606,24 @@ public final class DirectIndexDataProvider
     }
   }
 
-  private final class TimedCommitRunner
-      extends TimerTask {
-    private final TimeMeasure tm = new TimeMeasure().start();
-    private final int period;
-    private boolean finished = true;
-
-    TimedCommitRunner(final int newPeriod) {
-      this.period = newPeriod;
-    }
-
-    @Override
-    public void run() {
-      if (this.finished && this.tm.getElapsedMillis() >= (double) this.period) {
-        this.finished = false;
-        commitDb(false);
-        this.finished = true;
-        this.tm.start();
-      }
-    }
-  }
-
   /**
    * Auto-commit database on long running processes.
    */
   private final class TimedCommit {
-
+    /**
+     * Timer for scheduling commits.
+     */
     private Timer timer;
+
+    /**
+     * Period between commits.
+     */
     private int period;
-    private TimedCommitRunner task;
+
+    /**
+     * Commit executing timer.
+     */
+    private Runner task;
 
     /**
      * Initializes the timer and starts it after the given delay, repeating the
@@ -1370,10 +1633,10 @@ public final class DirectIndexDataProvider
      * @param newPeriod time in milliseconds between successive task executions
      */
     TimedCommit(final int delay, final int newPeriod) {
-      if (getPersistence().supportsTransaction()) {
+      if (getPersistStatic().isTransactionSupported()) {
         this.period = newPeriod;
         this.timer = new Timer();
-        this.task = new TimedCommitRunner(this.period);
+        this.task = new Runner(this.period);
         this.timer.schedule(this.task, (long) delay, (long) this.period);
       }
     }
@@ -1385,10 +1648,10 @@ public final class DirectIndexDataProvider
      * @param newPeriod time in milliseconds between successive task executions
      */
     TimedCommit(final int newPeriod) {
-      if (getPersistence().supportsTransaction()) {
+      if (getPersistStatic().isTransactionSupported()) {
         this.period = newPeriod;
         this.timer = new Timer();
-        this.task = new TimedCommitRunner(this.period);
+        this.task = new Runner(this.period);
       }
     }
 
@@ -1396,7 +1659,7 @@ public final class DirectIndexDataProvider
      * Stop the timer.
      */
     void stop() {
-      if (getPersistence().supportsTransaction()) {
+      if (getPersistStatic().isTransactionSupported()) {
         this.timer.cancel();
       }
     }
@@ -1407,10 +1670,10 @@ public final class DirectIndexDataProvider
      * @param newPeriod time in milliseconds between successive task executions
      */
     void start(final int newPeriod) {
-      if (getPersistence().supportsTransaction()) {
+      if (getPersistStatic().isTransactionSupported()) {
         this.timer.cancel();
         this.timer = new Timer();
-        this.task = new TimedCommitRunner(this.period);
+        this.task = new Runner(this.period);
         this.timer.schedule(this.task, 0L, (long) newPeriod);
       }
     }
@@ -1419,10 +1682,52 @@ public final class DirectIndexDataProvider
      * Start the timer again.
      */
     void start() {
-      if (getPersistence().supportsTransaction()) {
+      if (getPersistStatic().isTransactionSupported()) {
         this.timer.cancel();
         this.timer = new Timer();
         this.timer.schedule(this.task, 0L, (long) this.period);
+      }
+    }
+
+    /**
+     * Helper class calling commit on the database in configurable intervals.
+     */
+    private final class Runner
+        extends TimerTask {
+      /**
+       * Time measure for timing commits.
+       */
+      private final TimeMeasure tm = new TimeMeasure().start();
+
+      /**
+       * Commit period to use.
+       */
+      private final int period;
+
+      /**
+       * Flag indicating, if current commit has finished. Avoids trying to
+       * commit over and over, if commits take longer than the period time.
+       */
+      private boolean finished = true;
+
+      /**
+       * Create a new instance with the provided commit period.
+       *
+       * @param newPeriod Commit period
+       */
+      Runner(final int newPeriod) {
+        this.period = newPeriod;
+      }
+
+      @Override
+      public void run() {
+        if (this.finished &&
+            this.tm.getElapsedMillis() >= (double) this.period) {
+          this.finished = false;
+          getCache().commit(false);
+          this.finished = true;
+          this.tm.start();
+        }
       }
     }
   }

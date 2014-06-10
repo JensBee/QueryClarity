@@ -28,13 +28,11 @@ public interface ClarityScoreCalculation {
   /**
    * Empty implementation. May be used, if calculation has failed.
    */
-  static final ClarityScoreCalculation NONE = new
+  ClarityScoreCalculation NONE = new
       ClarityScoreCalculation() {
 
         @Override
-        public ClarityScoreResult calculateClarity(final String query)
-            throws ClarityScoreCalculationException,
-                   IOException {
+        public ClarityScoreResult calculateClarity(final String query) {
           return ClarityScoreResult.EMPTY_RESULT;
         }
 
@@ -67,7 +65,7 @@ public interface ClarityScoreCalculation {
    * May be extended by implementing classes to provide finer grained error
    * tracing.
    */
-  public class ClarityScoreCalculationException
+  final class ClarityScoreCalculationException
       extends Exception {
     public ClarityScoreCalculationException(final Exception ex) {
       super("Failed to calculate clarity score.", ex);
@@ -76,10 +74,6 @@ public interface ClarityScoreCalculation {
     public ClarityScoreCalculationException(final String msg, final Exception
         ex) {
       super(msg, ex);
-    }
-
-    public ClarityScoreCalculationException(final String msg) {
-      super(msg);
     }
   }
 }

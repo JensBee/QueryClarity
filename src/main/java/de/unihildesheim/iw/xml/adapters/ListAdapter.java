@@ -26,13 +26,17 @@ import java.util.List;
 /**
  * @author Jens Bertram
  */
-public class ListAdapter {
+class ListAdapter {
+  /**
+   * XML processing of Tuple2 objects.
+   */
   @SuppressWarnings("PublicInnerClass")
   public static class Tuple2ListValue
       extends
       XmlAdapter<Entries.StringValueEntry[], List<Tuple.Tuple2<String,
           String>>> {
 
+    @SuppressWarnings("ReturnOfNull")
     @Override
     public List<Tuple.Tuple2<String, String>> unmarshal(
         final Entries.StringValueEntry[] value)
@@ -48,6 +52,7 @@ public class ListAdapter {
       return retList;
     }
 
+    @SuppressWarnings("ObjectAllocationInLoop")
     @Override
     public Entries.StringValueEntry[] marshal(
         final List<Tuple.Tuple2<String, String>> value)

@@ -47,7 +47,7 @@ public final class AbstractIndexDataProviderTest
    */
   public AbstractIndexDataProviderTest()
       throws Exception {
-    super(new TestIndexDataProvider(TestIndexDataProvider.DEFAULT_INDEX_SIZE));
+    super(new TestIndexDataProvider());
   }
 
   /**
@@ -99,25 +99,6 @@ public final class AbstractIndexDataProviderTest
   }
 
   /**
-   * Test of warmUpIndexTermFrequencies method, of class
-   * AbstractIndexDataProvider.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Test
-  @Override
-  @Ignore
-  public void testWarmUpIndexTermFrequencies()
-      throws Exception {
-//    final AbstractIndexDataProviderTestImpl instance
-//        = (AbstractIndexDataProviderTestImpl) IndexTestUtil.
-//        createInstance(
-//            referenceIndex, AbstractIndexDataProviderTestImpl.class,
-//            null, null);
-//    instance.warmUpIndexTermFrequencies();
-  }
-
-  /**
    * Simple testing implementation of {@link AbstractIndexDataProvider}.
    */
   @SuppressWarnings("PublicInnerClass")
@@ -135,12 +116,6 @@ public final class AbstractIndexDataProviderTest
     @SuppressWarnings("checkstyle:magicnumber")
     public AbstractIndexDataProviderTestImpl() {
       super(true);
-    }
-
-
-    @Override
-    public Collection<Integer> getDocumentIds() {
-      return DOC_IDS;
     }
 
     @Override
@@ -168,12 +143,17 @@ public final class AbstractIndexDataProviderTest
     }
 
     @Override
+    public Collection<Integer> getDocumentIds() {
+      return DOC_IDS;
+    }
+
+    @Override
     public int getDocumentFrequency(final ByteArray term) {
       throw new UnsupportedOperationException("Not supported yet.");
     }
 
     @Override
-    public void dispose() {
+    public void close() {
       // NOP
     }
 

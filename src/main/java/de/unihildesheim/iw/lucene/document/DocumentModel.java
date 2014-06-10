@@ -18,9 +18,8 @@ package de.unihildesheim.iw.lucene.document;
 
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.index.Metrics;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -34,12 +33,6 @@ import java.util.Objects;
 public final class DocumentModel {
 
   /**
-   * Logger instance for this class.
-   */
-  private static final Logger LOG = LoggerFactory.getLogger(
-      DocumentModel.class);
-
-  /**
    * Referenced Lucene document id.
    */
   public final int id;
@@ -50,9 +43,10 @@ public final class DocumentModel {
   public final long termFrequency;
 
   /**
-   * Term->document-frequency mapping for every known term in the document.
+   * Mapping of {@code Term} to {@code document-frequency} for every known term
+   * in the document.
    */
-  public final Map<ByteArray, Long> termFreqMap;
+  private final Map<ByteArray, Long> termFreqMap;
 
   /**
    * Pre-calculated hash code for this object.
@@ -65,11 +59,11 @@ public final class DocumentModel {
   private Metrics.DocumentMetrics metrics;
 
   /**
-   * Create a new model with data from the given builder.
+   * Create a new model with data from the provided builder.
    *
    * @param builder Builder to use
    */
-  private DocumentModel(final Builder builder) {
+  DocumentModel(final Builder builder) {
     assert builder != null;
 
     this.id = builder.docId;
@@ -80,10 +74,22 @@ public final class DocumentModel {
   }
 
   /**
-   * Check if a term is known for this document.
+   * Calculate the hash value for this object.
+   */
+  private void calcHash() {
+    this.hashCode = 7;
+    this.hashCode = 19 * this.hashCode + this.id;
+    this.hashCode = 19 * this.hashCode + (int) (this.termFrequency
+        ^ (this.termFrequency
+        >>> 32));
+    this.hashCode = 19 * this.hashCode * this.termFreqMap.size();
+  }
+
+  /**
+   * Checks, if a term is known for this document.
    *
    * @param term Term to lookup
-   * @return True if known
+   * @return True if it's known
    */
   public boolean contains(final ByteArray term) {
     return this.termFreqMap.containsKey(Objects.requireNonNull(term,
@@ -126,13 +132,19 @@ public final class DocumentModel {
   /**
    * Get a {@link Metrics.DocumentMetrics} instance for this model.
    *
-   * @return {@link Metrics.DocumentMetrics} instance loaded with this model
+   * @return {@link Metrics.DocumentMetrics} instance initialized with this
+   * model
    */
   public Metrics.DocumentMetrics metrics() {
     if (this.metrics == null) {
       this.metrics = new Metrics.DocumentMetrics(this);
     }
     return this.metrics;
+  }
+
+  @Override
+  public int hashCode() {
+    return this.hashCode;
   }
 
   @Override
@@ -147,16 +159,17 @@ public final class DocumentModel {
     final DocumentModel other = (DocumentModel) o;
 
     if (this.id != other.id || this.termFrequency != other.termFrequency
-        || this.termFreqMap.size() != other.termFreqMap.size()) {
+        || this.termFreqMap.size() != other.getTermFreqMap().size()) {
       return false;
     }
 
-    if (!other.termFreqMap.keySet().containsAll(this.termFreqMap.keySet())) {
+    if (!other.getTermFreqMap()
+        .keySet().containsAll(this.termFreqMap.keySet())) {
       return false;
     }
 
     for (final Entry<ByteArray, Long> entry : this.termFreqMap.entrySet()) {
-      if (entry.getValue().compareTo(other.termFreqMap.get(entry.getKey()))
+      if (entry.getValue().compareTo(other.getTermFreqMap().get(entry.getKey()))
           != 0) {
         return false;
       }
@@ -165,21 +178,13 @@ public final class DocumentModel {
   }
 
   /**
-   * Calculate the hash value for this object.
+   * Get a mapping of {@code Term} to {@code document-frequency} for every known
+   * term in the document. The returned Map is immutable.
+   *
+   * @return {@code Term} to {@code document-frequency} mapping (immutable)
    */
-  @SuppressWarnings("checkstyle:magicnumber")
-  private void calcHash() {
-    this.hashCode = 7;
-    this.hashCode = 19 * this.hashCode + this.id;
-    this.hashCode = 19 * this.hashCode + (int) (this.termFrequency
-        ^ (this.termFrequency
-        >>> 32));
-    this.hashCode = 19 * this.hashCode * this.termFreqMap.size();
-  }
-
-  @Override
-  public int hashCode() {
-    return this.hashCode;
+  public Map<ByteArray, Long> getTermFreqMap() {
+    return Collections.unmodifiableMap(this.termFreqMap);
   }
 
   /**
@@ -193,23 +198,29 @@ public final class DocumentModel {
      * storage to a appropriate size.
      */
     private static final int DEFAULT_TERMS_COUNT = 100;
+
     /**
      * Term -> frequency mapping for every known term in the document.
      */
-    private final Map<ByteArray, Long> termFreqMap;
+    @SuppressWarnings("PackageVisibleField")
+    final Map<ByteArray, Long> termFreqMap;
+
     /**
      * Id to identify the corresponding document.
      */
-    private final int docId;
+    @SuppressWarnings("PackageVisibleField")
+    final int docId;
+
     /**
      * Overall term frequency of the corresponding document.
      */
-    private long termFreq;
+    @SuppressWarnings("PackageVisibleField")
+    long termFreq;
 
     /**
-     * Builds a new {@link DocumentModel} with the given id.
+     * Initializes the Builder with the given document-id.
      *
-     * @param documentId Referenced document id
+     * @param documentId Referenced document-id
      */
     public Builder(final int documentId) {
       this.docId = documentId;
@@ -217,22 +228,25 @@ public final class DocumentModel {
     }
 
     /**
-     * Builds a new {@link DocumentModel} based on an already existing one.
+     * Builds a new {@link DocumentModel} based on an already existing one. The
+     * document-id, term-frequency map and the overall term frequency are copied
+     * to the new model.
      *
-     * @param docModel Model to get the data from
+     * @param docModel Model to copy the data from
      */
     public Builder(final DocumentModel docModel) {
       Objects.requireNonNull(docModel, "DocumentModel was null.");
 
       this.docId = docModel.id;
-      this.termFreqMap = new HashMap<>(docModel.termFreqMap.size());
-      this.termFreqMap.putAll(docModel.termFreqMap);
+      this.termFreqMap = new HashMap<>(docModel.getTermFreqMap().size());
+      this.termFreqMap.putAll(docModel.getTermFreqMap());
       this.termFreq = docModel.termFrequency;
     }
 
     /**
-     * Builds a new {@link DocumentModel} with the given id and the expected
-     * amount of terms for this document.
+     * Builds a new {@link DocumentModel} with the given document-id and the
+     * expected amount of terms for this document. <br> The amount of terms is
+     * used to initialize data structures.
      *
      * @param documentId Referenced document id
      * @param termsCount Expected number of terms
@@ -247,7 +261,7 @@ public final class DocumentModel {
      * Set the document frequency for a specific term.
      *
      * @param term Term
-     * @param freq Frequency of term
+     * @param freq Document frequency of the term
      * @return Self reference
      */
     public Builder setTermFrequency(final ByteArray term,
@@ -260,7 +274,7 @@ public final class DocumentModel {
     /**
      * Set the document frequency for a list of terms.
      *
-     * @param map Map containing <tt>term -> frequency</tt> mapping
+     * @param map Map containing {@code term} to  {@code frequency} mappings
      * @return Self reference
      */
     public Builder setTermFrequency(
@@ -278,7 +292,7 @@ public final class DocumentModel {
     }
 
     /**
-     * Build the document model.
+     * Builds the {@link DocumentModel} using the current data.
      *
      * @return New document model with the data of this builder set
      */
@@ -287,32 +301,6 @@ public final class DocumentModel {
         this.termFreq += tf;
       }
       return new DocumentModel(this);
-    }
-  }
-
-  /**
-   * Wrapper for {@link Exception}s thrown while working with document models.
-   *
-   * @author Jens Bertram
-   */
-  public static class DocumentModelException
-      extends Exception {
-
-    /**
-     * Serialization id.
-     */
-    private static final long serialVersionUID = -3614607208971266570L;
-
-    /**
-     * Create a new generic {@link DocumentModelException} to indicate that
-     * model creation has failed.
-     *
-     * @param exception Originating exception
-     */
-    public DocumentModelException(
-        final ReflectiveOperationException exception) {
-      super("Error instantiating requested document model type.",
-          exception.getCause());
     }
   }
 }

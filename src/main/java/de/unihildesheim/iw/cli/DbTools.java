@@ -38,6 +38,9 @@ public final class DbTools
    */
   private final Params cliParams = new Params();
 
+  /**
+   * Constructor initializing meta information.
+   */
   private DbTools() {
     super("Database tool collection.", "Tool collection for persistent data " +
         "storage files.");
@@ -48,8 +51,7 @@ public final class DbTools
    *
    * @param args Commandline arguments.
    */
-  public static void main(final String[] args)
-      throws Exception {
+  public static void main(final String[] args) {
     new DbTools().runMain(args);
   }
 
@@ -58,13 +60,12 @@ public final class DbTools
    *
    * @param args Commandline arguments.
    */
-  private void runMain(final String[] args)
-      throws Exception {
-    super.parse(this.cliParams, args);
+  private void runMain(final String[] args) {
+    parse(this.cliParams, args);
 
     this.cliParams.checkCommand();
 
-    if (defaultCliParams.printHelp) {
+    if (this.defaultCliParams.printHelp) {
       System.out.println("Command help '" + this.cliParams.command + "':");
       switch (StringUtils.lowerCase(this.cliParams.command)) {
         case "compact":
@@ -82,6 +83,9 @@ public final class DbTools
     }
   }
 
+  /**
+   * Run compaction on the current database.
+   */
   private void runCompact() {
     final DBMaker dbMkr = DBMaker.newFileDB(this.cliParams.dbFile)
         .strictDBGet();
@@ -104,26 +108,42 @@ public final class DbTools
     /**
      * Database name.
      */
+    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-f", aliases = "--file", metaVar = "NAME",
         required = true, usage = "Database file (without '.p' or '.t').")
     File dbFile;
 
+    /**
+     * True, if compression should be enabled.
+     */
+    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-useCompression", required = false,
         usage = "Use database compression. Must be specified, " +
             "if the database was created using compression.")
-    boolean useCompression = false;
+    boolean useCompression;
 
     /**
      * Command to execute.
      */
+    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-c", aliases = "--command", metaVar = "(compact)",
         required = true,
         usage = "Command to execute. Use '-command-help' for details.")
     String command;
 
+    /**
+     * Empty constructor to allow access from parent class.
+     */
+    Params() {
+    }
+
+    /**
+     * Checks, if the database file exist.
+     */
     void checkDbFile() {
-      if (!dbFile.exists()) {
-        System.err.println("Error: Database file '" + dbFile + "' not found.");
+      if (!this.dbFile.exists()) {
+        System.err
+            .println("Error: Database file '" + this.dbFile + "' not found.");
         System.exit(1);
       }
     }
@@ -133,11 +153,11 @@ public final class DbTools
      */
     void checkCommand() {
       // check command
-      switch (StringUtils.lowerCase(command)) {
+      switch (StringUtils.lowerCase(this.command)) {
         case "compact":
           break;
         default:
-          System.err.println("Error: Unknown command '" + command + "'.");
+          System.err.println("Error: Unknown command '" + this.command + "'.");
           System.exit(1);
       }
     }

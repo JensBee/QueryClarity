@@ -18,6 +18,7 @@
 package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.lucene.LuceneDefaults;
+import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.ParseException;
@@ -31,13 +32,20 @@ import org.slf4j.LoggerFactory;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Query builder that tries to match all terms from a given query. A {@link
+ * #relax()} method is provided to stepwise reduce the number of terms that must
+ * match in a document. <br> Example: If a query "Lucene in action" is provided
+ * at first all three terms must match. If {@link #relax()} was called only two
+ * terms of the original query must match and so on.
+ *
  * @author Jens Bertram
  */
 public class TryExactTermsQuery
-    implements TermsProvidingQuery {
+    implements TermsProvidingQuery, RelaxableQuery {
 
   /**
    * Logger instance for this class.
@@ -49,6 +57,7 @@ public class TryExactTermsQuery
    * Final query object.
    */
   private final BooleanQuery query;
+
   /**
    * List of terms contained in the query (stopped, analyzed).
    */
@@ -58,12 +67,27 @@ public class TryExactTermsQuery
    */
   private final Set<String> uniqueQueryTerms;
 
-  public TryExactTermsQuery(Analyzer analyzer, final String query,
+  /**
+   * New instance using the supplied query.
+   *
+   * @param analyzer Query analyzer
+   * @param queryStr Query string
+   * @param fields Fields to query
+   * @throws ParseException Thrown, if the query could not be parsed
+   */
+  public TryExactTermsQuery(final Analyzer analyzer, final String queryStr,
       final Set<String> fields)
       throws ParseException {
+    Objects.requireNonNull(analyzer, "Analyzer was null.");
+    if (Objects.requireNonNull(fields, "Fields were null.").isEmpty()) {
+      throw new IllegalArgumentException("Empty fields list.");
+    }
+    if (StringUtils.isStrippedEmpty(Objects.requireNonNull(queryStr,
+        "Query was null."))) {
+      throw new IllegalArgumentException("Empty query.");
+    }
 
-    this.queryTerms = new SimpleTermsQuery(analyzer, query,
-        SimpleTermsQuery.DEFAULT_OPERATOR, fields).getQueryTerms();
+    this.queryTerms = QueryUtils.tokenizeQueryString(queryStr, analyzer);
 
     final QueryParser qParser = new MultiFieldQueryParser(
         LuceneDefaults.VERSION, fields.toArray(new String[fields.size()]),
@@ -72,20 +96,35 @@ public class TryExactTermsQuery
     this.query = new BooleanQuery();
     this.uniqueQueryTerms = new HashSet<>(this.queryTerms);
     for (final String term : this.uniqueQueryTerms) {
-      this.query.add(new BooleanClause(qParser.parse(term),
-          BooleanClause.Occur.SHOULD));
+      @SuppressWarnings("ObjectAllocationInLoop")
+      final BooleanClause bc = new BooleanClause(qParser.parse(term),
+          BooleanClause.Occur.SHOULD);
+      this.query.add(bc);
     }
     this.query.setMinimumNumberShouldMatch(this.uniqueQueryTerms.size());
-    LOG.debug("TEQ {}", this.query.toString());
+    LOG.debug("TEQ {}", this.query);
   }
 
+  /**
+   * Get the query object.
+   *
+   * @return Query object
+   */
   public BooleanQuery get() {
     return this.query;
   }
 
+  /**
+   * Reduce the number of terms that must match by one.
+   *
+   * @return True, if query was relaxed, false, if no terms left to relax the
+   * query
+   */
+  @Override
   public boolean relax() {
     final int matchCount = this.query.getMinimumNumberShouldMatch();
     if (matchCount > 1) {
+      //noinspection HardcodedFileSeparator
       LOG.debug("Relax to {}/{}", matchCount - 1, this.uniqueQueryTerms.size());
       this.query.setMinimumNumberShouldMatch(matchCount - 1);
       return true;
@@ -93,13 +132,25 @@ public class TryExactTermsQuery
     return false;
   }
 
-  @Override
-  public Collection<String> getQueryTerms() {
-    return Collections.unmodifiableCollection(this.queryTerms);
-  }
-
+  /**
+   * Get the query object. This object is directly changed on each call to
+   * {@link #relax()}, so there's no need to re-get it every time after relaxing
+   * the query.
+   *
+   * @return Current query object
+   */
   @Override
   public Query getQueryObj() {
     return this.query;
+  }
+
+  /**
+   * Get the list of terms from the original query. Stop-words are removed.
+   *
+   * @return List of query terms with stop-words removed
+   */
+  @Override
+  public Collection<String> getQueryTerms() {
+    return Collections.unmodifiableCollection(this.queryTerms);
   }
 }

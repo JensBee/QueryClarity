@@ -21,7 +21,7 @@ package de.unihildesheim.iw.cli;
  *
  * @author Jens Bertram
  */
-public class ShellCmds {
+public final class ShellCmds {
 
   /**
    * Short command to quit the shell.
