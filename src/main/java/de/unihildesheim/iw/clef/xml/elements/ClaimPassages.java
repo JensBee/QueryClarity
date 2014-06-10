@@ -22,7 +22,6 @@ import javax.xml.bind.annotation.XmlElementWrapper;
 import javax.xml.bind.annotation.XmlRootElement;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 
 /**
  * JAXB for {@code claimpassages} XML documents.
@@ -48,7 +47,7 @@ public class ClaimPassages {
   /**
    * Passage elements list.
    */
-  private Collection<ScoreType> scoreTypes =
+  private final Collection<ScoreType> scoreTypes =
       new ArrayList<>(DEFAULT_SCORETYPES_SIZE);
   /**
    * Default number of languages that are expected. Used as list initializer.
@@ -57,20 +56,15 @@ public class ClaimPassages {
   /**
    * Language elements list.
    */
-  private Collection<Language> languages =
+  private final Collection<Language> languages =
       new ArrayList<>(DEFAULT_LANGUAGE_SIZE);
-
-  /**
-   * Default constructor used for JAXB (un)marshalling.
-   */
-  public ClaimPassages() {
-  }
 
   /**
    * Get the list of passages groups.
    *
    * @return List of passages groups
    */
+  @SuppressWarnings("ReturnOfCollectionOrArrayField")
   @XmlElementWrapper(name = "passages")
   @XmlElement(name = "passages", type = PassagesGroup.class)
   public Collection<PassagesGroup> getPassageGroups() {
@@ -82,10 +76,12 @@ public class ClaimPassages {
    *
    * @param groupList Groups to add
    */
-  public void setPassageGroups(final List<PassagesGroup> groupList) {
+  @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
+  public void setPassageGroups(final Collection<PassagesGroup> groupList) {
     this.passagesGroups = groupList;
   }
 
+  @SuppressWarnings("ReturnOfCollectionOrArrayField")
   @XmlElementWrapper(name = "languages")
   @XmlElement(name = "lang", type = Language.class)
   public Collection<Language> getLanguages() {
@@ -97,6 +93,7 @@ public class ClaimPassages {
    *
    * @return List of score types
    */
+  @SuppressWarnings("ReturnOfCollectionOrArrayField")
   @XmlElement(name = "scores", type = ScoreType.class)
   public Collection<ScoreType> getScoreTypes() {
     return this.scoreTypes;

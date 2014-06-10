@@ -30,7 +30,6 @@ import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.analysis.util.StopwordAnalyzerBase;
 import org.apache.lucene.util.Version;
 
-import java.io.IOException;
 import java.io.Reader;
 
 /**
@@ -83,12 +82,6 @@ public class EnglishAnalyzer
     );
     */
     tok = new PorterStemFilter(tok);
-    return new TokenStreamComponents(src, tok) {
-      @Override
-      protected void setReader(final Reader reader)
-          throws IOException {
-        super.setReader(reader);
-      }
-    };
+    return new TokenStreamComponents(src, tok);
   }
 }

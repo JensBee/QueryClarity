@@ -32,6 +32,9 @@ import java.util.Objects;
  */
 public final class LanguageBasedAnalyzers {
 
+  /**
+   * List of known languages.
+   */
   private static final List<String> LANG_LIST;
 
   static {
@@ -41,6 +44,18 @@ public final class LanguageBasedAnalyzers {
     }
   }
 
+  /**
+   * Private empty constructor for utility class.
+   */
+  private LanguageBasedAnalyzers() {
+  }
+
+  /**
+   * Get a language instance for the language described by it's two-char code.
+   *
+   * @param lang Language code (two-char)
+   * @return Language instance
+   */
   public static LanguageAnalyzers getLanguage(final String lang) {
     if (hasAnalyzer(lang)) {
       return LanguageAnalyzers.valueOf(StringUtils.upperCase(lang));
@@ -48,10 +63,25 @@ public final class LanguageBasedAnalyzers {
     return null;
   }
 
+  /**
+   * Check, if an analyzer for the given language exists.
+   *
+   * @param lang Language code (two-char)
+   * @return True, if an analyzer exists
+   */
   public static boolean hasAnalyzer(final String lang) {
     return LANG_LIST.contains(StringUtils.upperCase(lang));
   }
 
+  /**
+   * Create a new {@link Analyzer} for the provided language.
+   *
+   * @param lang Language code (two-char)
+   * @param matchVersion Lucene version
+   * @param stopWords List of stopwords to initialize the Analyzer with
+   * @return New Analyzer instance
+   */
+  @SuppressWarnings("AssignmentToNull")
   public static Analyzer createInstance(final LanguageAnalyzers lang,
       final Version matchVersion, final CharArraySet stopWords) {
     final Analyzer analyzer;
@@ -74,6 +104,15 @@ public final class LanguageBasedAnalyzers {
     return analyzer;
   }
 
+  /**
+   * Create a new {@link Analyzer} for the provided language using the list of
+   * stopwords currently set in the {@link IndexDataProvider}.
+   *
+   * @param lang Language code (two-char)
+   * @param dataProv Provider with stopwords
+   * @return New Analyzer instance
+   */
+  @SuppressWarnings("AssignmentToNull")
   public static Analyzer createInstance(final LanguageAnalyzers lang,
       final IndexDataProvider dataProv) {
     final Analyzer analyzer;
@@ -96,8 +135,22 @@ public final class LanguageBasedAnalyzers {
     return analyzer;
   }
 
+  /**
+   * List of known language codes to which an {@link Analyzer} exists.
+   */
   @SuppressWarnings("PublicInnerClass")
   public enum LanguageAnalyzers {
-    DE, EN, FR
+    /**
+     * German.
+     */
+    DE,
+    /**
+     * English.
+     */
+    EN,
+    /**
+     * French.
+     */
+    FR
   }
 }

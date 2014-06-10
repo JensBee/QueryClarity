@@ -46,7 +46,7 @@ public class ScoreType {
     return confMap;
   }
 
-  public void setConfiguration(Map<String, String> map) {
+  public void setConfiguration(final Map<String, String> map) {
     this.confMap = map;
   }
 

@@ -106,16 +106,21 @@ public class Passage {
 
   public static class Score {
     @XmlAttribute
-    private String impl;
+    private final String impl;
 
     @XmlAttribute
-    private Double score;
+    private final boolean empty;
+
+    @XmlAttribute
+    private final Double score;
 
     private ScoringResult.ScoringResultXml result;
 
-    public Score(final String identifier, final Double newScore) {
+    public Score(final String identifier, final Double newScore,
+        final boolean isEmpty) {
       this.impl = identifier;
       this.score = newScore;
+      this.empty = isEmpty;
     }
 
     @XmlElement

@@ -32,7 +32,6 @@ import org.apache.lucene.util.Version;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.io.Reader;
 
 /**
@@ -58,7 +57,8 @@ public class FrenchAnalyzer
    * @param version Lucene version to match
    * @param newStopwords stop words
    */
-  public FrenchAnalyzer(Version version, CharArraySet newStopwords) {
+  public FrenchAnalyzer(final Version version,
+      final CharArraySet newStopwords) {
     super(version, newStopwords);
   }
 
@@ -97,12 +97,6 @@ public class FrenchAnalyzer
     */
     tok =
         new SnowballFilter(tok, new org.tartarus.snowball.ext.FrenchStemmer());
-    return new TokenStreamComponents(src, tok) {
-      @Override
-      protected void setReader(final Reader reader)
-          throws IOException {
-        super.setReader(reader);
-      }
-    };
+    return new TokenStreamComponents(src, tok);
   }
 }

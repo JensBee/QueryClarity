@@ -53,10 +53,10 @@ public class PassagesGroup {
   /**
    * Create a new passages group with the given source attribute.
    *
-   * @param source Source name
+   * @param newSource Source name
    */
-  public PassagesGroup(final String source) {
-    this.source = source;
+  public PassagesGroup(final String newSource) {
+    this.source = newSource;
   }
 
   /**

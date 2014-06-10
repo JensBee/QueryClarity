@@ -29,21 +29,21 @@ public class Configuration {
 
   public static class ConfAdapter
       extends XmlAdapter<ConfElements[], Map<String, String>> {
-    public Map<String, String> unmarshal(ConfElements[] arg0)
+    public Map<String, String> unmarshal(final ConfElements[] arg0)
         throws Exception {
-      Map<String, String> r = new HashMap<>();
-      for (ConfElements mapelement : arg0) {
+      final Map<String, String> r = new HashMap<>();
+      for (final ConfElements mapelement : arg0) {
         r.put(mapelement.key, mapelement.value);
       }
       return r;
     }
 
-    public ConfElements[] marshal(Map<String, String> arg0)
+    public ConfElements[] marshal(final Map<String, String> arg0)
         throws Exception {
       ConfElements[] mapElements = new ConfElements[arg0.size()];
 
       int i = 0;
-      for (Map.Entry<String, String> entry : arg0.entrySet()) {
+      for (final Map.Entry<String, String> entry : arg0.entrySet()) {
         mapElements[i++] = new ConfElements(entry.getKey(), entry.getValue());
       }
       return mapElements;
@@ -56,12 +56,9 @@ public class Configuration {
     @XmlAttribute
     public String value;
 
-    private ConfElements() {
-    } //Required by JAXB
-
-    public ConfElements(String key, String value) {
-      this.key = key;
-      this.value = value;
+    public ConfElements(final String newKey, final String newValue) {
+      this.key = newKey;
+      this.value = newValue;
     }
   }
 }
