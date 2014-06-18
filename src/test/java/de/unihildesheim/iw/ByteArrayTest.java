@@ -33,31 +33,8 @@ import java.io.DataOutputStream;
  *
  * @author Jens Bertram
  */
-public class ByteArrayTest
+public final class ByteArrayTest
     extends TestCase {
-
-  @SuppressWarnings("ArrayEquality")
-  @Test
-  public void testClone()
-      throws Exception {
-    final ByteArray original = new ByteArray("test".getBytes("UTF-8"));
-    final ByteArray cloned = original.clone();
-
-    Assert.assertTrue("Clone not equal to original.",
-        original.equals(cloned));
-    Assert.assertFalse("Clone and original are the same.",
-        original == cloned);
-    Assert.assertEquals("Clone and original are not same value (compare).",
-        0L, (long) original.compareTo(cloned));
-    Assert.assertEquals("Clone and original are not same value (comparator).",
-        0L, (long) ByteArray.COMPARATOR.compare(original, cloned));
-    Assert.assertFalse("Stored bytes are same reference.",
-        original.bytes == cloned.bytes);
-    Assert.assertEquals("String result differs.", ByteArrayUtils.utf8ToString
-        (original), ByteArrayUtils.utf8ToString(cloned));
-    Assert.assertEquals("Hash code differs.", (long) original.hashCode(),
-        (long) cloned.hashCode());
-  }
 
   @SuppressWarnings("ObjectEquality")
   @Test
@@ -85,6 +62,7 @@ public class ByteArrayTest
     Assert.assertEquals(
         "Deserialized and original are not same value (comparator).",
         0L, (long) ByteArray.COMPARATOR.compare(original, deserialized));
+    //noinspection ArrayEquality
     Assert.assertFalse("Stored bytes are same reference.",
         original.bytes == deserialized.bytes);
     Assert.assertEquals("String result differs.", ByteArrayUtils.utf8ToString

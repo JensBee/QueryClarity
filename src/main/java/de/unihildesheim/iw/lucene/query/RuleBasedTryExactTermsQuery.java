@@ -54,7 +54,7 @@ import java.util.Set;
  *
  * @author Jens Bertram
  */
-public class RuleBasedTryExactTermsQuery
+public final class RuleBasedTryExactTermsQuery
     implements TermsProvidingQuery, RelaxableQuery {
   /**
    * Logger instance for this class.

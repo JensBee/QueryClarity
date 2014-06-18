@@ -84,6 +84,7 @@ public final class IndexTestUtils {
       throws UnsupportedEncodingException {
     assert amount > 0;
     final String finalKey;
+
     if (key == null) {
       finalKey = RandomValue.getString(1, 5);
     } else {
@@ -93,8 +94,7 @@ public final class IndexTestUtils {
     final Collection<Tuple.Tuple3<Integer, ByteArray, String>> unique
         = new HashSet<>(amount); // ensure unique triples
     final Collection<Tuple.Tuple4<
-        Integer, ByteArray, String, Integer>> termData
-        = new HashSet<>(amount);
+        Integer, ByteArray, String, Integer>> termData = new HashSet<>(amount);
     final int minDocId = 0;
     final int maxDocId;
 

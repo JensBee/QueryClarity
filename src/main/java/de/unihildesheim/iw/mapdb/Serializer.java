@@ -74,6 +74,17 @@ public final class Serializer {
    */
   private static final class IntegerSerializer
       implements Serializable, org.mapdb.Serializer<Integer> {
+    /**
+     * Serialization id.
+     */
+    private static final long serialVersionUID = -8966000771101828437L;
+
+    /**
+     * Accessor for parent class.
+     */
+    IntegerSerializer() {
+    }
+
     @Override
     public void serialize(final DataOutput out, final Integer value)
         throws IOException {
@@ -86,7 +97,8 @@ public final class Serializer {
     @Override
     public Integer deserialize(final DataInput in, final int available)
         throws IOException {
-      Integer value = org.mapdb.Serializer.INTEGER.deserialize(in, available);
+      final Integer value =
+          org.mapdb.Serializer.INTEGER.deserialize(in, available);
       if (value == null) {
         LOG.warn("Deserialized null integer!");
       }
@@ -105,6 +117,17 @@ public final class Serializer {
    */
   private static final class LongSerializer
       implements Serializable, org.mapdb.Serializer<Long> {
+    /**
+     * Serialization id.
+     */
+    private static final long serialVersionUID = 8806589064480973265L;
+
+    /**
+     * Accessor for parent class.
+     */
+    LongSerializer() {
+    }
+
     @Override
     public void serialize(final DataOutput out, final Long value)
         throws IOException {
@@ -136,6 +159,17 @@ public final class Serializer {
    */
   private static final class StringSerializer
       implements Serializable, org.mapdb.Serializer<String> {
+    /**
+     * Serialization id.
+     */
+    private static final long serialVersionUID = -7652097131361439762L;
+
+    /**
+     * Accessor for parent class.
+     */
+    StringSerializer() {
+    }
+
     @Override
     public void serialize(final DataOutput out, final String value)
         throws IOException {
@@ -168,6 +202,17 @@ public final class Serializer {
    */
   private static final class StringInternSerializer
       implements Serializable, org.mapdb.Serializer<String> {
+    /**
+     * Serialization id.
+     */
+    private static final long serialVersionUID = 3080600999147106976L;
+
+    /**
+     * Accessor for parent class.
+     */
+    StringInternSerializer() {
+    }
+
     @Override
     public void serialize(final DataOutput out, final String value)
         throws IOException {
@@ -193,6 +238,4 @@ public final class Serializer {
       return org.mapdb.Serializer.STRING_INTERN.fixedSize();
     }
   }
-
-  ;
 }

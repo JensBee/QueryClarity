@@ -101,6 +101,8 @@ public final class TestIndexDataProvider
       INDEX_SIZE = IndexSize.SMALL;
 
       IDX = DBMaker.newTempFileDB()
+          .deleteFilesAfterClose()
+          .closeOnJvmShutdown()
           .transactionDisable()
           .asyncWriteEnable()
           .asyncWriteFlushDelay(100)
@@ -114,10 +116,11 @@ public final class TestIndexDataProvider
       final int fieldsCount = RandomValue.getInteger(
           INDEX_SIZE.fieldCount[0], INDEX_SIZE.fieldCount[1]);
 
-      FIELDS = new ArrayList<>(fieldsCount);
+      final List<String> newFields = new ArrayList<>(fieldsCount);
       for (int i = 0; i < fieldsCount; i++) {
-        FIELDS.add(i + "_" + RandomValue.getString(3, 10));
+        newFields.add(i + "_" + RandomValue.getString(3, 10));
       }
+      FIELDS = Collections.unmodifiableList(newFields);
 
       // create the lucene index
       TEMP_DISK_INDEX = new TempDiskIndex(FIELDS.toArray(
@@ -180,14 +183,6 @@ public final class TestIndexDataProvider
   static final ConcurrentNavigableMap<
       Fun.Tuple3<Integer, Integer, ByteArray>, Long> IDX;
   /**
-   * Object containing reference values.
-   */
-  private final Reference reference;
-  /**
-   * Object providing utility function to work with the testing index.
-   */
-  private final Util util;
-  /**
    * Bit-mask storing active fields state. 0 means off 1 on. Index is related to
    * {@link #FIELDS}.
    */
@@ -208,8 +203,6 @@ public final class TestIndexDataProvider
     this.activeFieldState = new int[FIELDS.size()];
     // set all fields active
     Arrays.fill(this.activeFieldState, 1);
-    this.reference = new Reference();
-    this.util = new Util();
   }
 
   /**
@@ -217,6 +210,7 @@ public final class TestIndexDataProvider
    *
    * @param fields List of fields to query
    * @param stopwords List of stopwords
+   * @throws IOException Thrown on low-level I/O errors
    */
   TestIndexDataProvider(final Iterable<String> fields,
       final Collection<String> stopwords)
@@ -224,8 +218,6 @@ public final class TestIndexDataProvider
     this.activeFieldState = new int[FIELDS.size()];
     // set all fields active
     Arrays.fill(this.activeFieldState, 1);
-    this.reference = new Reference();
-    this.util = new Util();
     prepareTestEnvironment(fields, stopwords);
   }
 
@@ -324,23 +316,30 @@ public final class TestIndexDataProvider
   }
 
   /**
-   * Get a {@link StandardAnalyzer} initialized with the current stopwords set.
+   * Get the file directory where the temporary index resides in.
    *
-   * @return Analyzer with current stopwords set
+   * @return Index directory path as string
    */
-  public Analyzer getAnalyzer() {
-    return new StandardAnalyzer(LuceneDefaults.VERSION,
-        new CharArraySet(LuceneDefaults.VERSION, this.stopwordStr, true)
-    );
+  public static String getIndexDir() {
+    return TEMP_DISK_INDEX.getIndexDir();
   }
 
   /**
-   * Get the utility object.
+   * Get the file directory where the working data gets stored.
    *
-   * @return TestIndex utility
+   * @return Data directory path as string
    */
-  public Util util() {
-    return this.util;
+  public static String getDataDir() {
+    return DATA_DIR.getPath();
+  }
+
+  /**
+   * Get a list of all document fields available in the index.
+   *
+   * @return List of all document fields (regardless of their activation state)
+   */
+  public static Set<String> getAllDocumentFields() {
+    return new HashSet<>(FIELDS);
   }
 
   @Override
@@ -360,6 +359,26 @@ public final class TestIndexDataProvider
   }
 
   /**
+   * Get a {@link StandardAnalyzer} initialized with the current stopwords set.
+   *
+   * @return Analyzer with current stopwords set
+   */
+  public Analyzer getAnalyzer() {
+    return new StandardAnalyzer(LuceneDefaults.VERSION,
+        new CharArraySet(LuceneDefaults.VERSION, this.stopwordStr, true)
+    );
+  }
+
+  /**
+   * Test, if stopwords are set.
+   *
+   * @return True if stopwords are set
+   */
+  public boolean hasStopwords() {
+    return !(this.stopwordBytes == null || this.stopwordBytes.isEmpty());
+  }
+
+  /**
    * Get the flags array representing the active state of all known fields.
    *
    * @return Flags of document fields
@@ -370,12 +389,290 @@ public final class TestIndexDataProvider
   }
 
   /**
-   * Test, if stopwords are set.
+   * Get a list of all index terms. The list is <u>not</u> unique. Stopwords
+   * will be excluded.
    *
-   * @return True if stopwords are set
+   * @return List of all terms in index
    */
-  public boolean hasStopwords() {
-    return !(this.stopwordBytes == null || this.stopwordBytes.isEmpty());
+  public Collection<ByteArray> getTermList() {
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
+    final Collection<ByteArray> terms = new ArrayList<>();
+    for (int fieldNum = 0; fieldNum < FIELDS.size(); fieldNum++) {
+      if (getActiveFieldState()[fieldNum] == 1) {
+        for (int docId = 0; docId < DOCUMENTS_COUNT; docId++) {
+          final Iterable<ByteArray> docTerms = Fun.filter
+              (IDX.keySet(), fieldNum, docId);
+          for (final ByteArray docTerm : docTerms) {
+            if (getStopwordsBytes().contains(docTerm)) { // skip stopwords
+              continue;
+            }
+            final long docTermFreqCount = IDX.get(Fun.t3(fieldNum, docId,
+                docTerm));
+            for (int docTermFreq = 0; (long) docTermFreq < docTermFreqCount;
+                 docTermFreq++) {
+              terms.add(docTerm);
+            }
+          }
+        }
+      }
+    }
+    return terms;
+  }
+
+  /**
+   * Create a query object from the given terms. The query string may contain
+   * stopwords.
+   *
+   * @param queryTerms Terms to use in query
+   * @return A query object consisting of the given terms
+   * @throws IOException Thrown on low-level I/O errors
+   * @throws Buildable.BuildableException Thrown if building the query fails
+   */
+  public SimpleTermsQuery getSTQueryObj(final String[] queryTerms)
+      throws IOException,
+             Buildable.BuildableException {
+    final SimpleTermsQuery.Builder tqb =
+        new SimpleTermsQuery.Builder(
+            TEMP_DISK_INDEX.getReader(),
+            this.getDocumentFields());
+    tqb.fields(this.getDocumentFields());
+    if (queryTerms == null) {
+      return tqb.query(this.getQueryString()).analyzer(getAnalyzer()).build();
+    }
+    return tqb.query(this.getQueryString(queryTerms)).analyzer(getAnalyzer())
+        .build();
+  }
+
+  /**
+   * Get a random query matching terms from the documents in index. The terms in
+   * the query are not unique. The query string may contain stopwords.
+   *
+   * @return Random query string
+   */
+  public String getQueryString() {
+    return getQueryString(null, false);
+  }
+
+  /**
+   * Picks some (1 to n) terms from the referenceIndex.
+   *
+   * @return Stop words term collection
+   */
+  public Set<String> getRandomStopWords() {
+    final Iterator<ByteArray> termsIt = this.getTermsIterator();
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
+    final Set<String> stopwords = new HashSet<>();
+    while (termsIt.hasNext()) {
+      if (RandomValue.getBoolean()) {
+        stopwords.add(ByteArrayUtils.utf8ToString(termsIt.next()));
+      } else {
+        termsIt.next();
+      }
+    }
+    if (stopwords.isEmpty()) {
+      stopwords.add(ByteArrayUtils.utf8ToString(new ArrayList<>(
+          this.getTermSet()).get(0)));
+    }
+    assert !stopwords.isEmpty();
+    return stopwords;
+  }
+
+  /**
+   * Get a random query matching terms from the documents in index. All terms in
+   * the query are unique. The query string may contain stopwords.
+   *
+   * @return Random query String
+   */
+  public String getUniqueQueryString() {
+    return getQueryString(null, true);
+  }
+
+  /**
+   * Create a query object from the given terms or create a random query, if no
+   * terms were given. The query string may contain stopwords.
+   *
+   * @param queryTerms List of terms to include in the query, or null to create
+   * a random query
+   * @param unique If true and not terms are given, then query terms are unique
+   * @return A query String consisting of the given terms
+   */
+  private String getQueryString(final String[] queryTerms,
+      final boolean unique) {
+    final String queryStr;
+
+    if (queryTerms != null) {
+      if (queryTerms.length == 0) {
+        throw new IllegalArgumentException("Query terms where empty.");
+      }
+      // create query string from passed-in terms
+      queryStr = StringUtils.join(queryTerms, " ");
+    } else {
+      // create a random query string
+      if (this.getTermSet().isEmpty()) {
+        throw new IllegalStateException("No terms in index.");
+      }
+
+      final List<ByteArray> idxTerms = new ArrayList<>(
+          this.getTermSet());
+      final int queryLength = RandomValue.getInteger(
+          INDEX_SIZE.queryLength[0],
+          INDEX_SIZE.queryLength[1]);
+
+      final Collection<String> terms;
+
+      // check, if terms should be unique
+      if (unique) {
+        terms = new HashSet<>(queryLength);
+      } else {
+        terms = new ArrayList<>(queryLength);
+      }
+
+      if (INDEX_SIZE.queryLength[0] >= idxTerms.size()) {
+        LOG.warn("Minimum query length exceeds unique term count in index. "
+            + "Adding all index terms to query.");
+        for (final ByteArray term : idxTerms) {
+          terms.add(ByteArrayUtils.utf8ToString(term));
+        }
+      } else if (queryLength >= idxTerms.size()) {
+        LOG.warn("Random query length exceeds unique term count in index. "
+            + "Adding all index terms to query.");
+        for (final ByteArray term : idxTerms) {
+          terms.add(ByteArrayUtils.utf8ToString(term));
+        }
+      } else {
+        for (int i = 0; i < queryLength; ) {
+          if (terms.add(ByteArrayUtils.utf8ToString(idxTerms.get(RandomValue.
+              getInteger(0, idxTerms.size() - 1))))) {
+            i++;
+          }
+        }
+      }
+
+      queryStr = StringUtils.join(terms.toArray(new String[terms.
+          size()]), " ");
+    }
+
+    assert !StringUtils.isStrippedEmpty(queryStr) : "Empty query string.";
+
+    LOG.debug("Test query: {}", queryStr);
+    return queryStr;
+  }
+
+  /**
+   * Get a unique set of all currently visible index terms.
+   *
+   * @return Set of all terms in index
+   */
+  @SuppressWarnings("ObjectAllocationInLoop")
+  public Collection<ByteArray> getTermSet() {
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
+    final Collection<ByteArray> terms = new HashSet<>();
+
+    for (int fieldNum = 0; fieldNum < FIELDS.size(); fieldNum++) {
+      if (getActiveFieldState()[fieldNum] == 1) {
+        for (int docId = 0; docId < DOCUMENTS_COUNT;
+             docId++) {
+          final Iterable<ByteArray> docTerms = Fun.filter
+              (IDX.keySet(), fieldNum, docId);
+          for (final ByteArray docTerm : docTerms) {
+            if (getStopwordsBytes().contains(docTerm)) { // skip stopwords
+              continue;
+            }
+            if (docTerm == null) {
+              throw new IllegalStateException("Terms was null. doc=" + docId
+                  + " field=" + FIELDS.get(fieldNum));
+            }
+            terms.add(new ByteArray(docTerm));
+          }
+        }
+      }
+    }
+    return terms;
+  }
+
+  /**
+   * Get a random subset of all available fields.
+   *
+   * @return Collection of random fields
+   */
+  public Set<String> getRandomFields() {
+    final Set<String> fieldNames;
+    if (FIELDS.size() == 1) {
+      fieldNames = Collections.singleton(FIELDS.get(0));
+    } else {
+      final int[] newFieldState = getActiveFieldState().clone();
+      // ensure both states are not the same
+      while (Arrays.equals(newFieldState, getActiveFieldState())) {
+        for (int i = 0; i < getActiveFieldState().length; i++) {
+          newFieldState[i] = RandomValue.getInteger(0, 1);
+        }
+      }
+
+      fieldNames = new HashSet<>(FIELDS.size());
+      for (int i = 0; i < FIELDS.size(); i++) {
+        if (newFieldState[i] == 1) {
+          fieldNames.add(FIELDS.get(i));
+        }
+      }
+
+      // lazy backup - add a random field, if none set already
+      if (fieldNames.isEmpty()) {
+        fieldNames.add(FIELDS.get(RandomValue.getInteger(0, FIELDS.
+            size() - 1)));
+      }
+    }
+    return fieldNames;
+  }
+
+  /**
+   * Create a query string from the given terms. The query string may contain
+   * stopwords.
+   *
+   * @param queryTerms Terms to use in query
+   * @return A query String consisting of the given terms
+   */
+  public String getQueryString(final String[] queryTerms) {
+    return getQueryString(queryTerms, false);
+  }
+
+  /**
+   * Get a random query matching terms from the documents in index. The terms in
+   * the query are not unique. The query string may contain stopwords.
+   *
+   * @return Query generated from random query string
+   * @throws IOException Thrown on low-level I/O errors
+   * @throws Buildable.BuildableException Thrown if building the query fails
+   */
+  public SimpleTermsQuery getQueryObj()
+      throws IOException, Buildable.BuildableException {
+    return getSTQueryObj(null);
+  }
+
+  /**
+   * Get a set of unique terms for a document.
+   *
+   * @param docId Document-id to lookup
+   * @return List of unique terms in document
+   */
+  public Collection<ByteArray> getDocumentTermSet(final int docId) {
+    checkDocumentId(docId);
+    return getDocumentTermFrequencyMap(docId).keySet();
+  }
+
+  /**
+   * Get the overall term-frequency for a specific document.
+   *
+   * @param docId Document-id to lookup
+   * @return overall term-frequency
+   */
+  private int getDocumentTermFrequency(final int docId) {
+    final Map<ByteArray, Long> docTermMap =
+        this.getDocumentTermFrequencyMap(docId);
+    int docTermCount = 0;
+    for (final Number count : docTermMap.values()) {
+      docTermCount += count.intValue();
+    }
+    return docTermCount;
   }
 
   /**
@@ -472,6 +769,46 @@ public final class TestIndexDataProvider
   }
 
   /**
+   * Get a map with <tt>term -> frequency (in document)</tt> values for a
+   * specific document.
+   *
+   * @param docId Document-id to lookup
+   * @return Map with <tt>term -> in-document-frequency</tt> values
+   */
+  @SuppressWarnings("ObjectAllocationInLoop")
+  public Map<ByteArray, Long> getDocumentTermFrequencyMap(final int docId) {
+    if (docId < 0 || docId > DOCUMENTS_COUNT) {
+      throw new IllegalArgumentException(
+          "Illegal document id " + docId + ".");
+    }
+
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
+    final Map<ByteArray, Long> termFreqMap = new HashMap<>();
+
+    for (int fieldNum = 0; fieldNum < FIELDS.size();
+         fieldNum++) {
+      if (getActiveFieldState()[fieldNum] == 1) {
+        final Iterable<ByteArray> docTerms =
+            Fun.filter(IDX.keySet(), fieldNum, docId
+            );
+        for (final ByteArray term : docTerms) {
+          if (getStopwordsBytes().contains(term)) { // skip stopwords
+            continue;
+          }
+          final Long docTermFreq = IDX.get(Fun.t3(fieldNum, docId, term));
+          if (termFreqMap.containsKey(term)) {
+            termFreqMap.put(new ByteArray(term),
+                termFreqMap.get(term) + docTermFreq);
+          } else {
+            termFreqMap.put(new ByteArray(term), docTermFreq);
+          }
+        }
+      }
+    }
+    return termFreqMap;
+  }
+
+  /**
    * {@link Processing} {@link Target} creating random documents.
    */
   @SuppressWarnings("PublicInnerClass")
@@ -565,7 +902,7 @@ public final class TestIndexDataProvider
         // store document field term frequency value
         for (final Entry<ByteArray, AtomicInteger> ftfEntry : fieldTermFreq.
             entrySet()) {
-          IDX_REF.put(Fun.t3(field, docId, ftfEntry.getKey()),
+          IDX_REF.put(Fun.t3(field, docId, new ByteArray(ftfEntry.getKey())),
               ftfEntry.getValue().longValue());
         }
       }
@@ -575,8 +912,8 @@ public final class TestIndexDataProvider
 
     /**
      * Local copy of the index size set in parent class. Need to make this local
-     * to allow threads accessing this value. Direct acces to parent class field
-     * leads to process freezes. Don't know if this is a bug.
+     * to allow threads accessing this value. Direct access to parent class
+     * field leads to process freezes. Don't know if this is a bug.
      */
     private static final IndexSize INDEX_SIZE_REF = INDEX_SIZE;
 
@@ -587,372 +924,6 @@ public final class TestIndexDataProvider
      */
     private static final ConcurrentNavigableMap<
         Fun.Tuple3<Integer, Integer, ByteArray>, Long> IDX_REF = IDX;
-
-
-  }
-
-  /**
-   * Wrapping class for reference data.
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public final class Reference {
-
-    /**
-     * Get the file directory where the temporary index resides in.
-     *
-     * @return Index directory path as string
-     */
-    public String getIndexDir() {
-      return TEMP_DISK_INDEX.getIndexDir();
-    }
-
-    /**
-     * Get the file directory where the working data gets stored.
-     *
-     * @return Data directory path as string
-     */
-    public String getDataDir() {
-      return DATA_DIR.getPath();
-    }
-
-    /**
-     * Get a list of all document fields available in the index.
-     *
-     * @return List of all document fields (regardless of their activation
-     * state)
-     */
-    public Set<String> getDocumentFields() {
-      return new HashSet<>(FIELDS);
-    }
-
-    /**
-     * Get a unique set of all currently visible index terms.
-     *
-     * @return Set of all terms in index
-     */
-    public Collection<ByteArray> getTermSet() {
-      @SuppressWarnings("CollectionWithoutInitialCapacity")
-      final Collection<ByteArray> terms = new HashSet<>();
-
-      for (int fieldNum = 0; fieldNum < FIELDS.size(); fieldNum++) {
-        if (getActiveFieldState()[fieldNum] == 1) {
-          for (int docId = 0; docId < DOCUMENTS_COUNT;
-               docId++) {
-            final Iterable<ByteArray> docTerms = Fun.filter
-                (IDX.keySet(), fieldNum, docId);
-            for (final ByteArray docTerm : docTerms) {
-              if (getStopwordsBytes().contains(docTerm)) { // skip stopwords
-                continue;
-              }
-              if (docTerm == null) {
-                throw new IllegalStateException("Terms was null. doc=" + docId
-                    + " field=" + FIELDS.get(fieldNum));
-              }
-              terms.add(docTerm.clone());
-            }
-          }
-        }
-      }
-      return terms;
-    }
-
-    /**
-     * Get a list of all index terms. The list is <u>not</u> unique. Stopwords
-     * will be excluded.
-     *
-     * @return List of all terms in index
-     */
-    public Collection<ByteArray> getTermList() {
-      @SuppressWarnings("CollectionWithoutInitialCapacity")
-      final Collection<ByteArray> terms = new ArrayList<>();
-      for (int fieldNum = 0; fieldNum < FIELDS.size(); fieldNum++) {
-        if (getActiveFieldState()[fieldNum] == 1) {
-          for (int docId = 0; docId < DOCUMENTS_COUNT; docId++) {
-            final Iterable<ByteArray> docTerms = Fun.filter
-                (IDX.keySet(), fieldNum, docId);
-            for (final ByteArray docTerm : docTerms) {
-              if (getStopwordsBytes().contains(docTerm)) { // skip stopwords
-                continue;
-              }
-              final long docTermFreqCount = IDX.get(Fun.t3(fieldNum, docId,
-                  docTerm));
-              for (int docTermFreq = 0; (long) docTermFreq < docTermFreqCount;
-                   docTermFreq++) {
-                terms.add(docTerm);
-              }
-            }
-          }
-        }
-      }
-      return terms;
-    }
-
-    /**
-     * Get a set of unique terms for a document.
-     *
-     * @param docId Document-id to lookup
-     * @return List of unique terms in document
-     */
-    public Collection<ByteArray> getDocumentTermSet(final int docId) {
-      checkDocumentId(docId);
-      return reference().getDocumentTermFrequencyMap(docId)
-          .keySet();
-    }
-
-    /**
-     * Get a map with <tt>term -> frequency (in document)</tt> values for a
-     * specific document.
-     *
-     * @param docId Document-id to lookup
-     * @return Map with <tt>term -> in-document-frequency</tt> values
-     */
-    public Map<ByteArray, Long> getDocumentTermFrequencyMap(final int docId) {
-      if (docId < 0 || docId > DOCUMENTS_COUNT) {
-        throw new IllegalArgumentException(
-            "Illegal document id " + docId + ".");
-      }
-
-      @SuppressWarnings("CollectionWithoutInitialCapacity")
-      final Map<ByteArray, Long> termFreqMap = new HashMap<>();
-
-      for (int fieldNum = 0; fieldNum < FIELDS.size();
-           fieldNum++) {
-        if (getActiveFieldState()[fieldNum] == 1) {
-          final Iterable<ByteArray> docTerms =
-              Fun.filter(IDX.keySet(), fieldNum, docId
-              );
-          for (final ByteArray term : docTerms) {
-            if (getStopwordsBytes().contains(term)) { // skip stopwords
-              continue;
-            }
-            final Long docTermFreq = IDX.get(Fun.t3(fieldNum, docId, term));
-            if (termFreqMap.containsKey(term)) {
-              termFreqMap
-                  .put(term.clone(), termFreqMap.get(term) + docTermFreq);
-            } else {
-              termFreqMap.put(term.clone(), docTermFreq);
-            }
-          }
-        }
-      }
-      return termFreqMap;
-    }
-  }
-
-  /**
-   * Get the index reference object
-   *
-   * @return Reference Object
-   */
-  public Reference reference() {
-    return this.reference;
-  }
-
-  /**
-   * Utility methods working with the test index.
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public final class Util {
-    /**
-     * Picks some (1 to n) terms from the referenceIndex.
-     *
-     * @return Stop words term collection
-     */
-    public Set<String> getRandomStopWords() {
-      final Iterator<ByteArray> termsIt = TestIndexDataProvider.this
-          .getTermsIterator();
-      @SuppressWarnings("CollectionWithoutInitialCapacity")
-      final Set<String> stopWords = new HashSet<>();
-      while (termsIt.hasNext()) {
-        if (RandomValue.getBoolean()) {
-          stopWords.add(ByteArrayUtils.utf8ToString(termsIt.next()));
-        } else {
-          termsIt.next();
-        }
-      }
-      if (stopWords.isEmpty()) {
-        stopWords.add(ByteArrayUtils.utf8ToString(new ArrayList<>(
-            TestIndexDataProvider.this.reference().getTermSet()).get(0)));
-      }
-      return stopWords;
-    }
-
-    /**
-     * Get a random subset of all available fields.
-     *
-     * @return Collection of random fields
-     */
-    public Set<String> getRandomFields() {
-      final Set<String> fieldNames;
-      if (FIELDS.size() == 1) {
-        fieldNames = new HashSet<>(1);
-        fieldNames.add(FIELDS.get(0));
-      } else {
-        final int[] newFieldState = getActiveFieldState().clone();
-        // ensure both states are not the same
-        while (Arrays.equals(newFieldState, getActiveFieldState())) {
-          for (int i = 0; i < getActiveFieldState().length; i++) {
-            newFieldState[i] = RandomValue.getInteger(0, 1);
-          }
-        }
-
-        fieldNames = new HashSet<>(FIELDS.size());
-        for (int i = 0; i < FIELDS.size(); i++) {
-          if (newFieldState[i] == 1) {
-            fieldNames.add(FIELDS.get(i));
-          }
-        }
-
-        // lazy backup - add a random field, if none set already
-        if (fieldNames.isEmpty()) {
-          fieldNames.add(FIELDS.get(RandomValue.getInteger(0, FIELDS.
-              size() - 1)));
-        }
-      }
-      return fieldNames;
-    }
-
-    /**
-     * Get a random query matching terms from the documents in index. All terms
-     * in the query are unique. The query string may contain stopwords.
-     *
-     * @return Random query String
-     */
-    public String getUniqueQueryString() {
-      return getQueryString(null, true);
-    }
-
-    /**
-     * Create a query object from the given terms or create a random query, if
-     * no terms were given. The query string may contain stopwords.
-     *
-     * @param queryTerms List of terms to include in the query, or null to
-     * create a random query
-     * @param unique If true and not terms are given, then query terms are
-     * unique
-     * @return A query String consisting of the given terms
-     */
-    private String getQueryString(final String[] queryTerms,
-        final boolean unique) {
-      final String queryStr;
-
-      if (queryTerms != null) {
-        if (queryTerms.length == 0) {
-          throw new IllegalArgumentException("Query terms where empty.");
-        }
-        // create query string from passed-in terms
-        queryStr = StringUtils.join(queryTerms, " ");
-      } else {
-        // create a random query string
-        if (TestIndexDataProvider.this.reference().getTermSet().isEmpty()) {
-          throw new IllegalStateException("No terms in index.");
-        }
-
-        final List<ByteArray> idxTerms = new ArrayList<>(
-            TestIndexDataProvider.this.reference()
-                .getTermSet());
-        final int queryLength = RandomValue.getInteger(
-            INDEX_SIZE.queryLength[0],
-            INDEX_SIZE.queryLength[1]);
-
-        final Collection<String> terms;
-
-        // check, if terms should be unique
-        if (unique) {
-          terms = new HashSet<>(queryLength);
-        } else {
-          terms = new ArrayList<>(queryLength);
-        }
-
-        if (INDEX_SIZE.queryLength[0] >= idxTerms.size()) {
-          LOG.warn("Minimum query length exceeds unique term count in index. "
-              + "Adding all index terms to query.");
-          for (final ByteArray term : idxTerms) {
-            terms.add(ByteArrayUtils.utf8ToString(term));
-          }
-        } else if (queryLength >= idxTerms.size()) {
-          LOG.warn("Random query length exceeds unique term count in index. "
-              + "Adding all index terms to query.");
-          for (final ByteArray term : idxTerms) {
-            terms.add(ByteArrayUtils.utf8ToString(term));
-          }
-        } else {
-          for (int i = 0; i < queryLength; ) {
-            if (terms.add(ByteArrayUtils.utf8ToString(idxTerms.get(RandomValue.
-                getInteger(0, idxTerms.size() - 1))))) {
-              i++;
-            }
-          }
-        }
-
-        queryStr = StringUtils.join(terms.toArray(new String[terms.
-            size()]), " ");
-      }
-
-      assert !StringUtils.isStrippedEmpty(queryStr) : "Empty query string.";
-
-      LOG.debug("Test query: {}", queryStr);
-      return queryStr;
-    }
-
-    /**
-     * Get a random query matching terms from the documents in index. The terms
-     * in the query are not unique. The query string may contain stopwords.
-     *
-     * @return Query generated from random query string
-     * @throws IOException Thrown on low-level I/O errors
-     * @throws Buildable.BuildableException Thrown if building the query fails
-     */
-    public SimpleTermsQuery getQueryObj()
-        throws IOException,
-               Buildable.BuildableException {
-      return getSTQueryObj(null);
-    }
-
-    /**
-     * Create a query object from the given terms. The query string may contain
-     * stopwords.
-     *
-     * @param queryTerms Terms to use in query
-     * @return A query object consisting of the given terms
-     * @throws IOException Thrown on low-level I/O errors
-     * @throws Buildable.BuildableException Thrown if building the query fails
-     */
-    public SimpleTermsQuery getSTQueryObj(final String[] queryTerms)
-        throws IOException,
-               Buildable.BuildableException {
-      final SimpleTermsQuery.Builder tqb =
-          new SimpleTermsQuery.Builder(TEMP_DISK_INDEX.getReader(),
-              TestIndexDataProvider.this.getDocumentFields());
-      tqb.fields(TestIndexDataProvider.this.getDocumentFields());
-      if (queryTerms == null) {
-        return tqb.query(TestIndexDataProvider.this.util().getQueryString())
-            .analyzer(getAnalyzer()).build();
-      }
-      return tqb.query(TestIndexDataProvider.this.util().getQueryString
-          (queryTerms)).analyzer(getAnalyzer()).build();
-    }
-
-    /**
-     * Get a random query matching terms from the documents in index. The terms
-     * in the query are not unique. The query string may contain stopwords.
-     *
-     * @return Random query string
-     */
-    public String getQueryString() {
-      return getQueryString(null, false);
-    }
-
-    /**
-     * Create a query string from the given terms. The query string may contain
-     * stopwords.
-     *
-     * @param queryTerms Terms to use in query
-     * @return A query String consisting of the given terms
-     */
-    public String getQueryString(final String[] queryTerms) {
-      return getQueryString(queryTerms, false);
-    }
   }
 
 
@@ -1015,21 +986,6 @@ public final class TestIndexDataProvider
     }
   }
 
-  /**
-   * Get the overall term-frequency for a specific document.
-   *
-   * @param docId Document-id to lookup
-   * @return overall term-frequency
-   */
-  private int getDocumentTermFrequency(final int docId) {
-    final Map<ByteArray, Long> docTermMap =
-        this.reference().getDocumentTermFrequencyMap(docId);
-    int docTermCount = 0;
-    for (final Number count : docTermMap.values()) {
-      docTermCount += count.intValue();
-    }
-    return docTermCount;
-  }
 
   @Override
   public long getTermFrequency() {
@@ -1096,12 +1052,12 @@ public final class TestIndexDataProvider
 
   @Override
   public Iterator<ByteArray> getTermsIterator() {
-    return this.reference().getTermSet().iterator();
+    return this.getTermSet().iterator();
   }
 
   @Override
   public Source<ByteArray> getTermsSource() {
-    return new CollectionSource<>(this.reference().getTermSet());
+    return new CollectionSource<>(this.getTermSet());
   }
 
   @Override
@@ -1116,7 +1072,7 @@ public final class TestIndexDataProvider
 
   @Override
   public long getUniqueTermsCount() {
-    return (long) this.reference().getTermSet().size();
+    return (long) this.getTermSet().size();
   }
 
   @Override
@@ -1125,8 +1081,7 @@ public final class TestIndexDataProvider
     final int docTermFreq = getDocumentTermFrequency(docId);
     final DocumentModel.Builder dmBuilder
         = new DocumentModel.Builder(docId, docTermFreq);
-    dmBuilder.setTermFrequency(this.reference().getDocumentTermFrequencyMap
-        (docId));
+    dmBuilder.setTermFrequency(this.getDocumentTermFrequencyMap(docId));
     return dmBuilder.getModel();
   }
 
@@ -1150,7 +1105,7 @@ public final class TestIndexDataProvider
       return false;
     }
     checkDocumentId(documentId);
-    return this.reference().getDocumentTermFrequencyMap(documentId).keySet()
+    return this.getDocumentTermFrequencyMap(documentId).keySet()
         .contains(
             term);
   }
@@ -1171,13 +1126,22 @@ public final class TestIndexDataProvider
   }
 
   @Override
-  public boolean isDisposed() {
+  public boolean isClosed() {
     return false; // never
   }
 
   @Override
   public void close() {
-    // NOP
+    // activate all fields
+    Arrays.fill(this.activeFieldState, 1);
+    // unset all stopwords
+    this.stopwordBytes = Collections.emptySet();
+    try {
+      setStopwords(Collections.<String>emptySet());
+    } catch (final UnsupportedEncodingException e) {
+      // should never happen
+      throw new IllegalStateException("Error closing instance.", e);
+    }
   }
 
   @Override
@@ -1193,7 +1157,7 @@ public final class TestIndexDataProvider
 
     for (final Integer docId : uniqueDocIds) {
       checkDocumentId(docId);
-      terms.addAll(this.reference().getDocumentTermSet(docId));
+      terms.addAll(this.getDocumentTermSet(docId));
     }
     return terms;
   }

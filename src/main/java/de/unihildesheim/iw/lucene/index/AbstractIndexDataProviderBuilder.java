@@ -302,7 +302,7 @@ abstract class AbstractIndexDataProviderBuilder<T extends
    * @throws ConfigurationException Thrown, if any mandatory configuration is
    * not set
    */
-  public void validatePersistenceBuilder()
+  public final void validatePersistenceBuilder()
       throws ConfigurationException {
     if (this.dataPath == null) {
       throw new ConfigurationException("No data-path set.");

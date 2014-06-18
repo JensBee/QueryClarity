@@ -35,7 +35,7 @@ public final class MathUtils {
    * @return Log2 of the given value
    */
   public static double log2(final double value) {
-    return logN(2, value);
+    return logN(2d, value);
   }
 
   /**

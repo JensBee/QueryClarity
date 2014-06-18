@@ -27,19 +27,19 @@ import java.util.Map;
 /**
  * @author Jens Bertram
  */
-public class MapAdapter {
+public final class MapAdapter {
 
   /**
    * XML processing of mapping from key to Tuple2.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static class Tuple2ListValue
+  public static final class Tuple2ListValue
       extends XmlAdapter<Entries.Tuple2ListEntry[], Map<String,
       List<Tuple.Tuple2<String, String>>>> {
 
     @SuppressWarnings("ReturnOfNull")
     @Override
-    public Map<String, List<Tuple.Tuple2<String, String>>> unmarshal(
+    public final Map<String, List<Tuple.Tuple2<String, String>>> unmarshal(
         final Entries.Tuple2ListEntry[] value)
         throws Exception {
       if (null == value) {
@@ -55,7 +55,7 @@ public class MapAdapter {
 
     @SuppressWarnings("ObjectAllocationInLoop")
     @Override
-    public Entries.Tuple2ListEntry[] marshal(
+    public final Entries.Tuple2ListEntry[] marshal(
         final Map<String, List<Tuple.Tuple2<String, String>>> value)
         throws Exception {
       final Entries.Tuple2ListEntry[] mapElements =
@@ -75,12 +75,13 @@ public class MapAdapter {
    * XML processing of mapping from key to String.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static class StringValue
+  public static final class StringValue
       extends XmlAdapter<Entries.StringValueEntry[], Map<String, String>> {
 
     @SuppressWarnings("ReturnOfNull")
     @Override
-    public Map<String, String> unmarshal(final Entries.StringValueEntry[] value)
+    public final Map<String, String> unmarshal(
+        final Entries.StringValueEntry[] value)
         throws Exception {
       if (null == value) {
         return null;
@@ -94,7 +95,8 @@ public class MapAdapter {
 
     @SuppressWarnings("ObjectAllocationInLoop")
     @Override
-    public Entries.StringValueEntry[] marshal(final Map<String, String> value)
+    public final Entries.StringValueEntry[] marshal(
+        final Map<String, String> value)
         throws Exception {
       final Entries.StringValueEntry[] mapElements =
           new Entries.StringValueEntry[value.size()];

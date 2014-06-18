@@ -34,7 +34,7 @@ import java.util.Set;
  *
  * @author Jens Bertram
  */
-public class FixedTestIndexDataProviderTest
+public final class FixedTestIndexDataProviderTest
     extends TestCase {
 
   /**
@@ -43,26 +43,18 @@ public class FixedTestIndexDataProviderTest
   private static final FixedTestIndexDataProvider INSTANCE =
       FixedTestIndexDataProvider.getInstance();
 
+  /**
+   * Test getting stopwords. They should never be set.
+   */
   @Test
   public void testGetStopwords() {
     Assert.assertTrue("Stopwords should always be empty.",
         INSTANCE.getStopwords().isEmpty());
   }
 
-  @Test
-  public void testDispose() {
-    INSTANCE.close();
-  }
-
-  @Test
-  public void testIsDisposed() {
-    Assert.assertFalse("Instance is able to be disposed.",
-        INSTANCE.isDisposed());
-    INSTANCE.close();
-    Assert.assertFalse("Instance is able to be disposed.",
-        INSTANCE.isDisposed());
-  }
-
+  /**
+   * Test getting fields.
+   */
   @Test
   public void testGetDocumentFields() {
     final Set<String> fields = INSTANCE.getDocumentFields();
@@ -72,6 +64,11 @@ public class FixedTestIndexDataProviderTest
         (long) fields.size());
   }
 
+  /**
+   * Test document frequency values.
+   *
+   * @throws Exception Any exception thrown indicates an error.
+   */
   @SuppressWarnings("ObjectAllocationInLoop")
   @Test
   public void testGetDocumentFrequency()
@@ -87,12 +84,18 @@ public class FixedTestIndexDataProviderTest
     }
   }
 
+  /**
+   * Test commit generation. Should always be zero.
+   */
   @Test
   public void testGetLastIndexCommitGeneration() {
     Assert.assertEquals("Commit generation should be zero.",
         0L, INSTANCE.getLastIndexCommitGeneration().longValue());
   }
 
+  /**
+   * Test getting the number of documents in index.
+   */
   @Test
   public void testGetDocumentCount() {
     Assert.assertEquals("Document count mismatch.",
@@ -100,6 +103,10 @@ public class FixedTestIndexDataProviderTest
         INSTANCE.getDocumentCount());
   }
 
+  /**
+   * Test if all documents are found.
+   */
+  @SuppressWarnings("StatementWithEmptyBody")
   @Test
   public void testHasDocument() {
     for (int i = -10; ; i++) {
@@ -118,6 +125,9 @@ public class FixedTestIndexDataProviderTest
     }
   }
 
+  /**
+   * Test getting unique document terms.
+   */
   @Test
   public void testGetDocumentsTermSet() {
     final Collection<Integer> docIds = new HashSet<>(
@@ -147,6 +157,9 @@ public class FixedTestIndexDataProviderTest
     }
   }
 
+  /**
+   * Test getting document models.
+   */
   @Test
   public void testGetDocumentModel() {
     for (int i = 0; i < FixedTestIndexDataProvider.KnownData.DOC_COUNT; i++) {

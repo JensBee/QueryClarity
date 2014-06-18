@@ -81,6 +81,7 @@ public interface IndexDataProvider
    * Close this instance. This is meant for handling cleanups after using this
    * instance. The behavior of functions called after this is undefined.
    */
+  @Override
   void close();
 
   /**
@@ -202,5 +203,5 @@ public interface IndexDataProvider
    *
    * @return True, if instance was disposed
    */
-  boolean isDisposed();
+  boolean isClosed();
 }

@@ -32,27 +32,7 @@ import java.io.DataOutputStream;
  *
  * @author Jens Bertram
  */
-public class SerializableByteTest {
-  @SuppressWarnings("ArrayEquality")
-  @Test
-  public void testClone()
-      throws Exception {
-    final SerializableByte original = new SerializableByte((byte) 1);
-    final SerializableByte cloned = original.clone();
-
-    Assert.assertTrue("Clone not equal to original.",
-        original.equals(cloned));
-    Assert.assertFalse("Clone and original are the same.",
-        original == cloned);
-    Assert.assertEquals("Clone and original are not same value (compare).",
-        0L, (long) original.compareTo(cloned));
-    Assert.assertEquals("Clone and original are not same value (comparator).",
-        0L, (long) SerializableByte.COMPARATOR.compare(original, cloned));
-    Assert.assertTrue("Stored bytes are same not the same.",
-        original.value == cloned.value);
-    Assert.assertEquals("Hash code differs.", (long) original.hashCode(),
-        (long) cloned.hashCode());
-  }
+public final class SerializableByteTest {
 
   @SuppressWarnings("ObjectEquality")
   @Test

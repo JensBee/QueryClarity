@@ -70,10 +70,32 @@ public abstract class IndexDataProviderTestCase
   /**
    * Private empty constructor for utility class.
    *
-   * @param referenceIndex TestIndex to check against
+   * @param aReferenceIndex TestIndex to check against
    */
-  public IndexDataProviderTestCase(final TestIndexDataProvider referenceIndex) {
-    this.referenceIndex = referenceIndex;
+  public IndexDataProviderTestCase(
+      final TestIndexDataProvider aReferenceIndex) {
+    this.referenceIndex = aReferenceIndex;
+  }
+
+  /**
+   * Get the working directory used by these tests. Path is provided by the
+   * {@link TestIndexDataProvider}.
+   *
+   * @return Working directory path
+   */
+  protected static String getDataPath() {
+    return TestIndexDataProvider.getDataDir();
+  }
+
+  /**
+   * Get the index reader used to access the reference test index.
+   *
+   * @return Index reader accessing the reference index
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  protected static IndexReader getIndexReader()
+      throws IOException {
+    return TestIndexDataProvider.getIndexReader();
   }
 
   /**
@@ -204,34 +226,13 @@ public abstract class IndexDataProviderTestCase
       throws Exception;
 
   /**
-   * Get the working directory used by these tests. Path is provided by the
-   * {@link TestIndexDataProvider}.
-   *
-   * @return Working directory path
-   */
-  protected String getDataPath() {
-    return this.referenceIndex.reference().getDataDir();
-  }
-
-  /**
-   * Get the index reader used to access the reference test index.
-   *
-   * @return Index reader accessing the reference index
-   * @throws IOException Thrown on low-level I/O errors
-   */
-  protected IndexReader getIndexReader()
-      throws IOException {
-    return TestIndexDataProvider.getIndexReader();
-  }
-
-  /**
    * Test method for getTermFrequency method. Plain.
    *
    * @throws Exception Any exception thrown indicates an error
    */
   @Test
   public final void testGetTermFrequency_0args__plain()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -250,7 +251,7 @@ public abstract class IndexDataProviderTestCase
    * @throws Exception Forwarded from testing instance
    */
   private IndexDataProvider setupInstanceForTesting(final Setup setup)
-  throws Exception {
+      throws Exception {
 
     Set<String> fields = null;
     Set<String> stopwords = null;
@@ -258,19 +259,19 @@ public abstract class IndexDataProviderTestCase
       case PLAIN:
         break;
       case RANDFIELD:
-        fields = this.referenceIndex.util().getRandomFields();
+        fields = this.referenceIndex.getRandomFields();
         break;
       case RANDFIELD_STOPPED:
-        fields = this.referenceIndex.util().getRandomFields();
-        stopwords = this.referenceIndex.util().getRandomStopWords();
+        fields = this.referenceIndex.getRandomFields();
+        stopwords = this.referenceIndex.getRandomStopWords();
         break;
       case STOPPED:
-        stopwords = this.referenceIndex.util().getRandomStopWords();
+        stopwords = this.referenceIndex.getRandomStopWords();
         break;
     }
     this.referenceIndex.prepareTestEnvironment(fields, stopwords);
     return createInstance(
-        this.referenceIndex.reference().getDataDir(),
+        TestIndexDataProvider.getDataDir(),
         TestIndexDataProvider.getIndexReader(),
         this.referenceIndex.getDocumentFields(),
         this.referenceIndex.getStopwords());
@@ -331,7 +332,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetTermFrequency_0args__randField()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -349,7 +350,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetTermFrequency_0args__randField_stopped()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -368,7 +369,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetTermFrequency_ByteArray__fixedIdx()
-  throws Exception {
+      throws Exception {
     if (!canTestAgainstFixedInstance()) {
       return;
     }
@@ -394,7 +395,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetTermFrequency_ByteArray__plain()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -411,10 +412,8 @@ public abstract class IndexDataProviderTestCase
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
-  @SuppressWarnings("null")
   private void runTestGetTermFrequency_ByteArray(
-      final IndexDataProvider instance)
-  throws Exception {
+      final IndexDataProvider instance) {
     final boolean excludeStopwords = this.referenceIndex.hasStopwords();
     final Iterator<ByteArray> idxTermsIt = this.referenceIndex
         .getTermsIterator();
@@ -480,7 +479,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetTermFrequency_ByteArray__randField_stopped()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -498,7 +497,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetRelativeTermFrequency__fixedIdx()
-  throws Exception {
+      throws Exception {
     if (!canTestAgainstFixedInstance()) {
       return;
     }
@@ -510,7 +509,7 @@ public abstract class IndexDataProviderTestCase
         Assert.assertEquals(
             msg(instance, "Relative term frequency differs. term=" + idxTerm),
             FIXED_INDEX.getRelativeTermFrequency(idxTerm),
-            instance.getRelativeTermFrequency(idxTerm), 0
+            instance.getRelativeTermFrequency(idxTerm), 0d
         );
       }
     }
@@ -523,7 +522,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetRelativeTermFrequency__plain()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -539,9 +538,9 @@ public abstract class IndexDataProviderTestCase
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
-  @SuppressWarnings("null")
-  private void runTestGetRelativeTermFrequency(final IndexDataProvider instance)
-  throws Exception {
+  private void runTestGetRelativeTermFrequency(
+      final IndexDataProvider instance) {
+
     final boolean excludeStopwords = this.referenceIndex.hasStopwords();
     final Iterator<ByteArray> idxTermsIt = this.referenceIndex
         .getTermsIterator();
@@ -552,7 +551,7 @@ public abstract class IndexDataProviderTestCase
           msg(instance, "Relative term frequency differs (stopped: "
               + excludeStopwords + "). term=" + idxTerm),
           this.referenceIndex.getRelativeTermFrequency(idxTerm),
-          instance.getRelativeTermFrequency(idxTerm), 0
+          instance.getRelativeTermFrequency(idxTerm), 0d
       );
 
       if (excludeStopwords) {
@@ -653,7 +652,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetTermsIterator__plain()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -669,9 +668,8 @@ public abstract class IndexDataProviderTestCase
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
-  @SuppressWarnings("null")
   private void runTestGetTermsIterator(final IndexDataProvider instance)
-  throws Exception {
+      throws Exception {
     final boolean excludeStopwords = this.referenceIndex.hasStopwords();
     final Iterator<ByteArray> result = instance.getTermsIterator();
 
@@ -738,7 +736,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetTermsIterator__randField_stopped()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -756,7 +754,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetDocumentCount__fixedIdx()
-  throws Exception {
+      throws Exception {
     if (!canTestAgainstFixedInstance()) {
       return;
     }
@@ -775,7 +773,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetDocumentCount__plain()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -838,7 +836,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetDocumentCount__randField_stopped()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -856,7 +854,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetDocumentModel__fixedIdx()
-  throws Exception {
+      throws Exception {
     if (!canTestAgainstFixedInstance()) {
       return;
     }
@@ -891,7 +889,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetDocumentModel__plain()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -907,9 +905,7 @@ public abstract class IndexDataProviderTestCase
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
-  @SuppressWarnings("null")
-  private void runTestGetDocumentModel(final IndexDataProvider instance)
-  throws Exception {
+  private void runTestGetDocumentModel(final IndexDataProvider instance) {
     final boolean excludeStopwords = this.referenceIndex.hasStopwords();
     final Iterator<Integer> docIdIt = this.referenceIndex
         .getDocumentIdIterator();
@@ -927,7 +923,7 @@ public abstract class IndexDataProviderTestCase
         for (final Entry<ByteArray, Long> e :
             iDocModel.getTermFreqMap().entrySet()) {
         }
-        for (final Entry<ByteArray, Long> e : this.referenceIndex.reference()
+        for (final Entry<ByteArray, Long> e : this.referenceIndex
             .getDocumentTermFrequencyMap(docId).entrySet()) {
         }
       }
@@ -990,7 +986,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetDocumentModel__randField_stopped()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -1008,7 +1004,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetDocumentIdIterator__fixedIdx()
-  throws Exception {
+      throws Exception {
     if (!canTestAgainstFixedInstance()) {
       return;
     }
@@ -1034,7 +1030,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetDocumentIdIterator__plain()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -1104,7 +1100,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetDocumentIdIterator_randField_stopped()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -1150,7 +1146,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetDocumentIdSource__plain()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -1167,7 +1163,7 @@ public abstract class IndexDataProviderTestCase
    * @throws Exception Any exception thrown indicates an error
    */
   private void runTestGetDocumentIdSource(final IndexDataProvider instance)
-  throws Exception {
+      throws Exception {
 
     final AtomicLong counter = new AtomicLong(0L);
     new Processing(
@@ -1225,7 +1221,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetDocumentIdSource_randField_stopped()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -1262,7 +1258,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetUniqueTermsCount__plain()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -1279,10 +1275,10 @@ public abstract class IndexDataProviderTestCase
    * @throws Exception Any Exception thrown indicates an error
    */
   private void runTestGetUniqueTermsCount(final IndexDataProvider instance)
-  throws Exception {
+      throws Exception {
     Assert.assertEquals(
         msg(instance, "Unique term count values are different."),
-        (long) this.referenceIndex.reference().getTermSet().size(),
+        (long) this.referenceIndex.getTermSet().size(),
         instance.getUniqueTermsCount());
   }
 
@@ -1327,7 +1323,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetUniqueTermsCount__randField_stopped()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -1371,7 +1367,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testHasDocument__plain()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -1398,7 +1394,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testDocumentContains__plain()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -1414,9 +1410,7 @@ public abstract class IndexDataProviderTestCase
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
-  @SuppressWarnings("null")
-  private void runTestDocumentContains(final IndexDataProvider instance)
-  throws Exception {
+  private void runTestDocumentContains(final IndexDataProvider instance) {
     final boolean excludeStopwords = this.referenceIndex.hasStopwords();
     final Iterator<Integer> docIdIt = instance.getDocumentIdIterator();
 
@@ -1481,7 +1475,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testDocumentContains__randField_stopped()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -1499,7 +1493,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetTermsSource__fixedIdx()
-  throws Exception {
+      throws Exception {
     if (!canTestAgainstFixedInstance()) {
       return;
     }
@@ -1528,7 +1522,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetTermsSource__plain()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -1545,7 +1539,7 @@ public abstract class IndexDataProviderTestCase
    * @throws Exception Any Exception thrown indicates an error
    */
   private void runTestGetTermsSource(final IndexDataProvider instance)
-  throws Exception {
+      throws Exception {
 
     final AtomicLong counter = new AtomicLong(0L);
     new Processing(
@@ -1558,7 +1552,7 @@ public abstract class IndexDataProviderTestCase
     Assert.assertEquals(
         msg(instance, "Not all items provided by source or processed by " +
             "target."),
-        (long) this.referenceIndex.reference().getTermSet().size(),
+        (long) this.referenceIndex.getTermSet().size(),
         (long) counter.intValue()
     );
   }
@@ -1604,7 +1598,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetTermsSource__randField_stopped()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -1621,7 +1615,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetDocumentsTermSet__plain()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -1638,7 +1632,7 @@ public abstract class IndexDataProviderTestCase
    * @throws Exception Any exception thrown indicates an error
    */
   private void runTestGetDocumentsTermSet(final IndexDataProvider instance)
-  throws Exception {
+      throws Exception {
     final boolean excludeStopwords = this.referenceIndex.hasStopwords();
     final int docAmount = RandomValue.getInteger(2, (int) this.referenceIndex.
         getDocumentCount() - 1);
@@ -1718,7 +1712,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetDocumentsTermSet__randField_stopped()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -1761,7 +1755,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetDocumentFrequency__plain()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -1777,11 +1771,10 @@ public abstract class IndexDataProviderTestCase
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
-  private void runTestGetDocumentFrequency(final IndexDataProvider instance)
-  throws Exception {
+  private void runTestGetDocumentFrequency(final IndexDataProvider instance) {
     final boolean excludeStopwords = this.referenceIndex.hasStopwords();
 
-    for (final ByteArray term : this.referenceIndex.reference().getTermSet()) {
+    for (final ByteArray term : this.referenceIndex.getTermSet()) {
       Assert.assertEquals(
           msg(instance, "Document frequency mismatch (stopped: " +
               excludeStopwords + ") (" + ByteArrayUtils.utf8ToString(term) +
@@ -1841,7 +1834,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetDocumentFrequency__randField_stopped()
-  throws Exception {
+      throws Exception {
     if (!canTest()) {
       return;
     }
@@ -1866,20 +1859,6 @@ public abstract class IndexDataProviderTestCase
   }
 
   /**
-   * Test of close method.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Test
-  public final void testClose__plain()
-  throws Exception {
-    try (final IndexDataProvider instance =
-             setupInstanceForTesting(Setup.PLAIN)) {
-      instance.close();
-    }
-  }
-
-  /**
    * Test of warmUpDocumentFrequencies method (from {@link
    * AbstractIndexDataProvider}).
    *
@@ -1887,7 +1866,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testWarmUpDocumentFrequencies__plain()
-  throws Exception {
+      throws Exception {
     if (!canTestAbstractIdpMethods()) {
       return;
     }
@@ -1983,13 +1962,14 @@ public abstract class IndexDataProviderTestCase
   }
 
   /**
-   * Test of warmUpTerms method (from {@link AbstractIndexDataProvider}). Plain.
+   * Test of warmUpTerms method (from {@link AbstractIndexDataProvider}).
+   * Plain.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
   @Test
   public final void testWarmUpTerms__plain()
-  throws Exception {
+      throws Exception {
     if (!canTestAbstractIdpMethods()) {
       return;
     }
@@ -2008,7 +1988,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testWarmUpTerms__stopped()
-  throws Exception {
+      throws Exception {
     if (!canTestAbstractIdpMethods()) {
       return;
     }
@@ -2084,7 +2064,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public void testWarmUpIndexTermFrequencies__stopped()
-  throws Exception {
+      throws Exception {
     if (!canTestAbstractIdpMethods()) {
       return;
     }
@@ -2269,7 +2249,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void test_getTermFrequency__randField()
-  throws Exception {
+      throws Exception {
     if (!canTestAbstractIdpMethods()) {
       return;
     }
@@ -2288,7 +2268,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void test_getTermFrequency__randField_stopped()
-  throws Exception {
+      throws Exception {
     if (!canTestAbstractIdpMethods()) {
       return;
     }
@@ -2300,17 +2280,6 @@ public abstract class IndexDataProviderTestCase
   }
 
   /**
-   * Test of getPersistStatic method, of class AbstractIndexDataProvider.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Test
-  public void testGetPersistence__plain()
-      throws Exception {
-    // NOP: no suitable test for plain instance
-  }
-
-  /**
    * Test of getTerms method, of class AbstractIndexDataProvider. Testing
    * against {@link FixedTestIndexDataProvider}.
    *
@@ -2318,7 +2287,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetTerms__fixedIdx()
-  throws Exception {
+      throws Exception {
     if (!canTestAgainstFixedInstance() || !canTestAbstractIdpMethods()) {
       return;
     }
@@ -2341,7 +2310,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetTerms__plain()
-  throws Exception {
+      throws Exception {
     if (!canTestAbstractIdpMethods()) {
       return;
     }
@@ -2359,8 +2328,7 @@ public abstract class IndexDataProviderTestCase
    */
   private void runTestGetTerms(final AbstractIndexDataProvider instance) {
     final Collection<ByteArray> iTerms = instance.getIdxTerms();
-    final Collection<ByteArray> eTerms = this.referenceIndex.reference()
-        .getTermSet();
+    final Collection<ByteArray> eTerms = this.referenceIndex.getTermSet();
 
     Assert.assertEquals(msg(instance, "Term list size differs."),
         (long) eTerms.size(), (long) iTerms.size());
@@ -2414,7 +2382,7 @@ public abstract class IndexDataProviderTestCase
    */
   @Test
   public final void testGetTerms__randField_stopped()
-  throws Exception {
+      throws Exception {
     if (!canTestAbstractIdpMethods()) {
       return;
     }
@@ -2425,6 +2393,9 @@ public abstract class IndexDataProviderTestCase
     }
   }
 
+  /**
+   * Test setup types.
+   */
   private enum Setup {
     /**
      * Plain index.

@@ -17,8 +17,6 @@
 
 package de.unihildesheim.iw.util.concurrent.processing;
 
-import org.slf4j.LoggerFactory;
-
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -27,14 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * @author Jens Bertram
  */
-public class TestTargets {
-
-  /**
-   * Logger instance for this class.
-   */
-  static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
-      TestTargets.class);
-
+public final class TestTargets {
   /**
    * Plain {@link Target} implementation.
    *

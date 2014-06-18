@@ -18,6 +18,7 @@ package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.ByteArray;
+import de.unihildesheim.iw.Closable;
 import de.unihildesheim.iw.Persistence;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
@@ -41,7 +42,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.mapdb.Atomic;
-import org.mapdb.DB;
 import org.mapdb.Serializer;
 import org.slf4j.LoggerFactory;
 
@@ -69,19 +69,17 @@ import java.util.concurrent.ConcurrentMap;
  * @author Jens Bertram
  */
 public final class DefaultClarityScore
-    implements ClarityScoreCalculation {
+    implements ClarityScoreCalculation, Closable {
 
   /**
    * Prefix used to identify externally stored data.
    */
   static final String IDENTIFIER = "DCS";
-
   /**
    * Logger instance for this class.
    */
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       DefaultClarityScore.class);
-
   /**
    * Provider for general index metrics.
    */
@@ -103,24 +101,35 @@ public final class DefaultClarityScore
    */
   private final Analyzer analyzer;
   /**
+   * Synchronization lock for default document model calculation
+   */
+  private final Object defaultDocModelCalcSync = new Object();
+  /**
+   * Synchronization lock for document model map calculation.
+   */
+  private final Object docModelMapCalcSync = new Object();
+  /**
+   * Flag indicating, if this instance has been closed.
+   */
+  private volatile boolean isClosed;
+  /**
    * Cached storage of Document-id -> Term, model-value.
    */
+  @SuppressWarnings("FieldAccessedSynchronizedAndUnsynchronized")
   private Map<Integer, Map<ByteArray, Double>> docModelDataCache;
   /**
    * Cached mapping of document model values.
    */
+  @SuppressWarnings("FieldAccessedSynchronizedAndUnsynchronized")
   private Map<ByteArray, Double> defaultDocModels;
-  /**
-   * Flag indicating, if a cache is set.
-   */
-  private boolean hasCache;
   /**
    * Database to use.
    */
-  private DB db;
+  private Persistence persist;
   /**
    * Manager object for extended document data.
    */
+  @SuppressWarnings("FieldAccessedSynchronizedAndUnsynchronized")
   private ExternalDocTermDataManager extDocMan;
 
   /**
@@ -179,7 +188,7 @@ public final class DefaultClarityScore
         break;
     }
 
-    this.db = persistence.getDb();
+    this.persist = persistence;
 
     if (!createNew) {
       if (null == this.dataProv.getLastIndexCommitGeneration() || !persistence
@@ -195,8 +204,9 @@ public final class DefaultClarityScore
         }
       }
       if (!clearCache) {
-        if (!this.db.getAtomicString(Caches.LANGMODEL_WEIGHT.name()).get().
-            equals(this.conf.getLangModelWeight().toString())) {
+        if (!this.persist.getDb()
+            .getAtomicString(Caches.LANGMODEL_WEIGHT.name()).get().
+                equals(this.conf.getLangModelWeight().toString())) {
           LOG.warn("Different language-model weight used in cache. " +
               "Clearing cache.");
           clearCache = true;
@@ -214,36 +224,39 @@ public final class DefaultClarityScore
       }
     }
 
-    if (clearCache && this.db.exists(Caches.DEFAULT_DOC_MODELS.name())) {
+    if (clearCache && this.persist.getDb().exists(Caches.DEFAULT_DOC_MODELS
+        .name())) {
       LOG.info("Clearing cached document models.");
-      this.db.delete(Caches.DEFAULT_DOC_MODELS.name());
+      this.persist.getDb().delete(Caches.DEFAULT_DOC_MODELS.name());
     }
 
     if (createNew || clearCache) {
-      if (this.db.exists(Caches.LANGMODEL_WEIGHT.name())) {
-        this.db.getAtomicString(Caches.LANGMODEL_WEIGHT.name()).set(this.conf.
-            getLangModelWeight().toString());
+      if (this.persist.getDb().exists(Caches.LANGMODEL_WEIGHT.name())) {
+        this.persist.getDb().getAtomicString(Caches.LANGMODEL_WEIGHT.name())
+            .set(this.conf.
+                getLangModelWeight().toString());
       } else {
-        this.db.createAtomicString(Caches.LANGMODEL_WEIGHT.name(), this.conf.
-            getLangModelWeight().toString());
+        this.persist.getDb()
+            .createAtomicString(Caches.LANGMODEL_WEIGHT.name(), this.conf.
+                getLangModelWeight().toString());
       }
       persistence.clearMetaData();
       persistence.updateMetaData(this.dataProv.getDocumentFields(),
           this.dataProv.getStopwords());
     }
 
-    this.defaultDocModels = this.db
+    this.defaultDocModels = this.persist.getDb()
         .createHashMap(Caches.DEFAULT_DOC_MODELS.name())
-//        .keySerializer(ByteArray.SERIALIZER)
+        .keySerializer(ByteArray.SERIALIZER)
         .valueSerializer(Serializer.BASIC)
         .makeOrGet();
 
-    this.extDocMan = new ExternalDocTermDataManager(this.db, IDENTIFIER);
+    this.extDocMan =
+        new ExternalDocTermDataManager(this.persist.getDb(), IDENTIFIER);
     if (clearCache) {
       LOG.info("Clearing document model data cache.");
       this.extDocMan.clear();
     }
-    this.hasCache = true;
   }
 
   /**
@@ -260,6 +273,7 @@ public final class DefaultClarityScore
     assert null != term;
     assert null != fbDocIds && !fbDocIds.isEmpty();
     assert null != qTerms && !qTerms.isEmpty();
+    checkClosed();
 
     double model = 0d;
     // throw all terms together
@@ -294,32 +308,41 @@ public final class DefaultClarityScore
    * @return Mapping of each term in the document to it's model value
    */
   Map<ByteArray, Double> getDocumentModel(final int docId) {
+    checkClosed();
     Map<ByteArray, Double> map;
     if (this.docModelDataCache.containsKey(docId)) {
       // get local cached map
       map = this.docModelDataCache.get(docId);
     } else {
-      // get external cached map
-      map = this.extDocMan.getData(docId, DataKeys.DOCMODEL.name());
-      // build mapping, if needed
-      if (null == map || map.isEmpty()) {
-        final DocumentModel docModel = this.metrics.getDocumentModel(docId);
-        final Set<ByteArray> terms = docModel.getTermFreqMap().keySet();
+      // double checked locking
+      synchronized (this.docModelMapCalcSync) {
+        if (this.docModelDataCache.containsKey(docId)) {
+          // get local cached map
+          map = this.docModelDataCache.get(docId);
+        } else {
+          // get external cached map
+          map = this.extDocMan.getData(docId, DataKeys.DOCMODEL.name());
+          // build mapping, if needed
+          if (null == map || map.isEmpty()) {
+            final DocumentModel docModel = this.metrics.getDocumentModel(docId);
+            final Set<ByteArray> terms = docModel.getTermFreqMap().keySet();
 
-        map = new HashMap<>(terms.size());
-        for (final ByteArray term : terms) {
-          final Double model = (this.conf.getLangModelWeight()
-              * docModel.metrics().relTf(term))
-              + getDefaultDocumentModel(term);
+            map = new HashMap<>(terms.size());
+            for (final ByteArray term : terms) {
+              final Double model = (this.conf.getLangModelWeight()
+                  * docModel.metrics().relTf(term))
+                  + getDefaultDocumentModel(term);
 
-          assert 0d != model;
-          map.put(term, model);
+              assert 0d != model;
+              map.put(term, model);
+            }
+            // push data to persistent storage
+            this.extDocMan.setData(docModel.id, DataKeys.DOCMODEL.name(), map);
+          }
+          // push to local cache
+          this.docModelDataCache.put(docId, map);
         }
-        // push data to persistent storage
-        this.extDocMan.setData(docModel.id, DataKeys.DOCMODEL.name(), map);
       }
-      // push to local cache
-      this.docModelDataCache.put(docId, map);
     }
     return map;
   }
@@ -334,12 +357,19 @@ public final class DefaultClarityScore
   double getDefaultDocumentModel(final ByteArray term) {
     assert null != this.defaultDocModels; // must be initialized
     assert null != term;
+    checkClosed();
 
     Double model = this.defaultDocModels.get(term);
-    if (null == model) {
-      model = ((1d - this.conf.getLangModelWeight()) *
-          this.metrics.collection().relTf(term));
-      this.defaultDocModels.put(term.clone(), model);
+    if (model == null) {
+      // double checked locking
+      synchronized (this.defaultDocModelCalcSync) {
+        model = this.defaultDocModels.get(term);
+        if (model == null) {
+          model = ((1d - this.conf.getLangModelWeight()) *
+              this.metrics.collection().relTf(term));
+          this.defaultDocModels.put(new ByteArray(term), model);
+        }
+      }
     }
     return model;
   }
@@ -354,11 +384,8 @@ public final class DefaultClarityScore
    */
   public void preCalcDocumentModels()
       throws ProcessingException {
-    if (!this.hasCache) {
-      LOG.warn("Won't pre-calculate any values. Cache not set.");
-      return;
-    }
-    final Atomic.Boolean hasData = this.db.getAtomicBoolean(
+    checkClosed();
+    final Atomic.Boolean hasData = this.persist.getDb().getAtomicBoolean(
         Caches.HAS_PRECALC_DATA.name());
     if (hasData.get()) {
       LOG.info("Pre-calculated models are current.");
@@ -373,8 +400,26 @@ public final class DefaultClarityScore
     }
   }
 
-  void closeDb() {
-    this.db.close();
+  /**
+   * Checks, if this instance has been closed. Throws a runtime exception, if
+   * the instance has already been closed.
+   */
+  private void checkClosed() {
+    if (this.isClosed) {
+      throw new IllegalStateException("Instance has been closed.");
+    }
+  }
+
+  /**
+   * Close this instance and release any resources (mainly the database
+   * backend).
+   */
+  @Override
+  public void close() {
+    if (!this.isClosed) {
+      this.persist.closeDb();
+      this.isClosed = true;
+    }
   }
 
   /**
@@ -388,6 +433,7 @@ public final class DefaultClarityScore
   @Override
   public Result calculateClarity(final String query)
       throws ClarityScoreCalculationException {
+    checkClosed();
     if (StringUtils.isStrippedEmpty(
         Objects.requireNonNull(query, "Query was null."))) {
       throw new IllegalArgumentException("Query was empty.");
@@ -465,10 +511,10 @@ public final class DefaultClarityScore
    * @throws ProcessingException Thrown if any of the threaded calculations
    * encountered an error
    */
-  private Result calculateClarity(final Set<Integer> feedbackDocuments,
+  Result calculateClarity(final Set<Integer> feedbackDocuments,
       final Set<ByteArray> queryTerms)
       throws ProcessingException {
-    // check if models are pre-calculated
+    checkClosed();
     final Result result = new Result();
     result.setConf(this.conf);
     result.setFeedbackDocIds(feedbackDocuments);
@@ -527,6 +573,7 @@ public final class DefaultClarityScore
    * @return Metrics instance
    */
   Metrics getMetrics() {
+    checkClosed();
     return this.metrics;
   }
 
@@ -615,6 +662,7 @@ public final class DefaultClarityScore
      *
      * @return Feedback documents used for calculation
      */
+    @SuppressWarnings("TypeMayBeWeakened")
     public Collection<Integer> getFeedbackDocuments() {
       return Collections.unmodifiableCollection(this.feedbackDocIds);
     }
@@ -675,18 +723,6 @@ public final class DefaultClarityScore
       super(IDENTIFIER);
     }
 
-    @Override
-    protected Builder getThis() {
-      return this;
-    }
-
-    @Override
-    public void validate()
-        throws ConfigurationException {
-      super.validate();
-      validatePersistenceBuilder();
-    }
-
     /**
      * Set the configuration to use.
      *
@@ -714,6 +750,18 @@ public final class DefaultClarityScore
         throws BuildableException {
       validate();
       return new DefaultClarityScore(this);
+    }
+
+    @Override
+    public void validate()
+        throws ConfigurationException {
+      super.validate();
+      validatePersistenceBuilder();
+    }
+
+    @Override
+    protected Builder getThis() {
+      return this;
     }
   }
 
@@ -819,7 +867,7 @@ public final class DefaultClarityScore
     @Override
     public void call(final ByteArray term) {
       if (null != term) {
-        this.target.put(term.clone(), getQueryModel(term, this.fbDocIds,
+        this.target.put(new ByteArray(term), getQueryModel(term, this.fbDocIds,
             this.queryTerms));
       }
     }

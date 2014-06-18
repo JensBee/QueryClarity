@@ -105,8 +105,8 @@ public abstract class Source<T>
    *
    * @throws java.lang.InterruptedException Thrown, if thread gets interrupted
    */
-  protected synchronized final void awaitTermination()
-      throws InterruptedException {
+  protected final synchronized void awaitTermination()
+  throws InterruptedException {
     while (this.isRunning) {
       this.wait();
     }
@@ -115,7 +115,7 @@ public abstract class Source<T>
   /**
    * Signal the Source, that it should stop generating items.
    */
-  protected synchronized final void stop() {
+  protected final synchronized void stop() {
     this.isRunning = false;
     this.isFinished = true;
     this.notifyAll();
@@ -136,8 +136,7 @@ public abstract class Source<T>
    * already finished
    * @throws java.lang.InterruptedException Thrown, if thread gets interrupted
    */
-  public abstract T next()
-      throws ProcessingException, InterruptedException;
+  public abstract T next();
 
   /**
    * Get the number of items to process. May return {@code null} if no such

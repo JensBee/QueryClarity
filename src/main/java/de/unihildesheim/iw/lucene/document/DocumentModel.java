@@ -36,12 +36,10 @@ public final class DocumentModel {
    * Referenced Lucene document id.
    */
   public final int id;
-
   /**
    * Overall frequency of all terms in the document.
    */
   public final long termFrequency;
-
   /**
    * Mapping of {@code Term} to {@code document-frequency} for every known term
    * in the document.

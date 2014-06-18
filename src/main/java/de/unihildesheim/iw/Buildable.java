@@ -29,6 +29,7 @@ public interface Buildable<T> {
    * building.
    *
    * @return New Object instance
+   * @throws BuildableException Thrown, if building the object has failed
    */
   T build()
       throws BuildableException;
@@ -42,14 +43,32 @@ public interface Buildable<T> {
   void validate()
       throws ConfigurationException;
 
+  @SuppressWarnings({"PublicInnerClass", "AbstractClassExtendsConcreteClass"})
+  /**
+   * Exception for buildable objects.
+   */
   public abstract class BuildableException
       extends Exception {
+    /**
+     * Serialization id.
+     */
     private static final long serialVersionUID = -7502921394560275176L;
 
-    BuildableException(final String msg, final Throwable e) {
-      super(msg, e);
+    /**
+     * Create a new exception with a specific message.
+     *
+     * @param msg Message
+     * @param t Exception to forward
+     */
+    BuildableException(final String msg, final Throwable t) {
+      super(msg, t);
     }
 
+    /**
+     * Create a new exception with a specific message.
+     *
+     * @param msg Message
+     */
     BuildableException(final String msg) {
       super(msg);
     }
@@ -61,14 +80,31 @@ public interface Buildable<T> {
    *
    * @author Jens Bertram
    */
+  @SuppressWarnings("PublicInnerClass")
   public final class ConfigurationException
       extends BuildableException {
+    /**
+     * Serialization id.
+     */
+    private static final long serialVersionUID = -5780455839142527885L;
+
+    /**
+     * Create a new exception with a specific message.
+     *
+     * @param msg Message
+     */
     public ConfigurationException(final String msg) {
       super(msg);
     }
 
-    public ConfigurationException(final String msg, final Throwable ex) {
-      super(msg, ex);
+    /**
+     * Create a new exception with a specific message.
+     *
+     * @param msg Message
+     * @param t Exception to forward
+     */
+    public ConfigurationException(final String msg, final Throwable t) {
+      super(msg, t);
     }
   }
 
@@ -78,18 +114,40 @@ public interface Buildable<T> {
    *
    * @author Jens Bertram
    */
+  @SuppressWarnings("PublicInnerClass")
   public final class BuildException
       extends BuildableException {
-    public BuildException(final Throwable ex) {
-      super("Failed to build instance.", ex);
+    /**
+     * Serialization id.
+     */
+    private static final long serialVersionUID = -7413912503761773186L;
+
+    /**
+     * Create a new exception with a general message.
+     *
+     * @param t Exception to forward
+     */
+    public BuildException(final Throwable t) {
+      super("Failed to build instance.", t);
     }
 
+    /**
+     * Create a new exception with a specific message.
+     *
+     * @param msg Message
+     */
     public BuildException(final String msg) {
       super(msg);
     }
 
-    public BuildException(final String msg, final Throwable ex) {
-      super(msg, ex);
+    /**
+     * Create a new exception with a specific message.
+     *
+     * @param msg Message
+     * @param t Exception to forward
+     */
+    public BuildException(final String msg, final Throwable t) {
+      super(msg, t);
     }
   }
 }

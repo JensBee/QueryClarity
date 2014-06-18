@@ -59,7 +59,7 @@ public final class RandomValue {
    * @return Random byte
    */
   public static byte getByte() {
-    return (byte) getInteger(Byte.MIN_VALUE, Byte.MAX_VALUE);
+    return (byte) getInteger((int) Byte.MIN_VALUE, (int) Byte.MAX_VALUE);
   }
 
   /**
@@ -97,6 +97,24 @@ public final class RandomValue {
    */
   public static double getDouble() {
     return RANDOM.nextDouble();
+  }
+
+  /**
+   * Get a random long value.
+   *
+   * @return Long value
+   */
+  public static long getLong() {
+    return RANDOM.nextLong();
+  }
+
+  /**
+   * Get a random long value.
+   *
+   * @return Long value
+   */
+  public static long getLong(final long min, final long max) {
+    return min + 1L + (max - min) * (long) RANDOM.nextDouble();
   }
 
   /**

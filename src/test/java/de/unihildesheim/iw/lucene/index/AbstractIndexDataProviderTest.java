@@ -20,8 +20,6 @@ import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.SerializableByte;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import org.apache.lucene.index.IndexReader;
-import org.junit.Ignore;
-import org.junit.Test;
 import org.mapdb.Fun;
 
 import java.io.UnsupportedEncodingException;
@@ -48,25 +46,6 @@ public final class AbstractIndexDataProviderTest
   public AbstractIndexDataProviderTest()
       throws Exception {
     super(new TestIndexDataProvider());
-  }
-
-  /**
-   * Test of isTemporary method, of class AbstractIndexDataProvider.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @Test
-  @Ignore
-  public void testIsTemporary()
-      throws Exception {
-//    final AbstractIndexDataProviderTestImpl instance
-//        = (AbstractIndexDataProviderTestImpl) IndexTestUtil.
-//        createInstance(
-//            referenceIndex, AbstractIndexDataProviderTestImpl.class,
-//            null, null);
-//    boolean expResult = Environment.isTestRun();
-//    boolean result = instance.isTemporary();
-//    assertEquals("Temporary flag not set.", expResult, result);
   }
 
   @Override
@@ -113,35 +92,31 @@ public final class AbstractIndexDataProviderTest
     /**
      * Create a random named temporary {@link IndexDataProvider} instance.
      */
-    @SuppressWarnings("checkstyle:magicnumber")
     public AbstractIndexDataProviderTestImpl() {
       super(true);
     }
 
     @Override
-    protected void warmUpTerms()
-        throws DataProviderException {
+    protected void warmUpTerms() {
       // NOP
     }
 
     @Override
-    protected void warmUpIndexTermFrequencies()
-        throws DataProviderException {
+    protected void warmUpIndexTermFrequencies() {
       // NOP
     }
 
     @Override
-    protected void warmUpDocumentIds()
-        throws DataProviderException {
+    protected void warmUpDocumentIds() {
       // NOP
     }
 
     @Override
-    void warmUpDocumentFrequencies()
-        throws DataProviderException {
+    void warmUpDocumentFrequencies() {
       // NOP
     }
 
+    @SuppressWarnings("ReturnOfCollectionOrArrayField")
     @Override
     public Collection<Integer> getDocumentIds() {
       return DOC_IDS;

@@ -19,8 +19,10 @@ package de.unihildesheim.iw.lucene.query;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.MultiIndexDataProviderTestCase;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
+import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.RandomValue;
+import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -34,17 +36,16 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 /**
  * Test for {@link QueryUtils}.
  *
  * @author Jens Bertram
  */
+@SuppressWarnings("ParameterizedParametersStaticCollection")
 @RunWith(Parameterized.class)
 public final class QueryUtilsTest
     extends MultiIndexDataProviderTestCase {
+  // TODO: use instances!
 
   /**
    * Logger instance for this class.
@@ -74,7 +75,7 @@ public final class QueryUtilsTest
     final int termsCount = RandomValue.getInteger(3, 100);
     final Collection<ByteArray> termsBw = new HashSet<>(termsCount);
     final List<String> terms = new ArrayList<>(termsCount);
-    final Set<String> stopwords = referenceIndex.getStopwords();
+    final Set<String> stopwords = this.referenceIndex.getStopwords();
 
     for (int i = 0; i < termsCount; i++) {
       final String term = RandomValue.getString(1, 15);
@@ -85,13 +86,14 @@ public final class QueryUtilsTest
       terms.add(term);
     }
 
-    final String queryString = this.referenceIndex.util().getQueryString(
+    final String queryString = this.referenceIndex.getQueryString(
         terms.toArray(new String[terms.size()]));
     LOG.debug("QS->{}", queryString);
-    final Set<ByteArray> result = new QueryUtils(referenceIndex
-        .getAnalyzer(), referenceIndex
-        .getIndexReader(), referenceIndex.getDocumentFields())
-        .getUniqueQueryTerms(queryString);
+    final Set<ByteArray> result = new QueryUtils(
+        this.referenceIndex.getAnalyzer(),
+        TestIndexDataProvider.getIndexReader(),
+        this.referenceIndex.getDocumentFields()
+    ).getUniqueQueryTerms(queryString);
 
     // manual stopword removal
     final Iterator<ByteArray> rt = result.iterator();
@@ -102,9 +104,11 @@ public final class QueryUtilsTest
     }
 
     LOG.debug("A={} B={}", termsBw, result);
-    assertEquals(msg("Terms amount mismatch."), (long) termsBw.size(),
+    Assert.assertEquals(msg("Terms amount mismatch.", this.referenceIndex),
+        (long) termsBw.size(),
         (long) result.size());
-    assertTrue(msg("Term list content differs."), result.containsAll(termsBw));
+    Assert.assertTrue(msg("Term list content differs.", this.referenceIndex),
+        result.containsAll(termsBw));
   }
 
   /**
@@ -119,7 +123,7 @@ public final class QueryUtilsTest
     final int termsCount = RandomValue.getInteger(3, 100);
     final Collection<ByteArray> termsBw = new ArrayList<>(termsCount);
     final List<String> terms = new ArrayList<>(termsCount);
-    final Set<String> stopwords = referenceIndex.getStopwords();
+    final Set<String> stopwords = this.referenceIndex.getStopwords();
 
     for (int i = 0; i < termsCount; i++) {
       final String term = RandomValue.getString(1, 15);
@@ -134,12 +138,13 @@ public final class QueryUtilsTest
     terms.addAll(terms);
     termsBw.addAll(termsBw);
 
-    final String queryString = this.referenceIndex.util().getQueryString(
+    final String queryString = this.referenceIndex.getQueryString(
         terms.toArray(new String[termsCount]));
     final Collection<ByteArray> result = new QueryUtils(
-        referenceIndex.getAnalyzer(),
-        referenceIndex.getIndexReader(),
-        referenceIndex.getDocumentFields()).getAllQueryTerms(queryString);
+        this.referenceIndex.getAnalyzer(),
+        TestIndexDataProvider.getIndexReader(),
+        this.referenceIndex.getDocumentFields()
+    ).getAllQueryTerms(queryString);
 
     // manual stopword removal
     final Iterator<ByteArray> rt = result.iterator();
@@ -149,8 +154,11 @@ public final class QueryUtilsTest
       }
     }
 
-    assertTrue(msg("Not all terms returned."), result.containsAll(termsBw));
-    assertEquals(msg("Initial term list and returned list differ in size."),
-        (long) termsBw.size(), (long) result.size());
+    Assert.assertTrue(msg("Not all terms returned.", this.referenceIndex),
+        result.containsAll(termsBw));
+    Assert
+        .assertEquals(msg("Initial term list and returned list differ in size.",
+                this.referenceIndex),
+            (long) termsBw.size(), (long) result.size());
   }
 }

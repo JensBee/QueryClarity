@@ -96,10 +96,8 @@ public abstract class Target<T>
    * Create a new Target instance.
    *
    * @return New Target instance
-   * @throws Exception Any exception thrown by implementing class
    */
-  public abstract Target<T> newInstance()
-      throws Exception;
+  public abstract Target<T> newInstance();
 
   /**
    * Set the thread tracking latch.
@@ -113,12 +111,10 @@ public abstract class Target<T>
   @Override
   public final Boolean call()
       throws Exception {
-    Boolean success = Boolean.FALSE;
     try {
       LOG.trace("({}) Starting.", getName());
       this.source.awaitStart();
       runProcess();
-      success = Boolean.TRUE;
       return true; // simple flag indication success
     } catch (final Throwable t) {
       LOG.debug("({}) Terminating with error.", getName(), t);

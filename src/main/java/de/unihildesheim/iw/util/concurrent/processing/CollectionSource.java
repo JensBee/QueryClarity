@@ -16,8 +16,6 @@
  */
 package de.unihildesheim.iw.util.concurrent.processing;
 
-import org.slf4j.LoggerFactory;
-
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Objects;
@@ -32,12 +30,6 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class CollectionSource<T>
     extends Source<T> {
-
-  /**
-   * Logger instance for this class.
-   */
-  private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
-      CollectionSource.class);
   /**
    * Wrapped collection acting as source.
    */

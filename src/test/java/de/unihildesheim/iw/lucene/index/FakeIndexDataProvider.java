@@ -126,16 +126,16 @@ public final class FakeIndexDataProvider
 
   @Override
   public Set<String> getStopwords() {
-    return Collections.<String>emptySet();
+    return Collections.emptySet();
   }
 
   @Override
   public Set<ByteArray> getStopwordsBytes() {
-    return Collections.<ByteArray>emptySet();
+    return Collections.emptySet();
   }
 
   @Override
-  public boolean isDisposed() {
+  public boolean isClosed() {
     return false;
   }
 }

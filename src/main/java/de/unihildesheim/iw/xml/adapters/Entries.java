@@ -31,15 +31,28 @@ import java.util.List;
  *
  * @author Jens Bertram
  */
-class Entries {
-  static class Tuple2ListEntry {
+final class Entries {
+  @SuppressWarnings("PackageVisibleInnerClass")
+  static final class Tuple2ListEntry {
+    /**
+     * Entry key.
+     */
     @SuppressWarnings("PackageVisibleField")
     @XmlAttribute
-    String key;
+    final String key;
 
+    /**
+     * Tuple2 entries.
+     */
     @SuppressWarnings("PackageVisibleField")
     List<Tuple.Tuple2<String, String>> t2List = new ArrayList<>();
 
+    /**
+     * Create a new list entry with the provided key and entries.
+     *
+     * @param newKey Key for this list
+     * @param newT2List Entries
+     */
     @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
     Tuple2ListEntry(final String newKey, final List<Tuple.Tuple2<String,
         String>> newT2List) {
@@ -55,12 +68,27 @@ class Entries {
     }
   }
 
-  static class StringValueEntry {
+  @SuppressWarnings("PackageVisibleInnerClass")
+  static final class StringValueEntry {
+    /**
+     * Entry key.
+     */
+    @SuppressWarnings("PackageVisibleField")
     @XmlAttribute
-    String key;
+    final String key;
+    /**
+     * Entry value.
+     */
+    @SuppressWarnings("PackageVisibleField")
     @XmlValue
-    String value;
+    final String value;
 
+    /**
+     * Create a new entry with a string value.
+     *
+     * @param newKey Entry key
+     * @param newValue Entry value
+     */
     StringValueEntry(final String newKey, final String newValue) {
       this.key = newKey;
       this.value = newValue;

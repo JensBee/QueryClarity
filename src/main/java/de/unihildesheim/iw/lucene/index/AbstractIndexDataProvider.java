@@ -146,12 +146,12 @@ abstract class AbstractIndexDataProvider
   /**
    * Last commit generation id of the Lucene index.
    */
-  private Long indexLastCommitGeneration;
+  private volatile Long indexLastCommitGeneration;
 
   /**
    * Flag indicating, if this instance is closed.
    */
-  private volatile boolean isDisposed;
+  private volatile boolean isClosed;
 
   /**
    * Initializes the abstract instance.
@@ -196,8 +196,8 @@ abstract class AbstractIndexDataProvider
    * Sets the flag indicating that this instance is disposed. This means, all
    * data storages have been closed.
    */
-  final void setDisposed() {
-    this.isDisposed = true;
+  final void setClosed() {
+    this.isClosed = true;
   }
 
   /**
@@ -205,7 +205,7 @@ abstract class AbstractIndexDataProvider
    *
    * @param field Field name
    */
-  final void addFieldToCacheMap(final String field) {
+  final synchronized void addFieldToCacheMap(final String field) {
     if (StringUtils.isStrippedEmpty(
         Objects.requireNonNull(field, "Field was null."))) {
       throw new IllegalArgumentException("Field was empty.");
@@ -287,7 +287,7 @@ abstract class AbstractIndexDataProvider
    * @see #idxDocTermsMap
    */
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
-  final ConcurrentNavigableMap<Fun.Tuple3<
+  final synchronized ConcurrentNavigableMap<Fun.Tuple3<
       ByteArray, SerializableByte, Integer>, Integer> getIdxDocTermsMap() {
     return this.idxDocTermsMap;
   }
@@ -423,6 +423,7 @@ abstract class AbstractIndexDataProvider
    * error
    * @see #idxTerms
    */
+  @SuppressWarnings("ObjectAllocationInLoop")
   final Collection<ByteArray> getTerms()
       throws ProcessingException {
     if (this.idxTerms.isEmpty()) {
@@ -437,7 +438,7 @@ abstract class AbstractIndexDataProvider
         for (final String field : this.documentFields) {
           for (final ByteArray byteArray : Fun.filter(this.idxTermsMap.keySet(),
               getFieldId(field))) {
-            this.idxTerms.add(byteArray.clone());
+            this.idxTerms.add(new ByteArray(byteArray));
           }
         }
       }
@@ -504,16 +505,18 @@ abstract class AbstractIndexDataProvider
    */
   @Override
   public final long getTermFrequency() {
+    checkClosed();
     if (this.idxTf == null) {
       LOG.info("Building term frequency index.");
       this.idxTf = 0L;
+      long newTf = 0L;
 
       SerializableByte fieldId;
       for (final String field : this.documentFields) {
         fieldId = getFieldId(field);
         for (final ByteArray bytes : Fun.
             filter(this.idxTermsMap.keySet(), fieldId)) {
-          this.idxTf += this.idxTermsMap.get(Fun.t2(fieldId, bytes));
+          newTf += this.idxTermsMap.get(Fun.t2(fieldId, bytes));
         }
       }
 
@@ -523,10 +526,11 @@ abstract class AbstractIndexDataProvider
         for (final ByteArray stopWord : this.stopwords) {
           tf = getTermFrequencyIgnoringStopwords(stopWord);
           if (tf != null) {
-            this.idxTf -= tf;
+            newTf -= tf;
           }
         }
       }
+      this.idxTf = newTf;
     }
     return this.idxTf;
   }
@@ -540,6 +544,7 @@ abstract class AbstractIndexDataProvider
   @Override
   public void warmUp()
       throws DataProviderException {
+    checkClosed();
     if (this.warmed) {
       LOG.info("Caches are up to date.");
       return;
@@ -567,19 +572,13 @@ abstract class AbstractIndexDataProvider
 
   /**
    * Pre-cache term frequencies.
-   *
-   * @throws DataProviderException Wraps any exception thrown during processing
    */
-  protected abstract void warmUpIndexTermFrequencies()
-      throws DataProviderException;
+  protected abstract void warmUpIndexTermFrequencies();
 
   /**
    * Pre-cache document-ids.
-   *
-   * @throws DataProviderException Wraps any exception thrown during processing
    */
-  protected abstract void warmUpDocumentIds()
-      throws DataProviderException;
+  protected abstract void warmUpDocumentIds();
 
   /**
    * Pre-cache term-document frequencies.
@@ -594,6 +593,7 @@ abstract class AbstractIndexDataProvider
    */
   @Override
   public final Long getTermFrequency(final ByteArray term) {
+    checkClosed();
     if (this.stopwords.contains(Objects.requireNonNull(term,
         "Term was null."))) {
       // skip stop-words
@@ -607,6 +607,7 @@ abstract class AbstractIndexDataProvider
    */
   @Override
   public final double getRelativeTermFrequency(final ByteArray term) {
+    checkClosed();
     if (this.stopwords.contains(Objects.requireNonNull(term,
         "Term was null."))) {
       // skip stop-words
@@ -623,6 +624,7 @@ abstract class AbstractIndexDataProvider
   @Override
   public final Iterator<ByteArray> getTermsIterator()
       throws DataProviderException {
+    checkClosed();
     try {
       return getTerms().iterator();
     } catch (final ProcessingException e) {
@@ -633,22 +635,26 @@ abstract class AbstractIndexDataProvider
   @Override
   public final Source<ByteArray> getTermsSource()
       throws ProcessingException {
+    checkClosed();
     return new CollectionSource<>(getTerms());
   }
 
   @Override
   public final Iterator<Integer> getDocumentIdIterator() {
+    checkClosed();
     return getDocumentIds().iterator();
   }
 
   @Override
   public final Source<Integer> getDocumentIdSource() {
+    checkClosed();
     return new CollectionSource<>(getDocumentIds());
   }
 
   @Override
   public final long getUniqueTermsCount()
       throws DataProviderException {
+    checkClosed();
     try {
       return (long) getTerms().size();
     } catch (final ProcessingException e) {
@@ -658,6 +664,7 @@ abstract class AbstractIndexDataProvider
 
   @Override
   public final boolean hasDocument(final int docId) {
+    checkClosed();
     if (this.idxDocumentIds == null) {
       throw new IllegalStateException("No document ids set.");
     }
@@ -666,16 +673,19 @@ abstract class AbstractIndexDataProvider
 
   @Override
   public final long getDocumentCount() {
+    checkClosed();
     return (long) getDocumentIds().size();
   }
 
   @Override
   public final Long getLastIndexCommitGeneration() {
+    checkClosed();
     return this.indexLastCommitGeneration;
   }
 
   @Override
   public final Set<String> getDocumentFields() {
+    checkClosed();
     return Collections.unmodifiableSet(this.documentFields);
   }
 
@@ -697,18 +707,20 @@ abstract class AbstractIndexDataProvider
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
   @Override
   public final Set<String> getStopwords() {
+    checkClosed();
     return this.stopwordsStr;
   }
 
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
   @Override
   public Set<ByteArray> getStopwordsBytes() {
+    checkClosed();
     return this.stopwords;
   }
 
   @Override
-  public boolean isDisposed() {
-    return this.isDisposed;
+  public final boolean isClosed() {
+    return this.isClosed;
   }
 
   /**
@@ -719,7 +731,7 @@ abstract class AbstractIndexDataProvider
    * encoded into the target charset (usually UTF-8)
    */
   final void setStopwords(final Set<String> words)
-  throws UnsupportedEncodingException {
+      throws UnsupportedEncodingException {
     this.stopwordsStr = Objects.requireNonNull(words, "Stopwords were null.");
     this.stopwords = new HashSet<>(this.stopwordsStr.size());
     for (final String word : words) {
@@ -746,6 +758,16 @@ abstract class AbstractIndexDataProvider
    * @return Unique collection of all document ids
    */
   protected abstract Collection<Integer> getDocumentIds();
+
+  /**
+   * Checks, if this instance has been closed. Throws a runtime exception, if
+   * the instance has already been closed.
+   */
+  protected final void checkClosed() {
+    if (this.isClosed) {
+      throw new IllegalStateException("Instance has been closed.");
+    }
+  }
 
   /**
    * Get the term frequency including stop-words.
@@ -872,7 +894,7 @@ abstract class AbstractIndexDataProvider
    *
    * @return Set of terms in the index
    */
-  @SuppressWarnings("ReturnOfCollectionOrArrayField")
+  @SuppressWarnings({"ReturnOfCollectionOrArrayField", "TypeMayBeWeakened"})
   final Set<ByteArray> getIdxTerms() {
     return this.idxTerms;
   }
@@ -895,7 +917,7 @@ abstract class AbstractIndexDataProvider
    *
    * @return Set of document ids
    */
-  @SuppressWarnings("ReturnOfCollectionOrArrayField")
+  @SuppressWarnings({"ReturnOfCollectionOrArrayField", "TypeMayBeWeakened"})
   final Set<Integer> getIdxDocumentIds() {
     return this.idxDocumentIds;
   }
@@ -949,7 +971,7 @@ abstract class AbstractIndexDataProvider
         }
 
         assert !matchedDocs.isEmpty();
-        getIdxDfMap().put(term.clone(), matchedDocs.size());
+        getIdxDfMap().put(new ByteArray(term), matchedDocs.size());
       }
     }
   }
@@ -961,12 +983,19 @@ abstract class AbstractIndexDataProvider
   private final class TermCollectorTarget
       extends TargetFuncCall.TargetFunc<String> {
 
+    /**
+     * Accessor for parent class.
+     */
+    TermCollectorTarget() {
+    }
+
+    @SuppressWarnings("ObjectAllocationInLoop")
     @Override
     public void call(final String fieldName) {
       if (fieldName != null) {
         for (final ByteArray byteArray : Fun
             .filter(getIdxTermsMap().keySet(), getFieldId(fieldName))) {
-          getIdxTerms().add(byteArray.clone());
+          getIdxTerms().add(new ByteArray(byteArray));
         }
       }
     }

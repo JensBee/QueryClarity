@@ -26,7 +26,6 @@ import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -67,26 +66,29 @@ public final class SimpleTermsQueryTest
   public void testConstructor()
       throws Exception {
     try {
-      new SimpleTermsQuery(referenceIndex.getAnalyzer(), " ",
+      new SimpleTermsQuery(this.referenceIndex.getAnalyzer(), " ",
           SimpleTermsQuery.DEFAULT_OPERATOR,
-          referenceIndex.getDocumentFields());
-      Assert.fail(msg("Expected exception: Empty query string."));
+          this.referenceIndex.getDocumentFields());
+      Assert.fail(
+          msg("Expected exception: Empty query string.", this.referenceIndex));
     } catch (final IllegalArgumentException ex) {
       // pass
     }
     try {
-      new SimpleTermsQuery(referenceIndex.getAnalyzer(), null,
+      new SimpleTermsQuery(this.referenceIndex.getAnalyzer(), null,
           SimpleTermsQuery.DEFAULT_OPERATOR,
-          referenceIndex.getDocumentFields());
-      Assert.fail(msg("Expected exception: Empty query string (null)."));
+          this.referenceIndex.getDocumentFields());
+      Assert.fail(msg("Expected exception: Empty query string (null).",
+          this.referenceIndex));
     } catch (final NullPointerException ex) {
       // pass
     }
     try {
-      new SimpleTermsQuery(referenceIndex.getAnalyzer(), "",
+      new SimpleTermsQuery(this.referenceIndex.getAnalyzer(), "",
           SimpleTermsQuery.DEFAULT_OPERATOR,
-          referenceIndex.getDocumentFields());
-      Assert.fail(msg("Expected exception: Empty query string."));
+          this.referenceIndex.getDocumentFields());
+      Assert.fail(
+          msg("Expected exception: Empty query string.", this.referenceIndex));
     } catch (final IllegalArgumentException ex) {
       // pass
     }
@@ -100,15 +102,15 @@ public final class SimpleTermsQueryTest
   @Test
   public void testGetQueryObj()
       throws Exception {
-    final String queryStr = referenceIndex.util().getQueryString();
+    final String queryStr = this.referenceIndex.getQueryString();
     final SimpleTermsQuery instance = getInstance(queryStr);
     final Collection<String> result = instance.getQueryTerms();
     final Collection<ByteArray> exp = new QueryUtils(
-        referenceIndex.getAnalyzer(),
+        this.referenceIndex.getAnalyzer(),
         TestIndexDataProvider.getIndexReader(),
-        referenceIndex.getDocumentFields()).getAllQueryTerms(queryStr);
+        this.referenceIndex.getDocumentFields()).getAllQueryTerms(queryStr);
     final Collection<String> expResult = new ArrayList<>(exp.size());
-    final Collection<String> stopwords = referenceIndex.getStopwords();
+    final Collection<String> stopwords = this.referenceIndex.getStopwords();
 
     for (final ByteArray ba : exp) {
       final String term = ByteArrayUtils.utf8ToString(ba);
@@ -117,11 +119,10 @@ public final class SimpleTermsQueryTest
       }
     }
 
-    Assert.assertEquals(msg("Term count differs."),
+    Assert.assertEquals(msg("Term count differs.", this.referenceIndex),
         (long) expResult.size(), (long) result.size());
-    Assert
-        .assertTrue(msg("Not all terms present."),
-            expResult.containsAll(result));
+    Assert.assertTrue(msg("Not all terms present.", this.referenceIndex),
+        expResult.containsAll(result));
   }
 
   /**
@@ -131,11 +132,11 @@ public final class SimpleTermsQueryTest
    * @return Instance with the given query string set
    * @throws Exception Any exception thrown indicates an error
    */
-  private static SimpleTermsQuery getInstance(final String query)
+  private SimpleTermsQuery getInstance(final String query)
       throws Exception {
-    return new SimpleTermsQuery(referenceIndex.getAnalyzer(), query,
+    return new SimpleTermsQuery(this.referenceIndex.getAnalyzer(), query,
         SimpleTermsQuery.DEFAULT_OPERATOR,
-        referenceIndex.getDocumentFields());
+        this.referenceIndex.getDocumentFields());
   }
 
   /**
@@ -148,7 +149,7 @@ public final class SimpleTermsQueryTest
       throws Exception {
     final int termsCount = RandomValue.getInteger(3, 100);
     final Collection<String> terms = new ArrayList<>(termsCount);
-    final Collection<String> stopwords = referenceIndex.getStopwords();
+    final Collection<String> stopwords = this.referenceIndex.getStopwords();
 
     for (int i = 0; i < termsCount; i++) {
       final String term = RandomValue.getString(1, 15);
@@ -158,9 +159,9 @@ public final class SimpleTermsQueryTest
     }
     final SimpleTermsQuery instance = getInstance(StringUtils.join(terms, " "));
 
-    Assert.assertEquals(msg("Not all terms returned."),
+    Assert.assertEquals(msg("Not all terms returned.", this.referenceIndex),
         (long) terms.size(), (long) instance.getQueryTerms().size());
-    Assert.assertTrue(msg("Not all terms in result set."),
+    Assert.assertTrue(msg("Not all terms in result set.", this.referenceIndex),
         instance.getQueryTerms().containsAll(terms));
   }
 
@@ -174,7 +175,7 @@ public final class SimpleTermsQueryTest
   public void testBuilderSetStopWords()
       throws Exception {
     final Collection<String> newStopWords =
-        new HashSet<>(referenceIndex.util().getRandomStopWords());
+        new HashSet<>(this.referenceIndex.getRandomStopWords());
     final int amount = RandomValue.getInteger(10, 100);
     final Collection<String> terms = new HashSet<>(amount);
 
@@ -188,7 +189,7 @@ public final class SimpleTermsQueryTest
 
     final SimpleTermsQuery.Builder instance =
         new SimpleTermsQuery.Builder(TestIndexDataProvider.getIndexReader(),
-            referenceIndex.getDocumentFields());
+            this.referenceIndex.getDocumentFields());
     instance.analyzer(IndexTestUtils.getAnalyzer(newStopWords));
 
     @SuppressWarnings("StringBufferWithoutInitialCapacity")
@@ -220,11 +221,11 @@ public final class SimpleTermsQueryTest
   public void testBuilderSetFields()
       throws Exception {
     final Set<String> fields =
-        new HashSet<>(referenceIndex.util().getRandomFields());
+        new HashSet<>(this.referenceIndex.getRandomFields());
     final SimpleTermsQuery.Builder instance =
         new SimpleTermsQuery.Builder(TestIndexDataProvider
-            .getIndexReader(), referenceIndex.getDocumentFields());
-    instance.analyzer(referenceIndex.getAnalyzer());
+            .getIndexReader(), this.referenceIndex.getDocumentFields());
+    instance.analyzer(this.referenceIndex.getAnalyzer());
 
     final String qStr =
         instance.fields(fields).query("foo").build().getQueryObj()
@@ -232,27 +233,6 @@ public final class SimpleTermsQueryTest
     for (final String f : fields) {
       // stupid simple & may break easily
       Assert.assertTrue("Field not found.", qStr.contains(f + ":foo"));
-    }
-  }
-
-  /**
-   * Test of boolOperator method, of class TermsQueryBuilder.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @SuppressWarnings("ObjectAllocationInLoop")
-  @Test
-  @Ignore
-  public void testBuilderSetBoolOperator()
-      throws Exception {
-    SimpleTermsQuery.Builder instance;
-
-    // TODO: how to check results?
-    for (final QueryParser.Operator op : QueryParser.Operator.values()) {
-      instance =
-          new SimpleTermsQuery.Builder(TestIndexDataProvider.getIndexReader(),
-              referenceIndex.getDocumentFields());
-      instance.boolOperator(op).query("foo bar").build().toString();
     }
   }
 
@@ -265,8 +245,8 @@ public final class SimpleTermsQueryTest
   public void testBuilderBuild()
       throws Exception {
     final Set<String> fields =
-        new HashSet<>(referenceIndex.util().getRandomFields());
-    final Collection<String> stopwords = new HashSet<>(referenceIndex.util()
+        new HashSet<>(this.referenceIndex.getRandomFields());
+    final Collection<String> stopwords = new HashSet<>(this.referenceIndex
         .getRandomStopWords());
 
     final SimpleTermsQuery.Builder instance =

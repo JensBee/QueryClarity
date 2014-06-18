@@ -48,19 +48,16 @@ public final class ExternalDocTermDataManager {
   /**
    * Database handling storage.
    */
-
   private final DB db;
-
   /**
    * Prefix to use for any keys.
    */
   private final String prefix;
-
   /**
    * Map that holds term data. Mapping is {@code (Identifier, DocumentId, Term)}
    * to {@code Value}.
    */
-  private ConcurrentNavigableMap<
+  private final ConcurrentNavigableMap<
       Fun.Tuple3<String, Integer, ByteArray>, Object> map;
 
   /**
@@ -79,15 +76,17 @@ public final class ExternalDocTermDataManager {
     this.db = newDb;
 
     this.prefix = newPrefix;
-    getMap(this.prefix);
+    this.map = getMap(this.prefix);
   }
 
   /**
    * Loads a stored prefix map from the database into the cache.
    *
    * @param newPrefix Prefix to load
+   * @return Map matching the provided prefix
    */
-  private void getMap(final String newPrefix) {
+  private ConcurrentNavigableMap<Fun.Tuple3<String, Integer, ByteArray>,
+      Object> getMap(final String newPrefix) {
     if (StringUtils.isStrippedEmpty(
         Objects.requireNonNull(newPrefix, "Prefix was null."))) {
       throw new IllegalArgumentException("No prefix specified.");
@@ -100,21 +99,19 @@ public final class ExternalDocTermDataManager {
 
     final BTreeKeySerializer mapKeySerializer
         = new BTreeKeySerializer.Tuple3KeySerializer<>(null, null,
-        Serializer.STRING_INTERN, Serializer.INTEGER, ByteArray.SERIALIZER);
+        Serializer.STRING, Serializer.INTEGER, ByteArray.SERIALIZER);
     final DB.BTreeMapMaker mapMkr = this.db.createTreeMap(this.prefix)
-//        .valueSerializer(Serializer.BASIC)
-//        .nodeSize(16)
-//        .valuesOutsideNodesEnable()
+        .valueSerializer(Serializer.BASIC)
+        .nodeSize(6)
         .keySerializer(mapKeySerializer);
-    this.map = mapMkr.makeOrGet();
+    return mapMkr.makeOrGet();
   }
 
   /**
    * Remove any custom data stored while using the index.
    */
-  public void clear() {
-    this.db.delete(this.prefix);
-    getMap(this.prefix);
+  public synchronized void clear() {
+    this.map.clear();
   }
 
   /**
@@ -124,8 +121,8 @@ public final class ExternalDocTermDataManager {
    * @param key Key to identify the data
    * @param data Key, value pairs to store
    */
-  public <T> void setData(final int documentId, final String key, final
-  Map<ByteArray, T> data) {
+  public <T> void setData(final int documentId, final String key,
+      final Map<ByteArray, T> data) {
     for (final Map.Entry<ByteArray, T> d : data.entrySet()) {
       setData(documentId, d.getKey(), key, d.getValue());
     }
@@ -150,10 +147,13 @@ public final class ExternalDocTermDataManager {
         Objects.requireNonNull(key, "Key was null."))) {
       throw new IllegalArgumentException("Key may not be null or empty.");
     }
-    @SuppressWarnings("unchecked")
-    final T ret = (T) this.map.put(Fun.t3(key, documentId, term.clone()),
-        value);
-    return ret;
+    synchronized (this.map) {
+      @SuppressWarnings("unchecked")
+      final T ret =
+          (T) this.map.put(Fun.t3(key, documentId, new ByteArray(term)),
+              value);
+      return ret;
+    }
   }
 
   /**
@@ -207,4 +207,12 @@ public final class ExternalDocTermDataManager {
     return (T) this.map.get(Fun.t3(key, documentId, term));
   }
 
+  /**
+   * Get the Database reference. Used for unit testing.
+   *
+   * @return Database reference
+   */
+  DB getDb() {
+    return this.db;
+  }
 }

@@ -98,10 +98,12 @@ public final class Tuple {
     /**
      * First object.
      */
+    @SuppressWarnings("PublicField")
     public final A a;
     /**
      * Second object.
      */
+    @SuppressWarnings("PublicField")
     public final B b;
 
     /**
@@ -116,6 +118,14 @@ public final class Tuple {
     }
 
     @Override
+    public int hashCode() {
+      int hash = 7;
+      hash = 47 * hash + Objects.hashCode(this.a);
+      hash = 47 * hash + Objects.hashCode(this.b);
+      return hash;
+    }
+
+    @Override
     public boolean equals(final Object o) {
       if (this == o) {
         return true;
@@ -126,17 +136,11 @@ public final class Tuple {
 
       final Tuple2 tuple2 = (Tuple2) o;
 
-      return !(a == null ? tuple2.a != null : !a.equals(tuple2.a)) &&
-             !(b == null ? tuple2.b != null : !b.equals(tuple2.b));
+      return !(this.a == null ? tuple2.a != null : !this.a.equals(tuple2.a)) &&
+          !(this.b == null ? tuple2.b != null : !this.b.equals(tuple2.b));
     }
 
-    @Override
-    public int hashCode() {
-      int hash = 7;
-      hash = 47 * hash + Objects.hashCode(this.a);
-      hash = 47 * hash + Objects.hashCode(this.b);
-      return hash;
-    }
+
   }
 
   /**
@@ -158,14 +162,17 @@ public final class Tuple {
     /**
      * First object.
      */
+    @SuppressWarnings("PublicField")
     public final A a;
     /**
      * Second object.
      */
+    @SuppressWarnings("PublicField")
     public final B b;
     /**
      * Third object.
      */
+    @SuppressWarnings("PublicField")
     public final C c;
 
     /**
@@ -192,9 +199,9 @@ public final class Tuple {
 
       final Tuple3 tuple3 = (Tuple3) o;
 
-      return !(a == null ? tuple3.a != null : !a.equals(tuple3.a)) &&
-             !(b == null ? tuple3.b != null : !b.equals(tuple3.b)) &&
-             !(c == null ? tuple3.c != null : !c.equals(tuple3.c));
+      return !(this.a == null ? tuple3.a != null : !this.a.equals(tuple3.a)) &&
+          !(this.b == null ? tuple3.b != null : !this.b.equals(tuple3.b)) &&
+          !(this.c == null ? tuple3.c != null : !this.c.equals(tuple3.c));
     }
 
     @Override
@@ -227,18 +234,22 @@ public final class Tuple {
     /**
      * First object.
      */
+    @SuppressWarnings("PublicField")
     public final A a;
     /**
      * Second object.
      */
+    @SuppressWarnings("PublicField")
     public final B b;
     /**
      * Third object.
      */
+    @SuppressWarnings("PublicField")
     public final C c;
     /**
      * Fourth object.
      */
+    @SuppressWarnings("PublicField")
     public final D d;
 
     /**
@@ -267,10 +278,10 @@ public final class Tuple {
 
       final Tuple4 tuple4 = (Tuple4) o;
 
-      return !(a == null ? tuple4.a != null : !a.equals(tuple4.a)) &&
-             !(b == null ? tuple4.b != null : !b.equals(tuple4.b)) &&
-             !(c == null ? tuple4.c != null : !c.equals(tuple4.c)) &&
-             !(d == null ? tuple4.d != null : !d.equals(tuple4.d));
+      return !(this.a == null ? tuple4.a != null : !this.a.equals(tuple4.a)) &&
+          !(this.b == null ? tuple4.b != null : !this.b.equals(tuple4.b)) &&
+          !(this.c == null ? tuple4.c != null : !this.c.equals(tuple4.c)) &&
+          !(this.d == null ? tuple4.d != null : !this.d.equals(tuple4.d));
     }
 
     @Override

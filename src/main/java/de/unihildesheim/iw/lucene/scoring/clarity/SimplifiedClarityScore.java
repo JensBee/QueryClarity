@@ -48,7 +48,7 @@ public final class SimplifiedClarityScore
   /**
    * Prefix used to identify externally stored data.
    */
-  private static final String IDENTIFIER = "SCS";
+  static final String IDENTIFIER = "SCS";
 
   /**
    * Logger instance for this class.
@@ -81,7 +81,7 @@ public final class SimplifiedClarityScore
   }
 
   @Override
-  public ClarityScoreResult calculateClarity(final String query)
+  public Result calculateClarity(final String query)
       throws ClarityScoreCalculationException {
     if (StringUtils.isStrippedEmpty(
         Objects.requireNonNull(query, "Query was null."))) {
@@ -137,7 +137,7 @@ public final class SimplifiedClarityScore
    * @param queryTerms Query terms to use for calculation
    * @return The calculated score
    */
-  private double calculateScore(final Collection<ByteArray> queryTerms) {
+  double calculateScore(final Collection<ByteArray> queryTerms) {
     // length of the (rewritten) query
     final int queryLength = queryTerms.size();
     // number of terms in collection
@@ -172,6 +172,12 @@ public final class SimplifiedClarityScore
     return result;
   }
 
+  @Override
+  public void close()
+      throws Exception {
+    // No function, only added to be compatible to other score types
+  }
+
   /**
    * Builder to create a new {@link SimplifiedClarityScore} instance.
    */
@@ -187,15 +193,15 @@ public final class SimplifiedClarityScore
     }
 
     @Override
-    protected Builder getThis() {
-      return this;
-    }
-
-    @Override
     public SimplifiedClarityScore build()
         throws ConfigurationException {
       validate();
       return new SimplifiedClarityScore(this);
+    }
+
+    @Override
+    protected Builder getThis() {
+      return this;
     }
   }
 

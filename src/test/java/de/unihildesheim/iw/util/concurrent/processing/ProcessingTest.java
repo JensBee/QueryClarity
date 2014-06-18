@@ -23,6 +23,7 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -42,8 +43,8 @@ public final class ProcessingTest
   @Test
   public void testSetSource()
       throws Exception {
-    final Collection<String> coll = new ArrayList<>(1);
-    coll.add(RandomValue.getString(1, 10));
+    final Collection<String> coll =
+        Collections.singletonList(RandomValue.getString(1, 10));
     final Source<String> newSource = new CollectionSource<>(coll);
     final Processing instance = new Processing();
     instance.setSource(newSource);
@@ -73,8 +74,8 @@ public final class ProcessingTest
   @Test
   public void testSetSourceAndTarget()
       throws Exception {
-    final Collection<String> coll = new ArrayList<>(1);
-    coll.add(RandomValue.getString(1, 10));
+    final Collection<String> coll =
+        Collections.singletonList(RandomValue.getString(1, 10));
     final Source<String> newSource = new CollectionSource<>(coll);
     final Processing instance = new Processing();
     final TargetFuncCall target = new TargetFuncCall<>(newSource,
@@ -100,8 +101,8 @@ public final class ProcessingTest
   @Test
   public void testSetTarget()
       throws Exception {
-    final Collection<String> coll = new ArrayList<>(1);
-    coll.add(RandomValue.getString(1, 10));
+    final Collection<String> coll =
+        Collections.singletonList(RandomValue.getString(1, 10));
     final Source<String> newSource = new CollectionSource<>(coll);
 
     final Processing instance = new Processing();
@@ -241,27 +242,36 @@ public final class ProcessingTest
   /**
    * @throws Exception Any exception thrown indicates an error
    */
+  @SuppressWarnings("UnusedAssignment")
   @Test
   public void testAssertThrowing()
       throws Exception {
-    final List<String> coll;
-    final int collSize = 10000;
-    coll = new ArrayList<>(collSize);
-    for (int i = 0; i < collSize; i++) {
-      coll.add(RandomValue.getString(1, 10));
-    }
+    boolean assertOn = false;
+    // *assigns* true if assertions are on.
+    //noinspection AssertWithSideEffects,ConstantConditions
+    assert assertOn = true;
 
-    try {
-      new Processing().setSourceAndTarget(
-          new TargetFuncCall<>(
-              new CollectionSource<>(coll),
-              new AssertThrowingTarget(coll.get(RandomValue.getInteger(0,
-                  collSize - 1)))
-          )
-      ).process(coll.size());
-      Assert.fail("Expected an Exception to be thrown");
-    } catch (final TargetException.TargetFailedException e) {
-      // pass
+    // only run this test, if assertions are enabled
+    if (assertOn) {
+      final List<String> coll;
+      final int collSize = 10000;
+      coll = new ArrayList<>(collSize);
+      for (int i = 0; i < collSize; i++) {
+        coll.add(RandomValue.getString(1, 10));
+      }
+
+      try {
+        new Processing().setSourceAndTarget(
+            new TargetFuncCall<>(
+                new CollectionSource<>(coll),
+                new AssertThrowingTarget(coll.get(RandomValue.getInteger(0,
+                    collSize - 1)))
+            )
+        ).process(coll.size());
+        Assert.fail("Expected an Exception to be thrown");
+      } catch (final TargetException.TargetFailedException e) {
+        // pass
+      }
     }
   }
 

@@ -41,12 +41,10 @@ public final class Metrics {
    * Collection related metrics are gathered in this object.
    */
   private final CollectionMetrics collection;
-
   /**
    * DataProvider to access statistical data.
    */
   private final IndexDataProvider dataProv;
-
   /**
    * Cache for created {@link DocumentModel}s.
    */

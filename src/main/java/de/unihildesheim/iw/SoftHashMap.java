@@ -19,30 +19,31 @@ import java.util.Set;
 public final class SoftHashMap<K, V>
     extends AbstractMap<K, V>
     implements Serializable {
-  /**
-   * The internal HashMap that will hold the SoftReference.
-   */
-  private final Map<K, SoftReference<V>> hash =
-      new HashMap<K, SoftReference<V>>();
-
-  private final Map<SoftReference<V>, K> reverseLookup =
-      new HashMap<SoftReference<V>, K>();
-
+  private static final long serialVersionUID = 3347203345852316364L;
   /**
    * Reference queue for cleared SoftReference objects.
    */
-  private final ReferenceQueue<V> queue = new ReferenceQueue<V>();
+  @SuppressWarnings("PackageVisibleField")
+  final ReferenceQueue<V> queue = new ReferenceQueue<>();
+  /**
+   * The internal HashMap that will hold the SoftReference.
+   */
+  private final Map<K, SoftReference<V>> hash = new HashMap<>();
+  private final Map<SoftReference<V>, K> reverseLookup = new HashMap<>();
 
+  @Override
   public int size() {
     expungeStaleEntries();
-    return hash.size();
+    return this.hash.size();
   }
 
+  @SuppressWarnings("SuspiciousMethodCalls")
+  @Override
   public V get(final Object key) {
     expungeStaleEntries();
     V result = null;
     // We get the SoftReference represented by that key
-    final SoftReference<V> soft_ref = hash.get(key);
+    final SoftReference<V> soft_ref = this.hash.get(key);
     if (soft_ref != null) {
       // From the SoftReference we get the value, which can be
       // null if it has been garbage collected
@@ -50,74 +51,83 @@ public final class SoftHashMap<K, V>
       if (result == null) {
         // If the value has been garbage collected, remove the
         // entry from the HashMap.
-        hash.remove(key);
-        reverseLookup.remove(soft_ref);
+        this.hash.remove(key);
+        this.reverseLookup.remove(soft_ref);
       }
     }
     return result;
   }
 
-  private void expungeStaleEntries() {
-    Reference<? extends V> sv;
-    while ((sv = queue.poll()) != null) {
-      hash.remove(reverseLookup.remove(sv));
-    }
-  }
-
+  @SuppressWarnings("ReturnOfNull")
+  @Override
   public V put(final K key, final V value) {
     expungeStaleEntries();
-    final SoftReference<V> soft_ref = new SoftReference<V>(value, queue);
-    reverseLookup.put(soft_ref, key);
-    final SoftReference<V> result = hash.put(key, soft_ref);
+    final SoftReference<V> soft_ref = new SoftReference<>(value, this.queue);
+    this.reverseLookup.put(soft_ref, key);
+    final SoftReference<V> result = this.hash.put(key, soft_ref);
     if (result == null) {
       return null;
     }
-    reverseLookup.remove(result);
+    this.reverseLookup.remove(result);
     return result.get();
   }
 
+  @SuppressWarnings("ReturnOfNull")
+  @Override
   public V remove(final Object key) {
     expungeStaleEntries();
-    final SoftReference<V> result = hash.remove(key);
+    final SoftReference<V> result = this.hash.remove(key);
     if (result == null) {
       return null;
     }
     return result.get();
   }
 
+  @Override
   public void clear() {
-    hash.clear();
-    reverseLookup.clear();
+    this.hash.clear();
+    this.reverseLookup.clear();
   }
 
   /**
    * Returns a copy of the key/values in the map at the point of calling.
    * However, setValue still sets the value in the actual SoftHashMap.
    */
-  @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
+  @SuppressWarnings("ObjectAllocationInLoop")
   @Override
   public Set<Entry<K, V>> entrySet() {
     expungeStaleEntries();
-    final Set<Entry<K, V>> result = new LinkedHashSet<Entry<K, V>>();
-    for (final Entry<K, SoftReference<V>> entry : hash.entrySet()) {
+    final Set<Entry<K, V>> result = new LinkedHashSet<>();
+    for (final Entry<K, SoftReference<V>> entry : this.hash.entrySet()) {
       final V value = entry.getValue().get();
       if (value != null) {
         result.add(new Entry<K, V>() {
+          @Override
           public K getKey() {
             return entry.getKey();
           }
 
+          @Override
           public V getValue() {
             return value;
           }
 
+          @Override
           public V setValue(final V v) {
-            entry.setValue(new SoftReference<V>(v, queue));
+            entry.setValue(new SoftReference<>(v, SoftHashMap.this.queue));
             return value;
           }
         });
       }
     }
     return result;
+  }
+
+  @SuppressWarnings("SuspiciousMethodCalls")
+  private void expungeStaleEntries() {
+    Reference<? extends V> sv;
+    while ((sv = this.queue.poll()) != null) {
+      this.hash.remove(this.reverseLookup.remove(sv));
+    }
   }
 }

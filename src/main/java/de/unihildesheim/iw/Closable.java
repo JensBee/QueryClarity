@@ -15,29 +15,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.lucene.query;
-
-import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.search.Query;
+package de.unihildesheim.iw;
 
 /**
  * @author Jens Bertram
  */
-public interface RelaxableQuery {
-  /**
-   * Relaxes (simplifies) the query, e.g. to get more results.
-   *
-   * @return True, if query was relaxed, false otherwise
-   * @throws ParseException Thrown, if relaxed query could not be parsed
-   */
-  @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
-  boolean relax()
-      throws ParseException;
-
-  /**
-   * Get the Query object.
-   *
-   * @return Query object
-   */
-  Query getQueryObj();
+public interface Closable {
+  void close();
 }

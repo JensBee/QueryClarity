@@ -34,24 +34,8 @@ import java.util.Objects;
  *
  * @author Jens Bertram
  */
-abstract class ClarityScoreResult
+public abstract class ClarityScoreResult
     extends ScoringResult {
-
-  /**
-   * Empty result. May be returned, if calculation has failed.
-   */
-  static final ClarityScoreResult EMPTY_RESULT =
-      new ClarityScoreResult(ClarityScoreCalculation.NONE.getClass()) {
-        /**
-         * Result xml representation (some values).
-         */
-        private final ScoringResultXml xml = new ScoringResultXml();
-
-        @Override
-        public ScoringResultXml getXml() {
-          return this.xml;
-        }
-      };
   /**
    * Logger instance for this class.
    */

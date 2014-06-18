@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Objects;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -128,7 +129,7 @@ public final class Processing {
   /**
    * Get the thread pool handling thread execution.
    *
-   * @return thread pool handling thread executer
+   * @return thread pool handling thread executor
    */
   static ProcessingThreadPoolExecutor getPoolExecutor() {
     return POOL_EXECUTOR;
@@ -186,7 +187,6 @@ public final class Processing {
    * @return Number of processed items. May be {@code null} on errors.
    * @throws ProcessingException Thrown, if any process encountered an error
    */
-  @SuppressWarnings("ThrowableResultIgnored")
   public Long process(final int maxThreadCount)
       throws ProcessingException {
     final int threadCount;
@@ -203,15 +203,15 @@ public final class Processing {
       throw new IllegalStateException("No target set.");
     }
 
-    final Collection<Target<Boolean>> targets = new ArrayList<>(threadCount);
-    final Collection<Future<Boolean>> targetStates = new ArrayList<>
+    final Collection<Target<?>> targets = new ArrayList<>(threadCount);
+    final Collection<Future<?>> targetStates = new ArrayList<>
         (threadCount);
     // Latch that tracks the running threads.
     final CountDownLatch threadTrackingLatch = new CountDownLatch(threadCount);
 
     LOG.debug("Spawning {} Processing-Target threads.", threadCount);
     for (int i = 0; i < threadCount; i++) {
-      final Target<Boolean> aTarget;
+      final Target<?> aTarget;
       try {
         aTarget = this.target.newInstance();
       } catch (final Exception e) {
@@ -230,7 +230,7 @@ public final class Processing {
     final Future<Double> sourceTime = POOL_EXECUTOR.runObserver(sourceObserver);
 
     LOG.trace("Starting Processing-Target threads.");
-    for (final Target aTarget : targets) {
+    for (final Target<?> aTarget : targets) {
       targetStates.add(POOL_EXECUTOR.runTarget(aTarget));
     }
 
@@ -263,7 +263,7 @@ public final class Processing {
     }
 
     // check target states
-    for (final Future<Boolean> state : targetStates) {
+    for (final Future<?> state : targetStates) {
       try {
         state.get();
       } catch (final InterruptedException e) {
@@ -336,9 +336,11 @@ public final class Processing {
      * @param task Source runnable
      * @return Future to track the state
      */
-    Future<Long> runSource(final Source<Long> task) {
+    @SuppressWarnings("unchecked")
+    Future<Long> runSource(final Source task) {
       return this.threadPool
-          .submit(Objects.requireNonNull(task, "Task was null."));
+          .submit(Objects.requireNonNull((Callable<Long>) task,
+              "Task was null."));
     }
 
     /**
@@ -348,9 +350,11 @@ public final class Processing {
      * @param task Source runnable
      * @return Future to track the state
      */
-    Future<Double> runObserver(final SourceObserver<Double> task) {
+    @SuppressWarnings("unchecked")
+    Future<Double> runObserver(final SourceObserver task) {
       return this.threadPool
-          .submit(Objects.requireNonNull(task, "Task was null."));
+          .submit(Objects.requireNonNull((Callable<Double>) task,
+              "Task was null."));
     }
 
     /**
@@ -360,7 +364,7 @@ public final class Processing {
      * @param task Target to run
      * @return Future to track the state
      */
-    Future<Boolean> runTarget(final Target<Boolean> task) {
+    Future<?> runTarget(final Target<?> task) {
       return this.threadPool
           .submit(Objects.requireNonNull(task, "Task was null."));
     }

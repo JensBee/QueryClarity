@@ -31,27 +31,10 @@ import java.util.Map;
  * @author Jens Bertram
  */
 public abstract class ScoringResult {
-
   /**
    * Calculated result score.
    */
   private Double score = 0d;
-  /**
-   * Empty result. May be returned, if calculation has failed.
-   */
-  public static final ScoringResult EMPTY_RESULT = new ScoringResult() {
-    private final ScoringResultXml xml = new ScoringResultXml();
-
-    @Override
-    public Class getType() {
-      return this.getClass();
-    }
-
-    @Override
-    public ScoringResultXml getXml() {
-      return xml;
-    }
-  };
 
   /**
    * Get the calculated score.
@@ -67,7 +50,6 @@ public abstract class ScoringResult {
    *
    * @param newScore new score value
    */
-  @SuppressWarnings("checkstyle:methodname")
   protected final void _setScore(final double newScore) {
     this.score = newScore;
   }
@@ -90,9 +72,17 @@ public abstract class ScoringResult {
   /**
    * Object wrapping result information for including in XML.
    */
+  @SuppressWarnings("PublicInnerClass")
   public static final class ScoringResultXml {
+    /**
+     * XML items.
+     */
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
     private final Map<String, String> items = new HashMap<>();
-
+    /**
+     * XML list items.
+     */
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
     private final Map<String, List<Tuple.Tuple2<String, String>>> lists = new
         HashMap<>();
 
@@ -101,6 +91,7 @@ public abstract class ScoringResult {
      *
      * @return List of key, value pairs
      */
+    @SuppressWarnings("ReturnOfCollectionOrArrayField")
     @XmlElement
     @XmlJavaTypeAdapter(MapAdapter.StringValue.class)
     public Map<String, String> getItems() {
@@ -112,6 +103,7 @@ public abstract class ScoringResult {
      *
      * @return Map of key, value pairs grouped by key
      */
+    @SuppressWarnings("ReturnOfCollectionOrArrayField")
     @XmlElement
     @XmlJavaTypeAdapter(MapAdapter.Tuple2ListValue.class)
     public Map<String, List<Tuple.Tuple2<String, String>>> getLists() {

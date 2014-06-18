@@ -21,15 +21,16 @@ import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.lucene.index.FixedTestIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.IndexTestUtils;
+import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Test for {@link SimplifiedClarityScore}.
@@ -51,6 +52,90 @@ public final class SimplifiedClarityScoreTest
       FixedTestIndexDataProvider.getInstance();
 
   /**
+   * Test of calculateClarity method, of class SimplifiedClarityScore. Run for a
+   * single term.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public void testCalculateClarity_singleTerm()
+      throws Exception {
+    final SimplifiedClarityScore instance = getInstanceBuilder().build();
+    final String term = FixedTestIndexDataProvider.KnownData
+        .TF_DOC_0.entrySet().iterator().next().getKey();
+
+    final SimplifiedClarityScore.Result result =
+        instance.calculateClarity(term);
+    final double expected = calculateScore(result);
+
+    Assert.assertEquals("Single term score value differs.",
+        expected, result.getScore(), 0d);
+  }
+
+  /**
+   * Get a builder creating a new instance.
+   *
+   * @return New Instance builder
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  private static SimplifiedClarityScore.Builder getInstanceBuilder()
+      throws IOException {
+    return new SimplifiedClarityScore.Builder()
+        .indexReader(FixedTestIndexDataProvider.TMP_IDX.getReader())
+        .analyzer(IndexTestUtils.getAnalyzer())
+        .indexDataProvider(FIXED_INDEX);
+  }
+
+  /**
+   * Calculate the clarity score based on a result set provided by the real
+   * calculation method.
+   *
+   * @param result Result set
+   * @return Clarity score
+   */
+  private static double calculateScore(
+      final SimplifiedClarityScore.Result result) {
+    // calculate reference
+    final int ql = result.getQueryTerms().size(); // number of terms in query
+    final List<String> qTermsStr = new ArrayList<>(ql);
+    for (final ByteArray qTerm : result.getQueryTerms()) {
+      qTermsStr.add(ByteArrayUtils.utf8ToString(qTerm));
+    }
+
+    double score = 0d;
+    final Iterable<String> uniqueQTerms = new HashSet<>(qTermsStr);
+    for (final String qTerm : uniqueQTerms) {
+      final int times = timesInCollection(qTermsStr, qTerm);
+      assert times > 0;
+      final double qMod = (double) times / (double) ql; // query model
+      final double relTf = // relative collection term frequency
+          FixedTestIndexDataProvider.KnownData.IDX_TERMFREQ.get(qTerm)
+              .doubleValue() /
+              (double) FixedTestIndexDataProvider.KnownData.TERM_COUNT;
+      score += qMod * MathUtils.log2(qMod / relTf);
+    }
+    return score;
+  }
+
+  /**
+   * Get the amount of times a string is in a list of strings.
+   *
+   * @param coll String collection to search
+   * @param term Term to search for
+   * @return Times the term is found in the collection
+   */
+  private static int timesInCollection(final Iterable<String> coll,
+      final String term) {
+    int counter = 0;
+    for (final String aTerm : coll) {
+      if (term.equals(aTerm)) {
+        counter++;
+      }
+    }
+    return counter;
+  }
+
+  /**
    * Test of calculateClarity method, of class SimplifiedClarityScore.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
@@ -62,53 +147,18 @@ public final class SimplifiedClarityScoreTest
 
     // some random terms from the index will make up a query
     final Tuple.Tuple2<List<String>, List<ByteArray>> randQTerms =
-        FIXED_INDEX.getRandomIndexTerms();
+        FixedTestIndexDataProvider.getRandomIndexTerms();
     final List<String> qTermsStr = randQTerms.a;
 
     // create a query string from the list of terms
     final String queryStr = StringUtils.join(qTermsStr, " ");
 
-    final ClarityScoreResult result = instance.calculateClarity(queryStr);
+    final SimplifiedClarityScore.Result result =
+        instance.calculateClarity(queryStr);
 
     // calculate reference
-    final int ql = qTermsStr.size(); // number of terms in query
-    double score = 0d;
-    final Set<String> uniqueQTerms = new HashSet<>(qTermsStr);
-    for (final String qTerm : uniqueQTerms) {
-      final int times = timesInCollection(qTermsStr, qTerm);
-      assert times > 0;
-      final double qMod = (double) times / ql; // query model
-      final double relTf = // relative collection term frequency
-          FixedTestIndexDataProvider.KnownData.IDX_TERMFREQ.get(qTerm)
-              .doubleValue() / FixedTestIndexDataProvider.KnownData.TERM_COUNT;
-      score += qMod * MathUtils.log2(qMod / relTf);
-    }
+    final double score = calculateScore(result);
+
     Assert.assertEquals(score, result.getScore(), DELTA_SCORE);
-  }
-
-  private SimplifiedClarityScore.Builder getInstanceBuilder()
-      throws IOException {
-    return new SimplifiedClarityScore.Builder()
-        .indexReader(FixedTestIndexDataProvider.TMP_IDX.getReader())
-        .analyzer(IndexTestUtils.getAnalyzer())
-        .indexDataProvider(FIXED_INDEX);
-  }
-
-  /**
-   * Get the amount of times a string is in a list of strings.
-   *
-   * @param coll String collection to search
-   * @param term Term to search for
-   * @return Times the term is found in the collection
-   */
-  private int timesInCollection(final List<String> coll,
-      final String term) {
-    int counter = 0;
-    for (final String aTerm : coll) {
-      if (term.equals(aTerm)) {
-        counter++;
-      }
-    }
-    return counter;
   }
 }

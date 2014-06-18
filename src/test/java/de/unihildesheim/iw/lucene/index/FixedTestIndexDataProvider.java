@@ -50,6 +50,7 @@ import java.util.Set;
  *
  * @author Jens Bertram
  */
+@SuppressWarnings("SpellCheckingInspection")
 public final class FixedTestIndexDataProvider
     implements IndexDataProvider {
 
@@ -363,6 +364,26 @@ public final class FixedTestIndexDataProvider
     return docIds;
   }
 
+  public Set<String> getDocumentsTermSetStr(
+      final Collection<Integer> docIds) {
+    assert docIds != null;
+    if (docIds.isEmpty()) {
+      throw new IllegalArgumentException("Empty document id list.");
+    }
+    final Iterable<Integer> uniqueDocIds = new HashSet<>(docIds);
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
+    final Set<String> terms = new HashSet<>();
+
+    for (final Integer documentId : uniqueDocIds) {
+      checkDocumentId(documentId);
+      for (final String term : KnownData.getDocumentTfMap(documentId)
+          .keySet()) {
+        terms.add(term);
+      }
+    }
+    return terms;
+  }
+
   /**
    * Checks, if a document-id is valid (in index).
    *
@@ -372,6 +393,26 @@ public final class FixedTestIndexDataProvider
     if (!hasDocument(docId)) {
       throw new IllegalArgumentException("Illegal document id: " + docId);
     }
+  }
+
+  /**
+   * Get a sorted list (ascending) of all unique index terms.
+   *
+   * @return Sorted list of unique index terms (asc)
+   */
+  public List<String> getSortedTermList() {
+    final List<String> termSet = new ArrayList<>(getTermSetStr());
+    Collections.sort(termSet);
+    return termSet;
+  }
+
+  /**
+   * Get a set of unique terms in index.
+   *
+   * @return Unique set of all index terms
+   */
+  public Set<String> getTermSetStr() {
+    return getDocumentsTermSetStr(getDocumentIds());
   }
 
   /**
@@ -398,14 +439,14 @@ public final class FixedTestIndexDataProvider
     @SuppressWarnings("PublicStaticCollectionField")
     public static final Map<String, Integer> IDX_TERMFREQ;
     /**
-     * Number of documents in index.
-     */
-    public static final int DOC_COUNT = FixedTestIndexDataProvider.DOC_COUNT;
-    /**
      * Document frequency values of all terms in index.
      */
     @SuppressWarnings("PublicStaticCollectionField")
     public static final Map<String, Integer> IDX_DOCFREQ;
+    /**
+     * Number of documents in index.
+     */
+    public static final int DOC_COUNT = FixedTestIndexDataProvider.DOC_COUNT;
 
     static {
       final Map<String, Integer> idxDocFreq = new HashMap<>(171);
@@ -766,82 +807,6 @@ public final class FixedTestIndexDataProvider
     }
 
     /**
-     * Number of fields per document.
-     */
-    public static final int FIELD_COUNT = FixedTestIndexDataProvider
-        .FIELD_COUNT;
-
-    static {
-      final Map<String, Integer> tfDoc0 = new HashMap<>(65);
-      tfDoc0.put("justo", 3);
-      tfDoc0.put("aenean", 3);
-      tfDoc0.put("vulputate", 2);
-      tfDoc0.put("quis", 2);
-      tfDoc0.put("pretium", 2);
-      tfDoc0.put("pede", 2);
-      tfDoc0.put("nec", 2);
-      tfDoc0.put("massa", 2);
-      tfDoc0.put("felis", 2);
-      tfDoc0.put("eu", 2);
-      tfDoc0.put("enim", 2);
-      tfDoc0.put("eget", 2);
-      tfDoc0.put("donec", 2);
-      tfDoc0.put("dolor", 2);
-      tfDoc0.put("vivamus", 1);
-      tfDoc0.put("vitae", 1);
-      tfDoc0.put("venenatis", 1);
-      tfDoc0.put("vel", 1);
-      tfDoc0.put("ut", 1);
-      tfDoc0.put("ultricies", 1);
-      tfDoc0.put("tincidunt", 1);
-      tfDoc0.put("tellus", 1);
-      tfDoc0.put("sociis", 1);
-      tfDoc0.put("sit", 1);
-      tfDoc0.put("semper", 1);
-      tfDoc0.put("sem", 1);
-      tfDoc0.put("ridiculus", 1);
-      tfDoc0.put("rhoncus", 1);
-      tfDoc0.put("quam", 1);
-      tfDoc0.put("penatibus", 1);
-      tfDoc0.put("pellentesque", 1);
-      tfDoc0.put("parturient", 1);
-      tfDoc0.put("nullam", 1);
-      tfDoc0.put("nulla", 1);
-      tfDoc0.put("nisi", 1);
-      tfDoc0.put("natoque", 1);
-      tfDoc0.put("nascetur", 1);
-      tfDoc0.put("mus", 1);
-      tfDoc0.put("montes", 1);
-      tfDoc0.put("mollis", 1);
-      tfDoc0.put("magnis", 1);
-      tfDoc0.put("lorem", 1);
-      tfDoc0.put("ligula", 1);
-      tfDoc0.put("ipsum", 1);
-      tfDoc0.put("integer", 1);
-      tfDoc0.put("in", 1);
-      tfDoc0.put("imperdiet", 1);
-      tfDoc0.put("fringilla", 1);
-      tfDoc0.put("et", 1);
-      tfDoc0.put("elit", 1);
-      tfDoc0.put("elementum", 1);
-      tfDoc0.put("eleifend", 1);
-      tfDoc0.put("dis", 1);
-      tfDoc0.put("dictum", 1);
-      tfDoc0.put("dapibus", 1);
-      tfDoc0.put("cum", 1);
-      tfDoc0.put("cras", 1);
-      tfDoc0.put("consequat", 1);
-      tfDoc0.put("consectetuer", 1);
-      tfDoc0.put("commodo", 1);
-      tfDoc0.put("arcu", 1);
-      tfDoc0.put("amet", 1);
-      tfDoc0.put("aliquet", 1);
-      tfDoc0.put("adipiscing", 1);
-      tfDoc0.put("a", 1);
-      TF_DOC_0 = Collections.unmodifiableMap(tfDoc0);
-    }
-
-    /**
      * Term frequency values for document 1.
      */
     @SuppressWarnings("PublicStaticCollectionField")
@@ -923,10 +888,85 @@ public final class FixedTestIndexDataProvider
     }
 
     /**
+     * Number of fields per document.
+     */
+    public static final int FIELD_COUNT = FixedTestIndexDataProvider
+        .FIELD_COUNT;
+    /**
      * Term frequency values for document 2.
      */
     @SuppressWarnings("PublicStaticCollectionField")
     public static final Map<String, Integer> TF_DOC_2;
+
+    static {
+      final Map<String, Integer> tfDoc0 = new HashMap<>(65);
+      tfDoc0.put("justo", 3);
+      tfDoc0.put("aenean", 3);
+      tfDoc0.put("vulputate", 2);
+      tfDoc0.put("quis", 2);
+      tfDoc0.put("pretium", 2);
+      tfDoc0.put("pede", 2);
+      tfDoc0.put("nec", 2);
+      tfDoc0.put("massa", 2);
+      tfDoc0.put("felis", 2);
+      tfDoc0.put("eu", 2);
+      tfDoc0.put("enim", 2);
+      tfDoc0.put("eget", 2);
+      tfDoc0.put("donec", 2);
+      tfDoc0.put("dolor", 2);
+      tfDoc0.put("vivamus", 1);
+      tfDoc0.put("vitae", 1);
+      tfDoc0.put("venenatis", 1);
+      tfDoc0.put("vel", 1);
+      tfDoc0.put("ut", 1);
+      tfDoc0.put("ultricies", 1);
+      tfDoc0.put("tincidunt", 1);
+      tfDoc0.put("tellus", 1);
+      tfDoc0.put("sociis", 1);
+      tfDoc0.put("sit", 1);
+      tfDoc0.put("semper", 1);
+      tfDoc0.put("sem", 1);
+      tfDoc0.put("ridiculus", 1);
+      tfDoc0.put("rhoncus", 1);
+      tfDoc0.put("quam", 1);
+      tfDoc0.put("penatibus", 1);
+      tfDoc0.put("pellentesque", 1);
+      tfDoc0.put("parturient", 1);
+      tfDoc0.put("nullam", 1);
+      tfDoc0.put("nulla", 1);
+      tfDoc0.put("nisi", 1);
+      tfDoc0.put("natoque", 1);
+      tfDoc0.put("nascetur", 1);
+      tfDoc0.put("mus", 1);
+      tfDoc0.put("montes", 1);
+      tfDoc0.put("mollis", 1);
+      tfDoc0.put("magnis", 1);
+      tfDoc0.put("lorem", 1);
+      tfDoc0.put("ligula", 1);
+      tfDoc0.put("ipsum", 1);
+      tfDoc0.put("integer", 1);
+      tfDoc0.put("in", 1);
+      tfDoc0.put("imperdiet", 1);
+      tfDoc0.put("fringilla", 1);
+      tfDoc0.put("et", 1);
+      tfDoc0.put("elit", 1);
+      tfDoc0.put("elementum", 1);
+      tfDoc0.put("eleifend", 1);
+      tfDoc0.put("dis", 1);
+      tfDoc0.put("dictum", 1);
+      tfDoc0.put("dapibus", 1);
+      tfDoc0.put("cum", 1);
+      tfDoc0.put("cras", 1);
+      tfDoc0.put("consequat", 1);
+      tfDoc0.put("consectetuer", 1);
+      tfDoc0.put("commodo", 1);
+      tfDoc0.put("arcu", 1);
+      tfDoc0.put("amet", 1);
+      tfDoc0.put("aliquet", 1);
+      tfDoc0.put("adipiscing", 1);
+      tfDoc0.put("a", 1);
+      TF_DOC_0 = Collections.unmodifiableMap(tfDoc0);
+    }
 
     static {
       final Map<String, Integer> tfDoc2 = new HashMap<>(69);
@@ -1731,27 +1771,18 @@ public final class FixedTestIndexDataProvider
   @Override
   public Set<ByteArray> getDocumentsTermSet(
       final Collection<Integer> docIds) {
-    assert docIds != null;
-    if (docIds.isEmpty()) {
-      throw new IllegalArgumentException("Empty document id list.");
-    }
-    final Iterable<Integer> uniqueDocIds = new HashSet<>(docIds);
-    @SuppressWarnings("CollectionWithoutInitialCapacity")
-    final Set<ByteArray> terms = new HashSet<>();
-
-    for (final Integer documentId : uniqueDocIds) {
-      checkDocumentId(documentId);
-      for (final String term : KnownData.getDocumentTfMap(documentId)
-          .keySet()) {
-        try {
-          terms.add(new ByteArray(term.getBytes("UTF-8")));
-        } catch (final UnsupportedEncodingException e) {
-          throw new IllegalStateException(e);
-        }
+    final Set<String> termsStr = getDocumentsTermSetStr(docIds);
+    final Set<ByteArray> termsBa = new HashSet<>(termsStr.size());
+    for (final String term : termsStr) {
+      try {
+        termsBa.add(new ByteArray(term.getBytes("UTF-8")));
+      } catch (final UnsupportedEncodingException e) {
+        throw new IllegalStateException(e);
       }
     }
-    return terms;
+    return termsBa;
   }
+
 
   @Override
   public long getDocumentCount() {
@@ -1787,7 +1818,7 @@ public final class FixedTestIndexDataProvider
   }
 
   @Override
-  public boolean isDisposed() {
+  public boolean isClosed() {
     return false;
   }
 }

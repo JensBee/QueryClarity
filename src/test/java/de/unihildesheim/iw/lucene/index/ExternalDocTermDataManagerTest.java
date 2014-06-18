@@ -24,9 +24,7 @@ import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
-import org.mapdb.DB;
 import org.mapdb.DBMaker;
 
 import java.util.Collection;
@@ -41,36 +39,6 @@ public final class ExternalDocTermDataManagerTest
     extends TestCase {
 
   /**
-   * Database used for storing values.
-   */
-  private DB db;
-
-  /**
-   * Instance used during a test run.
-   */
-  private ExternalDocTermDataManager instance;
-
-  /**
-   * Run before each test starts.
-   */
-  @Before
-  public void setUp() {
-    final DBMaker dbMkr = DBMaker.newTempFileDB();
-    this.db = dbMkr.make();
-    this.instance = getInstance();
-  }
-
-  /**
-   * Get an instance ready for running tests.
-   *
-   * @return initialized instance
-   */
-  private ExternalDocTermDataManager getInstance() {
-    final String prefix = RandomValue.getString(1, 10);
-    return new ExternalDocTermDataManager(this.db, prefix);
-  }
-
-  /**
    * Test of clear method, of class ExternalDocTermDataManager.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
@@ -78,24 +46,48 @@ public final class ExternalDocTermDataManagerTest
   @Test
   public void testClear()
       throws Exception {
-    this.instance.clear();
+    ExternalDocTermDataManager instance = null;
+    try {
+      instance = getInstance();
+      instance.clear();
 
-    final String key = RandomValue.getString(1, 10);
-    final Integer docId = RandomValue.getInteger(0, 100);
+      final String key = RandomValue.getString(1, 10);
+      final Integer docId = RandomValue.getInteger(0, 100);
 
-    final Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>>
-        testData;
-    testData = IndexTestUtils.generateTermData(null, docId, key, 100);
+      final Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>>
+          testData;
+      testData = IndexTestUtils.generateTermData(null, docId, key, 100);
 
-    for (final Tuple.Tuple4<Integer, ByteArray, String,
-        Integer> data : testData) {
-      this.instance.setData(data.a, data.b, data.c, data.d);
+      for (final Tuple.Tuple4<Integer, ByteArray, String,
+          Integer> data : testData) {
+        instance.setData(data.a, data.b, data.c, data.d);
+      }
+
+      instance.getData(docId, key);
+
+      instance.clear();
+      instance.getData(docId, key);
+    } finally {
+      if (instance != null) {
+        instance.getDb().close();
+      }
     }
+  }
 
-    this.instance.getData(docId, key);
-
-    this.instance.clear();
-    this.instance.getData(docId, key);
+  /**
+   * Get an instance ready for running tests.
+   *
+   * @return initialized instance
+   */
+  private static ExternalDocTermDataManager getInstance() {
+    final String prefix = RandomValue.getString(1, 10);
+    return new ExternalDocTermDataManager(
+        DBMaker.newTempFileDB()
+            .deleteFilesAfterClose()
+            .closeOnJvmShutdown()
+            .transactionDisable()
+            .make(),
+        prefix);
   }
 
   /**
@@ -110,24 +102,32 @@ public final class ExternalDocTermDataManagerTest
         testData;
     testData = IndexTestUtils.generateTermData(null, 10000);
 
-    new Processing(
-        new TargetFuncCall<>(
-            new CollectionSource<>(testData),
-            new TermDataTarget(this.instance)
-        )
-    ).process(testData.size());
+    ExternalDocTermDataManager instance = null;
+    try {
+      instance = getInstance();
+      new Processing(
+          new TargetFuncCall<>(
+              new CollectionSource<>(testData),
+              new TermDataTarget(instance)
+          )
+      ).process(testData.size());
 
-    for (final Tuple.Tuple4<Integer, ByteArray, String,
-        Integer> data : testData) {
-      this.instance.setData(data.a, data.b, data.c, data.d);
+      for (final Tuple.Tuple4<Integer, ByteArray, String,
+          Integer> data : testData) {
+        instance.setData(data.a, data.b, data.c, data.d);
+      }
+
+      new Processing(
+          new TargetFuncCall<>(
+              new CollectionSource<>(testData),
+              new TermDataTarget(instance)
+          )
+      ).process(testData.size());
+    } finally {
+      if (instance != null) {
+        instance.getDb().close();
+      }
     }
-
-    new Processing(
-        new TargetFuncCall<>(
-            new CollectionSource<>(testData),
-            new TermDataTarget(this.instance)
-        )
-    ).process(testData.size());
   }
 
   /**
@@ -145,15 +145,23 @@ public final class ExternalDocTermDataManagerTest
         testData;
     testData = IndexTestUtils.generateTermData(null, docId, key, 100);
 
-    for (final Tuple.Tuple4<Integer, ByteArray, String,
-        Integer> data : testData) {
-      this.instance.setData(data.a, data.b, data.c, data.d);
-    }
+    ExternalDocTermDataManager instance = null;
+    try {
+      instance = getInstance();
+      for (final Tuple.Tuple4<Integer, ByteArray, String,
+          Integer> data : testData) {
+        instance.setData(data.a, data.b, data.c, data.d);
+      }
 
-    final Map<ByteArray, Object> result = this.instance.getData(docId, key);
-    for (final Tuple.Tuple4<Integer, ByteArray, String,
-        Integer> data : testData) {
-      Assert.assertEquals("Value not restored.", data.d, result.get(data.b));
+      final Map<ByteArray, Object> result = instance.getData(docId, key);
+      for (final Tuple.Tuple4<Integer, ByteArray, String,
+          Integer> data : testData) {
+        Assert.assertEquals("Value not restored.", data.d, result.get(data.b));
+      }
+    } finally {
+      if (instance != null) {
+        instance.getDb().close();
+      }
     }
   }
 
@@ -171,16 +179,23 @@ public final class ExternalDocTermDataManagerTest
         testData;
     testData = IndexTestUtils.generateTermData(null, docId, key, 100);
 
-    for (final Tuple.Tuple4<Integer, ByteArray, String,
-        Integer> data : testData) {
-      this.instance.setData(data.a, data.b, data.c, data.d);
-    }
+    ExternalDocTermDataManager instance = null;
+    try {
+      instance = getInstance();
+      for (final Tuple.Tuple4<Integer, ByteArray, String,
+          Integer> data : testData) {
+        instance.setData(data.a, data.b, data.c, data.d);
+      }
 
-    for (final Tuple.Tuple4<Integer, ByteArray, String,
-        Integer> data : testData) {
-      Assert.assertEquals("Value not restored.", data.d,
-          this.instance.getData(docId,
-              data.b, key));
+      for (final Tuple.Tuple4<Integer, ByteArray, String,
+          Integer> data : testData) {
+        Assert.assertEquals("Value not restored.", data.d,
+            instance.getData(docId, data.b, key));
+      }
+    } finally {
+      if (instance != null) {
+        instance.getDb().close();
+      }
     }
   }
 

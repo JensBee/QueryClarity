@@ -44,7 +44,7 @@ import java.util.Set;
  *
  * @author Jens Bertram
  */
-public class TryExactTermsQuery
+public final class TryExactTermsQuery
     implements TermsProvidingQuery, RelaxableQuery {
 
   /**

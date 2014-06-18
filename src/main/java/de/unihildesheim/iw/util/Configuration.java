@@ -60,7 +60,7 @@ public class Configuration {
    *
    * @param initial Initial set of configuration options
    */
-  public Configuration(final Map<String, String> initial) {
+  protected Configuration(final Map<String, String> initial) {
     this();
     addAll(Objects.requireNonNull(initial, "Initial map was null."));
   }
@@ -329,7 +329,7 @@ public class Configuration {
    *
    * @return Configuration values mapped as key, value pairs
    */
-  public Map<String, String> entryMap() {
+  public final Map<String, String> entryMap() {
     final Map<String, String> entries = new HashMap<>(this.data.size());
     for (final Entry<Object, Object> e : this.data.entrySet()) {
       entries.put(e.getKey().toString(), e.getValue().toString());

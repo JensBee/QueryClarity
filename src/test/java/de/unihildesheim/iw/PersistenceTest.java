@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 bhoerdzn
+ * Copyright (C) 2014 Jens Bertram <code@jens-bertram.net>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,7 +42,7 @@ public final class PersistenceTest
    */
   @SuppressWarnings("PublicField")
   @Rule
-  public TemporaryFolder tmpDir = new TemporaryFolder();
+  public final TemporaryFolder tmpDir = new TemporaryFolder();
 
   /**
    * Test for {@link Persistence#tryCreateDataPath(String)}. <br> Check illegal

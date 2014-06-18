@@ -32,9 +32,11 @@ import org.mapdb.Fun;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -57,6 +59,31 @@ public final class DefaultClarityScoreTest
    * Language model weighting value used for calculation.
    */
   static final double LANG_MOD_WEIGHT = 0.6d;
+  /**
+   * Allowed delta in query model calculation.
+   */
+  private static final double DELTA_Q_MOD = Double.valueOf("9E-24");
+  /**
+   * Allowed delta in document model calculation.
+   */
+  private static final double DELTA_D_MOD = Double.valueOf("0");//"9E-64");
+  /**
+   * Allowed delta in default document model calculation.
+   */
+  private static final double DELTA_N_MOD = Double.valueOf("0");//"9E-64");
+  /**
+   * Allowed delta in clarity score calculation.
+   */
+  private static final double DELTA_SCORE = Double.valueOf("9E-22");
+  /**
+   * Global singleton instance of the test-index.
+   */
+  private static final FixedTestIndexDataProvider FIXED_INDEX =
+      FixedTestIndexDataProvider.getInstance();
+  /**
+   * Fixed configuration for clarity calculation.
+   */
+  private static final DefaultClarityScoreConfiguration DCC;
 
   /**
    * Static initializer for the global {@link DefaultClarityScoreConfiguration}.
@@ -69,32 +96,6 @@ public final class DefaultClarityScoreTest
   }
 
   /**
-   * Allowed delta in query model calculation.
-   */
-  private static final double DELTA_Q_MOD = Double.valueOf("9E-39");
-  /**
-   * Allowed delta in document model calculation.
-   */
-  private static final double DELTA_D_MOD = Double.valueOf("9E-64");
-  /**
-   * Allowed delta in default document model calculation.
-   */
-  private static final double DELTA_N_MOD = Double.valueOf("9E-64");
-  /**
-   * Allowed delta in clarity score calculation.
-   */
-  private static final double DELTA_SCORE = Double.valueOf("9E-40");
-  /**
-   * Global singleton instance of the test-index.
-   */
-  private static final FixedTestIndexDataProvider FIXED_INDEX =
-      FixedTestIndexDataProvider.getInstance();
-  /**
-   * Fixed configuration for clarity calculation.
-   */
-  private static final DefaultClarityScoreConfiguration DCC;
-
-  /**
    * Test of getDefaultDocumentModel method, of class DefaultClarityScore. Test
    * is run with all valid terms from the index.
    *
@@ -103,10 +104,9 @@ public final class DefaultClarityScoreTest
   @Test
   public void testGetDefaultDocumentModel()
       throws Exception {
-    final DefaultClarityScore instance = getInstanceBuilder()
-        .configuration(DCC).build();
 
-    try {
+    try (DefaultClarityScore instance = getInstanceBuilder()
+        .configuration(DCC).build()) {
       final Iterator<ByteArray> termsIt = FIXED_INDEX.getTermsIterator();
       while (termsIt.hasNext()) {
         final ByteArray term = termsIt.next();
@@ -117,8 +117,6 @@ public final class DefaultClarityScoreTest
             result, DELTA_N_MOD
         );
       }
-    } finally {
-      instance.closeDb();
     }
   }
 
@@ -150,25 +148,23 @@ public final class DefaultClarityScoreTest
   @Test
   public void testGetDefaultDocumentModel_illegalTerms()
       throws Exception {
-    final DefaultClarityScore instance = getInstanceBuilder()
-        .configuration(DCC).build();
-    final Collection<ByteArray> terms = new HashSet<>(10);
-    for (int i = 0; i < 10; i++) {
-      @SuppressWarnings("ObjectAllocationInLoop")
-      final ByteArray term = new ByteArray(RandomValue.getString(1,
-          15).getBytes("UTF-8"));
-      if (FIXED_INDEX.getTermFrequency(term) == 0) {
-        terms.add(term);
-      }
-    }
 
-    try {
+    try (DefaultClarityScore instance = getInstanceBuilder()
+        .configuration(DCC).build()) {
+      final Collection<ByteArray> terms = new HashSet<>(10);
+      for (int i = 0; i < 10; i++) {
+        @SuppressWarnings("ObjectAllocationInLoop")
+        final ByteArray term = new ByteArray(RandomValue.getString(1,
+            15).getBytes("UTF-8"));
+        if (FIXED_INDEX.getTermFrequency(term) == 0) {
+          terms.add(term);
+        }
+      }
+
       for (final ByteArray term : terms) {
         Assert.assertEquals("Value should be == 0.", 0d, instance
             .getDefaultDocumentModel(term), 0d);
       }
-    } finally {
-      instance.closeDb();
     }
   }
 
@@ -180,10 +176,9 @@ public final class DefaultClarityScoreTest
   @Test
   public void testGetDocumentModel()
       throws Exception {
-    final DefaultClarityScore instance = getInstanceBuilder()
-        .configuration(DCC).build();
 
-    try {
+    try (DefaultClarityScore instance = getInstanceBuilder()
+        .configuration(DCC).build()) {
       for (int docId = 0;
            docId < FixedTestIndexDataProvider.KnownData.DOC_COUNT;
            docId++) {
@@ -197,8 +192,6 @@ public final class DefaultClarityScoreTest
               expected, modelEntry.getValue(), DELTA_D_MOD);
         }
       }
-    } finally {
-      instance.closeDb();
     }
   }
 
@@ -211,11 +204,10 @@ public final class DefaultClarityScoreTest
   @Test
   public void testGetDocumentModel_invalid()
       throws Exception {
-    final DefaultClarityScore instance = getInstanceBuilder()
-        .configuration(DCC).build();
-    int docId;
 
-    try {
+    try (DefaultClarityScore instance = getInstanceBuilder()
+        .configuration(DCC).build()) {
+      int docId;
       docId = -10;
       try {
         instance.getDocumentModel(docId);
@@ -231,8 +223,6 @@ public final class DefaultClarityScoreTest
       } catch (final IllegalArgumentException e) {
         // pass
       }
-    } finally {
-      instance.closeDb();
     }
   }
 
@@ -244,21 +234,21 @@ public final class DefaultClarityScoreTest
   @Test
   public void testGetQueryModel()
       throws Exception {
-    final DefaultClarityScore instance = getInstanceBuilder()
-        .configuration(DCC).build();
 
-    // use all documents for feedback
-    final Set<Integer> fbDocIds = FixedTestIndexDataProvider.getDocumentIds();
+    try (DefaultClarityScore instance = getInstanceBuilder()
+        .configuration(DCC).build()) {
+      // use all documents for feedback
+      final Set<Integer> fbDocIds = FixedTestIndexDataProvider.getDocumentIds();
 
-    // some random terms from the index will make up a query
-    final Tuple.Tuple2<Set<String>, Set<ByteArray>> randQTerms =
-        FixedTestIndexDataProvider.getUniqueRandomIndexTerms();
-    final Set<ByteArray> qTerms = randQTerms.b;
-    final Set<String> qTermsStr = randQTerms.a;
+      // some random terms from the index will make up a query
+      final Tuple.Tuple2<Set<String>, Set<ByteArray>> randQTerms =
+          FixedTestIndexDataProvider.getUniqueRandomIndexTerms();
+      final Set<ByteArray> qTerms = randQTerms.b;
+      final Set<String> qTermsStr = randQTerms.a;
 
-    // compare calculations for all terms in index
-    final Iterator<ByteArray> termsIt = FIXED_INDEX.getTermsIterator();
-    try {
+      // compare calculations for all terms in index
+      final Iterator<ByteArray> termsIt = FIXED_INDEX.getTermsIterator();
+
       while (termsIt.hasNext()) {
         final ByteArray term = termsIt.next();
         final String termStr = ByteArrayUtils.utf8ToString(term);
@@ -272,8 +262,6 @@ public final class DefaultClarityScoreTest
         Assert.assertEquals("Query model value differs.", expected, result,
             DELTA_Q_MOD);
       }
-    } finally {
-      instance.closeDb();
     }
   }
 
@@ -312,6 +300,87 @@ public final class DefaultClarityScoreTest
   }
 
   /**
+   * Test of getQueryModel method, of class DefaultClarityScore. Run for a
+   * single term.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public void testGetQueryModel_singleTerm()
+      throws Exception {
+    try (DefaultClarityScore instance = getInstanceBuilder()
+        .configuration(DCC).build()) {
+      final String term = FixedTestIndexDataProvider.KnownData
+          .TF_DOC_0.entrySet().iterator().next().getKey();
+      final ByteArray termBa = new ByteArray(term.getBytes("UTF-8"));
+      final Set<ByteArray> qTermsBa = Collections.singleton(termBa);
+      final Set<String> qTerms = Collections.singleton(term);
+      final List<Integer> fbDocIds = Collections.singletonList(0);
+
+      final double result = instance.getQueryModel(termBa, fbDocIds, qTermsBa);
+      final double expected = calculateQueryModel(term, qTerms, fbDocIds);
+      Assert.assertEquals("Single term query model value mismatch.",
+          expected, result, 0d);
+    }
+  }
+
+  /**
+   * Test of calculateClarity method, of class DefaultClarityScore. Run for a
+   * single term.
+   *
+   * @throws java.lang.Exception Any exception thrown indicates an error
+   */
+  @Test
+  public void testCalculateClarity_SingleTerm()
+      throws Exception {
+
+    try (DefaultClarityScore instance = getInstanceBuilder()
+        .configuration(DCC).build()) {
+      final String term = FixedTestIndexDataProvider.KnownData
+          .TF_DOC_0.entrySet().iterator().next().getKey();
+      final ByteArray termBa = new ByteArray(term.getBytes("UTF-8"));
+      final Set<ByteArray> qTermsBa = Collections.singleton(termBa);
+      final Set<Integer> fbDocIds = Collections.singleton(0);
+
+      final DefaultClarityScore.Result result = instance.calculateClarity
+          (fbDocIds, qTermsBa);
+      final double expected = calculateScore(result);
+
+      Assert.assertEquals("Single term score value differs.",
+          expected, result.getScore(), 0d);
+    }
+  }
+
+  /**
+   * Calculate the clarity score based on a result set provided by the real
+   * calculation method.
+   *
+   * @param result Result set
+   * @return Clarity score
+   */
+  private static double calculateScore(
+      final DefaultClarityScore.Result result) {
+    // use the final query terms
+    final Collection<String> qTermsStrFinal = new ArrayList<>(result
+        .getQueryTerms().size());
+    for (final ByteArray qTerm : result.getQueryTerms()) {
+      qTermsStrFinal.add(ByteArrayUtils.utf8ToString(qTerm));
+    }
+    double score = 0d;
+    for (final ByteArray qTerm : result.getQueryTerms()) {
+      final String idxTerm = ByteArrayUtils.utf8ToString(qTerm);
+      final double qMod = calculateQueryModel(idxTerm, qTermsStrFinal,
+          result.getFeedbackDocuments());
+      final double relTf = // relative collection term frequency
+          FixedTestIndexDataProvider.KnownData.IDX_TERMFREQ.get(idxTerm)
+              .doubleValue() /
+              (double) FixedTestIndexDataProvider.KnownData.TERM_COUNT;
+      score += qMod * MathUtils.log2(qMod / relTf);
+    }
+    return score;
+  }
+
+  /**
    * Test of calculateClarity method, of class DefaultClarityScore.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
@@ -319,39 +388,42 @@ public final class DefaultClarityScoreTest
   @Test
   public void testCalculateClarity()
       throws Exception {
-    final DefaultClarityScore instance = getInstanceBuilder()
-        .configuration(DCC).build();
 
-    // some random terms from the index will make up a query
-    final Tuple.Tuple2<Set<String>, Set<ByteArray>> randQTerms =
-        FixedTestIndexDataProvider.getUniqueRandomIndexTerms();
-    final Set<String> qTermsStr = randQTerms.a;
+    try (DefaultClarityScore instance = getInstanceBuilder()
+        .configuration(DCC).build()) {
+      // some random terms from the index will make up a query
+      final Tuple.Tuple2<Set<String>, Set<ByteArray>> randQTerms =
+          FixedTestIndexDataProvider.getUniqueRandomIndexTerms();
+      final Set<String> qTermsStr = randQTerms.a;
 
-    // create a query string from the list of terms
-    final String queryStr = StringUtils.join(qTermsStr, " ");
+      // create a query string from the list of terms
+      final String queryStr = StringUtils.join(qTermsStr, " ");
 
-    // calculate result
-    final DefaultClarityScore.Result result = instance.calculateClarity
-        (queryStr);
+      // calculate result
+      final DefaultClarityScore.Result result = instance.calculateClarity
+          (queryStr);
 
-    final Iterator<ByteArray> idxTermsIt;
-    idxTermsIt = FIXED_INDEX.getTermsIterator();
-    double score = 0d;
-    while (idxTermsIt.hasNext()) {
-      final String idxTerm = ByteArrayUtils.utf8ToString(idxTermsIt.next());
-      final double qMod = calculateQueryModel(idxTerm, qTermsStr,
-          FixedTestIndexDataProvider.getDocumentIds());
-      final double relTf = // relative collection term frequency
-          FixedTestIndexDataProvider.KnownData.IDX_TERMFREQ.get(idxTerm)
-              .doubleValue() /
-              (double) FixedTestIndexDataProvider.KnownData.TERM_COUNT;
-      score += qMod * MathUtils.log2(qMod / relTf);
-    }
+      final double score = calculateScore(result);
+//      // use the final query terms
+//      final Collection<String> qTermsStrFinal = new ArrayList<>(result
+//          .getQueryTerms().size());
+//      for (final ByteArray qTerm : result.getQueryTerms()) {
+//        qTermsStrFinal.add(ByteArrayUtils.utf8ToString(qTerm));
+//      }
+//      double score = 0d;
+//      for (final ByteArray qTerm : result.getQueryTerms()) {
+//        final String idxTerm = ByteArrayUtils.utf8ToString(qTerm);
+//        final double qMod = calculateQueryModel(idxTerm, qTermsStrFinal,
+//            result.getFeedbackDocuments());
+//        final double relTf = // relative collection term frequency
+//            FixedTestIndexDataProvider.KnownData.IDX_TERMFREQ.get(idxTerm)
+//                .doubleValue() /
+//                (double) FixedTestIndexDataProvider.KnownData.TERM_COUNT;
+//        score += qMod * MathUtils.log2(qMod / relTf);
+//      }
 
-    try {
-      Assert.assertEquals(score, result.getScore(), DELTA_SCORE);
-    } finally {
-      instance.closeDb();
+      Assert.assertEquals("Score mismatch.", score, result.getScore(),
+          DELTA_SCORE);
     }
   }
 

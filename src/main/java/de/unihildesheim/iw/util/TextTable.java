@@ -55,6 +55,22 @@ public final class TextTable {
   }
 
   /**
+   * Calculate the real cell widths based on cell data and column headers.
+   *
+   * @param columns Column headers
+   * @param dataWidth Cell data width
+   * @return Array of table cell widths
+   */
+  public static int[] getCellWidths(final String[] columns,
+      final int[] dataWidth) {
+    final int[] cellWidths = new int[columns.length];
+    for (int i = 0; i < columns.length; i++) {
+      cellWidths[i] = Math.max(columns[i].length(), dataWidth[i]);
+    }
+    return cellWidths;
+  }
+
+  /**
    * Set the cell widths globally, taking the with of the column headers into
    * account.
    *
@@ -107,6 +123,7 @@ public final class TextTable {
    * each cell
    * @param newCells Cells specified by their width
    */
+  @SuppressWarnings("BooleanParameter")
   public void hLine(final boolean printMarkers, final int... newCells) {
     boolean start;
     boolean end = false;
@@ -131,6 +148,7 @@ public final class TextTable {
    * @param start If true, cell is first
    * @param end If true, cell is last
    */
+  @SuppressWarnings({"HardcodedLineSeparator", "BooleanParameter"})
   public void hLine(final int width, final boolean marker,
       final boolean start,
       final boolean end) {
@@ -155,7 +173,7 @@ public final class TextTable {
    * @param string String to repeat
    * @return New string with the given string <tt>times</tt> repeated
    */
-  private String rPrint(final int times, final CharSequence string) {
+  private static String rPrint(final int times, final CharSequence string) {
     if (times > 0) {
       return new String(new char[times]).replace("\0", string);
     } else {
@@ -166,8 +184,6 @@ public final class TextTable {
   /**
    * Same as {@link #hLine(int...)}, but uses the globally specified cells.
    */
-  @SuppressWarnings({"ConfusingArrayVararg",
-      "PrimitiveArrayArgumentToVariableArgMethod"})
   public void hLine() {
     hasCells();
     hLine(true, this.cells);
@@ -198,8 +214,6 @@ public final class TextTable {
    *
    * @param title Title of the table
    */
-  @SuppressWarnings({"ConfusingArrayVararg",
-      "PrimitiveArrayArgumentToVariableArgMethod"})
   public void header(final String title) {
     hasCells();
     header(title, this.cells);
@@ -211,8 +225,6 @@ public final class TextTable {
    * @param title Title of the table
    * @param newCells Cell widths
    */
-  @SuppressWarnings({"ConfusingArrayVararg",
-      "PrimitiveArrayArgumentToVariableArgMethod"})
   public void header(final String title, final int... newCells) {
     hLine(false, newCells);
     printHeader(title, newCells);
@@ -226,8 +238,6 @@ public final class TextTable {
    * @param newCells Cells of the table
    */
   private void printHeader(final String title, final int... newCells) {
-    @SuppressWarnings({"ConfusingArrayVararg",
-        "PrimitiveArrayArgumentToVariableArgMethod"})
     int width = getCellsWidth(newCells);
     // fix spacing introduced by vertical lines
     if (newCells.length > 3) {
@@ -242,7 +252,7 @@ public final class TextTable {
    * @param newCells Cells to use for calculation
    * @return With used by the specified cells
    */
-  private int getCellsWidth(final int... newCells) {
+  private static int getCellsWidth(final int... newCells) {
     int width = 0;
     for (final int newCell : newCells) {
       width += newCell + 2; // add spacing
@@ -269,8 +279,6 @@ public final class TextTable {
    * @param columns Column titles
    * @param cellWidths Cell widths
    */
-  @SuppressWarnings({"ConfusingArrayVararg",
-      "PrimitiveArrayArgumentToVariableArgMethod"})
   public void header(final String title, final String[] columns,
       final int[] cellWidths) {
     hLine(false, cellWidths);
@@ -314,21 +322,6 @@ public final class TextTable {
   public void cHeader(final String[] columns) {
     hasCells();
     cHeader(columns, this.cells);
-  }
-
-  /**
-   * Calculate the real cell widths based on cell data and column headers.
-   *
-   * @param columns Column headers
-   * @param dataWidth Cell data width
-   * @return Array of table cell widths
-   */
-  public int[] getCellWidths(final String[] columns, final int[] dataWidth) {
-    final int[] cellWidths = new int[columns.length];
-    for (int i = 0; i < columns.length; i++) {
-      cellWidths[i] = Math.max(columns[i].length(), dataWidth[i]);
-    }
-    return cellWidths;
   }
 
   /**

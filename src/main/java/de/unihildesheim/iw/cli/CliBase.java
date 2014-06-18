@@ -72,7 +72,7 @@ public class CliBase {
    * @param args Commandline parameters
    * @return Cli arguments parser instance
    */
-  protected CmdLineParser parseWithHelp(final Object bean,
+  protected final CmdLineParser parseWithHelp(final Object bean,
       final String[] args) {
     final CmdLineParser parser = parse(bean, args);
 
@@ -90,7 +90,7 @@ public class CliBase {
    * @param args Commandline parameters
    * @return Cli arguments parser instance
    */
-  CmdLineParser parse(final Object bean, final String[] args) {
+  final CmdLineParser parse(final Object bean, final String[] args) {
     final CmdLineParser parser = new CmdLineParser(this.defaultCliParams);
     final ClassParser beanOpts = new ClassParser();
     beanOpts.parse(bean, parser);
@@ -120,7 +120,7 @@ public class CliBase {
    *
    * @param out Output stream
    */
-  void printHeader(final PrintStream out) {
+  final void printHeader(final PrintStream out) {
     out.println(this.header);
   }
 
@@ -129,7 +129,7 @@ public class CliBase {
    *
    * @param out Output stream
    */
-  void printInfo(final PrintStream out) {
+  final void printInfo(final PrintStream out) {
     out.println(this.info);
   }
 

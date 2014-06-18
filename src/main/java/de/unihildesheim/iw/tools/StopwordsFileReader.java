@@ -115,6 +115,7 @@ public final class StopwordsFileReader {
   /**
    * Known stopword file formats.
    */
+  @SuppressWarnings("PublicInnerClass")
   public enum Format {
     /**
      * Plain file with one word per line.

@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
+import de.unihildesheim.iw.lucene.query.RuleBasedTryExactTermsQuery;
 import de.unihildesheim.iw.util.Configuration;
 
 import java.util.HashMap;
@@ -77,26 +78,26 @@ public final class ImprovedClarityScoreConfiguration
   }
 
   /**
-   * Get the policy that will be used to simplify a query, if the minimum number
-   * of feedback documents could not be reached with the original query.
+   * Get the relaxRule that will be used to simplify a query, if the minimum
+   * number of feedback documents could not be reached with the original query.
    *
-   * @return Query simplifying policy to use
+   * @return Query simplifying relaxRule to use
    */
-  public ImprovedClarityScore.QuerySimplifyPolicy getQuerySimplifyingPolicy() {
-    final String policy = getString(Keys.QUERY_SIMPLIFYING_POLICY.name());
-    return ImprovedClarityScore.QuerySimplifyPolicy.valueOf(policy);
+  public RuleBasedTryExactTermsQuery.RelaxRule getQuerySimplifyingPolicy() {
+    final String relaxRule = getString(Keys.QUERY_SIMPLIFYING_POLICY.name());
+    return RuleBasedTryExactTermsQuery.RelaxRule.valueOf(relaxRule);
   }
 
   /**
-   * Set the policy that will be used to simplify a query, if the minimum number
-   * of feedback documents could not be reached with the original query.
+   * Set the relaxRule that will be used to simplify a query, if the minimum
+   * number of feedback documents could not be reached with the original query.
    *
-   * @param policy Query simplifying policy to use
+   * @param relaxRule Query simplifying relaxRule to use
    */
   public void setQuerySimplifyingPolicy(
-      final ImprovedClarityScore.QuerySimplifyPolicy policy) {
-    Objects.requireNonNull(policy, "Policy was null.");
-    add(Keys.QUERY_SIMPLIFYING_POLICY.name(), policy.name());
+      final RuleBasedTryExactTermsQuery.RelaxRule relaxRule) {
+    Objects.requireNonNull(relaxRule, "Policy was null.");
+    add(Keys.QUERY_SIMPLIFYING_POLICY.name(), relaxRule.name());
   }
 
   /**
@@ -210,7 +211,7 @@ public final class ImprovedClarityScoreConfiguration
     FB_DOCS_MAX,
     /**
      * Policy to use for simplifying queries. See {@link
-     * ImprovedClarityScore.QuerySimplifyPolicy}.
+     * RuleBasedTryExactTermsQuery.RelaxRule}.
      */
     QUERY_SIMPLIFYING_POLICY,
     /**
@@ -258,11 +259,11 @@ public final class ImprovedClarityScoreConfiguration
      */
     DEFAULTS.put(Keys.FB_DOCS_MAX.name(), "1000");
     /**
-     * Default policy to use for simplifying the query, if the number of
+     * Default relaxRule to use for simplifying the query, if the number of
      * feedback documents is lower than the required minimum.
      */
     DEFAULTS.put(Keys.QUERY_SIMPLIFYING_POLICY.name(),
-        ImprovedClarityScore.QuerySimplifyPolicy.HIGHEST_DOCFREQ.name());
+        RuleBasedTryExactTermsQuery.RelaxRule.HIGHEST_DOCFREQ.name());
     /**
      * Threshold to select terms from feedback documents. A term from a
      * feedback document must occurs in equal or more than n% of the documents
@@ -308,7 +309,7 @@ public final class ImprovedClarityScoreConfiguration
      * @see Keys#QUERY_SIMPLIFYING_POLICY
      */
     @SuppressWarnings("PublicField")
-    public final ImprovedClarityScore.QuerySimplifyPolicy policy;
+    public final RuleBasedTryExactTermsQuery.RelaxRule relaxRule;
 
     /**
      * Creates a compact configuration from the currently set options.
@@ -320,7 +321,7 @@ public final class ImprovedClarityScoreConfiguration
       this.threshold = getFeedbackTermSelectionThreshold();
       this.fbMax = getMaxFeedbackDocumentsCount();
       this.fbMin = getMinFeedbackDocumentsCount();
-      this.policy = getQuerySimplifyingPolicy();
+      this.relaxRule = getQuerySimplifyingPolicy();
     }
 
     /**

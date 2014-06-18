@@ -18,6 +18,7 @@ package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.ByteArray;
+import de.unihildesheim.iw.Closable;
 import de.unihildesheim.iw.Persistence;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.document.Feedback;
@@ -40,7 +41,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.mapdb.Atomic;
-import org.mapdb.DB;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
@@ -67,30 +67,27 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * @author Jens Bertram
  */
 public final class ImprovedClarityScore
-    implements ClarityScoreCalculation {
+    implements ClarityScoreCalculation, Closable {
 
   /**
    * Prefix to use to store calculated term-data values in cache and access
    * properties stored in the {@link de.unihildesheim.iw.lucene.index
    * .IndexDataProvider}.
    */
-  private static final String IDENTIFIER = "ICS";
+  static final String IDENTIFIER = "ICS";
   /**
    * Logger instance for this class.
    */
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       ImprovedClarityScore.class);
-
   /**
    * Provider for general index metrics.
    */
   private final Metrics metrics;
-
   /**
    * {@link IndexDataProvider} to use.
    */
   private final IndexDataProvider dataProv;
-
   /**
    * Reader to access the Lucene index.
    */
@@ -104,16 +101,26 @@ public final class ImprovedClarityScore
    */
   private final RuleBasedTryExactTermsQuery.RelaxRule relaxRule;
   /**
+   * Synchronization lock for document model calculation.
+   */
+  private final Object docModelCalcSync = new Object();
+  /**
+   * Synchronization lock for document model map calculation.
+   */
+  private final Object docModelMapCalcSync = new Object();
+  /**
    * Configuration object used for all parameters of the calculation.
    */
+  @SuppressWarnings("FieldAccessedSynchronizedAndUnsynchronized")
   private ImprovedClarityScoreConfiguration.Conf conf;
   /**
    * Database instance.
    */
-  private DB db;
+  private Persistence persist;
   /**
    * Manager for extended document meta-data.
    */
+  @SuppressWarnings("FieldAccessedSynchronizedAndUnsynchronized")
   private ExternalDocTermDataManager extDocMan;
   /**
    * Flag indicating, if a cache is available.
@@ -122,7 +129,12 @@ public final class ImprovedClarityScore
   /**
    * Cached storage of Document-id -> Term, model-value.
    */
+  @SuppressWarnings("FieldAccessedSynchronizedAndUnsynchronized")
   private Map<Integer, Map<ByteArray, Double>> docModelDataCache;
+  /**
+   * Flag indicating, if this instance has been closed.
+   */
+  private volatile boolean isClosed;
 
   /**
    * Create a new instance using a builder.
@@ -188,17 +200,19 @@ public final class ImprovedClarityScore
         break;
     }
 
-    this.db = persistence.getDb();
+    this.persist = persistence;
 
     final Double smoothing = this.conf.smoothing;
     final Double lambda = this.conf.lambda;
     final Double beta = this.conf.beta;
 
     if (createNew) {
-      this.db.
+      this.persist.getDb().
           createAtomicString(Caches.SMOOTHING.name(), smoothing.toString());
-      this.db.createAtomicString(Caches.LAMBDA.name(), lambda.toString());
-      this.db.createAtomicString(Caches.BETA.name(), beta.toString());
+      this.persist.getDb().createAtomicString(Caches.LAMBDA.name(),
+          lambda.toString());
+      this.persist.getDb().createAtomicString(Caches.BETA.name(),
+          beta.toString());
       persistence.updateMetaData(this.dataProv.getDocumentFields(),
           this.dataProv.getStopwords());
     } else {
@@ -207,41 +221,49 @@ public final class ImprovedClarityScore
         LOG.warn("Index commit generation not available. Assuming an " +
             "unchanged index!");
       } else {
-        if (!persistence.getMetaData()
-            .isGenerationCurrent(
-                this.dataProv.getLastIndexCommitGeneration())) {
-          throw new IllegalStateException(
-              "Index changed since last caching.");
+        if (!persistence.getMetaData().isGenerationCurrent(
+            this.dataProv.getLastIndexCommitGeneration())) {
+          close();
+          throw new IllegalStateException("Index changed since last caching.");
         }
       }
-      if (!this.db.getAtomicString(Caches.SMOOTHING.name()).get().equals(
-          smoothing.toString())) {
+      if (!this.persist.getDb().getAtomicString(Caches.SMOOTHING.name()).get()
+          .equals(
+              smoothing.toString())) {
+        close();
         throw new IllegalStateException(
             "Different smoothing parameter value used in cache.");
       }
-      if (!this.db.getAtomicString(Caches.LAMBDA.name()).get().equals(
-          lambda.toString())) {
+      if (!this.persist.getDb().getAtomicString(Caches.LAMBDA.name()).get()
+          .equals(
+              lambda.toString())) {
+        close();
         throw new IllegalStateException(
             "Different lambda parameter value used in cache.");
       }
-      if (!this.db.getAtomicString(Caches.BETA.name()).get().equals(
-          beta.toString())) {
+      if (!this.persist.getDb().getAtomicString(Caches.BETA.name()).get()
+          .equals(
+              beta.toString())) {
+        close();
         throw new IllegalStateException(
             "Different beta parameter value used in cache.");
       }
       if (!persistence.getMetaData()
           .areFieldsCurrent(this.dataProv.getDocumentFields())) {
+        close();
         throw new IllegalStateException(
             "Current fields are different from cached ones.");
       }
       if (!persistence.getMetaData()
           .areStopwordsCurrent(this.dataProv.getStopwords())) {
+        close();
         throw new IllegalStateException(
             "Current stopwords are different from cached ones.");
       }
     }
 
-    this.extDocMan = new ExternalDocTermDataManager(this.db, IDENTIFIER);
+    this.extDocMan =
+        new ExternalDocTermDataManager(this.persist.getDb(), IDENTIFIER);
     this.hasCache = true;
   }
 
@@ -262,6 +284,18 @@ public final class ImprovedClarityScore
   }
 
   /**
+   * Close this instance and release any resources (mainly the database
+   * backend).
+   */
+  @Override
+  public void close() {
+    if (!this.isClosed) {
+      this.persist.closeDb();
+      this.isClosed = true;
+    }
+  }
+
+  /**
    * Calculate the query model.
    *
    * @param fbTerm Feedback term
@@ -272,6 +306,7 @@ public final class ImprovedClarityScore
   double getQueryModel(final ByteArray fbTerm,
       final List<ByteArray> qTerms,
       final Set<Integer> fbDocIds) {
+    checkClosed();
     assert fbTerm != null;
     assert qTerms != null && !qTerms.isEmpty();
     assert fbDocIds != null && !fbDocIds.isEmpty();
@@ -301,6 +336,16 @@ public final class ImprovedClarityScore
   }
 
   /**
+   * Checks, if this instance has been closed. Throws a runtime exception, if
+   * the instance has already been closed.
+   */
+  private void checkClosed() {
+    if (this.isClosed) {
+      throw new IllegalStateException("Instance has been closed.");
+    }
+  }
+
+  /**
    * Safe method to get the document model value for a document term. This
    * method will calculate an additional value, if the term in question is not
    * contained in the document. <br> A call to this method should only needed,
@@ -312,25 +357,31 @@ public final class ImprovedClarityScore
    */
   double getDocumentModel(final int docId, final ByteArray term) {
     assert term != null;
-
+    checkClosed();
     Double model = getDocumentModel(docId).get(term);
     // if term not in document, calculate new value
     if (model == null) {
-      // relative collection frequency of the term
-      final double termRelIdxFreq = this.metrics.collection().relTf(term);
-      final DocumentModel docModel = this.metrics.getDocumentModel(docId);
-      final double docTermFreq = docModel.metrics().tf().doubleValue();
-      final double termsInDoc =
-          docModel.metrics().uniqueTermCount().doubleValue();
+      // double checked locking
+      synchronized (this.docModelCalcSync) {
+        model = getDocumentModel(docId).get(term);
+        if (model == null) {
+          // relative collection frequency of the term
+          final double termRelIdxFreq = this.metrics.collection().relTf(term);
+          final DocumentModel docModel = this.metrics.getDocumentModel(docId);
+          final double docTermFreq = docModel.metrics().tf().doubleValue();
+          final double termsInDoc =
+              docModel.metrics().uniqueTermCount().doubleValue();
 
-      final double smoothedTerm =
-          (this.conf.smoothing * termRelIdxFreq) /
-              (docTermFreq + (this.conf.smoothing * termsInDoc));
-      model =
-          (this.conf.lambda *
-              ((this.conf.beta * smoothedTerm) +
-                  ((1d - this.conf.beta) * termRelIdxFreq))
-          ) + ((1d - this.conf.lambda) * termRelIdxFreq);
+          final double smoothedTerm =
+              (this.conf.smoothing * termRelIdxFreq) /
+                  (docTermFreq + (this.conf.smoothing * termsInDoc));
+          model =
+              (this.conf.lambda *
+                  ((this.conf.beta * smoothedTerm) +
+                      ((1d - this.conf.beta) * termRelIdxFreq))
+              ) + ((1d - this.conf.lambda) * termRelIdxFreq);
+        }
+      }
     }
     return model;
   }
@@ -342,45 +393,55 @@ public final class ImprovedClarityScore
    * @return Mapping of each term in the document to it's model value
    */
   Map<ByteArray, Double> getDocumentModel(final int docId) {
+    checkClosed();
     Map<ByteArray, Double> map;
     if (this.docModelDataCache.containsKey(docId)) {
       // get local cached map
       map = this.docModelDataCache.get(docId);
     } else {
-      // get external cached map
-      map = this.extDocMan.getData(docId, DataKeys.DM.name());
+      // double checked locking
+      synchronized (this.docModelMapCalcSync) {
+        if (this.docModelDataCache.containsKey(docId)) {
+          // get local cached map
+          map = this.docModelDataCache.get(docId);
+        } else {
+          // get external cached map
+          map = this.extDocMan.getData(docId, DataKeys.DM.name());
 
-      // build mapping, if needed
-      if (map == null || map.isEmpty()) {
-        final DocumentModel docModel = this.metrics.getDocumentModel(docId);
-        final double docTermFreq = docModel.metrics().tf().doubleValue();
-        final double termsInDoc =
-            docModel.metrics().uniqueTermCount().doubleValue();
-        final Set<ByteArray> terms = docModel.getTermFreqMap().keySet();
+          // build mapping, if needed
+          if (map == null || map.isEmpty()) {
+            final DocumentModel docModel = this.metrics.getDocumentModel(docId);
+            final double docTermFreq = docModel.metrics().tf().doubleValue();
+            final double termsInDoc =
+                docModel.metrics().uniqueTermCount().doubleValue();
+            final Set<ByteArray> terms = docModel.getTermFreqMap().keySet();
 
-        map = new HashMap<>(terms.size());
-        for (final ByteArray term : terms) {
-          // relative collection frequency of the term
-          final double termRelIdxFreq = this.metrics.collection().relTf(term);
-          // term frequency given the document
-          final double termInDocFreq =
-              docModel.metrics().tf(term).doubleValue();
+            map = new HashMap<>(terms.size());
+            for (final ByteArray term : terms) {
+              // relative collection frequency of the term
+              final double termRelIdxFreq =
+                  this.metrics.collection().relTf(term);
+              // term frequency given the document
+              final double termInDocFreq =
+                  docModel.metrics().tf(term).doubleValue();
 
-          final double smoothedTerm =
-              (termInDocFreq + (this.conf.smoothing * termRelIdxFreq)) /
-                  (docTermFreq + (this.conf.smoothing * termsInDoc));
-          final double value =
-              (this.conf.lambda *
-                  ((this.conf.beta * smoothedTerm) +
-                      ((1d - this.conf.beta) * termRelIdxFreq))
-              ) + ((1d - this.conf.lambda) * termRelIdxFreq);
-          map.put(term, value);
+              final double smoothedTerm =
+                  (termInDocFreq + (this.conf.smoothing * termRelIdxFreq)) /
+                      (docTermFreq + (this.conf.smoothing * termsInDoc));
+              final double value =
+                  (this.conf.lambda *
+                      ((this.conf.beta * smoothedTerm) +
+                          ((1d - this.conf.beta) * termRelIdxFreq))
+                  ) + ((1d - this.conf.lambda) * termRelIdxFreq);
+              map.put(term, value);
+            }
+            // push data to persistent storage
+            this.extDocMan.setData(docModel.id, DataKeys.DM.name(), map);
+          }
+          // push to local cache
+          this.docModelDataCache.put(docId, map);
         }
-        // push data to persistent storage
-        this.extDocMan.setData(docModel.id, DataKeys.DM.name(), map);
       }
-      // push to local cache
-      this.docModelDataCache.put(docId, map);
     }
     return map;
   }
@@ -394,6 +455,7 @@ public final class ImprovedClarityScore
   @Override
   public Result calculateClarity(final String query)
       throws ClarityScoreCalculationException, IOException {
+    checkClosed();
     if (StringUtils.isStrippedEmpty(
         Objects.requireNonNull(query, "Query was null."))) {
       throw new IllegalArgumentException("Query was empty.");
@@ -490,11 +552,12 @@ public final class ImprovedClarityScore
           "on document frequency threshold (" + minDf + ").");
       return result;
     }
+
     result.setFeedbackTerms(new HashSet<>(reducedFbTerms));
 
     // do the final calculation for all remaining feedback terms
-    LOG.debug("Using {} feedback documents for calculation.",
-        feedbackDocIds.size());
+    LOG.debug("Using {} feedback documents for calculation. {}",
+        feedbackDocIds.size(), feedbackDocIds);
     try {
       new Processing(
           new TargetFuncCall<>(
@@ -535,7 +598,7 @@ public final class ImprovedClarityScore
     if (!this.hasCache) {
       LOG.warn("Won't pre-calculate any values. Cache not set.");
     }
-    final Atomic.Boolean hasData = this.db.getAtomicBoolean(
+    final Atomic.Boolean hasData = this.persist.getDb().getAtomicBoolean(
         Caches.HAS_PRECALC_DATA.name());
     if (hasData.get()) {
       LOG.info("Pre-calculated models are current.");
@@ -549,36 +612,6 @@ public final class ImprovedClarityScore
       ).process(this.metrics.collection().numberOfDocuments().intValue());
       hasData.set(true);
     }
-  }
-
-  /**
-   * Policy to use to simplify a query, if no document matches all terms in the
-   * initial query. <br> If multiple terms match the same criteria a random one
-   * out of those will be chosen.
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public enum QuerySimplifyPolicy {
-
-    /**
-     * Removes the first term.
-     */
-    FIRST,
-    /**
-     * Removes the term with the highest document-frequency.
-     */
-    HIGHEST_DOCFREQ,
-    /**
-     * Removes the term with the highest index-frequency.
-     */
-    HIGHEST_TERMFREQ,
-    /**
-     * Removes the last term.
-     */
-    LAST,
-    /**
-     * Removes a randomly chosen term.
-     */
-    RANDOM
   }
 
   /**
@@ -691,7 +724,6 @@ public final class ImprovedClarityScore
      *
      * @param cscType Type of the calculation class
      */
-    @SuppressWarnings("CollectionWithoutInitialCapacity")
     public Result(final Class<? extends ClarityScoreCalculation> cscType) {
       super(cscType);
       this.feedbackDocIds = Collections.emptySet();
@@ -791,18 +823,6 @@ public final class ImprovedClarityScore
       super(IDENTIFIER);
     }
 
-    @Override
-    protected Builder getThis() {
-      return this;
-    }
-
-    @Override
-    public void validate()
-        throws ConfigurationException {
-      super.validate();
-      validatePersistenceBuilder();
-    }
-
     /**
      * Set the configuration to use.
      *
@@ -833,6 +853,18 @@ public final class ImprovedClarityScore
         throws BuildableException {
       validate();
       return new ImprovedClarityScore(this);
+    }
+
+    @Override
+    protected Builder getThis() {
+      return this;
+    }
+
+    @Override
+    public void validate()
+        throws ConfigurationException {
+      super.validate();
+      validatePersistenceBuilder();
     }
   }
 

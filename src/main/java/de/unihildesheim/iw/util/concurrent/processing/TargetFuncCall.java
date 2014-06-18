@@ -17,9 +17,6 @@
 
 package de.unihildesheim.iw.util.concurrent.processing;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.Objects;
 
 /**
@@ -31,13 +28,6 @@ import java.util.Objects;
 @SuppressWarnings("PublicInnerClass")
 public final class TargetFuncCall<T>
     extends Target<T> {
-
-  /**
-   * Logger instance for this class.
-   */
-  static final Logger LOG = LoggerFactory.getLogger(
-      TargetFuncCall.class);
-
   /**
    * Function to call for each element.
    */

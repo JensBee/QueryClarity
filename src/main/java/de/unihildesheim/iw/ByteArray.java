@@ -36,7 +36,7 @@ import java.util.Objects;
  * @author Jens Bertram
  */
 public final class ByteArray
-    implements Comparable<ByteArray>, Serializable, Cloneable {
+    implements Comparable<ByteArray>, Serializable {
 
   /**
    * MapDB {@link Serializer} for this class instances.
@@ -62,6 +62,14 @@ public final class ByteArray
    */
   @SuppressWarnings("PublicField")
   public byte[] bytes;
+
+  /**
+   * Copy constructor.
+   * @param toClone Instance to copy values from
+   */
+  public ByteArray(final ByteArray toClone) {
+    this(toClone.bytes.clone());
+  }
 
   /**
    * Create a new ByteArray from the given bytes taking a local copy of them.
@@ -94,6 +102,7 @@ public final class ByteArray
       throw new IllegalArgumentException("Not enough bytes to copy.");
     }
     this.bytes = Arrays.copyOfRange(existingBytes, offset, length);
+    assert this.bytes.length > 0;
   }
 
   /**
@@ -123,22 +132,6 @@ public final class ByteArray
         || (o instanceof ByteArray
         && Fun.BYTE_ARRAY_COMPARATOR.compare(
         this.bytes, ((ByteArray) o).bytes) == 0);
-  }
-
-  /**
-   * Create a clone of this byte array.
-   *
-   * @return Cloned copy
-   */
-  @Override
-  public ByteArray clone() {
-    try {
-      final ByteArray clonedByteArray = (ByteArray) super.clone();
-      clonedByteArray.bytes = this.bytes.clone();
-      return clonedByteArray;
-    } catch (final CloneNotSupportedException ex) {
-      throw new IllegalStateException("Clone not supported.", ex);
-    }
   }
 
   @Override
@@ -188,6 +181,9 @@ public final class ByteArray
     public ByteArray deserialize(final DataInput in, final int available)
         throws IOException {
       final byte[] value = Serializer.BYTE_ARRAY.deserialize(in, available);
+      if (value == null || value.length == 0) {
+        throw new IllegalArgumentException("ByteArray was null or empty.");
+      }
       return new ByteArray(value);
     }
 
@@ -229,9 +225,10 @@ public final class ByteArray
       return ret;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public Comparator<ByteArray> getComparator() {
-      return BTreeMap.COMPARABLE_COMPARATOR;
+      return (Comparator<ByteArray>) BTreeMap.COMPARABLE_COMPARATOR;
     }
   }
 }

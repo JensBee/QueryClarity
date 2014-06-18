@@ -22,7 +22,7 @@ package de.unihildesheim.iw.util.concurrent.processing;
  *
  * @author Jens Bertram
  */
-public class SourceException
+public final class SourceException
     extends ProcessingException {
   private static final long serialVersionUID = -6432781390484045213L;
 
@@ -50,6 +50,7 @@ public class SourceException
    * Exception indicating that the {@link Source} has encountered an error and
    * cannot proceed.
    */
+  @SuppressWarnings("PublicInnerClass")
   public static final class SourceFailedException
       extends ProcessingException {
 
@@ -81,6 +82,7 @@ public class SourceException
    * <br> Should be thrown, if the {@link Source} has not yet been initialized
    * and items or other information is being requested, but not available yet.
    */
+  @SuppressWarnings("PublicInnerClass")
   public static final class SourceNotReadyException
       extends ProcessingException {
 
@@ -108,6 +110,7 @@ public class SourceException
    * <br> Should be thrown, if a {@link Target} requests an item, but the {@link
    * Source} has already been finished with providing items.
    */
+  @SuppressWarnings("PublicInnerClass")
   public static final class SourceHasFinishedException
       extends RuntimeException {
     /**
@@ -137,6 +140,7 @@ public class SourceException
    * <br> Should be thrown, if the {@link Source} is tried to be started more
    * than once.
    */
+  @SuppressWarnings("PublicInnerClass")
   public static final class SourceIsRunningException
       extends RuntimeException {
     /**

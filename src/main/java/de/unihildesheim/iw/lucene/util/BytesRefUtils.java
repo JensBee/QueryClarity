@@ -50,6 +50,18 @@ public final class BytesRefUtils {
   }
 
   /**
+   * Creates a new {@link BytesRef} instance by cloning the bytes from the given
+   * {@link BytesRef}.
+   *
+   * @param ba ByteArray to copy bytes from
+   * @return New BytesRef with bytes from provided ByteArray
+   */
+  public static BytesRef fromByteArray(final ByteArray ba) {
+    Objects.requireNonNull(ba, "ByteArray was null.");
+    return new BytesRef(ba.bytes.clone());
+  }
+
+  /**
    * Compares the bytes contained in the {@link BytesRef} to those stored in the
    * {@link ByteArray}.
    *
@@ -57,6 +69,7 @@ public final class BytesRefUtils {
    * @param ba {@link ByteArray} to compare
    * @return True, if both byte arrays are equal
    */
+  @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
   public static boolean bytesEquals(final BytesRef br, final ByteArray ba) {
     Objects.requireNonNull(br, "BytesRef was null.");
     Objects.requireNonNull(ba, "ByteArray was null.");

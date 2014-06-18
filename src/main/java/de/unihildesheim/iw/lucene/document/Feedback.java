@@ -17,17 +17,14 @@
 package de.unihildesheim.iw.lucene.document;
 
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
-import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.TimeMeasure;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
-import org.apache.lucene.util.Bits;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
@@ -59,63 +56,46 @@ public final class Feedback {
   }
 
   /**
-   * Same as {@link #get(IndexReader, Query, int)}, except, if the maximum
-   * number of feedback documents matching the query is not reached, random
-   * documents will be picked from the index to reach this value. <br> NOTE:
-   * This is currently broken, as field contents are not checked. Random chosen
-   * documents may have no content in the targeted fields.
+   * Same as {@link #get(IndexSearcher, Query, int)}, but creates a new {@link
+   * IndexSearcher} from the provided {@link IndexReader}.
    *
-   * @param reader Reader to access Lucene index
+   * @param reader Reader to access the Lucene index
    * @param query Query to get matching documents
    * @param docCount Number of documents to return
    * @return List of Lucene document ids
-   * @throws java.io.IOException Thrown on low-level I/O errors
+   * @throws IOException Thrown on low-level I/O errors
    */
-  // TODO: only return documents with terms in requested field(s). Also the
-  // order of documents is random instead of relevance.
-  public static Set<Integer> getFixed(final IndexReader reader,
+  public static Set<Integer> get(final IndexReader reader,
       final Query query, final int docCount)
       throws IOException {
-    Objects.requireNonNull(reader, "IndexReader was null.");
+    return get(new IndexSearcher(reader), query, docCount);
+  }
+
+  /**
+   * Try to get a specific number of feedback documents matching a query. <br>
+   * The documents in the returned set are ordered by their relevance. Sorting
+   * is from best to worst matching.
+   *
+   * @param searcher Searcher for issuing the query
+   * @param query Query to get matching documents
+   * @param docCount Number of documents to return
+   * @return List of Lucene document ids
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  public static Set<Integer> get(final IndexSearcher searcher,
+      final Query query, final int docCount)
+      throws IOException {
+    Objects.requireNonNull(searcher, "IndexSearcher was null.");
     Objects.requireNonNull(query, "Query was null.");
 
-    final TimeMeasure timeMeasure = new TimeMeasure().start();
-
-    final int maxRetDocs = getMaxDocs(reader, docCount);
-    final Set<Integer> docIds = createDocSet(getDocs(new IndexSearcher(reader),
-        query, docCount));
-
-    // get the amount of random docs to get
-    int randDocs = maxRetDocs - docIds.size();
-
-    if (randDocs > 0) {
-      LOG.debug("Got {} matching feedback documents. "
-              + "Getting additional {} random feedback documents...",
-          docIds.size(), randDocs
-      );
-      final Bits liveDocs = MultiFields.getLiveDocs(reader);
-
-      while (randDocs > 0) {
-        final int docId = RandomValue.getInteger(0, maxRetDocs - 1);
-
-        // check if document is not already collected..
-        if (!docIds.contains(docId)) {
-          // ..and not deleted
-          if (liveDocs == null) {
-            docIds.add(docId);
-            randDocs--;
-          } else if (liveDocs.get(docId)) {
-            docIds.add(docId);
-            randDocs--;
-          }
-        }
-      }
+    final int maxRetDocs; // maximum number of documents that can be returned
+    if (docCount == -1) {
+      maxRetDocs = searcher.getIndexReader().maxDoc();
+    } else {
+      maxRetDocs = getMaxDocs(searcher.getIndexReader(), docCount);
     }
 
-    timeMeasure.stop();
-    LOG.debug("Getting {} feedback documents took {}.", maxRetDocs,
-        timeMeasure.getTimeString());
-    return docIds;
+    return createDocSet(getDocs(searcher, query, maxRetDocs));
   }
 
   /**
@@ -223,49 +203,6 @@ public final class Feedback {
     for (final ScoreDoc scoreDoc : topDocs.scoreDocs) {
       target.add(scoreDoc.doc);
     }
-  }
-
-  /**
-   * Same as {@link #get(IndexSearcher, Query, int)}, but creates a new {@link
-   * IndexSearcher} from the provided {@link IndexReader}.
-   *
-   * @param reader Reader to access the Lucene index
-   * @param query Query to get matching documents
-   * @param docCount Number of documents to return
-   * @return List of Lucene document ids
-   * @throws IOException Thrown on low-level I/O errors
-   */
-  public static Set<Integer> get(final IndexReader reader,
-      final Query query, final int docCount)
-      throws IOException {
-    return get(new IndexSearcher(reader), query, docCount);
-  }
-
-  /**
-   * Try to get a specific number of feedback documents matching a query. <br>
-   * The documents in the returned set are ordered by their relevance. Sorting
-   * is from best to worst matching.
-   *
-   * @param searcher Searcher for issuing the query
-   * @param query Query to get matching documents
-   * @param docCount Number of documents to return
-   * @return List of Lucene document ids
-   * @throws IOException Thrown on low-level I/O errors
-   */
-  public static Set<Integer> get(final IndexSearcher searcher,
-      final Query query, final int docCount)
-      throws IOException {
-    Objects.requireNonNull(searcher, "IndexSearcher was null.");
-    Objects.requireNonNull(query, "Query was null.");
-
-    final int maxRetDocs; // maximum number of documents that can be returned
-    if (docCount == -1) {
-      maxRetDocs = searcher.getIndexReader().maxDoc();
-    } else {
-      maxRetDocs = getMaxDocs(searcher.getIndexReader(), docCount);
-    }
-
-    return createDocSet(getDocs(searcher, query, maxRetDocs));
   }
 
   /**

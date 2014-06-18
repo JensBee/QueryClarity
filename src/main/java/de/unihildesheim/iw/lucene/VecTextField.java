@@ -22,7 +22,7 @@ import org.apache.lucene.document.FieldType;
 /**
  * Based on https://stackoverflow.com/a/11963832
  */
-public class VecTextField
+public final class VecTextField
     extends Field {
 
   /**
@@ -53,12 +53,12 @@ public class VecTextField
   /**
    * Creates a new TextField with String value.
    *
-   * @param name Fields name
+   * @param aName Fields name
    * @param value Value
    * @param store Storage configuration
    */
-  public VecTextField(final String name, final String value,
+  public VecTextField(final String aName, final String value,
       final Store store) {
-    super(name, value, store == Store.YES ? TYPE_STORED : TYPE_NOT_STORED);
+    super(aName, value, store == Store.YES ? TYPE_STORED : TYPE_NOT_STORED);
   }
 }

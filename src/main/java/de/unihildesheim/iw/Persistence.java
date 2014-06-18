@@ -29,8 +29,11 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
@@ -45,34 +48,40 @@ public final class Persistence {
    * Logger instance for this class.
    */
   static final Logger LOG = LoggerFactory.getLogger(Persistence.class);
-
+  /**
+   * List of open database names.
+   */
+  private static final Collection<Path> OPEN_DB_FILES = new ArrayList<>(10);
   /**
    * Global identifier of this class. Used for configurations.
    */
   private static final String IDENTIFIER = "Persistence";
-
   /**
    * Prefix for {@link GlobalConfiguration configuration} items.
    */
   static final String CONF_PREFIX = GlobalConfiguration.mkPrefix
       (IDENTIFIER);
-
   /**
    * Database reference.
    */
   private final DB db;
-
+  /**
+   * File name of the database.
+   */
+  private final String dbFileName;
+  /**
+   * {@link Path} representation of the database.
+   */
+  private final Path dbFilePath;
   /**
    * Object storing meta information about the current Lucene index state and
    * the runtime {@link GlobalConfiguration configuration}.
    */
   private final StorageMeta meta;
-
   /**
    * Flag indicating, if the {@link DB} instance uses transactions.
    */
   private final boolean supportsTransaction;
-
   /**
    * Commit generation of the Lucene index.
    */
@@ -83,13 +92,28 @@ public final class Persistence {
    *
    * @param builder Builder
    * @param empty If true, the database is expected as being empty (new)
+   * @throws IOException Thrown on low-level I/O errors
    */
-  Persistence(final Builder builder, final boolean empty) {
+  Persistence(final Builder builder, final boolean empty)
+      throws IOException {
     Objects.requireNonNull(builder, "Builder was null.");
 
-    LOG.info("Opening database {}.", builder.dbMkr.getDbFile());
+    this.dbFileName = builder.dbMkr.getDbFileName();
+    LOG.info("Opening database '{}'.", this.dbFileName);
+
+    this.dbFilePath = builder.dbMkr.getDbFile().toPath();
+    if (builder.dbMkr.getDbFile().exists()) {
+      for (final Path p : OPEN_DB_FILES) {
+        if (Files.isSameFile(p, this.dbFilePath)) {
+          throw new IllegalStateException(
+              "Database '" + this.dbFileName + "' already in use.");
+        }
+      }
+    }
+    OPEN_DB_FILES.add(this.dbFilePath);
+    LOG.debug("Open databases ({}): {}", OPEN_DB_FILES.size(), OPEN_DB_FILES);
+
     this.db = builder.dbMkr.make();
-//    this.db = new DB(new StoreHeap());
     this.meta = new StorageMeta();
     this.supportsTransaction = builder.dbMkr.supportsTransaction();
     this.indexCommitGen = builder.lastCommitGeneration;
@@ -139,7 +163,7 @@ public final class Persistence {
     if (create && this.db.exists(Storage.PERSISTENCE_STOPWORDS.name())) {
       this.db.delete(Storage.PERSISTENCE_STOPWORDS.name());
     }
-    this.meta.setStopWords(this.db
+    this.meta.setStopwords(this.db
         .createHashSet(Storage.PERSISTENCE_STOPWORDS.
             name()).serializer(Serializer.STRING)
         .<String>makeOrGet());
@@ -155,8 +179,8 @@ public final class Persistence {
   public void updateMetaData(final Set<String> fields,
       final Set<String> stopwords) {
     LOG.info("Updating meta-data.");
-    this.meta.setFields(Objects.requireNonNull(fields, "Fields were null."));
-    this.meta.setStopWords(Objects.requireNonNull(stopwords,
+    this.meta.resetFields(Objects.requireNonNull(fields, "Fields were null."));
+    this.meta.resetStopwords(Objects.requireNonNull(stopwords,
         "Stopwords were null."));
   }
 
@@ -192,6 +216,21 @@ public final class Persistence {
           + dataDir.getCanonicalPath() + "'.");
     }
     return dataDir;
+  }
+
+  /**
+   * Close the underlying database.
+   */
+  public void closeDb() {
+    LOG.debug("Try closing database '{}'.", this.dbFileName);
+    if (this.db.isClosed()) {
+      LOG.warn("Database '{}' already closed.", this.dbFileName);
+    } else {
+      LOG.info("Closing database '{}'.", this.dbFileName);
+      this.db.close();
+    }
+    OPEN_DB_FILES.remove(this.dbFilePath);
+    LOG.debug("Open databases ({}): {}", OPEN_DB_FILES.size(), OPEN_DB_FILES);
   }
 
   /**
@@ -264,17 +303,28 @@ public final class Persistence {
     /**
      * List of stopwords.
      */
-    private Set<String> stopWords;
+    private Set<String> stopwords;
 
     /**
      * Set the current active Lucene document fields.
      *
      * @param newFields Fields list
      */
+    @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
     void setFields(final Set<String> newFields) {
       Objects.requireNonNull(newFields, "Fields were null.");
+      this.fields = newFields;
+    }
 
-      this.fields = new HashSet<>(newFields);
+    /**
+     * Reset the current active Lucene document fields.
+     *
+     * @param newFields New fields list
+     */
+    void resetFields(final Set<String> newFields) {
+      Objects.requireNonNull(newFields, "Fields were null.");
+      this.fields.clear();
+      this.fields.addAll(newFields);
     }
 
     /**
@@ -282,10 +332,21 @@ public final class Persistence {
      *
      * @param newStopwords List of stopwords
      */
-    void setStopWords(final Set<String> newStopwords) {
+    @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
+    void setStopwords(final Set<String> newStopwords) {
       Objects.requireNonNull(newStopwords, "Stopwords were null.");
+      this.stopwords = newStopwords;
+    }
 
-      this.stopWords = new HashSet<>(newStopwords);
+    /**
+     * Set the current active stopwords.
+     *
+     * @param newStopwords List of stopwords
+     */
+    void resetStopwords(final Set<String> newStopwords) {
+      Objects.requireNonNull(newStopwords, "Stopwords were null.");
+      this.stopwords.clear();
+      this.stopwords.addAll(newStopwords);
     }
 
     /**
@@ -301,6 +362,7 @@ public final class Persistence {
       if (this.fields == null) {
         throw new IllegalStateException("Fields meta information not set.");
       }
+      LOG.debug("Fields stored={} new={}", this.fields, currentFields);
       return this.fields.size() == currentFields.size() &&
           this.fields.containsAll(currentFields);
     }
@@ -315,11 +377,12 @@ public final class Persistence {
     public boolean areStopwordsCurrent(final Set<String> currentWords) {
       Objects.requireNonNull(currentWords, "Stopwords were null.");
 
-      if (this.stopWords == null) {
+      if (this.stopwords == null) {
         throw new IllegalStateException("Stopword meta information not set.");
       }
-      return this.stopWords.size() == currentWords.size()
-          && this.stopWords.containsAll(currentWords);
+      LOG.debug("Stopwords: old={} now={}", this.stopwords, currentWords);
+      return this.stopwords.size() == currentWords.size()
+          && this.stopwords.containsAll(currentWords);
     }
 
     /**
@@ -402,15 +465,15 @@ public final class Persistence {
      */
     private String dataPath;
     /**
+     * Instruction on how to handle the cache.
+     */
+    private LoadInstruction cacheInstruction;
+    /**
      * Database async write flush delay.
      */
     public static final int DB_ASYNC_WRITEFLUSH_DELAY = GlobalConfiguration
         .conf()
         .getAndAddInteger(CONF_PREFIX + "db-async-writeflush-delay", 100);
-    /**
-     * Instruction on how to handle the cache.
-     */
-    private LoadInstruction cacheInstruction;
     /**
      * Name of the database to create.
      */
@@ -420,6 +483,7 @@ public final class Persistence {
      * any data may be deleted on JVM exit.
      */
     private boolean isTemporary;
+
     /**
      * Initializes the builder with default values.
      */
@@ -431,6 +495,7 @@ public final class Persistence {
           .compressionEnable()
           .strictDBGet()
           .asyncWriteEnable()
+          .checksumEnable()
           .asyncWriteFlushDelay(DB_ASYNC_WRITEFLUSH_DELAY)
           .closeOnJvmShutdown();
       this.cacheInstruction = LoadInstruction.MAKE_OR_GET;
@@ -653,7 +718,7 @@ public final class Persistence {
      * @throws FileNotFoundException Thrown, if the database could not be found
      */
     private Persistence getInstance(final File dbFile)
-        throws FileNotFoundException {
+        throws IOException {
       if (!dbFile.exists()) {
         throw new FileNotFoundException("Database file not found.");
       }
@@ -719,6 +784,11 @@ public final class Persistence {
         extends DBMaker {
 
       /**
+       * Database file.
+       */
+      private File dbFile;
+
+      /**
        * Empty constructor for parent class access.
        */
       ExtDBMaker() {
@@ -764,7 +834,17 @@ public final class Persistence {
        */
       ExtDBMaker dbFile(final File file) {
         this.props.setProperty(Keys.file, file.getPath());
+        this.dbFile = file;
         return this;
+      }
+
+      /**
+       * Get the database file.
+       *
+       * @return Database file
+       */
+      File getDbFile() {
+        return this.dbFile;
       }
 
       /**
@@ -772,12 +852,10 @@ public final class Persistence {
        *
        * @return Database file name
        */
-      String getDbFile() {
+      String getDbFileName() {
         return this.props.getProperty(Keys.file);
       }
     }
-
-
 
 
   }

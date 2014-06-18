@@ -24,8 +24,6 @@ import de.unihildesheim.iw.util.FileUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -34,15 +32,9 @@ import java.util.Objects;
 /**
  * @author Jens Bertram
  */
-abstract class AbstractClarityScoreCalculationBuilder<T extends
+public abstract class AbstractClarityScoreCalculationBuilder<T extends
     AbstractClarityScoreCalculationBuilder<T>>
     implements Buildable {
-
-  /**
-   * Logger instance for this class.
-   */
-  static final Logger LOG = LoggerFactory.getLogger(
-      AbstractClarityScoreCalculationBuilder.class);
   /**
    * Wrapped builder to create the persistent data storage.
    */
@@ -92,6 +84,33 @@ abstract class AbstractClarityScoreCalculationBuilder<T extends
       throw new IllegalArgumentException("Identifier was empty.");
     }
     this.identifier = newIdentifier;
+  }
+
+  /**
+   * Build the {@link ClarityScoreCalculation} instance.
+   *
+   * @return New instance
+   * @throws BuildableException Thrown, if building the instance fails
+   */
+  @Override
+  public abstract ClarityScoreCalculation build()
+      throws BuildableException;
+
+  @SuppressWarnings("CanBeFinal")
+  @Override
+  public void validate()
+      throws ConfigurationException {
+    if (this.idxReader == null) {
+      throw new ConfigurationException("No IndexReader" +
+          " set.");
+    }
+    if (this.idxDataProvider == null) {
+      throw new ConfigurationException("No IndexDataProvider" +
+          " set.");
+    }
+    if (this.analyzer == null) {
+      throw new ConfigurationException("No query analyzer set.");
+    }
   }
 
   /**
@@ -224,26 +243,10 @@ abstract class AbstractClarityScoreCalculationBuilder<T extends
    * @throws ConfigurationException Thrown, if any mandatory configuration is
    * not set
    */
-  public void validatePersistenceBuilder()
+  public final void validatePersistenceBuilder()
       throws ConfigurationException {
     if (this.dataPath == null) {
       throw new ConfigurationException("No data-path set.");
-    }
-  }
-
-  @Override
-  public void validate()
-      throws ConfigurationException {
-    if (this.idxReader == null) {
-      throw new ConfigurationException("No IndexReader" +
-          " set.");
-    }
-    if (this.idxDataProvider == null) {
-      throw new ConfigurationException("No IndexDataProvider" +
-          " set.");
-    }
-    if (this.analyzer == null) {
-      throw new ConfigurationException("No query analyzer set.");
     }
   }
 }

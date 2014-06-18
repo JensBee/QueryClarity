@@ -23,24 +23,8 @@ import java.io.IOException;
  *
  * @author Jens Bertram
  */
-public interface ClarityScoreCalculation {
-
-  /**
-   * Empty implementation. May be used, if calculation has failed.
-   */
-  ClarityScoreCalculation NONE = new
-      ClarityScoreCalculation() {
-
-        @Override
-        public ClarityScoreResult calculateClarity(final String query) {
-          return ClarityScoreResult.EMPTY_RESULT;
-        }
-
-        @Override
-        public String getIdentifier() {
-          return "NONE";
-        }
-      };
+public interface ClarityScoreCalculation
+    extends AutoCloseable {
 
   /**
    * Calculate the clarity score based on the given query terms.
@@ -48,7 +32,9 @@ public interface ClarityScoreCalculation {
    * @param query Query used for term extraction
    * @return Calculated clarity score for the given terms, or <tt>null</tt> on
    * errors.
-   * @throws Exception May be thrown by implementing class
+   * @throws IOException Thrown on low-level I/O errors
+   * @throws ClarityScoreCalculationException Thrown on errors by implementing
+   * class, if calculation fails
    */
   ClarityScoreResult calculateClarity(final String query)
       throws ClarityScoreCalculationException, IOException;
@@ -65,13 +51,31 @@ public interface ClarityScoreCalculation {
    * May be extended by implementing classes to provide finer grained error
    * tracing.
    */
+  @SuppressWarnings("PublicInnerClass")
   final class ClarityScoreCalculationException
       extends Exception {
-    public ClarityScoreCalculationException(final Exception ex) {
+    /**
+     * Serialization id.
+     */
+    private static final long serialVersionUID = 3480986541044908191L;
+
+    /**
+     * Creates a new Exception, forwarding another throwable.
+     *
+     * @param ex Exception to forward
+     */
+    public ClarityScoreCalculationException(final Throwable ex) {
       super("Failed to calculate clarity score.", ex);
     }
 
-    public ClarityScoreCalculationException(final String msg, final Exception
+    /**
+     * Creates a new Exception, forwarding another exception and a custom
+     * message.
+     *
+     * @param msg Message
+     * @param ex Throwable to forward
+     */
+    public ClarityScoreCalculationException(final String msg, final Throwable
         ex) {
       super(msg, ex);
     }

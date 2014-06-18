@@ -154,12 +154,6 @@ public final class SimpleTermsQuery
   @SuppressWarnings("PublicInnerClass")
   public static final class Builder
       implements Buildable<SimpleTermsQuery> {
-
-    /**
-     * Logger instance for this class.
-     */
-    static final Logger LOG = LoggerFactory.getLogger(Builder.class);
-
     /**
      * Reader to access Lucene index.
      */
@@ -211,11 +205,6 @@ public final class SimpleTermsQuery
     }
 
     /**
-     * Boolean operator to use for joining query terms.
-     */
-    private QueryParser.Operator operator = DEFAULT_OPERATOR;
-
-    /**
      * Set the document fields that get queried.
      *
      * @param newFields List of fields to query
@@ -229,6 +218,11 @@ public final class SimpleTermsQuery
       this.fields = new HashSet<>(newFields);
       return this;
     }
+
+    /**
+     * Boolean operator to use for joining query terms.
+     */
+    private QueryParser.Operator operator = DEFAULT_OPERATOR;
 
     /**
      * Set the boolean operator to combine single terms.

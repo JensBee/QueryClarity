@@ -16,19 +16,17 @@
  */
 package de.unihildesheim.iw.lucene;
 
+import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.lucene.index.DirectIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
 import de.unihildesheim.iw.util.RandomValue;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -48,8 +46,8 @@ public class MultiIndexDataProviderTestCase
   /**
    * Test documents referenceIndex.
    */
-  @SuppressWarnings({"ProtectedField", "StaticNonFinalField"})
-  protected static TestIndexDataProvider referenceIndex;
+  @SuppressWarnings("ProtectedField")
+  protected final TestIndexDataProvider referenceIndex;
   /**
    * Index configuration type.
    */
@@ -58,11 +56,6 @@ public class MultiIndexDataProviderTestCase
    * DataProvider type.
    */
   private final DataProviders dpType;
-  /**
-   * Current DataProvider instance being tested.
-   */
-  @SuppressWarnings("ProtectedField")
-  protected IndexDataProvider index;
 
   /**
    * Initialize the generic test case.
@@ -76,27 +69,7 @@ public class MultiIndexDataProviderTestCase
     assert rType != null;
     this.dpType = dataProv;
     this.runType = rType;
-  }
-
-  /**
-   * Static initializer run before all tests.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @BeforeClass
-  public static void setUpClass()
-      throws Exception {
-    referenceIndex = new TestIndexDataProvider();
-  }
-
-  /**
-   * Run after all tests have finished.
-   */
-  @SuppressWarnings("StaticVariableUsedBeforeInitialization")
-  @AfterClass
-  public static void tearDownClass() {
-    // close the test referenceIndex
-    referenceIndex.close();
+    this.referenceIndex = new TestIndexDataProvider();
   }
 
   /**
@@ -119,13 +92,16 @@ public class MultiIndexDataProviderTestCase
   }
 
   /**
-   * Run before each test starts.
+   * Get a {@link IndexDataProvider} instance.
    *
-   * @throws java.lang.Exception Any exception thrown indicates an error
+   * @return New instance
+   * @throws IOException Thrown on low-level I/O errors
+   * @throws Buildable.BuildableException Thrown, if instance could not be
+   * build
    */
-  @Before
-  public final void setUp()
-      throws Exception {
+  protected final IndexDataProvider getInstance()
+      throws IOException, Buildable.BuildableException {
+    final IndexDataProvider instance;
     LOG.info(
         "MutilindexDataProviderTestCase SetUp dataProvider={} configuration={}",
         this.dpType.name(), this.runType.name()
@@ -136,55 +112,49 @@ public class MultiIndexDataProviderTestCase
 
     switch (this.runType) {
       case RANDOM_FIELDS:
-        fields = referenceIndex.util().getRandomFields();
+        fields = this.referenceIndex.getRandomFields();
         stopwords = Collections.emptySet();
         break;
       case RANDOM_FIELDS_AND_STOPPED:
-        fields = referenceIndex.util().getRandomFields();
-        stopwords = referenceIndex.util().getRandomStopWords();
+        fields = this.referenceIndex.getRandomFields();
+        stopwords = this.referenceIndex.getRandomStopWords();
         break;
       case STOPPED:
-        fields = referenceIndex.reference().getDocumentFields();
-        stopwords = referenceIndex.util().getRandomStopWords();
+        fields = TestIndexDataProvider.getAllDocumentFields();
+        stopwords = this.referenceIndex.getRandomStopWords();
         break;
       case PLAIN:
       default:
-        fields = referenceIndex.reference().getDocumentFields();
+        fields = TestIndexDataProvider.getAllDocumentFields();
         stopwords = Collections.emptySet();
         break;
     }
 
-    referenceIndex.prepareTestEnvironment(fields, stopwords);
+    this.referenceIndex.prepareTestEnvironment(fields, stopwords);
 
     switch (this.dpType) {
       case DIRECT:
-        this.index = new DirectIndexDataProvider.Builder()
+        instance = new DirectIndexDataProvider.Builder()
             .temporary()
             .documentFields(fields)
             .stopwords(stopwords)
-            .dataPath(referenceIndex.reference().getDataDir())
-            .indexPath(referenceIndex.reference().getIndexDir())
+            .dataPath(TestIndexDataProvider.getDataDir())
+            .indexPath(TestIndexDataProvider.getIndexDir())
             .indexReader(TestIndexDataProvider.getIndexReader())
             .createCache("test-" + RandomValue.getString(16))
             .warmUp() // important!
             .build();
         break;
       default:
-        this.index = referenceIndex;
+        instance = this.referenceIndex;
         break;
     }
-    referenceIndex.warmUp();
+    this.referenceIndex.warmUp();
     LOG.info("MutilindexDataProviderTestCase SetUp finished "
             + "dataProvider={} configuration={}",
         this.dpType.name(), this.runType.name()
     );
-  }
-
-  @After
-  public final void tearDown() {
-    if (this.index != null) {
-      this.index.close();
-    }
+    return instance;
   }
 
   /**
@@ -205,7 +175,27 @@ public class MultiIndexDataProviderTestCase
    * @return DataProvider name
    */
   protected final String getDataProviderName() {
-    return this.index.getClass().getCanonicalName();
+    switch (this.dpType) {
+      case DIRECT:
+        return DirectIndexDataProvider.class.getCanonicalName();
+      default:
+        return this.referenceIndex.getClass().getCanonicalName();
+    }
+  }
+
+  /**
+   * Prepend a message string with the given {@link IndexDataProvider} name and
+   * the testing type.
+   *
+   * @param msg Message to prepend
+   * @param dataProv IndexDataProvider to reference
+   * @return Message prepended with testing information
+   */
+  protected final String msg(final String msg, final IndexDataProvider
+      dataProv) {
+    return "(" + dataProv.getClass().getCanonicalName() + ", " +
+        this.runType.name() + ", " +
+        TestIndexDataProvider.getIndexConfName() + ") " + msg;
   }
 
   /**

@@ -22,7 +22,7 @@ package de.unihildesheim.iw.util.concurrent.processing;
  *
  * @author Jens Bertram
  */
-public class TargetException
+public final class TargetException
     extends ProcessingException {
 
   private static final long serialVersionUID = -5712464107224942957L;
@@ -50,6 +50,7 @@ public class TargetException
   /**
    * Exception indicating a {@link Target} has failed.
    */
+  @SuppressWarnings("PublicInnerClass")
   public static final class TargetFailedException
       extends ProcessingException {
 

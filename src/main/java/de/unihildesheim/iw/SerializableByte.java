@@ -28,8 +28,7 @@ import java.util.Comparator;
  * @author Jens Bertram
  */
 public final class SerializableByte
-    implements Serializable,
-               Comparable<SerializableByte>, Cloneable {
+    implements Serializable, Comparable<SerializableByte> {
 
   /**
    * Serializer for this class.
@@ -50,8 +49,7 @@ public final class SerializableByte
   /**
    * The value.
    */
-  @SuppressWarnings("PublicField")
-  public byte value;
+  public final byte value;
 
   /**
    * Create a new byte value.
@@ -60,6 +58,15 @@ public final class SerializableByte
    */
   public SerializableByte(final byte newValue) {
     this.value = newValue;
+  }
+
+  /**
+   * Copy constructor.
+   *
+   * @param toClone Instance to copy value from
+   */
+  public SerializableByte(final SerializableByte toClone) {
+    this.value = toClone.value;
   }
 
   @SuppressWarnings("NullableProblems")
@@ -74,26 +81,9 @@ public final class SerializableByte
   }
 
   @Override
-  @SuppressWarnings("AccessingNonPublicFieldOfAnotherObject")
   public boolean equals(final Object obj) {
     return (obj instanceof SerializableByte) &&
         (this.value == ((SerializableByte) obj).value);
-  }
-
-  /**
-   * Create a clone of this byte.
-   *
-   * @return Cloned copy
-   */
-  @Override
-  public SerializableByte clone() {
-    try {
-      final SerializableByte cloned = (SerializableByte) super.clone();
-      cloned.value = Byte.valueOf(this.value);
-      return cloned;
-    } catch (final CloneNotSupportedException ex) {
-      throw new IllegalStateException("Clone not supported.", ex);
-    }
   }
 
   @Override
