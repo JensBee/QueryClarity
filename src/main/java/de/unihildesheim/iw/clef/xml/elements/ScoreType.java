@@ -26,10 +26,12 @@ import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
 import java.util.Map;
 
 /**
+ * Score type XML element.
+ *
  * @author Jens Bertram
  */
 @XmlRootElement
-public class ScoreType {
+public final class ScoreType {
   /**
    * Score type identifier.
    */
@@ -40,13 +42,25 @@ public class ScoreType {
    */
   private Map<String, String> confMap;
 
+  /**
+   * Get the configuration map.
+   *
+   * @return Configuration map
+   */
+  @SuppressWarnings("ReturnOfCollectionOrArrayField")
   @XmlElement(name = "conf")
   @XmlJavaTypeAdapter(MapAdapter.StringValue.class)
   public Map<String, String> getConfiguration() {
-    return confMap;
+    return this.confMap;
   }
 
-  public void setConfiguration(final Map<String, String> map) {
+  /**
+   * Set the configuration parameters map.
+   *
+   * @param map Configuration map
+   */
+  @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
+  public final void setConfiguration(final Map<String, String> map) {
     this.confMap = map;
   }
 
@@ -65,7 +79,7 @@ public class ScoreType {
    *
    * @param id Score identifier
    */
-  public void setImplementation(final String id) {
+  public final void setImplementation(final String id) {
     this.identifier = id;
   }
 }

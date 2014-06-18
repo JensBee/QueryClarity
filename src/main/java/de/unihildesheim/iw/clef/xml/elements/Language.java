@@ -24,7 +24,7 @@ import javax.xml.bind.annotation.XmlRootElement;
  * @author Jens Bertram
  */
 @XmlRootElement
-public class Language {
+public final class Language {
 
   private String stopwords;
 
@@ -35,7 +35,7 @@ public class Language {
   }
 
   @XmlAttribute(name = "name")
-  public void setLanguage(final String language) {
+  public final void setLanguage(final String language) {
     this.lang = language;
   }
 
@@ -48,7 +48,7 @@ public class Language {
    *
    * @param newStopwords Stopwords as single string
    */
-  public void setStopwords(final String newStopwords) {
+  public final void setStopwords(final String newStopwords) {
     this.stopwords = newStopwords;
   }
 }

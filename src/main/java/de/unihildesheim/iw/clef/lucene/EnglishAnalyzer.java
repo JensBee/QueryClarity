@@ -35,7 +35,7 @@ import java.io.Reader;
 /**
  * @author Jens Bertram
  */
-public class EnglishAnalyzer
+public final class EnglishAnalyzer
     extends StopwordAnalyzerBase {
 
   /**
@@ -66,7 +66,7 @@ public class EnglishAnalyzer
    * @return Token stream
    */
   @Override
-  protected TokenStreamComponents createComponents(final String fieldName,
+  protected final TokenStreamComponents createComponents(final String fieldName,
       final Reader reader) {
     final StandardTokenizer src = new StandardTokenizer(
         this.matchVersion, reader);

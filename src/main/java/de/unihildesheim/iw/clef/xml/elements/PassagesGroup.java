@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 bhoerdzn
+ * Copyright (C) 2014 Jens Bertram <code@jens-bertram.net>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@ import java.util.Collection;
  * A passages grouping element.
  */
 @XmlRootElement
-public class PassagesGroup {
+public final class PassagesGroup {
   /**
    * Default number of passages that are expected. Used as list initializer.
    */
@@ -66,7 +66,7 @@ public class PassagesGroup {
    */
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
   @XmlElement(name = "p", type = Passage.class)
-  public Collection<Passage> getPassages() {
+  public final Collection<Passage> getPassages() {
     return this.passages;
   }
 

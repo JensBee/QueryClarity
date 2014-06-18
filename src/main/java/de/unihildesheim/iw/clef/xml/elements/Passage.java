@@ -29,11 +29,14 @@ import java.util.Collection;
  * @author Jens Bertram
  */
 @XmlRootElement
-public class Passage {
+public final class Passage {
   /**
    * Default number of scores that are expected. Used as list initializer.
    */
   private static final int DEFAULT_SCORES_SIZE = 10;
+  /**
+   * List of scores calculated for this passage.
+   */
   private final Collection<Score> scores = new ArrayList<>(DEFAULT_SCORES_SIZE);
   /**
    * Passage content.
@@ -67,7 +70,7 @@ public class Passage {
    * @return Language identifier
    */
   @XmlAttribute(name = "lang")
-  public String getLanguage() {
+  public final String getLanguage() {
     return this.lang;
   }
 
@@ -85,7 +88,7 @@ public class Passage {
    *
    * @return Passage content
    */
-  public String getContent() {
+  public final String getContent() {
     return this.content;
   }
 
@@ -98,24 +101,53 @@ public class Passage {
     this.content = newContent;
   }
 
+  /**
+   * Get the list of calculated scores.
+   *
+   * @return List of calculated scores
+   */
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
   @XmlElement(name = "score", type = Score.class)
-  public Collection<Score> getScores() {
+  public final Collection<Score> getScores() {
     return this.scores;
   }
 
-  public static class Score {
+  /**
+   * Scoring result XML element.
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public static final class Score {
+    /**
+     * Implementation name.
+     */
+    @SuppressWarnings("UnusedDeclaration")
     @XmlAttribute
     private final String impl;
-
+    /**
+     * Flag indicating, if this result is empty.
+     */
+    @SuppressWarnings("UnusedDeclaration") // used by JAXB
     @XmlAttribute
     private final boolean empty;
-
+    /**
+     * Score result.
+     */
+    @SuppressWarnings("UnusedDeclaration") // used by JAXB
     @XmlAttribute
     private final Double score;
-
+    /**
+     * Complete result set.
+     */
     private ScoringResult.ScoringResultXml result;
 
+    /**
+     * Create a new score result.
+     *
+     * @param identifier Name identifying the implementation type
+     * @param newScore Result score
+     * @param isEmpty True, if result is empty
+     */
+    @SuppressWarnings("BooleanParameter")
     public Score(final String identifier, final Double newScore,
         final boolean isEmpty) {
       this.impl = identifier;
@@ -123,12 +155,23 @@ public class Passage {
       this.empty = isEmpty;
     }
 
+    /**
+     * Get the result element.
+     *
+     * @return Scoring result
+     */
     @XmlElement
     public ScoringResult.ScoringResultXml getResult() {
       return this.result;
     }
 
-    public void setResult(final ScoringResult.ScoringResultXml newResult) {
+    /**
+     * Sets the scoring result.
+     *
+     * @param newResult Scoring result
+     */
+    public final void setResult(
+        final ScoringResult.ScoringResultXml newResult) {
       this.result = newResult;
     }
   }

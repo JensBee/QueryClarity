@@ -25,22 +25,39 @@ import java.util.Map;
 /**
  * @author Jens Bertram
  */
-public class Configuration {
+public final class Configuration {
 
-  public static class ConfAdapter
+  /**
+   * Adapter to handle configuration element XML elements.
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public static final class ConfAdapter
       extends XmlAdapter<ConfElements[], Map<String, String>> {
-    public Map<String, String> unmarshal(final ConfElements[] arg0)
-        throws Exception {
-      final Map<String, String> r = new HashMap<>();
+    /**
+     * Unmarshals an array of configuration elements into a map.
+     *
+     * @param arg0 Configuration elements
+     * @return Map of configuration elements
+     */
+    @Override
+    public final Map<String, String> unmarshal(final ConfElements[] arg0) {
+      final Map<String, String> r = new HashMap<>(arg0.length);
       for (final ConfElements mapelement : arg0) {
         r.put(mapelement.key, mapelement.value);
       }
       return r;
     }
 
-    public ConfElements[] marshal(final Map<String, String> arg0)
-        throws Exception {
-      ConfElements[] mapElements = new ConfElements[arg0.size()];
+    /**
+     * Marshals configuration elements into an array of elements.
+     *
+     * @param arg0 Map of configuration elements
+     * @return Array of configuration element objects
+     */
+    @Override
+    @SuppressWarnings("ObjectAllocationInLoop")
+    public final ConfElements[] marshal(final Map<String, String> arg0) {
+      final ConfElements[] mapElements = new ConfElements[arg0.size()];
 
       int i = 0;
       for (final Map.Entry<String, String> entry : arg0.entrySet()) {
@@ -50,12 +67,28 @@ public class Configuration {
     }
   }
 
-  public static class ConfElements {
+  /**
+   * Simple key, value configuration element.
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public static final class ConfElements {
+    /**
+     * Element key.
+     */
     @XmlAttribute
-    public String key;
+    public final String key;
+    /**
+     * Element value.
+     */
     @XmlAttribute
-    public String value;
+    public final String value;
 
+    /**
+     * Create a new ConfElement with given key and value.
+     *
+     * @param newKey Key
+     * @param newValue Value
+     */
     public ConfElements(final String newKey, final String newValue) {
       this.key = newKey;
       this.value = newValue;

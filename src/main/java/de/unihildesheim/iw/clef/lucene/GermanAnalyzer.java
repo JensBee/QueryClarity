@@ -35,7 +35,7 @@ import java.io.Reader;
 /**
  * @author Jens Bertram
  */
-public class GermanAnalyzer
+public final class GermanAnalyzer
     extends StopwordAnalyzerBase {
   /**
    * Builds an analyzer with the given stop words.
@@ -65,7 +65,7 @@ public class GermanAnalyzer
    * @return Token stream
    */
   @Override
-  protected TokenStreamComponents createComponents(final String fieldName,
+  protected final TokenStreamComponents createComponents(final String fieldName,
       final Reader reader) {
     final StandardTokenizer src = new StandardTokenizer(
         this.matchVersion, reader);

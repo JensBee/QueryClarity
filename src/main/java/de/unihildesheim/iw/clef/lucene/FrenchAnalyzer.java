@@ -37,7 +37,7 @@ import java.io.Reader;
 /**
  * @author Jens Bertram
  */
-public class FrenchAnalyzer
+public final class FrenchAnalyzer
     extends StopwordAnalyzerBase {
 
   /**
@@ -80,7 +80,7 @@ public class FrenchAnalyzer
    * @return Token stream
    */
   @Override
-  protected TokenStreamComponents createComponents(final String fieldName,
+  protected final TokenStreamComponents createComponents(final String fieldName,
       final Reader reader) {
     final StandardTokenizer src = new StandardTokenizer(
         this.matchVersion, reader);

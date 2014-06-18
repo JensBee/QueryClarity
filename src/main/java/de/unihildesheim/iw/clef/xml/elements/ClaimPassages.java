@@ -29,7 +29,7 @@ import java.util.Collection;
  * @author Jens Bertram
  */
 @XmlRootElement
-public class ClaimPassages {
+public final class ClaimPassages {
 
   /**
    * Default number of passages that are expected. Used as list initializer.
@@ -67,7 +67,7 @@ public class ClaimPassages {
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
   @XmlElementWrapper(name = "passages")
   @XmlElement(name = "passages", type = PassagesGroup.class)
-  public Collection<PassagesGroup> getPassageGroups() {
+  public final Collection<PassagesGroup> getPassageGroups() {
     return this.passagesGroups;
   }
 
@@ -77,14 +77,15 @@ public class ClaimPassages {
    * @param groupList Groups to add
    */
   @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
-  public void setPassageGroups(final Collection<PassagesGroup> groupList) {
+  public final void setPassageGroups(
+      final Collection<PassagesGroup> groupList) {
     this.passagesGroups = groupList;
   }
 
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
   @XmlElementWrapper(name = "languages")
   @XmlElement(name = "lang", type = Language.class)
-  public Collection<Language> getLanguages() {
+  public final Collection<Language> getLanguages() {
     return this.languages;
   }
 
@@ -95,7 +96,7 @@ public class ClaimPassages {
    */
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
   @XmlElement(name = "scores", type = ScoreType.class)
-  public Collection<ScoreType> getScoreTypes() {
+  public final Collection<ScoreType> getScoreTypes() {
     return this.scoreTypes;
   }
 }

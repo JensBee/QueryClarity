@@ -56,6 +56,7 @@ public final class LanguageBasedAnalyzers {
    * @param lang Language code (two-char)
    * @return Language instance
    */
+  @SuppressWarnings("ReturnOfNull")
   public static LanguageAnalyzers getLanguage(final String lang) {
     if (hasAnalyzer(lang)) {
       return LanguageAnalyzers.valueOf(StringUtils.upperCase(lang));
@@ -100,7 +101,6 @@ public final class LanguageBasedAnalyzers {
         analyzer = null;
         break;
     }
-    assert analyzer != null;
     return analyzer;
   }
 
@@ -131,7 +131,6 @@ public final class LanguageBasedAnalyzers {
         analyzer = null;
         break;
     }
-    assert analyzer != null;
     return analyzer;
   }
 
