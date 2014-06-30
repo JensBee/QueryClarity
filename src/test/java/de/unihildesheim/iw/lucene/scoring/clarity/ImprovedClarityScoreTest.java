@@ -22,7 +22,6 @@ import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.lucene.index.FixedTestIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.IndexTestUtils;
 import de.unihildesheim.iw.lucene.index.Metrics;
-import de.unihildesheim.iw.lucene.query.RuleBasedTryExactTermsQuery;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.RandomValue;
@@ -50,11 +49,6 @@ import java.util.TreeMap;
  */
 public final class ImprovedClarityScoreTest
     extends TestCase {
-
-  /**
-   * Default configuration.
-   */
-  static final ImprovedClarityScoreConfiguration.Conf ICC;
   /**
    * Allowed delta in document model calculation.
    */
@@ -95,10 +89,8 @@ public final class ImprovedClarityScoreTest
     ICC_CONF.setDocumentModelParamLambda(1d);
     ICC_CONF.setDocumentModelSmoothingParameter(100d);
     ICC_CONF.setMinFeedbackDocumentsCount(1);
-    ICC_CONF.setQuerySimplifyingPolicy(
-        RuleBasedTryExactTermsQuery.RelaxRule.HIGHEST_DOCFREQ);
-
-    ICC = ICC_CONF.compile();
+//    ICC_CONF.setQuerySimplifyingPolicy(
+//        RuleBasedTryExactTermsQuery.RelaxRule.HIGHEST_TERMFREQ);
   }
 
   /**
@@ -265,14 +257,16 @@ public final class ImprovedClarityScoreTest
 
     // smoothed term document frequency
     final double smoothedTerm =
-        (ICC.smoothing * termRelIdxFreq) /
-            ((double) docTermFreq + (ICC.smoothing * (double) termsInDoc));
+        (ICC_CONF.getDocumentModelSmoothingParameter() * termRelIdxFreq) /
+            ((double) docTermFreq + (
+                ICC_CONF.getDocumentModelSmoothingParameter() *
+                    (double) termsInDoc));
     // final model
     final double model =
-        (ICC.lambda *
-            ((ICC.beta * smoothedTerm) +
-                ((1d - ICC.beta) * termRelIdxFreq))
-        ) + ((1d - ICC.lambda) * termRelIdxFreq);
+        (ICC_CONF.getDocumentModelParamLambda() *
+            ((ICC_CONF.getDocumentModelParamBeta() * smoothedTerm) +
+                ((1d - ICC_CONF.getDocumentModelParamBeta()) * termRelIdxFreq))
+        ) + ((1d - ICC_CONF.getDocumentModelParamLambda()) * termRelIdxFreq);
     assert model > 0d;
     return model;
   }
@@ -550,15 +544,19 @@ public final class ImprovedClarityScoreTest
               (double) FixedTestIndexDataProvider.KnownData.TERM_COUNT;
           // smoothed term document frequency
           final double smoothedTerm =
-              (termInDocFreq + (ICC.smoothing * termRelIdxFreq)) /
-                  ((double) docTermFreq + (ICC.smoothing * (double)
-                      termsInDoc));
+              (termInDocFreq + (ICC_CONF.getDocumentModelSmoothingParameter() *
+                  termRelIdxFreq)) /
+                  ((double) docTermFreq +
+                      (ICC_CONF.getDocumentModelSmoothingParameter() * (double)
+                          termsInDoc));
           // final model
           final double model =
-              (ICC.lambda *
-                  ((ICC.beta * smoothedTerm) +
-                      ((1d - ICC.beta) * termRelIdxFreq))
-              ) + ((1d - ICC.lambda) * termRelIdxFreq);
+              (ICC_CONF.getDocumentModelParamLambda() *
+                  ((ICC_CONF.getDocumentModelParamBeta() * smoothedTerm) +
+                      ((1d - ICC_CONF.getDocumentModelParamBeta()) *
+                          termRelIdxFreq))
+              ) + ((1d - ICC_CONF.getDocumentModelParamLambda()) *
+                  termRelIdxFreq);
 
           D_MODEL.put(Fun.t2(docId, term), model);
         }

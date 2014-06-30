@@ -903,7 +903,6 @@ public abstract class IndexDataProviderTestCase
    * Test method for getDocumentModel method.
    *
    * @param instance {@link IndexDataProvider} implementation to test
-   * @throws Exception Any exception thrown indicates an error
    */
   private void runTestGetDocumentModel(final IndexDataProvider instance) {
     final boolean excludeStopwords = this.referenceIndex.hasStopwords();
@@ -915,18 +914,6 @@ public abstract class IndexDataProviderTestCase
       final DocumentModel iDocModel = instance.getDocumentModel(docId);
       final DocumentModel eDocModel =
           this.referenceIndex.getDocumentModel(docId);
-
-      if (!eDocModel.equals(iDocModel)) {
-        for (final Entry<ByteArray, Long> e :
-            eDocModel.getTermFreqMap().entrySet()) {
-        }
-        for (final Entry<ByteArray, Long> e :
-            iDocModel.getTermFreqMap().entrySet()) {
-        }
-        for (final Entry<ByteArray, Long> e : this.referenceIndex
-            .getDocumentTermFrequencyMap(docId).entrySet()) {
-        }
-      }
 
       Assert.assertEquals(
           msg(instance, "Equals failed (stopped: " + excludeStopwords + ") " +
