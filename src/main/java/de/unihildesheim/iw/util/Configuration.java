@@ -16,12 +16,16 @@
  */
 package de.unihildesheim.iw.util;
 
+import de.unihildesheim.iw.Tuple;
+import org.mapdb.Fun;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -114,7 +118,7 @@ public class Configuration {
    * @param key Configuration item key
    * @param defaultValue Default value to use, if no data for the given key was
    * found
-   * @return String value assigned to the key, or <tt>defaultValue</tt> if there
+   * @return String value assigned to the key, or {@code defaultValue} if there
    * was none
    * @see #getString(String, String)
    */
@@ -134,7 +138,7 @@ public class Configuration {
    * @param key Configuration item key
    * @param defaultValue Default value to use, if no data for the given key was
    * found
-   * @return String value assigned to the key, or <tt>defaultValue</tt> if there
+   * @return String value assigned to the key, or {@code defaultValue} if there
    * was none
    */
   public final String getString(final String key,
@@ -158,7 +162,7 @@ public class Configuration {
   }
 
   /**
-   * Checks if key and value are valid (i.e. not null).
+   * Checks if key and value are valid (i.e. not {@code null}).
    *
    * @param key Key
    * @param value Value
@@ -172,10 +176,68 @@ public class Configuration {
   }
 
   /**
+   * Tries to get a Boolean value associated with the given key. Adds the
+   * default value as new entry to the configuration, if no value is present.
+   * '1', 'yes', 'true' are recognized as boolean {@code TRUE} values.
+   *
+   * @param key Configuration item key
+   * @param defaultValue Default value to use, if no data for the given key was
+   * found
+   * @return Boolean value assigned to the key, or {@code defaultValue} if there
+   * was none
+   * @see #getBoolean(String, boolean)
+   */
+  public final Boolean getAndAddBoolean(final String key,
+      final Boolean defaultValue) {
+    final String value = getString(key, defaultValue.toString());
+    if (defaultValue.toString().equalsIgnoreCase(value)) {
+      add(key, defaultValue.toString());
+      return defaultValue;
+    }
+    return getBoolean(key, defaultValue);
+  }
+
+  /**
+   * Tries to get a boolean value associated with the given key.
+   *
+   * @param key Configuration item key
+   * @return Boolean value assigned to the key, or {@code null} if there was
+   * none
+   */
+  public final Boolean getBoolean(final String key,
+      final boolean defaultValue) {
+    if (StringUtils.isStrippedEmpty(
+        Objects.requireNonNull(key, "Key was null."))) {
+      throw new IllegalArgumentException("Key was empty.");
+    }
+    final String value = getString(key);
+    if (value == null) {
+      return defaultValue;
+    } else {
+      if ("1".equals(value) || "true".equalsIgnoreCase(value) || "yes"
+          .equalsIgnoreCase(value)) {
+        return Boolean.TRUE;
+      }
+      return Boolean.FALSE;
+    }
+  }
+
+  /**
+   * Tries to get a string value associated with the given key.
+   *
+   * @param key Configuration item key
+   * @return String value assigned to the key, or {@code null} if there was none
+   * or there was an error interpreting the value as integer
+   */
+  public final String getString(final String key) {
+    return getString(key, null);
+  }
+
+  /**
    * Tries to get an integer value associated with the given key.
    *
    * @param key Configuration item key
-   * @return Integer value assigned to the key, or <tt>null</tt> if there was
+   * @return Integer value assigned to the key, or {@code null} if there was
    * none or there was an error interpreting the value as integer
    */
   public final Integer getInteger(final String key) {
@@ -188,8 +250,8 @@ public class Configuration {
    * @param key Configuration item key
    * @param defaultValue Default value to use, if no data for the given key was
    * found
-   * @return Integer value assigned to the key, or <tt>defaultValue</tt> if
-   * there was none or there was an error interpreting the value as integer
+   * @return Integer value assigned to the key, or {@code defaultValue} if there
+   * was none or there was an error interpreting the value as integer
    */
   public final Integer getInteger(final String key,
       final Integer defaultValue) {
@@ -207,25 +269,14 @@ public class Configuration {
   }
 
   /**
-   * Tries to get a string value associated with the given key.
-   *
-   * @param key Configuration item key
-   * @return String value assigned to the key, or <tt>null</tt> if there was
-   * none or there was an error interpreting the value as integer
-   */
-  public final String getString(final String key) {
-    return getString(key, null);
-  }
-
-  /**
    * Tries to get a Integer value associated with the given key. Adds the
    * default value as new entry to the configuration, if no value is present.
    *
    * @param key Configuration item key
    * @param defaultValue Default value to use, if no data for the given key was
    * found
-   * @return Integer value assigned to the key, or <tt>defaultValue</tt> if
-   * there was none or there was an error interpreting the value as integer
+   * @return Integer value assigned to the key, or {@code defaultValue} if there
+   * was none or there was an error interpreting the value as integer
    * @see #getInteger(String, Integer)
    */
   public final Integer getAndAddInteger(final String key,
@@ -253,8 +304,8 @@ public class Configuration {
    * Tries to get a double value associated with the given key.
    *
    * @param key Configuration item key
-   * @return Double value assigned to the key, or <tt>null</tt> if there was
-   * none or there was an error interpreting the value as double
+   * @return Double value assigned to the key, or {@code null} if there was none
+   * or there was an error interpreting the value as double
    */
   public final Double getDouble(final String key) {
     return getDouble(key, null);
@@ -333,6 +384,21 @@ public class Configuration {
     final Map<String, String> entries = new HashMap<>(this.data.size());
     for (final Entry<Object, Object> e : this.data.entrySet()) {
       entries.put(e.getKey().toString(), e.getValue().toString());
+    }
+    return entries;
+  }
+
+  /**
+   * Creates a list of the current configuration.
+   *
+   * @return Configuration values list as key, value {@link Fun.Tuple2 tuple}
+   * pairs
+   */
+  public final List<Tuple.Tuple2<String, String>> entryList() {
+    final List<Tuple.Tuple2<String, String>> entries = new ArrayList<>(
+        this.data.size());
+    for (final Entry<Object, Object> e : this.data.entrySet()) {
+      entries.add(Tuple.tuple2(e.getKey().toString(), e.getValue().toString()));
     }
     return entries;
   }
