@@ -39,6 +39,10 @@ public final class ByteArray
     implements Comparable<ByteArray>, Serializable {
 
   /**
+   * Static ByteArray representing a maximum value. Used for caparisons.
+   */
+  public static final ByteArray MAX = new ByteArray();
+  /**
    * MapDB {@link Serializer} for this class instances.
    */
   public static final ByteArraySerializer SERIALIZER
@@ -62,9 +66,22 @@ public final class ByteArray
    */
   @SuppressWarnings("PublicField")
   public byte[] bytes;
+  /**
+   * Flag indicating, if this is a maximum value.
+   */
+  private boolean isMax = false;
+
+  /**
+   * Private constructor.
+   */
+  private ByteArray() {
+    this.isMax = true;
+    this.bytes = new byte[]{0};
+  }
 
   /**
    * Copy constructor.
+   *
    * @param toClone Instance to copy values from
    */
   public ByteArray(final ByteArray toClone) {
@@ -98,9 +115,47 @@ public final class ByteArray
     if (Objects.requireNonNull(existingBytes, "Bytes were null.").length == 0) {
       throw new IllegalArgumentException("Empty bytes given.");
     }
-    if (existingBytes.length < (offset + length) || length == 0) {
-      throw new IllegalArgumentException("Not enough bytes to copy.");
+
+    if (existingBytes.length == 0) {
+      throw new IllegalStateException(
+          "Bytes length is zero. " +
+              "bytes-length=" + existingBytes.length + ", " +
+              "offset=" + offset + ", length=" + length);
     }
+    if (length == 0) {
+      throw new IllegalStateException("Length is zero. " +
+          "bytes-length=" + existingBytes.length + ", " +
+          "offset=" + offset + ", length=" + length);
+    }
+    if (length < 0) {
+      throw new IllegalStateException("Length is negative. " +
+          "bytes-length=" + existingBytes.length + ", " +
+          "offset=" + offset + ", length=" + length);
+    }
+    if (offset < 0) {
+      throw new IllegalStateException("Offset is negative. " +
+          "bytes-length=" + existingBytes.length + ", " +
+          "offset=" + offset + ", length=" + length);
+    }
+    if (offset > existingBytes.length) {
+      throw new IllegalStateException(
+          "Offset out of bounds. " +
+              "bytes-length=" + existingBytes.length + ", " +
+              "offset=" + offset + ", length=" + length);
+    }
+    if (offset + length < 0) {
+      throw new IllegalStateException(
+          "Offset+length is negative. " +
+              "bytes-length=" + existingBytes.length + ", " +
+              "offset=" + offset + ", length=" + length);
+    }
+    if (offset + length > existingBytes.length) {
+      throw new IllegalStateException(
+          "Offset+length out of bounds. " +
+              "bytes-length=" + existingBytes.length + ", " +
+              "offset=" + offset + ", length=" + length);
+    }
+
     this.bytes = Arrays.copyOfRange(existingBytes, offset, length);
     assert this.bytes.length > 0;
   }
@@ -118,6 +173,15 @@ public final class ByteArray
   @Override
   public int compareTo(
       @SuppressWarnings("NullableProblems") final ByteArray o) {
+    if (this.isMax) {
+      if (o.isMax) {
+        return 0;
+      }
+      return 1;
+    }
+    if (o.isMax) {
+      return -1;
+    }
     return Fun.BYTE_ARRAY_COMPARATOR.compare(this.bytes, o.bytes);
   }
 
@@ -129,6 +193,7 @@ public final class ByteArray
   @Override
   public boolean equals(final Object o) {
     return this == o
+        || (o instanceof ByteArray && this.isMax && ((ByteArray) o).isMax)
         || (o instanceof ByteArray
         && Fun.BYTE_ARRAY_COMPARATOR.compare(
         this.bytes, ((ByteArray) o).bytes) == 0);
@@ -152,6 +217,15 @@ public final class ByteArray
 
     @Override
     public int compare(final ByteArray o1, final ByteArray o2) {
+      if (o1.isMax) {
+        if (o2.isMax) {
+          return 0;
+        }
+        return 1;
+      }
+      if (o2.isMax) {
+        return -1;
+      }
       return Fun.BYTE_ARRAY_COMPARATOR.compare(o1.bytes, o2.bytes);
     }
   }
