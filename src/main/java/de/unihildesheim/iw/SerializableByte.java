@@ -143,7 +143,7 @@ public final class SerializableByte
 
     @Override
     public int fixedSize() {
-      return 1;
+      return -1;
     }
   }
 }
