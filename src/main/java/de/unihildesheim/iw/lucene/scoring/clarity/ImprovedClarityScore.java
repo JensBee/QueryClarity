@@ -19,14 +19,17 @@ package de.unihildesheim.iw.lucene.scoring.clarity;
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.Closable;
+import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.Persistence;
+import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.document.Feedback;
 import de.unihildesheim.iw.lucene.index.ExternalDocTermDataManager;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
-import de.unihildesheim.iw.lucene.query.RuleBasedTryExactTermsQuery;
+import de.unihildesheim.iw.lucene.query.TryExactTermsQuery;
+import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
@@ -39,7 +42,6 @@ import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.queryparser.classic.QueryParser;
 import org.mapdb.Atomic;
 import org.slf4j.LoggerFactory;
 
@@ -96,10 +98,10 @@ public final class ImprovedClarityScore
    * Lucene query analyzer.
    */
   private final Analyzer analyzer;
-  /**
-   * Relaxing rule for simplifying queries.
-   */
-  private final RuleBasedTryExactTermsQuery.RelaxRule relaxRule;
+//  /**
+//   * Relaxing rule for simplifying queries.
+//   */
+//  private final RuleBasedTryExactTermsQuery.RelaxRule relaxRule;
   /**
    * Synchronization lock for document model calculation.
    */
@@ -112,7 +114,7 @@ public final class ImprovedClarityScore
    * Configuration object used for all parameters of the calculation.
    */
   @SuppressWarnings("FieldAccessedSynchronizedAndUnsynchronized")
-  private ImprovedClarityScoreConfiguration.Conf conf;
+  private ImprovedClarityScoreConfiguration conf;
   /**
    * Database instance.
    */
@@ -153,7 +155,7 @@ public final class ImprovedClarityScore
     this.metrics = new Metrics(builder.idxDataProvider);
     this.setConfiguration(builder.configuration);
     this.analyzer = builder.analyzer;
-    this.relaxRule = builder.relaxRule;
+//    this.relaxRule = builder.relaxRule;
 
     this.initCache(builder);
   }
@@ -165,9 +167,10 @@ public final class ImprovedClarityScore
    */
   private void setConfiguration(
       final ImprovedClarityScoreConfiguration newConf) {
-    this.conf = newConf.compile();
+    this.conf = newConf;
     newConf.debugDump();
-    this.docModelDataCache = new ConcurrentHashMap<>(this.conf.fbMax);
+    this.docModelDataCache = new ConcurrentHashMap<>(
+        this.conf.getMaxFeedbackDocumentsCount());
     parseConfig();
   }
 
@@ -202,9 +205,9 @@ public final class ImprovedClarityScore
 
     this.persist = persistence;
 
-    final Double smoothing = this.conf.smoothing;
-    final Double lambda = this.conf.lambda;
-    final Double beta = this.conf.beta;
+    final Double smoothing = this.conf.getDocumentModelSmoothingParameter();
+    final Double lambda = this.conf.getDocumentModelParamLambda();
+    final Double beta = this.conf.getDocumentModelParamBeta();
 
     if (createNew) {
       this.persist.getDb().
@@ -271,10 +274,11 @@ public final class ImprovedClarityScore
    * Parse the configuration and do some simple pre-checks.
    */
   private void parseConfig() {
-    if (this.conf.fbMin > this.metrics.collection().numberOfDocuments()) {
+    if (this.conf.getMinFeedbackDocumentsCount() >
+        this.metrics.collection().numberOfDocuments()) {
       throw new IllegalStateException(
           "Required minimum number of feedback documents ("
-              + this.conf.fbMin + ") is larger "
+              + this.conf.getMinFeedbackDocumentsCount() + ") is larger "
               + "or equal compared to the total amount of indexed documents "
               + "(" + this.metrics.collection().numberOfDocuments()
               + "). Unable to provide feedback."
@@ -332,6 +336,30 @@ public final class ImprovedClarityScore
       }
       model += docModel * docModelQtProduct;
     }
+
+    if (model <= 0d) {
+//      final StringBuffer sb = new StringBuffer(300);
+//      for (final Integer fbDocId : fbDocIds) {
+//        // document model for the given term pD(t)
+//        final double docModel = getDocumentModel(fbDocId, fbTerm);
+//        // calculate the product of the document models for all query terms
+//        // given the current document
+//        double docModelQtProduct = 1d;
+//        sb.append(docModelQtProduct);
+//        for (final ByteArray qTerm : qTerms) {
+//          sb.append(' ').append('*').append(getDocumentModel(fbDocId, qTerm));
+//        }
+//        LOG.debug("Calc id={} {}", fbDocId, sb);
+//      }
+
+      final List<String> qTermsStr = new ArrayList<>(qTerms.size());
+      for (final ByteArray qTerm : qTerms) {
+        qTermsStr.add(ByteArrayUtils.utf8ToString(qTerm));
+      }
+      throw new IllegalStateException("Zero model!");
+//      LOG.warn("Zero model! fbTerm={} qTerms={} fbDocs={}",
+//          ByteArrayUtils.utf8ToString(fbTerm), qTermsStr, fbDocIds);
+    }
     return model;
   }
 
@@ -373,16 +401,28 @@ public final class ImprovedClarityScore
               docModel.metrics().uniqueTermCount().doubleValue();
 
           final double smoothedTerm =
-              (this.conf.smoothing * termRelIdxFreq) /
-                  (docTermFreq + (this.conf.smoothing * termsInDoc));
+              (this.conf.getDocumentModelSmoothingParameter() *
+                  termRelIdxFreq) /
+                  (docTermFreq +
+                      (this.conf.getDocumentModelSmoothingParameter() *
+                          termsInDoc));
           model =
-              (this.conf.lambda *
-                  ((this.conf.beta * smoothedTerm) +
-                      ((1d - this.conf.beta) * termRelIdxFreq))
-              ) + ((1d - this.conf.lambda) * termRelIdxFreq);
+              (this.conf.getDocumentModelParamLambda() *
+                  ((this.conf.getDocumentModelParamBeta() * smoothedTerm) +
+                      ((1d - this.conf.getDocumentModelParamBeta()) *
+                          termRelIdxFreq))
+              ) + ((1d - this.conf.getDocumentModelParamLambda()) *
+                  termRelIdxFreq);
+          assert model > 0d : "Zero model! term=" + ByteArrayUtils.utf8ToString
+              (term) + "tf=" + this.metrics.collection().tf(term) + " " +
+              "beta=" + this.conf
+              .getDocumentModelParamBeta() + " st=" + smoothedTerm + " " +
+              "rIdx=" + termRelIdxFreq + " lambda=" +
+              this.conf.getDocumentModelParamLambda();
         }
       }
     }
+    assert model > 0d;
     return model;
   }
 
@@ -426,13 +466,19 @@ public final class ImprovedClarityScore
                   docModel.metrics().tf(term).doubleValue();
 
               final double smoothedTerm =
-                  (termInDocFreq + (this.conf.smoothing * termRelIdxFreq)) /
-                      (docTermFreq + (this.conf.smoothing * termsInDoc));
+                  (termInDocFreq +
+                      (this.conf.getDocumentModelSmoothingParameter() *
+                          termRelIdxFreq)) /
+                      (docTermFreq +
+                          (this.conf.getDocumentModelSmoothingParameter() *
+                              termsInDoc));
               final double value =
-                  (this.conf.lambda *
-                      ((this.conf.beta * smoothedTerm) +
-                          ((1d - this.conf.beta) * termRelIdxFreq))
-                  ) + ((1d - this.conf.lambda) * termRelIdxFreq);
+                  (this.conf.getDocumentModelParamLambda() *
+                      ((this.conf.getDocumentModelParamBeta() * smoothedTerm) +
+                          ((1d - this.conf.getDocumentModelParamBeta()) *
+                              termRelIdxFreq))
+                  ) + ((1d - this.conf.getDocumentModelParamLambda()) *
+                      termRelIdxFreq);
               map.put(term, value);
             }
             // push data to persistent storage
@@ -482,15 +528,18 @@ public final class ImprovedClarityScore
     LOG.info("Calculating clarity score. query={}", query);
     final TimeMeasure timeMeasure = new TimeMeasure().start();
 
-    final RuleBasedTryExactTermsQuery ruledQuery;
+//    final RuleBasedTryExactTermsQuery ruledQuery;
+    final TryExactTermsQuery relaxableQuery;
     try {
-      ruledQuery = new RuleBasedTryExactTermsQuery(
-          this.dataProv,
-          this.analyzer,
-          query,
-          QueryParser.Operator.AND,
-          this.dataProv.getDocumentFields(),
-          this.relaxRule);
+//      ruledQuery = new RuleBasedTryExactTermsQuery(
+//          this.dataProv,
+//          this.analyzer,
+//          query,
+//          QueryParser.Operator.AND,
+//          this.dataProv.getDocumentFields(),
+//          this.relaxRule);
+      relaxableQuery = new TryExactTermsQuery(
+          this.analyzer, query, this.dataProv.getDocumentFields());
     } catch (final ParseException e) {
       throw new ClarityScoreCalculationException(
           "Caught exception while building query.", e);
@@ -500,8 +549,8 @@ public final class ImprovedClarityScore
     final Set<Integer> feedbackDocIds;
 
     try {
-      feedbackDocIds = Feedback.getFixed(this.idxReader, ruledQuery,
-          this.conf.fbMax);
+      feedbackDocIds = Feedback.getFixed(this.idxReader, relaxableQuery,
+          this.conf.getMaxFeedbackDocumentsCount());
     } catch (final IOException | ParseException e) {
       throw new ClarityScoreCalculationException("Error while retrieving " +
           "feedback documents.", e);
@@ -518,13 +567,13 @@ public final class ImprovedClarityScore
 
     // get document frequency threshold
     int minDf = (int) (this.metrics.collection().numberOfDocuments()
-        * this.conf.threshold);
+        * this.conf.getFeedbackTermSelectionThreshold());
     if (minDf <= 0) {
       LOG.debug("Document frequency threshold was {} setting to 1", minDf);
       minDf = 1;
     }
     LOG.debug("Document frequency threshold is {} = {}", minDf,
-        this.conf.threshold
+        this.conf.getFeedbackTermSelectionThreshold()
     );
     LOG.debug("Initial term set size {}", fbTerms.size());
 
@@ -545,7 +594,13 @@ public final class ImprovedClarityScore
       throw new ClarityScoreCalculationException("Failed to reduce terms by " +
           "threshold.", e);
     }
-    LOG.debug("Reduced term set size {}", reducedFbTerms.size());
+    LOG.debug("Reduced term set size {}.", reducedFbTerms.size());
+
+    final List<String> sTerms = new ArrayList<>(reducedFbTerms.size());
+    for (ByteArray bTerm : reducedFbTerms) {
+      sTerms.add(ByteArrayUtils.utf8ToString(bTerm));
+    }
+    LOG.debug("Feedback terms {}", sTerms);
 
     if (reducedFbTerms.isEmpty()) {
       result.setEmpty("No terms remaining after elimination based " +
@@ -556,8 +611,13 @@ public final class ImprovedClarityScore
     result.setFeedbackTerms(new HashSet<>(reducedFbTerms));
 
     // do the final calculation for all remaining feedback terms
-    LOG.debug("Using {} feedback documents for calculation. {}",
-        feedbackDocIds.size(), feedbackDocIds);
+    if (LOG.isTraceEnabled()) {
+      LOG.trace("Using {} feedback documents for calculation. {}",
+          feedbackDocIds.size(), feedbackDocIds);
+    } else {
+      LOG.debug("Using {} feedback documents for calculation.",
+          feedbackDocIds.size());
+    }
     try {
       new Processing(
           new TargetFuncCall<>(
@@ -707,9 +767,14 @@ public final class ImprovedClarityScore
   public static final class Result
       extends ClarityScoreResult {
     /**
+     * Configuration prefix.
+     */
+    private static final String CONF_PREFIX = DefaultClarityScore.IDENTIFIER
+        + "-result";
+    /**
      * Configuration that was used.
      */
-    private ImprovedClarityScoreConfiguration.Conf conf;
+    private ImprovedClarityScoreConfiguration conf;
     /**
      * Ids of feedback documents used for calculation.
      */
@@ -745,7 +810,7 @@ public final class ImprovedClarityScore
      *
      * @param newConf Configuration used
      */
-    void setConf(final ImprovedClarityScoreConfiguration.Conf newConf) {
+    void setConf(final ImprovedClarityScoreConfiguration newConf) {
       this.conf = Objects.requireNonNull(newConf, "Configuration was null.");
     }
 
@@ -754,7 +819,7 @@ public final class ImprovedClarityScore
      *
      * @return Configuration used for this calculation result
      */
-    public ImprovedClarityScoreConfiguration.Conf getConfiguration() {
+    public ImprovedClarityScoreConfiguration getConfiguration() {
       return this.conf;
     }
 
@@ -792,6 +857,35 @@ public final class ImprovedClarityScore
 
       getXml(xml);
 
+      // feedback terms
+      if (GlobalConfiguration.conf()
+          .getAndAddBoolean(CONF_PREFIX + "ListFeedbackTerms",
+              Boolean.TRUE)) {
+        final List<String> fbTerms = new ArrayList<>
+            (this.feedbackTerms.size());
+        for (final ByteArray fbTerm : this.feedbackTerms) {
+          fbTerms.add(ByteArrayUtils.utf8ToString(fbTerm));
+        }
+        xml.getItems().put("feedbackTerms", StringUtils.join(fbTerms, " "));
+      }
+
+      // feedback documents
+      if (GlobalConfiguration.conf()
+          .getAndAddBoolean(CONF_PREFIX + "ListFeedbackDocuments",
+              Boolean.TRUE)) {
+        final List<Tuple.Tuple2<String, String>> fbDocsList = new ArrayList<>
+            (this.feedbackDocIds.size());
+        for (final Integer docId : this.feedbackDocIds) {
+          fbDocsList.add(Tuple.tuple2("id", docId.toString()));
+        }
+        xml.getLists().put("feedbackDocuments", fbDocsList);
+      }
+
+      // configuration
+      if (this.conf != null) {
+        xml.getLists().put("configuration", this.conf.entryList());
+      }
+
       return xml;
     }
   }
@@ -809,12 +903,12 @@ public final class ImprovedClarityScore
     ImprovedClarityScoreConfiguration configuration = new
         ImprovedClarityScoreConfiguration();
 
-    /**
-     * Rule used to simplify the query.
-     */
-    @SuppressWarnings("PackageVisibleField")
-    RuleBasedTryExactTermsQuery.RelaxRule relaxRule =
-        RuleBasedTryExactTermsQuery.RelaxRule.HIGHEST_DOCFREQ;
+//    /**
+//     * Rule used to simplify the query.
+//     */
+//    @SuppressWarnings("PackageVisibleField")
+//    RuleBasedTryExactTermsQuery.RelaxRule relaxRule =
+//        RuleBasedTryExactTermsQuery.RelaxRule.HIGHEST_TERMFREQ;
 
     /**
      * Initializes the builder.
@@ -836,17 +930,17 @@ public final class ImprovedClarityScore
       return this;
     }
 
-    /**
-     * Set the relaxing rule to simplify queries.
-     *
-     * @param rule Rule to use
-     * @return Self reference
-     */
-    public Builder queryRelaxRule(final RuleBasedTryExactTermsQuery.RelaxRule
-        rule) {
-      this.relaxRule = Objects.requireNonNull(rule, "Relax rule was null.");
-      return this;
-    }
+//    /**
+//     * Set the relaxing rule to simplify queries.
+//     *
+//     * @param rule Rule to use
+//     * @return Self reference
+//     */
+//    public Builder queryRelaxRule(final RuleBasedTryExactTermsQuery.RelaxRule
+//        rule) {
+//      this.relaxRule = Objects.requireNonNull(rule, "Relax rule was null.");
+//      return this;
+//    }
 
     @Override
     public ImprovedClarityScore build()
@@ -856,15 +950,15 @@ public final class ImprovedClarityScore
     }
 
     @Override
-    protected Builder getThis() {
-      return this;
-    }
-
-    @Override
     public void validate()
         throws ConfigurationException {
       super.validate();
       validatePersistenceBuilder();
+    }
+
+    @Override
+    protected Builder getThis() {
+      return this;
     }
   }
 
@@ -923,6 +1017,11 @@ public final class ImprovedClarityScore
             this.feedbackDocIds);
         this.score.addAndGet(queryModel * MathUtils.log2(queryModel
             / this.collectionMetrics.relTf(term)));
+        assert !this.score.toString().equalsIgnoreCase("NaN") :
+            "qModel=" + queryModel + " rTF=" +
+                this.collectionMetrics.relTf(term) + "" +
+                " log2=" + MathUtils.log2(queryModel
+                / this.collectionMetrics.relTf(term));
       }
     }
   }

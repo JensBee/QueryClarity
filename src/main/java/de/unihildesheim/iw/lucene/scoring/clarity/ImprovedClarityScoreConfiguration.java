@@ -21,7 +21,6 @@ import de.unihildesheim.iw.util.Configuration;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Configuration for {@link ImprovedClarityScore}.
@@ -77,28 +76,30 @@ public final class ImprovedClarityScoreConfiguration
     add(Keys.FB_DOCS_MIN.name(), count);
   }
 
-  /**
-   * Get the relaxRule that will be used to simplify a query, if the minimum
-   * number of feedback documents could not be reached with the original query.
-   *
-   * @return Query simplifying relaxRule to use
-   */
-  public RuleBasedTryExactTermsQuery.RelaxRule getQuerySimplifyingPolicy() {
-    final String relaxRule = getString(Keys.QUERY_SIMPLIFYING_POLICY.name());
-    return RuleBasedTryExactTermsQuery.RelaxRule.valueOf(relaxRule);
-  }
+//  /**
+//   * Get the relaxRule that will be used to simplify a query, if the minimum
+//   * number of feedback documents could not be reached with the original
+// query.
+//   *
+//   * @return Query simplifying relaxRule to use
+//   */
+//  public RuleBasedTryExactTermsQuery.RelaxRule getQuerySimplifyingPolicy() {
+//    final String relaxRule = getString(Keys.QUERY_SIMPLIFYING_POLICY.name());
+//    return RuleBasedTryExactTermsQuery.RelaxRule.valueOf(relaxRule);
+//  }
 
-  /**
-   * Set the relaxRule that will be used to simplify a query, if the minimum
-   * number of feedback documents could not be reached with the original query.
-   *
-   * @param relaxRule Query simplifying relaxRule to use
-   */
-  public void setQuerySimplifyingPolicy(
-      final RuleBasedTryExactTermsQuery.RelaxRule relaxRule) {
-    Objects.requireNonNull(relaxRule, "Policy was null.");
-    add(Keys.QUERY_SIMPLIFYING_POLICY.name(), relaxRule.name());
-  }
+//  /**
+//   * Set the relaxRule that will be used to simplify a query, if the minimum
+//   * number of feedback documents could not be reached with the original
+// query.
+//   *
+//   * @param relaxRule Query simplifying relaxRule to use
+//   */
+//  public void setQuerySimplifyingPolicy(
+//      final RuleBasedTryExactTermsQuery.RelaxRule relaxRule) {
+//    Objects.requireNonNull(relaxRule, "Policy was null.");
+//    add(Keys.QUERY_SIMPLIFYING_POLICY.name(), relaxRule.name());
+//  }
 
   /**
    * Get the smoothing parameter (mu) used for document model calculation.
@@ -176,15 +177,6 @@ public final class ImprovedClarityScoreConfiguration
   }
 
   /**
-   * Compacts the configuration into a more accessible Object.
-   *
-   * @return Compact configuration object
-   */
-  public Conf compile() {
-    return new Conf();
-  }
-
-  /**
    * Keys to identify properties in the configuration.
    */
   private static enum Keys {
@@ -258,12 +250,12 @@ public final class ImprovedClarityScoreConfiguration
      * Hauff, Murdock & Baeza-Yates used a value of 1000 for theirs tests.
      */
     DEFAULTS.put(Keys.FB_DOCS_MAX.name(), "1000");
-    /**
-     * Default relaxRule to use for simplifying the query, if the number of
-     * feedback documents is lower than the required minimum.
-     */
-    DEFAULTS.put(Keys.QUERY_SIMPLIFYING_POLICY.name(),
-        RuleBasedTryExactTermsQuery.RelaxRule.HIGHEST_DOCFREQ.name());
+//    /**
+//     * Default relaxRule to use for simplifying the query, if the number of
+//     * feedback documents is lower than the required minimum.
+//     */
+//    DEFAULTS.put(Keys.QUERY_SIMPLIFYING_POLICY.name(),
+//        RuleBasedTryExactTermsQuery.RelaxRule.HIGHEST_TERMFREQ.name());
     /**
      * Threshold to select terms from feedback documents. A term from a
      * feedback document must occurs in equal or more than n% of the documents
@@ -273,62 +265,5 @@ public final class ImprovedClarityScoreConfiguration
      * 100% (1).
      */
     DEFAULTS.put(Keys.TERM_SELECTION_THRESHOLD.name(), "0.1");
-  }
-
-  /**
-   * Compact configuration Object holding all information from the parent
-   * configuration Object.
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public final class Conf {
-    /**
-     * @see Keys#DOC_MODEL_PARAM_BETA
-     */
-    public final Double beta;
-    /**
-     * @see Keys#DOC_MODEL_PARAM_LAMBDA
-     */
-    public final Double lambda;
-    /**
-     * @see Keys#DOC_MODEL_SMOOTHING
-     */
-    public final Double smoothing;
-    /**
-     * @see Keys#TERM_SELECTION_THRESHOLD
-     */
-    public final Double threshold;
-    /**
-     * @see Keys#FB_DOCS_MAX
-     */
-    public final Integer fbMax;
-    /**
-     * @see Keys#FB_DOCS_MIN
-     */
-    public final Integer fbMin;
-    /**
-     * @see Keys#QUERY_SIMPLIFYING_POLICY
-     */
-    @SuppressWarnings("PublicField")
-    public final RuleBasedTryExactTermsQuery.RelaxRule relaxRule;
-
-    /**
-     * Creates a compact configuration from the currently set options.
-     */
-    Conf() {
-      this.beta = getDocumentModelParamBeta();
-      this.lambda = getDocumentModelParamLambda();
-      this.smoothing = getDocumentModelSmoothingParameter();
-      this.threshold = getFeedbackTermSelectionThreshold();
-      this.fbMax = getMaxFeedbackDocumentsCount();
-      this.fbMin = getMinFeedbackDocumentsCount();
-      this.relaxRule = getQuerySimplifyingPolicy();
-    }
-
-    /**
-     * Debug dump configuration options.
-     */
-    public final void debugDump() {
-      ImprovedClarityScoreConfiguration.this.debugDump();
-    }
   }
 }
