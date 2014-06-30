@@ -19,6 +19,7 @@ package de.unihildesheim.iw.lucene.scoring.clarity;
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.Closable;
+import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.Persistence;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
@@ -486,6 +487,7 @@ public final class DefaultClarityScore
     timeMeasure.stop();
     try {
       final Result r = calculateClarity(feedbackDocuments, queryTerms);
+
       LOG.debug("Calculating default clarity score for query '{}' "
               + "with {} document models took {}. {}", query,
           feedbackDocuments.size(), timeMeasure.getTimeString(), r.getScore()
@@ -617,16 +619,23 @@ public final class DefaultClarityScore
   @SuppressWarnings("PublicInnerClass")
   public static final class Result
       extends ClarityScoreResult {
-
     /**
      * Ids of feedback documents used for calculation.
      */
     private Collection<Integer> feedbackDocIds;
-
+    /**
+     * Configuration prefix.
+     */
+    private static final String CONF_PREFIX =
+        DefaultClarityScore.IDENTIFIER + "-result";
+    /**
+     * Number of documents in the index matching the query.
+     */
+    private Integer numberOfMatchingDocuments = null;
     /**
      * Configuration that was used.
      */
-    private DefaultClarityScoreConfiguration conf;
+    private DefaultClarityScoreConfiguration conf = null;
 
     /**
      * Creates an object wrapping the result with meta information.
@@ -646,6 +655,15 @@ public final class DefaultClarityScore
 
       this.feedbackDocIds = new ArrayList<>(fbDocIds.size());
       this.feedbackDocIds.addAll(fbDocIds);
+    }
+
+    /**
+     * Set the number of documents in the index matching the query.
+     *
+     * @param num Number of documents
+     */
+    void setNumberOfMatchingDocuments(final int num) {
+      this.numberOfMatchingDocuments = num;
     }
 
     /**
@@ -688,20 +706,37 @@ public final class DefaultClarityScore
 
       getXml(xml);
 
+      // configuration
+      if (this.conf != null) {
+        xml.getLists().put("configuration", this.conf.entryList());
+      }
+
       // number of feedback documents
       xml.getItems().put("feedbackDocuments",
           Integer.toString(this.feedbackDocIds.size()));
 
-      // feedback documents
-      final List<Tuple.Tuple2<String, String>> fbDocsList = new ArrayList<>
-          (this.feedbackDocIds.size());
-      for (final Integer docId : this.feedbackDocIds) {
-        fbDocsList.add(Tuple.tuple2("id", docId.toString()));
+      // number of matching documents
+      if (this.numberOfMatchingDocuments != null) {
+        xml.getItems().put("matchingDocuments",
+            Integer.toString(this.numberOfMatchingDocuments));
       }
-      xml.getLists().put("feedbackDocuments", fbDocsList);
+
+      // feedback documents
+      if (GlobalConfiguration.conf()
+          .getAndAddBoolean(CONF_PREFIX + "ListFeedbackDocuments",
+              Boolean.TRUE)) {
+        final List<Tuple.Tuple2<String, String>> fbDocsList = new ArrayList<>
+            (this.feedbackDocIds.size());
+        for (final Integer docId : this.feedbackDocIds) {
+          fbDocsList.add(Tuple.tuple2("id", docId.toString()));
+        }
+        xml.getLists().put("feedbackDocuments", fbDocsList);
+      }
 
       return xml;
     }
+
+
   }
 
   /**
