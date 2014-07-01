@@ -95,10 +95,12 @@ public final class DirectIndexDataProvider
   /**
    * Inverted keys for faster access to index document term frequency map.
    */
-  protected NavigableSet<Fun.Tuple2<
-      Fun.Tuple3<Integer, SerializableByte, ByteArray>,
-      Fun.Tuple3<ByteArray, SerializableByte, Integer>
-      >> invertedIdxDocTermsMap;
+  protected NavigableSet<
+      Fun.Tuple3<Integer, SerializableByte, ByteArray>> invertedIdxDocTermsMap;
+//  protected NavigableSet<Fun.Tuple2<
+//      Fun.Tuple3<Integer, SerializableByte, ByteArray>,
+//      Fun.Tuple3<ByteArray, SerializableByte, Integer>
+//      >> invertedIdxDocTermsMap;
   /**
    * Wrapper for persistent data storage (static data).
    */
@@ -445,21 +447,22 @@ public final class DirectIndexDataProvider
     final Map<ByteArray, Long> tfMap = new HashMap<>();
 
     for (final String field : getDocumentFields()) {
-      for (final Fun.Tuple3<ByteArray, SerializableByte, Integer> k : Fun
-          .filter(this.invertedIdxDocTermsMap,
+      this.invertedIdxDocTermsMap.subSet(
+          Fun.t3(docId, getFieldId(field), (ByteArray) null), true,
+          Fun.t3(docId, getFieldId(field), ByteArray.MAX), true);
+      for (final Fun.Tuple3<Integer, SerializableByte, ByteArray> k :
+          this.invertedIdxDocTermsMap.subSet(
               Fun.t3(docId, getFieldId(field), (ByteArray) null), true,
-              Fun.t3(docId, getFieldId(field), ByteArray.MAX), true)) {
-//          .filter(this.invertedIdxDocTermsMap, Fun.t3(docId,
-//              getFieldId(field), (ByteArray) null))) {
-        if (!isStopword(k.a)) {
-          if (tfMap.containsKey(k.a)) {
-            tfMap.put(k.a, tfMap.get(k.a) + getIdxDocTermsMap().get(
-                Fun.t3(k.a, getFieldId(field), docId)));
+              Fun.t3(docId, getFieldId(field), ByteArray.MAX), true)
+          ) {
+        if (!isStopword(k.c)) {
+          if (tfMap.containsKey(k.c)) {
+            tfMap.put(k.c, tfMap.get(k.c) +
+                getIdxDocTermsMap().get(Fun.t3(k.c, getFieldId(field), docId)));
             //dftEnum.getTotalTermFreq());
           } else {
-            tfMap.put(k.a, //dftEnum.getTotalTermFreq());
-                (long) getIdxDocTermsMap().get(Fun.t3(k.a, getFieldId(field),
-                    docId)));
+            tfMap.put(k.c, (long) getIdxDocTermsMap().get(
+                Fun.t3(k.c, getFieldId(field), docId)));
           }
         }
       }
@@ -537,12 +540,13 @@ public final class DirectIndexDataProvider
     for (final Integer docId : uniqueDocIds) {
       checkDocId(docId);
       for (final String field : getDocumentFields()) {
-        for (final Fun.Tuple3<ByteArray, SerializableByte, Integer> k : Fun
-            .filter(this.invertedIdxDocTermsMap,
+        for (final Fun.Tuple3<Integer, SerializableByte, ByteArray> k :
+            this.invertedIdxDocTermsMap.subSet(
                 Fun.t3(docId, getFieldId(field), (ByteArray) null), true,
-                Fun.t3(docId, getFieldId(field), ByteArray.MAX), true)) {
-          if (!isStopword(k.a)) {
-            terms.add(k.a);
+                Fun.t3(docId, getFieldId(field), ByteArray.MAX), true)
+            ) {
+          if (!isStopword(k.c)) {
+            terms.add(k.c);
           }
         }
       }
@@ -757,6 +761,7 @@ public final class DirectIndexDataProvider
     static DB.BTreeSetMaker idxTermsMapInvertedKeysMaker(final DB db) {
       return Objects.requireNonNull(db, "DB was null.")
           .createTreeSet(Stores.IDX_TERMS_MAP_INVERTED_KEYS.name())
+          .serializer(BTreeKeySerializer.TUPLE3)
           .counterEnable();
     }
 
@@ -1206,7 +1211,7 @@ public final class DirectIndexDataProvider
       }
       DirectIndexDataProvider.this.invertedIdxDocTermsMap = CacheDbMakers
           .idxTermsMapInvertedKeysMaker(getPersistStatic().getDb()).makeOrGet();
-      Bind.secondaryKey(
+      bindInvertedIndex(
           (Bind.MapWithModificationListener<Fun.Tuple3<ByteArray,
               SerializableByte, Integer>, Integer>) getIdxDocTermsMap(),
           DirectIndexDataProvider.this.invertedIdxDocTermsMap,
@@ -1549,6 +1554,54 @@ public final class DirectIndexDataProvider
         LOG.info("Loaded document-frequency cache with {} entries.",
             getIdxDfMap().size());
       }
+    }
+
+    /**
+     * Dynamically bind the {@link #invertedIdxDocTermsMap} to the main map.
+     * Updates are reflected automatically.
+     * Based on {@link Bind#secondaryKey(Bind.MapWithModificationListener, Set,
+     * Fun.Function2)}.
+     *
+     * @param map
+     * @param secondary
+     * @param fun
+     * @param <K>
+     * @param <V>
+     * @param <K2>
+     */
+    private <K, V, K2> void bindInvertedIndex(
+        final Bind.MapWithModificationListener<K, V> map,
+        final Set<K2> secondary,
+        final Fun.Function2<K2, K, V> fun) {
+
+      //fill if empty
+      if (secondary.isEmpty()) {
+        for (final Entry<K, V> e : map.entrySet()) {
+          secondary.add(fun.run(e.getKey(), e.getValue()));
+        }
+      }
+      //hook listener
+      map.modificationListenerAdd(new Bind.MapListener<K, V>() {
+        @Override
+        public void update(final K key, final V oldVal, final V newVal) {
+          if (newVal == null) {
+            //removal
+            secondary.remove(fun.run(key, oldVal));
+          } else if (oldVal == null) {
+            //insert
+            secondary.add(fun.run(key, newVal));
+          } else {
+            //update, must remove old key and insert new
+            final K2 oldKey = fun.run(key, oldVal);
+            final K2 newKey = fun.run(key, newVal);
+            if (oldKey == newKey || oldKey.equals(newKey)) {
+              return;
+            }
+            secondary.remove(oldKey);
+            secondary.add(newKey);
+          }
+        }
+      });
     }
   }
 
