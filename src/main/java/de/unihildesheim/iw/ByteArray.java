@@ -72,7 +72,7 @@ public final class ByteArray
   private boolean isMax = false;
 
   /**
-   * Private constructor.
+   * Private constructor. Used for {@link #MAX} only.
    */
   private ByteArray() {
     this.isMax = true;
