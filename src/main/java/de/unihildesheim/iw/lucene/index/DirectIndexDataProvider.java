@@ -468,42 +468,10 @@ public final class DirectIndexDataProvider
       }
     }
 
-//    try {
-//      final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum
-//          (getIndexReader(), getDocumentFields()).setDocument(docId);
-//
-//
-//      BytesRef bytesRef = dftEnum.next();
-//      while (null != bytesRef) {
-//        try {
-//          final ByteArray byteArray = BytesRefUtils.toByteArray(bytesRef);
-//          // skip stop-words
-//          if (!isStopword(byteArray)) {
-//            if (tfMap.containsKey(byteArray)) {
-//              tfMap.put(byteArray, tfMap.get(byteArray) + dftEnum.
-//                  getTotalTermFreq());
-//            } else {
-//              tfMap.put(byteArray, dftEnum.getTotalTermFreq());
-//            }
-//          }
-//        } catch (final IllegalStateException e) {
-//          LOG.error("Error collecting term. " +
-//                  "field={} bytes={} offset={} length={} str={}",
-//              bytesRef.bytes, bytesRef.offset, bytesRef.length,
-//              bytesRef.utf8ToString(), e);
-//        }
-//
-//        bytesRef = dftEnum.next();
-//      }
     for (final Entry<ByteArray, Long> tfEntry : tfMap.entrySet()) {
       dmBuilder.setTermFrequency(tfEntry.getKey(), tfEntry.getValue());
     }
     return dmBuilder.getModel();
-//    } catch (final IOException ex) {
-//      LOG.error("Caught exception while iterating document terms. "
-//          + "docId=" + docId + ".", ex);
-//    }
-//    return null;
   }
 
   /**
@@ -527,8 +495,6 @@ public final class DirectIndexDataProvider
   @Override
   public Set<ByteArray> getDocumentsTermSet(
       final Collection<Integer> docIds) {
-    //throws IOException {
-//    checkClosed();
     if (Objects.requireNonNull(docIds, "Document ids were null.").isEmpty()) {
       throw new IllegalArgumentException("Document id list was empty.");
     }
@@ -551,31 +517,6 @@ public final class DirectIndexDataProvider
         }
       }
     }
-
-
-//    final DocFieldsTermsEnum dftEnum = new DocFieldsTermsEnum
-// (getIndexReader(),
-//        getDocumentFields());
-//
-//    for (final Integer docId : uniqueDocIds) {
-//      checkDocId(docId);
-//      try {
-//        dftEnum.setDocument(docId);
-//        BytesRef br = dftEnum.next();
-//        ByteArray termBytes;
-//        while (br != null) {
-//          termBytes = BytesRefUtils.toByteArray(br);
-//          // skip adding stop-words
-//          if (!isStopword(termBytes)) {
-//            terms.add(termBytes);
-//          }
-//          br = dftEnum.next();
-//        }
-//      } catch (final IOException ex) {
-//        LOG.error("Caught exception while iterating document terms. "
-//            + "docId=" + docId + ".", ex);
-//      }
-//    }
     return terms;
   }
 
@@ -1558,8 +1499,8 @@ public final class DirectIndexDataProvider
 
     /**
      * Dynamically bind the {@link #invertedIdxDocTermsMap} to the main map.
-     * Updates are reflected automatically.
-     * Based on {@link Bind#secondaryKey(Bind.MapWithModificationListener, Set,
+     * Updates are reflected automatically. Based on {@link
+     * Bind#secondaryKey(Bind.MapWithModificationListener, Set,
      * Fun.Function2)}.
      *
      * @param map
