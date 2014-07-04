@@ -96,8 +96,10 @@ public abstract class Target<T>
    * Create a new Target instance.
    *
    * @return New Target instance
+   * @throws TargetException May be thrown, if instantiation fails
    */
-  public abstract Target<T> newInstance();
+  public abstract Target<T> newInstance()
+      throws TargetException;
 
   /**
    * Set the thread tracking latch.

@@ -46,7 +46,12 @@ public final class TargetFuncCall<T>
   }
 
   @Override
-  public Target<T> newInstance() {
+  public Target<T> newInstance()
+      throws TargetException {
+    if (this.tFunc instanceof TargetFuncFactory) {
+      return new TargetFuncCall<>(getSource(),
+          ((TargetFuncFactory<T>) this.tFunc).newInstance());
+    }
     return new TargetFuncCall<>(getSource(), this.tFunc);
   }
 
@@ -89,5 +94,11 @@ public final class TargetFuncCall<T>
     public final String getName() {
       return this.getClass().getSimpleName() + "-" + this.hashCode();
     }
+  }
+
+  public abstract static class TargetFuncFactory<T>
+      extends TargetFunc<T> {
+    public abstract TargetFunc<T> newInstance()
+        throws TargetException;
   }
 }

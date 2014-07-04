@@ -469,15 +469,15 @@ public final class Persistence {
      */
     private LoadInstruction cacheInstruction;
     /**
+     * Name of the database to create.
+     */
+    private String name;
+    /**
      * Database async write flush delay.
      */
     public static final int DB_ASYNC_WRITEFLUSH_DELAY = GlobalConfiguration
         .conf()
         .getAndAddInteger(CONF_PREFIX + "db-async-writeflush-delay", 100);
-    /**
-     * Name of the database to create.
-     */
-    private String name;
     /**
      * Flag indicating, if the new instance will be temporary. If it's temporary
      * any data may be deleted on JVM exit.
@@ -494,9 +494,11 @@ public final class Persistence {
           .mmapFileEnableIfSupported()
           .compressionEnable()
           .strictDBGet()
-          .asyncWriteEnable()
+//          .cacheLRUEnable()
+//          .cacheWeakRefEnable()
+//          .asyncWriteEnable()
           .checksumEnable()
-          .asyncWriteFlushDelay(DB_ASYNC_WRITEFLUSH_DELAY)
+//          .asyncWriteFlushDelay(DB_ASYNC_WRITEFLUSH_DELAY)
           .closeOnJvmShutdown();
       this.cacheInstruction = LoadInstruction.MAKE_OR_GET;
       this.stopwords = Collections.emptySet();
