@@ -62,6 +62,18 @@ public final class BytesRefUtils {
   }
 
   /**
+   * Creates a new {@link BytesRef} instance by referencing the bytes from the
+   * given {@link BytesRef}.
+   *
+   * @param ba ByteArray to reference bytes from
+   * @return New BytesRef with bytes from provided ByteArray referenced
+   */
+  public static BytesRef refFromByteArray(final ByteArray ba) {
+    Objects.requireNonNull(ba, "ByteArray was null.");
+    return new BytesRef(ba.bytes);
+  }
+
+  /**
    * Compares the bytes contained in the {@link BytesRef} to those stored in the
    * {@link ByteArray}.
    *

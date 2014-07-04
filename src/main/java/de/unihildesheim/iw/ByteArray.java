@@ -69,7 +69,7 @@ public final class ByteArray
   /**
    * Flag indicating, if this is a maximum value.
    */
-  private boolean isMax = false;
+  boolean isMax = false;
 
   /**
    * Private constructor. Used for {@link #MAX} only.

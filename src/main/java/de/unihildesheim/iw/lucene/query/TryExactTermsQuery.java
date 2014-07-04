@@ -75,7 +75,8 @@ public final class TryExactTermsQuery
    * @param fields Fields to query
    * @throws ParseException Thrown, if the query could not be parsed
    */
-  public TryExactTermsQuery(final Analyzer analyzer, final String queryStr,
+  public TryExactTermsQuery(final Analyzer analyzer,
+      final String queryStr,
       final Set<String> fields)
       throws ParseException {
     Objects.requireNonNull(analyzer, "Analyzer was null.");

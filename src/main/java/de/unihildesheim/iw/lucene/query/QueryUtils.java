@@ -25,7 +25,6 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.IndexReader;
 
 import java.io.IOException;
-import java.io.StringReader;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -62,7 +61,8 @@ public final class QueryUtils {
    * @param newReader IndexReader
    * @param newFields Document fields to query
    */
-  public QueryUtils(final Analyzer newAnalyzer, final IndexReader newReader,
+  public QueryUtils(final Analyzer newAnalyzer,
+      final IndexReader newReader,
       final Set<String> newFields) {
     Objects.requireNonNull(newReader, "IndexReader was null.");
     if (Objects.requireNonNull(newFields, "Fields were null.").isEmpty()) {
@@ -85,8 +85,7 @@ public final class QueryUtils {
       final Analyzer newAnalyzer) {
     @SuppressWarnings("CollectionWithoutInitialCapacity")
     final List<String> result = new ArrayList<>();
-    try (TokenStream stream = newAnalyzer.tokenStream(null,
-        new StringReader(query))) {
+    try (TokenStream stream = newAnalyzer.tokenStream(null, query)) {
       stream.reset();
       while (stream.incrementToken()) {
         result.add(stream.getAttribute(CharTermAttribute.class).toString());
