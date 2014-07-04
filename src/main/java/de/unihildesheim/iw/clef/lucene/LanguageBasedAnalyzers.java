@@ -113,7 +113,8 @@ public final class LanguageBasedAnalyzers {
    * @return New Analyzer instance
    */
   @SuppressWarnings("AssignmentToNull")
-  public static Analyzer createInstance(final LanguageAnalyzers lang,
+  public static Analyzer createInstance(
+      final LanguageAnalyzers lang,
       final IndexDataProvider dataProv) {
     final Analyzer analyzer;
     switch (Objects.requireNonNull(lang, "Language was null.")) {

@@ -33,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Reader;
+import java.util.Arrays;
 
 /**
  * @author Jens Bertram
@@ -43,13 +44,11 @@ public final class FrenchAnalyzer
   /**
    * Logger instance for this class.
    */
-  static final Logger LOG = LoggerFactory.getLogger(
-      FrenchAnalyzer.class);
+  static final Logger LOG = LoggerFactory.getLogger(FrenchAnalyzer.class);
   private static final String[] DEFAULT_ELISIONS = {
       "c", "d", "j", "l", "m", "n", "qu", "s", "t"};
   private final CharArraySet elisions =
-      new CharArraySet(this.matchVersion, DEFAULT_ELISIONS.length,
-          true);
+      new CharArraySet(this.matchVersion, DEFAULT_ELISIONS.length, true);
 
   /**
    * Builds an analyzer with the given stop words.
@@ -60,6 +59,7 @@ public final class FrenchAnalyzer
   public FrenchAnalyzer(final Version version,
       final CharArraySet newStopwords) {
     super(version, newStopwords);
+    this.elisions.addAll(Arrays.asList(DEFAULT_ELISIONS));
   }
 
   /**
@@ -69,6 +69,7 @@ public final class FrenchAnalyzer
   public FrenchAnalyzer(final IndexDataProvider dataProv) {
     super(LuceneDefaults.VERSION, new CharArraySet(LuceneDefaults.VERSION,
         dataProv.getStopwords(), true));
+    this.elisions.addAll(Arrays.asList(DEFAULT_ELISIONS));
     LOG.debug("Stopwords: {}", dataProv.getStopwords());
   }
 
@@ -80,7 +81,7 @@ public final class FrenchAnalyzer
    * @return Token stream
    */
   @Override
-  protected final TokenStreamComponents createComponents(final String fieldName,
+  public final TokenStreamComponents createComponents(final String fieldName,
       final Reader reader) {
     final StandardTokenizer src = new StandardTokenizer(
         this.matchVersion, reader);

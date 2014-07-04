@@ -66,7 +66,7 @@ public final class EnglishAnalyzer
    * @return Token stream
    */
   @Override
-  protected final TokenStreamComponents createComponents(final String fieldName,
+  public final TokenStreamComponents createComponents(final String fieldName,
       final Reader reader) {
     final StandardTokenizer src = new StandardTokenizer(
         this.matchVersion, reader);
