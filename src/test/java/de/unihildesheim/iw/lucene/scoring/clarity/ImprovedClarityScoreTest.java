@@ -84,7 +84,7 @@ public final class ImprovedClarityScoreTest
     ICC_CONF = new ImprovedClarityScoreConfiguration();
     ICC_CONF.setMaxFeedbackDocumentsCount(
         FixedTestIndexDataProvider.KnownData.DOC_COUNT);
-    ICC_CONF.setFeedbackTermSelectionThreshold(0d); // includes all
+    ICC_CONF.setFeedbackTermSelectionThreshold(0d, 1d); // includes all
     ICC_CONF.setDocumentModelParamBeta(0.6);
     ICC_CONF.setDocumentModelParamLambda(1d);
     ICC_CONF.setDocumentModelSmoothingParameter(100d);
@@ -172,8 +172,8 @@ public final class ImprovedClarityScoreTest
   }
 
   /**
-   * Test of {@link ImprovedClarityScore#getQueryModel(ByteArray, List, Set)}.
-   * Run for a single term.
+   * Test of {@link ImprovedClarityScore#getQueryModel(ByteArray, Collection,
+   * Set)}. Run for a single term.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
@@ -272,8 +272,8 @@ public final class ImprovedClarityScoreTest
   }
 
   /**
-   * Test of {@link ImprovedClarityScore#getQueryModel(ByteArray, List, Set)}.
-   * Random terms.
+   * Test of {@link ImprovedClarityScore#getQueryModel(ByteArray, Collection,
+   * Set)}. Random terms.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
@@ -311,8 +311,8 @@ public final class ImprovedClarityScoreTest
   }
 
   /**
-   * Test of {@link ImprovedClarityScore#getQueryModel(ByteArray, List, Set)}.
-   * Fixed terms.
+   * Test of {@link ImprovedClarityScore#getQueryModel(ByteArray, Collection,
+   * Set)}. Fixed terms.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
@@ -329,7 +329,7 @@ public final class ImprovedClarityScoreTest
       // fixed terms from the index will make up a query
       final List<String> sortedIdxTerms = FIXED_INDEX.getSortedTermList();
       final int termCount = 3;
-      final List<ByteArray> qTerms = new ArrayList<>(termCount);
+      final Collection<ByteArray> qTerms = new ArrayList<>(termCount);
       final Collection<String> qTermsStr = new ArrayList<>(termCount);
       for (int i = 0; i < termCount; i++) {
         qTerms.add(new ByteArray(sortedIdxTerms.get(i).getBytes("UTF-8")));
@@ -371,7 +371,7 @@ public final class ImprovedClarityScoreTest
     // all terms should be included (minDocFreq == 0)
     reducedFbTerms = new LinkedList<>();
     trTarget = new ImprovedClarityScore.FbTermReducerTarget(
-        metrics.collection(), 0, reducedFbTerms);
+        metrics.collection(), 0, 1, reducedFbTerms);
     idxTermsIt = FIXED_INDEX.getTermsIterator();
     while (idxTermsIt.hasNext()) {
       final ByteArray term = idxTermsIt.next();
@@ -391,7 +391,7 @@ public final class ImprovedClarityScoreTest
     for (final Integer filterDocFreq : docFreqs) {
       reducedFbTerms = new LinkedList<>();
       trTarget = new ImprovedClarityScore.FbTermReducerTarget(
-          metrics.collection(), filterDocFreq, reducedFbTerms);
+          metrics.collection(), filterDocFreq, 1, reducedFbTerms);
 
       idxTermsIt = FIXED_INDEX.getTermsIterator();
       while (idxTermsIt.hasNext()) {
