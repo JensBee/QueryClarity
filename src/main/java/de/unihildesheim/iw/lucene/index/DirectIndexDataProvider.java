@@ -23,15 +23,12 @@ import de.unihildesheim.iw.Persistence;
 import de.unihildesheim.iw.SerializableByte;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
-import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.FileUtils;
-import de.unihildesheim.iw.util.TimeMeasure;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
-import de.unihildesheim.iw.util.concurrent.processing.Source;
-import de.unihildesheim.iw.util.concurrent.processing.SourceException;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
+import de.unihildesheim.iw.util.concurrent.processing.TargetException;
 import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
@@ -39,7 +36,6 @@ import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.MultiFields;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -48,6 +44,7 @@ import org.apache.lucene.util.BytesRef;
 import org.mapdb.BTreeKeySerializer;
 import org.mapdb.Bind;
 import org.mapdb.DB;
+import org.mapdb.DBMaker;
 import org.mapdb.Fun;
 import org.mapdb.Serializer;
 import org.slf4j.Logger;
@@ -66,8 +63,7 @@ import java.util.Map.Entry;
 import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.concurrent.ConcurrentNavigableMap;
 
 /**
  * {@link IndexDataProvider} implementation directly accessing the Lucene index
@@ -95,12 +91,8 @@ public final class DirectIndexDataProvider
   /**
    * Inverted keys for faster access to index document term frequency map.
    */
-  protected NavigableSet<
+  NavigableSet<
       Fun.Tuple3<Integer, SerializableByte, ByteArray>> invertedIdxDocTermsMap;
-//  protected NavigableSet<Fun.Tuple2<
-//      Fun.Tuple3<Integer, SerializableByte, ByteArray>,
-//      Fun.Tuple3<ByteArray, SerializableByte, Integer>
-//      >> invertedIdxDocTermsMap;
   /**
    * Wrapper for persistent data storage (static data).
    */
@@ -268,8 +260,8 @@ public final class DirectIndexDataProvider
 
   /**
    * Shared method for {@link IndexSegmentTermsCollectorTarget} and {@link
-   * IndexTermsCollectorTarget} collecting all terms from a {@link DocsEnum}.
-   * The results are stored to both the index terms map and document
+   * IndexFieldsTermsCollectorTarget} collecting all terms from a {@link
+   * DocsEnum}. The results are stored to both the index terms map and document
    * term-frequency map.
    *
    * @param term Current term that is being collected
@@ -280,8 +272,9 @@ public final class DirectIndexDataProvider
    * calculate the read document-id
    * @throws IOException Thrown on low-level i/o errors
    */
-  @SuppressWarnings("ObjectAllocationInLoop")
   void collectTerms(
+      final ConcurrentNavigableMap<Fun.Tuple3<
+          ByteArray, SerializableByte, Integer>, Integer> cacheMap,
       final ByteArray term, final SerializableByte fieldId,
       final DocsEnum docsEnum,
       final long ttf, final int docBase)
@@ -289,38 +282,32 @@ public final class DirectIndexDataProvider
     // initialize the document iterator
     int docId = docsEnum.nextDoc();
 
-    final ByteArray aTerm = new ByteArray(term);
-    final SerializableByte aFieldId = new SerializableByte(fieldId);
+    Integer oldDTFValue;
 
     // build term frequency map for each document
     while (docId != DocIdSetIterator.NO_MORE_DOCS) {
-      final int basedDocId = docId + docBase;
-      final int docTermFreq = docsEnum.freq();
-
       final Fun.Tuple3<ByteArray, SerializableByte, Integer>
-          idxDocTfMapKey = Fun.t3(
-          new ByteArray(aTerm),
-          new SerializableByte(aFieldId.value),
-          basedDocId);
+          idxDocTfMapKey = Fun.t3(term, fieldId, docId + docBase);
+      final int freq = docsEnum.freq();
 
-      Integer oldDTFValue = getIdxDocTermsMap().putIfAbsent(
-          idxDocTfMapKey, docTermFreq);
+      // replace value
+      oldDTFValue = cacheMap.putIfAbsent(idxDocTfMapKey, freq);
+      // retry, until really replaced
       if (oldDTFValue != null) {
-        while (!getIdxDocTermsMap().replace(
-            idxDocTfMapKey, oldDTFValue, oldDTFValue + docTermFreq)) {
-          oldDTFValue = getIdxDocTermsMap().get(idxDocTfMapKey);
+        while (!cacheMap.replace(idxDocTfMapKey,
+            oldDTFValue, oldDTFValue + freq)) {
+          oldDTFValue = cacheMap.get(idxDocTfMapKey);
         }
       }
 
-      assert getIdxDocTermsMap().get(idxDocTfMapKey) != null;
       docId = docsEnum.nextDoc();
     }
 
     // add whole index term frequency map
-    Long oldValue = getIdxTermsMap().putIfAbsent(Fun.t2(aFieldId, aTerm), ttf);
+    final Fun.Tuple2<SerializableByte, ByteArray> idxTfMapKey =
+        Fun.t2(fieldId, term);
+    Long oldValue = getIdxTermsMap().putIfAbsent(idxTfMapKey, ttf);
     if (oldValue != null) {
-      final Fun.Tuple2<SerializableByte, ByteArray> idxTfMapKey =
-          Fun.t2(aFieldId, aTerm);
       while (!getIdxTermsMap().replace(idxTfMapKey, oldValue, oldValue + ttf)) {
         oldValue = getIdxTermsMap().get(idxTfMapKey);
       }
@@ -549,24 +536,6 @@ public final class DirectIndexDataProvider
     }
 
     return false;
-
-//    try {
-//      final DocFieldsTermsEnum dftEnum =
-//          new DocFieldsTermsEnum(getIndexReader(), getDocumentFields())
-//              .setDocument
-//                  (documentId);
-//      BytesRef br = dftEnum.next();
-//      while (br != null) {
-//        if (BytesRefUtils.bytesEquals(br, term)) {
-//          return true;
-//        }
-//        br = dftEnum.next();
-//      }
-//    } catch (final IOException ex) {
-//      LOG.error("Caught exception while iterating document terms. "
-//          + "docId=" + documentId + ".", ex);
-//    }
-//    return false;
   }
 
   /**
@@ -761,8 +730,7 @@ public final class DirectIndexDataProvider
           .createTreeMap(Stores.IDX_DOC_TERMS_MAP.name())
           .keySerializer(IDX_DOCTERMSMAP_KEYSERIALIZER)
           .valueSerializer(Serializer.INTEGER)
-          .nodeSize(32)
-          .counterEnable();
+          .nodeSize(32);
     }
 
     /**
@@ -1093,7 +1061,9 @@ public final class DirectIndexDataProvider
             CacheDbMakers.idxTermsMapMkr(getPersistStatic().getDb()).make();
             break;
           case IDX_DOC_TERMS_MAP:
-            CacheDbMakers.idxDocTermsMapMkr(getPersistStatic().getDb()).make();
+            CacheDbMakers.idxDocTermsMapMkr(getPersistStatic().getDb())
+                .counterEnable()
+                .make();
             break;
           case IDX_FIELDS:
             CacheDbMakers.cachedFieldsMapMaker(getPersistStatic().getDb())
@@ -1129,6 +1099,7 @@ public final class DirectIndexDataProvider
       }
       setIdxDocTermsMap(CacheDbMakers.idxDocTermsMapMkr(
           getPersistStatic().getDb())
+          .counterEnable()
           .<Fun.Tuple3<ByteArray, SerializableByte, Integer>,
               Integer>makeOrGet());
 
@@ -1153,22 +1124,10 @@ public final class DirectIndexDataProvider
       DirectIndexDataProvider.this.invertedIdxDocTermsMap = CacheDbMakers
           .idxTermsMapInvertedKeysMaker(getPersistStatic().getDb()).makeOrGet();
       bindInvertedIndex(
-          (Bind.MapWithModificationListener<Fun.Tuple3<ByteArray,
-              SerializableByte, Integer>, Integer>) getIdxDocTermsMap(),
-          DirectIndexDataProvider.this.invertedIdxDocTermsMap,
-          new Fun.Function2<
-              Fun.Tuple3<Integer, SerializableByte, ByteArray>,
-              Fun.Tuple3<ByteArray, SerializableByte, Integer>,
-              Integer>() {
-
-            @Override
-            public Fun.Tuple3<Integer, SerializableByte, ByteArray> run(
-                final Fun.Tuple3<ByteArray, SerializableByte, Integer> t3,
-                final Integer integer) {
-              return Fun.t3(t3.c, t3.b, t3.a);
-            }
-          }
-      );
+          (Bind.MapWithModificationListener<Fun.Tuple3<
+              ByteArray, SerializableByte, Integer>,
+              Integer>) getIdxDocTermsMap(),
+          DirectIndexDataProvider.this.invertedIdxDocTermsMap);
       if (!hasInvertedIndex) {
         LOG.info("Inverted document terms index built. {} entries.",
             DirectIndexDataProvider.this.invertedIdxDocTermsMap.size());
@@ -1234,12 +1193,9 @@ public final class DirectIndexDataProvider
         throws ProcessingException, IOException {
       final Set<String> updatingFields = new HashSet<>(getDocumentFields());
 
-//      final boolean update = new HashSet<>(getCachedFieldsMap().keySet())
-//          .removeAll(updatingFields);
       updatingFields.removeAll(getCachedFieldsMap().keySet());
 
       // check, if there's anything to update
-//      if (!update && updatingFields.isEmpty()) {
       if (updatingFields.isEmpty()) {
         return;
       }
@@ -1278,9 +1234,17 @@ public final class DirectIndexDataProvider
       final List<AtomicReaderContext> arContexts =
           getIndexReader().getContext().leaves();
 
+      // collect terms in memory first and commit to disk later
+      // this greatly improves performance
+      DB cacheDB = DBMaker.newMemoryDirectDB()
+          .transactionDisable()
+          .compressionEnable()
+          .make();
+      ConcurrentNavigableMap<Fun.Tuple3<
+          ByteArray, SerializableByte, Integer>, Integer> cacheMap =
+          CacheDbMakers.idxDocTermsMapMkr(cacheDB).makeOrGet();
+
       final Processing processing = new Processing();
-//      final TimedCommit autoCommit = new TimedCommit(UserConf
-// .AUTOCOMMIT_DELAY);
       if (arContexts.size() == 1) {
         LOG.debug("Build strategy: concurrent field(s)");
 
@@ -1314,35 +1278,39 @@ public final class DirectIndexDataProvider
           assert !termSet.isEmpty();
 
           LOG.info("Building persistent index term cache. field={}", field);
-//          autoCommit.start();
-//          @SuppressWarnings("ObjectAllocationInLoop")
-//          final IndexTermsCollectorTarget target =
-//              new IndexTermsCollectorTarget(
-//                  new CollectionSource<>(termSet),
-//                  field, arContexts.get(0)
-//              );
-//          processing.setSourceAndTarget(target).process(termSet.size());
           processing.setSourceAndTarget(
               new TargetFuncCall<>(
                   new CollectionSource<>(termSet),
-                  new IndexFieldsTermsCollectorTarget(field)
+                  new IndexFieldsTermsCollectorTarget(cacheMap, field)
               )
           ).process(termSet.size());
-//          autoCommit.stop();
         }
       } else {
         LOG.debug("Build strategy: segments ({})", arContexts.size());
         // we have multiple index segments, process every segment separately
-//        autoCommit.start();
         processing.setSourceAndTarget(
             new TargetFuncCall<>(
                 new CollectionSource<>(arContexts),
-                new IndexSegmentTermsCollectorTarget(updatingFields)
+                new IndexSegmentTermsCollectorTarget(cacheMap, updatingFields)
             )
         ).process(arContexts.size());
-//        autoCommit.stop();
       }
-//      autoCommit.stop();
+
+      LOG.info("Storing results.");
+      Integer oldDTFValue;
+      for (Entry<Fun.Tuple3<ByteArray, SerializableByte, Integer>, Integer> e :
+          cacheMap.entrySet()) {
+        // replace value
+        oldDTFValue = getIdxDocTermsMap().putIfAbsent(e.getKey(), e.getValue());
+        // retry, until really replaced
+        if (oldDTFValue != null) {
+          while (!getIdxDocTermsMap().replace(e.getKey(),
+              oldDTFValue, oldDTFValue + e.getValue())) {
+            oldDTFValue = cacheMap.get(e.getKey());
+          }
+        }
+      }
+      cacheDB.close();
 
       // all fields successful updated
       getPersistStatic().getDb()
@@ -1503,194 +1471,153 @@ public final class DirectIndexDataProvider
      * Bind#secondaryKey(Bind.MapWithModificationListener, Set,
      * Fun.Function2)}.
      *
-     * @param map
-     * @param secondary
-     * @param fun
-     * @param <K>
-     * @param <V>
-     * @param <K2>
+     * @param map Primary Map
+     * @param secondary Secondary Set
+     * @param <V> Value in Primary Map (unused)
      */
-    private <K, V, K2> void bindInvertedIndex(
-        final Bind.MapWithModificationListener<K, V> map,
-        final Set<K2> secondary,
-        final Fun.Function2<K2, K, V> fun) {
+    @SuppressWarnings("TypeMayBeWeakened")
+    private <V> void bindInvertedIndex(
+        final Bind.MapWithModificationListener<
+            Fun.Tuple3<ByteArray, SerializableByte, Integer>, V> map,
+        final Set<Fun.Tuple3<Integer, SerializableByte, ByteArray>> secondary) {
 
       //fill if empty
       if (secondary.isEmpty()) {
-        for (final Entry<K, V> e : map.entrySet()) {
-          secondary.add(fun.run(e.getKey(), e.getValue()));
+        for (final Fun.Tuple3<ByteArray, SerializableByte, Integer>
+            t3 : map.keySet()) {
+          secondary.add(Fun.t3(t3.c, t3.b, t3.a));
         }
       }
+
       //hook listener
-      map.modificationListenerAdd(new Bind.MapListener<K, V>() {
-        @Override
-        public void update(final K key, final V oldVal, final V newVal) {
-          if (newVal == null) {
-            //removal
-            secondary.remove(fun.run(key, oldVal));
-          } else if (oldVal == null) {
-            //insert
-            secondary.add(fun.run(key, newVal));
-          } else {
-            //update, must remove old key and insert new
-            final K2 oldKey = fun.run(key, oldVal);
-            final K2 newKey = fun.run(key, newVal);
-            if (oldKey == newKey || oldKey.equals(newKey)) {
-              return;
+      map.modificationListenerAdd(
+          new Bind.MapListener<Fun.Tuple3<ByteArray, SerializableByte,
+              Integer>, V>() {
+            @SuppressWarnings("ObjectEquality")
+            @Override
+            public void update(
+                final Fun.Tuple3<ByteArray, SerializableByte, Integer> key,
+                final V oldVal, final V newVal) {
+              if (newVal == null) {
+                //removal
+                secondary.remove(Fun.t3(key.c, key.b, key.a));
+              } else if (oldVal == null) {
+                //insert
+                secondary.add(Fun.t3(key.c, key.b, key.a));
+              }
             }
-            secondary.remove(oldKey);
-            secondary.add(newKey);
-          }
-        }
-      });
+          });
     }
   }
 
   /**
    * {@link Processing} {@link Target} for collecting all terms from the current
-   * Lucene index.
-   */
-  private final class IndexTermsCollectorTarget
-      extends Target<ByteArray> {
-
-    /**
-     * Reader to access the Lucene index.
-     */
-    private final AtomicReaderContext context;
-
-    /**
-     * Field to index
-     */
-    private final String field;
-
-    /**
-     * Id of the field that gets indexed.
-     */
-    private final SerializableByte fieldId;
-
-    /**
-     * Initialize the terms collector.
-     *
-     * @param newSource Source providing terms
-     * @param newField Field to index
-     * @param newContext Context to use
-     */
-    IndexTermsCollectorTarget(
-        final Source<ByteArray> newSource, final String newField,
-        final AtomicReaderContext newContext) {
-      super(newSource);
-      this.field = newField;
-      this.fieldId = getFieldId(this.field);
-      this.context = newContext;
-    }
-
-    /**
-     * Internal constructor used by {@link #newInstance()}.
-     *
-     * @param newSource Source to use
-     * @param newField Field to index
-     * @param newFieldId Id of the field to index
-     * @param newContext Context to use
-     */
-    private IndexTermsCollectorTarget(
-        final Source<ByteArray> newSource,
-        final String newField, final SerializableByte newFieldId,
-        final AtomicReaderContext newContext) {
-      super(newSource);
-      this.field = newField;
-      this.fieldId = new SerializableByte(newFieldId);
-      this.context = newContext;
-    }
-
-    @Override
-    public Target<ByteArray> newInstance() {
-      return new IndexTermsCollectorTarget(getSource(), this.field,
-          this.fieldId, this.context);
-    }
-
-    @SuppressWarnings("ObjectAllocationInLoop")
-    @Override
-    public void runProcess()
-        throws IOException {
-      DocsEnum docsEnum;
-      final TermsEnum termsEnum =
-          this.context.reader().terms(this.field).iterator(TermsEnum.EMPTY);
-      BytesRef termBr;
-      Term termIdx;
-
-      while (!isTerminating()) {
-        final ByteArray term;
-        try {
-          term = getSource().next();
-        } catch (final SourceException.SourceHasFinishedException ex) {
-          break;
-        }
-
-        if (term != null) {
-          termBr = BytesRefUtils.fromByteArray(term);
-
-          if (termsEnum.seekExact(termBr)) {
-            termIdx = new Term(this.field, termBr);
-            docsEnum = this.context.reader().termDocsEnum(termIdx);
-
-            if (docsEnum == null) {
-              // field or term does not exist
-              LOG.warn("Field or term does not exist. f={} t={}", this.field,
-                  ByteArrayUtils.utf8ToString(term));
-            } else {
-              collectTerms(new ByteArray(term), this.fieldId, docsEnum,
-                  termsEnum.totalTermFreq(), this.context.docBase);
-            }
-          }
-        }
-      }
-    }
-  }
-
-  /**
-   * {@link Processing} {@link Target} for collecting all terms from the current
-   * Lucene index. Based on index fields.
+   * Lucene index. Based on index fields. This should only be used, if only one
+   * leave is available from the IndexReader. If there are more than one, only
+   * the first will be used.
    */
   private final class IndexFieldsTermsCollectorTarget
-      extends TargetFuncCall.TargetFunc<ByteArray> {
+      extends TargetFuncCall.TargetFuncFactory<ByteArray> {
 
     /**
      * Field to collect terms from.
      */
     private final String field;
+    /**
+     * AtomicReader for the single context.
+     */
+    private final AtomicReader reader;
+    /**
+     * DocBase value for the single context.
+     */
+    private final int docBase;
+    /**
+     * Id of the current field.
+     */
+    private final SerializableByte fieldId;
+    /**
+     * Live documents retrieved from reader.
+     */
+    private final Bits liveDocBits;
+    private final ConcurrentNavigableMap<Fun.Tuple3<
+        ByteArray, SerializableByte, Integer>, Integer> cacheMap;
+    /**
+     * Local reusable terms enumerator instance.
+     */
+    private TermsEnum termsEnum = TermsEnum.EMPTY;
+    /**
+     * Local reusable document enumerator instance.
+     */
+    private DocsEnum docsEnum;
 
     /**
      * Create a new instance with the provided field as target.
      *
+     * @param newCacheMap Target map to store results
      * @param fieldName Target field
      */
-    IndexFieldsTermsCollectorTarget(final String fieldName) {
+    @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
+    IndexFieldsTermsCollectorTarget(
+        final ConcurrentNavigableMap<Fun.Tuple3<
+            ByteArray, SerializableByte, Integer>, Integer> newCacheMap,
+        final String fieldName) {
       this.field = fieldName;
+      this.reader = getIndexReader().getContext().leaves().get(0).reader();
+      this.docBase = getIndexReader().getContext().leaves().get(0).docBase;
+      this.fieldId = getFieldId(fieldName);
+      this.liveDocBits = this.reader.getLiveDocs();
+      this.cacheMap = newCacheMap;
+    }
+
+    /**
+     * Private constructor to create new instances.
+     *
+     * @param theCacheMap Map to put results in
+     * @param theField Current target field
+     * @param theReader Current index reader
+     * @param theDocBase Current docBase value
+     * @param theFieldId Current field id
+     * @param theLiveDocs Live docs from current reader
+     * @throws IOException Thrown on low-level I/O errors
+     */
+    private IndexFieldsTermsCollectorTarget(
+        final ConcurrentNavigableMap<Fun.Tuple3<
+            ByteArray, SerializableByte, Integer>, Integer> theCacheMap,
+        final String theField,
+        final AtomicReader theReader,
+        final int theDocBase,
+        final SerializableByte theFieldId,
+        final Bits theLiveDocs)
+        throws IOException {
+      this.field = theField;
+      this.reader = theReader;
+      this.docBase = theDocBase;
+      this.fieldId = theFieldId;
+      this.termsEnum = this.reader.terms(this.field).iterator(this.termsEnum);
+      this.liveDocBits = theLiveDocs;
+      this.cacheMap = theCacheMap;
+    }
+
+    @Override
+    public IndexFieldsTermsCollectorTarget newInstance()
+        throws TargetException {
+      try {
+        return new IndexFieldsTermsCollectorTarget(this.cacheMap, this.field,
+            this.reader,
+            this.docBase, this.fieldId, this.liveDocBits);
+      } catch (final IOException e) {
+        throw new TargetException("Failed to create a new instance.", e);
+      }
     }
 
     @Override
     public void call(final ByteArray term)
         throws Exception {
       if (term != null) {
-        final TermsEnum termsEnum =
-            getIndexReader().getContext().leaves().get(0).reader().terms(
-                this.field).iterator(TermsEnum.EMPTY);
-        final BytesRef termBr = BytesRefUtils.fromByteArray(term);
-
-        if (termsEnum.seekExact(termBr)) {
-          final DocsEnum docsEnum =
-              getIndexReader().getContext().leaves().get(0).reader()
-                  .termDocsEnum(new Term(this.field, termBr));
-
-          if (docsEnum == null) {
-            // field or term does not exist
-            LOG.warn("Field or term does not exist. f={} t={}", this.field,
-                ByteArrayUtils.utf8ToString(term));
-          } else {
-            collectTerms(new ByteArray(term), getFieldId(this.field), docsEnum,
-                termsEnum.totalTermFreq(),
-                getIndexReader().getContext().leaves().get(0).docBase);
-          }
+        if (this.termsEnum.seekExact(BytesRefUtils.refFromByteArray(term))) {
+          this.docsEnum = this.termsEnum.docs(this.liveDocBits, this.docsEnum);
+          collectTerms(this.cacheMap, term, this.fieldId, this.docsEnum,
+              this.termsEnum.totalTermFreq(), this.docBase);
         }
       }
     }
@@ -1708,16 +1635,26 @@ public final class DirectIndexDataProvider
      * List of fields to collect terms from.
      */
     private final Collection<String> fields;
+    /**
+     * Map to cache results.
+     */
+    private final ConcurrentNavigableMap<Fun.Tuple3<
+        ByteArray, SerializableByte, Integer>, Integer> cacheMap;
 
     /**
      * Create a new collector for index terms.
      *
+     * @param newCacheMap Map to store results
      * @param newFields Lucene index segment provider
      */
     @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
-    IndexSegmentTermsCollectorTarget(final Collection<String> newFields) {
+    IndexSegmentTermsCollectorTarget(
+        final ConcurrentNavigableMap<Fun.Tuple3<
+            ByteArray, SerializableByte, Integer>, Integer> newCacheMap,
+        final Collection<String> newFields) {
       assert newFields != null && !newFields.isEmpty();
       this.fields = newFields;
+      this.cacheMap = newCacheMap;
     }
 
     @Override
@@ -1728,7 +1665,7 @@ public final class DirectIndexDataProvider
       }
 
       TermsEnum termsEnum = TermsEnum.EMPTY;
-      DocsEnum docsEnum;
+      DocsEnum docsEnum = null;
       Terms terms;
       final int docBase = rContext.docBase;
       final AtomicReader reader = rContext.reader();
@@ -1746,148 +1683,12 @@ public final class DirectIndexDataProvider
 
           while (term != null) {
             if (termsEnum.seekExact(term)) {
-              @SuppressWarnings("ObjectAllocationInLoop")
-              final Term t = new Term(field, term);
-              docsEnum = reader.termDocsEnum(t);
-
-              if (docsEnum == null) {
-                // field or term does not exist
-                LOG.warn("Field or term does not exist. f={} t={}", field,
-                    term.utf8ToString());
-              } else {
-                collectTerms(BytesRefUtils.toByteArray(term), fieldId,
-                    docsEnum, termsEnum.totalTermFreq(), docBase);
-              }
+              docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum);
+              collectTerms(this.cacheMap, BytesRefUtils.toByteArray(term),
+                  fieldId, docsEnum, termsEnum.totalTermFreq(), docBase);
             }
             term = termsEnum.next();
           }
-        }
-      }
-    }
-  }
-
-  /**
-   * Auto-commit database on long running processes.
-   */
-  @SuppressWarnings("UnusedDeclaration")
-  private final class TimedCommit {
-    /**
-     * Timer for scheduling commits.
-     */
-    private Timer timer;
-
-    /**
-     * Period between commits.
-     */
-    private int period;
-
-    /**
-     * Commit executing timer.
-     */
-    private Runner task;
-
-    /**
-     * Initializes the timer and starts it after the given delay, repeating the
-     * commit in the given period.
-     *
-     * @param delay delay in milliseconds before task is to be executed.
-     * @param newPeriod time in milliseconds between successive task executions
-     */
-    TimedCommit(final int delay, final int newPeriod) {
-      if (getPersistStatic().isTransactionSupported()) {
-        this.period = newPeriod;
-        this.timer = new Timer();
-        this.task = new Runner(this.period);
-        this.timer.schedule(this.task, (long) delay, (long) this.period);
-      }
-    }
-
-    /**
-     * Initialize the timer. This will not start the timer. You need to call
-     * {@link #start(int)} separately.
-     *
-     * @param newPeriod time in milliseconds between successive task executions
-     */
-    TimedCommit(final int newPeriod) {
-      if (getPersistStatic().isTransactionSupported()) {
-        this.period = newPeriod;
-        this.timer = new Timer();
-        this.task = new Runner(this.period);
-      }
-    }
-
-    /**
-     * Stop the timer.
-     */
-    void stop() {
-      if (getPersistStatic().isTransactionSupported()) {
-        this.timer.cancel();
-      }
-    }
-
-    /**
-     * Start the timer using a new period time.
-     *
-     * @param newPeriod time in milliseconds between successive task executions
-     */
-    void start(final int newPeriod) {
-      if (getPersistStatic().isTransactionSupported()) {
-        this.timer.cancel();
-        this.timer = new Timer();
-        this.task = new Runner(this.period);
-        this.timer.schedule(this.task, 0L, (long) newPeriod);
-      }
-    }
-
-    /**
-     * Start the timer again.
-     */
-    void start() {
-      if (getPersistStatic().isTransactionSupported()) {
-        this.timer.cancel();
-        this.timer = new Timer();
-        this.timer.schedule(this.task, 0L, (long) this.period);
-      }
-    }
-
-    /**
-     * Helper class calling commit on the database in configurable intervals.
-     */
-    private final class Runner
-        extends TimerTask {
-      /**
-       * Time measure for timing commits.
-       */
-      private final TimeMeasure tm = new TimeMeasure().start();
-
-      /**
-       * Commit period to use.
-       */
-      private final int period;
-
-      /**
-       * Flag indicating, if current commit has finished. Avoids trying to
-       * commit over and over, if commits take longer than the period time.
-       */
-      private boolean finished = true;
-
-      /**
-       * Create a new instance with the provided commit period.
-       *
-       * @param newPeriod Commit period
-       */
-      Runner(final int newPeriod) {
-        this.period = newPeriod;
-      }
-
-      @Override
-      public void run() {
-        if (this.finished &&
-            this.tm.getElapsedMillis() >= (double) this.period) {
-          this.finished = false;
-          getCache().commit(CacheDB.ALL);
-          this.finished = true;
-          this.tm.start();
         }
       }
     }
