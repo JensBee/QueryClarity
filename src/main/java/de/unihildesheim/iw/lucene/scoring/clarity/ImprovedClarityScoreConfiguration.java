@@ -76,31 +76,6 @@ public final class ImprovedClarityScoreConfiguration
     add(Keys.FB_DOCS_MIN.name(), count);
   }
 
-//  /**
-//   * Get the relaxRule that will be used to simplify a query, if the minimum
-//   * number of feedback documents could not be reached with the original
-// query.
-//   *
-//   * @return Query simplifying relaxRule to use
-//   */
-//  public RuleBasedTryExactTermsQuery.RelaxRule getQuerySimplifyingPolicy() {
-//    final String relaxRule = getString(Keys.QUERY_SIMPLIFYING_POLICY.name());
-//    return RuleBasedTryExactTermsQuery.RelaxRule.valueOf(relaxRule);
-//  }
-
-//  /**
-//   * Set the relaxRule that will be used to simplify a query, if the minimum
-//   * number of feedback documents could not be reached with the original
-// query.
-//   *
-//   * @param relaxRule Query simplifying relaxRule to use
-//   */
-//  public void setQuerySimplifyingPolicy(
-//      final RuleBasedTryExactTermsQuery.RelaxRule relaxRule) {
-//    Objects.requireNonNull(relaxRule, "Policy was null.");
-//    add(Keys.QUERY_SIMPLIFYING_POLICY.name(), relaxRule.name());
-//  }
-
   /**
    * Get the smoothing parameter (mu) used for document model calculation.
    *
@@ -120,22 +95,37 @@ public final class ImprovedClarityScoreConfiguration
   }
 
   /**
-   * Get the threshold used to select terms from feedback documents.
+   * Get the minimum threshold used to select terms from feedback documents.
    *
    * @return Threshold value
    */
-  public Double getFeedbackTermSelectionThreshold() {
-    return getDouble(Keys.TERM_SELECTION_THRESHOLD.name());
+  public Double getMinFeedbackTermSelectionThreshold() {
+    return getDouble(Keys.TERM_SELECTION_THRESHOLD_MIN.name());
+  }
+
+  /**
+   * Get the maximum threshold used to select terms from feedback documents.
+   *
+   * @return Threshold value
+   */
+  public Double getMaxFeedbackTermSelectionThreshold() {
+    return getDouble(Keys.TERM_SELECTION_THRESHOLD_MAX.name());
   }
 
   /**
    * Set the threshold used to select terms from feedback documents. If a term
    * occurs in lower than threshold% documents in index, it will be ignored.
    *
-   * @param threshold Threshold % expressed as double value
+   * @param thresholdMin Threshold % expressed as double value
    */
-  public void setFeedbackTermSelectionThreshold(final double threshold) {
-    add(Keys.TERM_SELECTION_THRESHOLD.name(), threshold);
+  public void setFeedbackTermSelectionThreshold(final double thresholdMin,
+      final double thresholdMax) {
+    if (thresholdMin > thresholdMax) {
+      throw new IllegalArgumentException("Minimum value is larger than " +
+          "maximum.");
+    }
+    add(Keys.TERM_SELECTION_THRESHOLD_MIN.name(), thresholdMin);
+    add(Keys.TERM_SELECTION_THRESHOLD_MAX.name(), thresholdMax);
   }
 
   /**
@@ -208,8 +198,14 @@ public final class ImprovedClarityScoreConfiguration
     QUERY_SIMPLIFYING_POLICY,
     /**
      * Document-frequency threshold to pick terms from feedback documents.
+     * Minimum value (lower range).
      */
-    TERM_SELECTION_THRESHOLD
+    TERM_SELECTION_THRESHOLD_MIN,
+    /**
+     * Document-frequency threshold to pick terms from feedback documents.
+     * Maximum value (upper range).
+     */
+    TERM_SELECTION_THRESHOLD_MAX
   }
 
   // initialize defaults map
@@ -250,20 +246,23 @@ public final class ImprovedClarityScoreConfiguration
      * Hauff, Murdock & Baeza-Yates used a value of 1000 for theirs tests.
      */
     DEFAULTS.put(Keys.FB_DOCS_MAX.name(), "1000");
-//    /**
-//     * Default relaxRule to use for simplifying the query, if the number of
-//     * feedback documents is lower than the required minimum.
-//     */
-//    DEFAULTS.put(Keys.QUERY_SIMPLIFYING_POLICY.name(),
-//        RuleBasedTryExactTermsQuery.RelaxRule.HIGHEST_TERMFREQ.name());
     /**
      * Threshold to select terms from feedback documents. A term from a
-     * feedback document must occurs in equal or more than n% of the documents
+     * feedback document must occur in min n% of the documents
      * in the index. If it's not the case it will be ignored.
      * <br>
      * Hauff, Murdock & Baeza-Yates evaluated n with 1% (0.01), 10% (0.1),
      * 100% (1).
      */
-    DEFAULTS.put(Keys.TERM_SELECTION_THRESHOLD.name(), "0.1");
+    DEFAULTS.put(Keys.TERM_SELECTION_THRESHOLD_MIN.name(), "0.1");
+    /**
+     * Threshold to select terms from feedback documents. A term from a
+     * feedback document must occur in min n% of the documents
+     * in the index. If it's not the case it will be ignored.
+     * <br>
+     * Hauff, Murdock & Baeza-Yates evaluated n with 1% (0.01), 10% (0.1),
+     * 100% (1).
+     */
+    DEFAULTS.put(Keys.TERM_SELECTION_THRESHOLD_MAX.name(), "1");
   }
 }
