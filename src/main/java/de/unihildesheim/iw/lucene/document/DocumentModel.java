@@ -65,7 +65,11 @@ public final class DocumentModel {
     assert builder != null;
 
     this.id = builder.docId;
-    this.termFrequency = builder.termFreq;
+    long tf = 0L;
+    for (final Long tfVal : builder.termFreqMap.values()) {
+      tf += tfVal;
+    }
+    this.termFrequency = tf;
     this.termFreqMap = new HashMap<>(builder.termFreqMap.size());
     this.termFreqMap.putAll(builder.termFreqMap);
     calcHash();
@@ -210,12 +214,6 @@ public final class DocumentModel {
     final int docId;
 
     /**
-     * Overall term frequency of the corresponding document.
-     */
-    @SuppressWarnings("PackageVisibleField")
-    long termFreq;
-
-    /**
      * Initializes the Builder with the given document-id.
      *
      * @param documentId Referenced document-id
@@ -227,8 +225,7 @@ public final class DocumentModel {
 
     /**
      * Builds a new {@link DocumentModel} based on an already existing one. The
-     * document-id, term-frequency map and the overall term frequency are copied
-     * to the new model.
+     * document-id and term-frequency map are copied to the new model.
      *
      * @param docModel Model to copy the data from
      */
@@ -238,7 +235,6 @@ public final class DocumentModel {
       this.docId = docModel.id;
       this.termFreqMap = new HashMap<>(docModel.getTermFreqMap().size());
       this.termFreqMap.putAll(docModel.getTermFreqMap());
-      this.termFreq = docModel.termFrequency;
     }
 
     /**
@@ -295,9 +291,6 @@ public final class DocumentModel {
      * @return New document model with the data of this builder set
      */
     public DocumentModel getModel() {
-      for (final Long tf : this.termFreqMap.values()) {
-        this.termFreq += tf;
-      }
       return new DocumentModel(this);
     }
   }
