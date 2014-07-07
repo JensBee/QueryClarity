@@ -24,6 +24,7 @@ import de.unihildesheim.iw.SerializableByte;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.util.FileUtils;
+import de.unihildesheim.iw.util.TimeMeasure;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
@@ -42,18 +43,24 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.mapdb.BTreeKeySerializer;
+import org.mapdb.BTreeMap;
 import org.mapdb.Bind;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
 import org.mapdb.Fun;
+import org.mapdb.Pump;
 import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.text.NumberFormat;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -657,6 +664,16 @@ public final class DirectIndexDataProvider
         Serializer.INTEGER);
 
     /**
+     * Serializer to use for {@link
+     * DirectIndexDataProvider#invertedIdxDocTermsMap}
+     * - the inverted index to {@link #idxDocTermsMap}.
+     */
+    static final BTreeKeySerializer IDX_INVERTED_DOCTERMSMAP_SERIALIZER
+        = new BTreeKeySerializer.Tuple3KeySerializer<>(
+        Fun.COMPARATOR, SerializableByte.COMPARATOR,
+        Serializer.INTEGER, SerializableByte.SERIALIZER, ByteArray.SERIALIZER);
+
+    /**
      * Private empty constructor for utility class.
      */
     private CacheDbMakers() { // empty
@@ -671,7 +688,8 @@ public final class DirectIndexDataProvider
     static DB.BTreeSetMaker idxTermsMapInvertedKeysMaker(final DB db) {
       return Objects.requireNonNull(db, "DB was null.")
           .createTreeSet(Stores.IDX_TERMS_MAP_INVERTED_KEYS.name())
-          .serializer(BTreeKeySerializer.TUPLE3)
+//          .serializer(BTreeKeySerializer.TUPLE3)
+          .serializer(IDX_INVERTED_DOCTERMSMAP_SERIALIZER)
           .counterEnable();
     }
 
@@ -734,6 +752,21 @@ public final class DirectIndexDataProvider
     }
 
     /**
+     * Get a maker for {@link #idxTermsMap}. Temporary map used for merging.
+     * Static.
+     *
+     * @param db Database reference
+     * @return Maker for {@link #idxTermsMap} temporary merge instance
+     */
+    public static DB.BTreeMapMaker idxDocTermsMapMkr2(final DB db) {
+      return Objects.requireNonNull(db, "DB was null.")
+          .createTreeMap(Stores.IDX_DOC_TERMS_MAP2.name())
+          .keySerializer(IDX_DOCTERMSMAP_KEYSERIALIZER)
+          .valueSerializer(Serializer.INTEGER)
+          .nodeSize(32);
+    }
+
+    /**
      * Get a maker for {@link #cachedFieldsMap}. Transient.
      *
      * @param db Database reference
@@ -776,6 +809,11 @@ public final class DirectIndexDataProvider
        * Mapping of all document terms.
        */
       IDX_DOC_TERMS_MAP,
+      /**
+       * Same as {@link #IDX_DOC_TERMS_MAP}, temporary instance used for merging
+       * maps
+       */
+      IDX_DOC_TERMS_MAP2,
       /**
        * Cached fields mapping.
        */
@@ -841,6 +879,10 @@ public final class DirectIndexDataProvider
      * True, if the list of stopwords has changed.
      */
     private boolean flagStopwordsChanged;
+    /**
+     * True, if the inverted index needs to be rebuild.
+     */
+    private boolean flagRebuildInvertedIndex;
 
     /**
      * Initializes the cache from the supplied builder settings.
@@ -879,12 +921,134 @@ public final class DirectIndexDataProvider
           || this.flagCacheRebuild
           || this.newStaticDb) {
         indexFields();
-        commit(CacheDB.ALL);
+        this.flagRebuildInvertedIndex = true;
       }
+
+      if (this.flagRebuildInvertedIndex) {
+        LOG.info("Building inverted document terms index with {} entries.",
+            NumberFormat.getIntegerInstance()
+                .format((long) getIdxDocTermsMap().size()));
+        final TimeMeasure tm = new TimeMeasure().start();
+
+        getPersistStatic().getDb()
+            .delete(CacheDbMakers.Stores.IDX_TERMS_MAP_INVERTED_KEYS.name());
+        final class Func1
+            implements Fun.Function1<
+            Fun.Tuple3<Integer, SerializableByte, ByteArray>,
+            Fun.Tuple3<ByteArray, SerializableByte, Integer>> {
+
+          @Override
+          public Fun.Tuple3<Integer, SerializableByte, ByteArray> run(
+              final Fun.Tuple3<ByteArray, SerializableByte, Integer> t3) {
+            return Fun.t3(t3.c, t3.b, t3.a);
+          }
+        }
+
+        final Iterator<Fun.Tuple3<ByteArray, SerializableByte,
+            Integer>> invertedIt = Pump.sort(
+            getIdxDocTermsMap().keySet().iterator(),
+            false,
+            100000,
+            Collections.reverseOrder(
+                new Comparator<Fun.Tuple3<ByteArray, SerializableByte,
+                    Integer>>() {
+                  @Override
+                  public int compare(
+                      final Fun.Tuple3<ByteArray, SerializableByte, Integer> o1,
+                      final Fun.Tuple3<ByteArray, SerializableByte,
+                          Integer> o2) {
+                    int result = o1.c.compareTo(o2.c);
+                    if (result == 0) {
+                      result = o1.b.compareTo(o2.b);
+                      if (result == 0) {
+                        result = o1.a.compareTo(o2.a);
+                      }
+                    }
+                    return result;
+                  }
+                }),
+            new Serializer<Fun.Tuple3<ByteArray, SerializableByte, Integer>>() {
+
+              @Override
+              public void serialize(final DataOutput out,
+                  final Fun.Tuple3<ByteArray, SerializableByte, Integer> value)
+                  throws IOException {
+                ByteArray.SERIALIZER.serialize(out, value.a);
+                SerializableByte.SERIALIZER.serialize(out, value.b);
+                Serializer.INTEGER.serialize(out, value.c);
+              }
+
+              @Override
+              public Fun.Tuple3<ByteArray, SerializableByte,
+                  Integer> deserialize(
+                  final DataInput in, final int available)
+                  throws IOException {
+                return Fun.t3(
+                    ByteArray.SERIALIZER.deserialize(in, available),
+                    SerializableByte.SERIALIZER.deserialize(in, available),
+                    Serializer.INTEGER.deserialize(in, available));
+              }
+
+              @Override
+              public int fixedSize() {
+                return -1;
+              }
+            }
+        );
+        final int nodeSize = 32;
+        final long counterRecId = getPersistStatic().getDb().getEngine().put
+            (0L, Serializer.LONG);
+        final long rootRecidRef = Pump.buildTreeMap(
+            invertedIt, // pre-sorted values matching translation results
+            getPersistStatic().getDb().getEngine(),
+            new Func1(), // translate keys
+            null, // no values = set
+            false, // ignore dupes
+            nodeSize, // node size
+            false, // values outside nodes
+            counterRecId, // counter record ref
+            CacheDbMakers.IDX_INVERTED_DOCTERMSMAP_SERIALIZER, // serializer
+            null, // value serializer (null for set)
+            null // comparator
+        );
+        // FIXME: manual update db catalog - any better way to to this?
+        getPersistStatic().getDb().getCatalog().put( // serializer
+            CacheDbMakers.Stores.IDX_TERMS_MAP_INVERTED_KEYS.name()
+                + ".keySerializer",
+            CacheDbMakers.IDX_INVERTED_DOCTERMSMAP_SERIALIZER);
+        getPersistStatic().getDb().getCatalog().put( // comparator
+            CacheDbMakers.Stores.IDX_TERMS_MAP_INVERTED_KEYS.name()
+                + ".comparator", BTreeMap.COMPARABLE_COMPARATOR);
+        getPersistStatic().getDb().getCatalog().put( // record ref
+            CacheDbMakers.Stores.IDX_TERMS_MAP_INVERTED_KEYS.name()
+                + ".rootRecidRef", rootRecidRef);
+        getPersistStatic().getDb().getCatalog().put( // counter ref
+            CacheDbMakers.Stores.IDX_TERMS_MAP_INVERTED_KEYS.name()
+                + ".counterRecid", counterRecId);
+        getPersistStatic().getDb().getCatalog().put( // node metas
+            CacheDbMakers.Stores.IDX_TERMS_MAP_INVERTED_KEYS.name()
+                + ".numberOfNodeMetas", 0);
+        getPersistStatic().getDb().getCatalog().put( // type
+            CacheDbMakers.Stores.IDX_TERMS_MAP_INVERTED_KEYS.name()
+                + ".type", "TreeSet");
+
+        commit(CacheDB.PERSISTENT);
+
+        DirectIndexDataProvider.this.invertedIdxDocTermsMap = CacheDbMakers
+            .idxTermsMapInvertedKeysMaker(getPersistStatic().getDb())
+            .makeOrGet();
+        LOG.info("Inverted document terms index built. ({})",
+            tm.stop().getTimeString());
+      }
+
+      LOG.debug("Inverted document terms index size={}.",
+          NumberFormat.getIntegerInstance().format(
+              (long) DirectIndexDataProvider.this.invertedIdxDocTermsMap
+                  .size()));
 
 //      if (!builder.noOpenReadOnly) {
 //        LOG.info("Re-opening persistent database read-only.");
-//        commit(false);
+//        commit(CacheDB.PERSISTENT);
 //        getPersistStatic().closeDb();
 //        builder.persistenceBuilder.readOnly();
 //        builder.persistenceBuilder.get();
@@ -1113,26 +1277,16 @@ public final class DirectIndexDataProvider
           .<Fun.Tuple2<SerializableByte, ByteArray>, Long>makeOrGet());
 
       // load/rebuild inverted index document term-map keys index
-      final boolean hasInvertedIndex = getPersistStatic().getDb().exists(
+      this.flagRebuildInvertedIndex = !getPersistStatic().getDb().exists(
           CacheDbMakers.Stores.IDX_TERMS_MAP_INVERTED_KEYS.name());
-      if (hasInvertedIndex) {
-        LOG.debug("hasInvertedIdxDocTermsMap: true");
-      } else {
+      if (this.flagRebuildInvertedIndex) {
         LOG.debug("hasInvertedIdxDocTermsMap: false");
-        LOG.info("Building inverted document terms index.");
-      }
-      DirectIndexDataProvider.this.invertedIdxDocTermsMap = CacheDbMakers
-          .idxTermsMapInvertedKeysMaker(getPersistStatic().getDb()).makeOrGet();
-      bindInvertedIndex(
-          (Bind.MapWithModificationListener<Fun.Tuple3<
-              ByteArray, SerializableByte, Integer>,
-              Integer>) getIdxDocTermsMap(),
-          DirectIndexDataProvider.this.invertedIdxDocTermsMap);
-      if (!hasInvertedIndex) {
-        LOG.info("Inverted document terms index built. {} entries.",
-            DirectIndexDataProvider.this.invertedIdxDocTermsMap.size());
-        LOG.info("Updating database.");
-        commit(CacheDB.PERSISTENT);
+        LOG.info("Inverted document terms index needs to be build.");
+      } else {
+        LOG.debug("hasInvertedIdxDocTermsMap: true");
+        DirectIndexDataProvider.this.invertedIdxDocTermsMap = CacheDbMakers
+            .idxTermsMapInvertedKeysMaker(getPersistStatic().getDb())
+            .makeOrGet();
       }
     }
 
@@ -1236,11 +1390,11 @@ public final class DirectIndexDataProvider
 
       // collect terms in memory first and commit to disk later
       // this greatly improves performance
-      DB cacheDB = DBMaker.newMemoryDirectDB()
+      final DB cacheDB = DBMaker.newMemoryDirectDB()
           .transactionDisable()
           .compressionEnable()
           .make();
-      ConcurrentNavigableMap<Fun.Tuple3<
+      final BTreeMap<Fun.Tuple3<
           ByteArray, SerializableByte, Integer>, Integer> cacheMap =
           CacheDbMakers.idxDocTermsMapMkr(cacheDB).makeOrGet();
 
@@ -1296,28 +1450,93 @@ public final class DirectIndexDataProvider
         ).process(arContexts.size());
       }
 
-      LOG.info("Storing results.");
-      Integer oldDTFValue;
-      for (Entry<Fun.Tuple3<ByteArray, SerializableByte, Integer>, Integer> e :
-          cacheMap.entrySet()) {
-        // replace value
-        oldDTFValue = getIdxDocTermsMap().putIfAbsent(e.getKey(), e.getValue());
-        // retry, until really replaced
-        if (oldDTFValue != null) {
-          while (!getIdxDocTermsMap().replace(e.getKey(),
-              oldDTFValue, oldDTFValue + e.getValue())) {
-            oldDTFValue = cacheMap.get(e.getKey());
+      // TODO: build inverted index using pump & function - remove Bind!
+
+      LOG.info("Storing {} items.",
+          NumberFormat.getIntegerInstance().format(cacheMap.size()));
+      final TimeMeasure tm = new TimeMeasure().start();
+      if (getIdxDocTermsMap().isEmpty()) {
+        LOG.debug("Streaming results using pump.");
+        final class Func1
+            implements Fun.Function1<Integer, Fun.Tuple3<
+            ByteArray, SerializableByte, Integer>> {
+
+          @Override
+          public Integer run(
+              final Fun.Tuple3<ByteArray, SerializableByte, Integer> t3) {
+            return cacheMap.get(t3);
           }
         }
+        // delete old map, will be re-created using pump
+        getPersistStatic().getDb().delete(
+            CacheDbMakers.Stores.IDX_DOC_TERMS_MAP.name());
+        setIdxDocTermsMap(
+            CacheDbMakers.idxDocTermsMapMkr(
+                getPersistStatic().getDb())
+                .counterEnable()
+                .pumpSource(cacheMap.descendingKeySet().iterator(), new Func1())
+                .<Fun.Tuple3<ByteArray, SerializableByte, Integer>,
+                    Integer>make()
+        );
+      } else {
+        LOG.debug("Merging results using pump.");
+        // delete any existing temporary merge map
+        getPersistStatic().getDb().delete(
+            CacheDbMakers.Stores.IDX_DOC_TERMS_MAP2.name());
+
+        final class Func1
+            implements Fun.Function1<Integer, Fun.Tuple3<
+            ByteArray, SerializableByte, Integer>> {
+
+          @Override
+          public Integer run(
+              final Fun.Tuple3<ByteArray, SerializableByte, Integer> t3) {
+            final Integer val = cacheMap.get(t3);
+            if (val == null) {
+              return getIdxDocTermsMap().get(t3);
+            } else {
+              if (!val.equals(getIdxDocTermsMap().get(t3))) {
+                throw new IllegalStateException("Value clash! " +
+                    "Got different values for document term frequency: " +
+                    "cacheMap=" + val + " db=" + getIdxDocTermsMap().get(t3));
+              }
+              return val;
+            }
+          }
+        }
+
+        // create temporary merged map
+        setIdxDocTermsMap(
+            CacheDbMakers.idxDocTermsMapMkr2(
+                getPersistStatic().getDb())
+                .counterEnable()
+                .pumpSource(
+                    Pump.<Fun.Tuple3<ByteArray, SerializableByte,
+                        Integer>>merge(
+                        getIdxDocTermsMap().descendingKeySet().iterator(),
+                        cacheMap.descendingKeySet().iterator()),
+                    new Func1())
+                .<Fun.Tuple3<ByteArray, SerializableByte, Integer>,
+                    Integer>make()
+        );
+
+        commit(CacheDB.PERSISTENT);
+        // delete old map
+        getPersistStatic().getDb()
+            .delete(CacheDbMakers.Stores.IDX_DOC_TERMS_MAP.name());
+        // rename merged to new name
+        getPersistStatic().getDb().rename(
+            CacheDbMakers.Stores.IDX_DOC_TERMS_MAP2.name(),
+            CacheDbMakers.Stores.IDX_DOC_TERMS_MAP.name()
+        );
       }
       cacheDB.close();
+      LOG.info("Storing results finished after {}.", tm.stop().getTimeString());
 
       // all fields successful updated
       getPersistStatic().getDb()
           .delete(CacheDbMakers.Flags.IDX_FIELDS_BEING_INDEXED.name());
 
-      LOG.info("Inverted document terms index size={}.",
-          DirectIndexDataProvider.this.invertedIdxDocTermsMap.size());
       commit(CacheDB.ALL);
     }
 
@@ -1394,7 +1613,8 @@ public final class DirectIndexDataProvider
       // check, if stopwords have changed
       if (getPersistTransient()
           .getMetaData().areStopwordsCurrent(getStopwords())) {
-        LOG.info("Stopwords ({}) unchanged.", getStopwords().size());
+        LOG.info("Stopwords ({}) unchanged.",
+            NumberFormat.getIntegerInstance().format(getStopwords().size()));
       } else {
         LOG.info("Stopwords changed. Caches needs to be rebuild.");
         this.flagStopwordsChanged = true;
@@ -1437,7 +1657,8 @@ public final class DirectIndexDataProvider
       if (idxTermsSize == 0) {
         LOG.info("Index terms cache is empty. Will be rebuild on warm-up.");
       } else {
-        LOG.info("Loaded index terms cache with {} entries.", idxTermsSize);
+        LOG.info("Loaded index terms cache with {} entries.",
+            NumberFormat.getIntegerInstance().format(idxTermsSize));
       }
 
       // try load overall term frequency
@@ -1445,7 +1666,8 @@ public final class DirectIndexDataProvider
           .exists(CacheDbMakers.Caches.IDX_TF.name())) {
         setIdxTf(getPersistTransient().getDb()
             .getAtomicLong(CacheDbMakers.Caches.IDX_TF.name()).get());
-        LOG.info("Term frequency value loaded ({}).", getIdxTf());
+        LOG.info("Term frequency value loaded ({}).",
+            NumberFormat.getNumberInstance().format(getIdxTf()));
       } else {
         LOG.info("No term frequency value found. " +
             "Will be re-calculated on warm-up.");
@@ -1461,7 +1683,7 @@ public final class DirectIndexDataProvider
             "Will be rebuild on warm-up.");
       } else {
         LOG.info("Loaded document-frequency cache with {} entries.",
-            getIdxDfMap().size());
+            NumberFormat.getIntegerInstance().format(getIdxDfMap().size()));
       }
     }
 
@@ -1483,6 +1705,8 @@ public final class DirectIndexDataProvider
 
       //fill if empty
       if (secondary.isEmpty()) {
+        LOG.info("Building inverted document terms index with {} entries.",
+            NumberFormat.getIntegerInstance().format(map.size()));
         for (final Fun.Tuple3<ByteArray, SerializableByte, Integer>
             t3 : map.keySet()) {
           secondary.add(Fun.t3(t3.c, t3.b, t3.a));
