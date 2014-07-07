@@ -18,10 +18,10 @@
 package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.SoftHashMap;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.util.MathUtils;
+import org.mapdb.DBMaker;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -48,7 +48,8 @@ public final class Metrics {
   /**
    * Cache for created {@link DocumentModel}s.
    */
-  private final Map<Integer, DocumentModel> docModelCache = new SoftHashMap<>();
+  private final Map<Integer, DocumentModel> docModelCache =
+      DBMaker.newCache(0.5); // size is in GB
 
   /**
    * Creates a new instance using the provided DataProvider for statistical

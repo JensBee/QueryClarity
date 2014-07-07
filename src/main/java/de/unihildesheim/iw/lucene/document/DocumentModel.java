@@ -19,6 +19,7 @@ package de.unihildesheim.iw.lucene.document;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.index.Metrics;
 
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,8 +31,12 @@ import java.util.Objects;
  *
  * @author Jens Bertram
  */
-public final class DocumentModel {
-
+public final class DocumentModel
+    implements Serializable {
+  /**
+   * Serialization id.
+   */
+  private static final long serialVersionUID = -5258723302171674355L;
   /**
    * Referenced Lucene document id.
    */
@@ -54,7 +59,7 @@ public final class DocumentModel {
   /**
    * {@link Metrics.DocumentMetrics} instance for this model.
    */
-  private Metrics.DocumentMetrics metrics;
+  private transient volatile Metrics.DocumentMetrics metrics;
 
   /**
    * Create a new model with data from the provided builder.
