@@ -28,7 +28,6 @@ import org.apache.lucene.search.TotalHitCountCollector;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Objects;
@@ -57,7 +56,8 @@ public final class Feedback {
 
   /**
    * Same as {@link #get(IndexSearcher, Query, int)}, but creates a new {@link
-   * IndexSearcher} from the provided {@link IndexReader}.
+   * IndexSearcher} from the provided {@link IndexReader}. Mainly used for
+   * testing.
    *
    * @param reader Reader to access the Lucene index
    * @param query Query to get matching documents
@@ -95,7 +95,7 @@ public final class Feedback {
       maxRetDocs = getMaxDocs(searcher.getIndexReader(), docCount);
     }
 
-    return createDocSet(getDocs(searcher, query, maxRetDocs));
+    return getDocs(searcher, query, maxRetDocs);
   }
 
   /**
@@ -122,22 +122,6 @@ public final class Feedback {
   }
 
   /**
-   * Create a set of document ids from the provided {@link TopDocs} instance.
-   * The result order is preserved.
-   *
-   * @param topDocs {@link TopDocs} instance
-   * @return New Set of document ids
-   */
-  private static Set<Integer> createDocSet(final TopDocs topDocs) {
-    // LinkedHashSet keeps the order of elements (important to keep the
-    // scoring).
-    final Set<Integer> docIds = new LinkedHashSet<>(topDocs.scoreDocs
-        .length);
-    mergeDocSet(docIds, topDocs);
-    return docIds;
-  }
-
-  /**
    * Get a limited number of feedback documents matching a query.
    *
    * @param searcher Searcher for issuing the query
@@ -149,7 +133,7 @@ public final class Feedback {
    * @return Documents matching the query
    * @throws IOException Thrown on low-level I/O errors
    */
-  private static TopDocs getDocs(final IndexSearcher searcher,
+  private static Set<Integer> getDocs(final IndexSearcher searcher,
       final Query query, final int maxDocCount)
       throws IOException {
     final TimeMeasure timeMeasure = new TimeMeasure().start();
@@ -186,23 +170,16 @@ public final class Feedback {
         );
       }
     }
-    return results;
-  }
 
-  /**
-   * Merges the document ids from the provided {@link TopDocs} instance into the
-   * provided Set. The results are appended to the list. The original order from
-   * TopDocs is preserved while adding.
-   *
-   * @param target Target Set to append results to. Gets modified in place
-   * @param topDocs {@link TopDocs} instance
-   */
-  private static void mergeDocSet(final Collection<Integer> target,
-      final TopDocs topDocs) {
+    // extract document ids while keeping order
+    final Set<Integer> docIds = new LinkedHashSet<>(
+        results.scoreDocs.length);
     // add the matching documents to the list
-    for (final ScoreDoc scoreDoc : topDocs.scoreDocs) {
-      target.add(scoreDoc.doc);
+    for (final ScoreDoc scoreDoc : results.scoreDocs) {
+      docIds.add(scoreDoc.doc);
     }
+
+    return docIds;
   }
 
   /**
@@ -249,8 +226,8 @@ public final class Feedback {
     Objects.requireNonNull(query, "Query was null.");
 
     final int maxRetDocs = getMaxDocs(searcher.getIndexReader(), docCount);
-    final Set<Integer> docIds = createDocSet(getDocs
-        (searcher, query.getQueryObj(), docCount));
+    final Query q = query.getQueryObj();
+    final Set<Integer> docIds = getDocs(searcher, q, docCount);
 
     int docsToGet;
     while (docIds.size() < docCount) {
@@ -259,8 +236,7 @@ public final class Feedback {
           + "Relaxing query to get additional {} feedback " +
           "documents...", docIds.size(), docsToGet);
       if (query.relax()) {
-        final Set<Integer> result = createDocSet(getDocs(searcher,
-            query.getQueryObj(), maxRetDocs));
+        final Set<Integer> result = getDocs(searcher, q, maxRetDocs);
         if (result.size() > docsToGet) {
           final Iterator<Integer> docIdIt = result.iterator();
           while (docIdIt.hasNext() && docIds.size() < docCount) {
