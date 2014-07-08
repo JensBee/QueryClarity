@@ -50,7 +50,7 @@ public final class ByteArray
   /**
    * MapDB {@link BTreeKeySerializer} for this class instances.
    */
-  public static final ByteArrayKeySerializer SERIALIZER_KEY =
+  public static final ByteArrayKeySerializer SERIALIZER_BTREE =
       new ByteArrayKeySerializer();
   /**
    * Comparator for this class instances.
@@ -69,6 +69,7 @@ public final class ByteArray
   /**
    * Flag indicating, if this is a maximum value.
    */
+  @SuppressWarnings("PackageVisibleField")
   boolean isMax = false;
 
   /**
@@ -76,7 +77,7 @@ public final class ByteArray
    */
   private ByteArray() {
     this.isMax = true;
-    this.bytes = new byte[]{0};
+    this.bytes = new byte[]{(byte) 0};
   }
 
   /**
@@ -245,9 +246,8 @@ public final class ByteArray
     @Override
     public void serialize(final DataOutput out, final ByteArray value)
         throws IOException {
-      if (value == null || value.bytes == null || value.bytes.length == 0) {
-        throw new IllegalArgumentException("ByteArray was null or empty.");
-      }
+      assert value != null && value.bytes != null && value.bytes.length >
+          0 : "ByteArray was null or empty.";
       Serializer.BYTE_ARRAY.serialize(out, value.bytes);
     }
 
@@ -255,9 +255,7 @@ public final class ByteArray
     public ByteArray deserialize(final DataInput in, final int available)
         throws IOException {
       final byte[] value = Serializer.BYTE_ARRAY.deserialize(in, available);
-      if (value == null || value.length == 0) {
-        throw new IllegalArgumentException("ByteArray was null or empty.");
-      }
+      assert value != null && value.length > 0 : "ByteArray was null or empty.";
       return new ByteArray(value);
     }
 
