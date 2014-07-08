@@ -441,22 +441,21 @@ public final class DirectIndexDataProvider
     final Map<ByteArray, Long> tfMap = new HashMap<>();
 
     for (final String field : getDocumentFields()) {
-      this.invertedIdxDocTermsMap.subSet(
-          Fun.t3(docId, getFieldId(field), (ByteArray) null), true,
-          Fun.t3(docId, getFieldId(field), ByteArray.MAX), true);
+      final SerializableByte fieldId = getFieldId(field);
+      final Fun.Tuple3<Integer, SerializableByte, ByteArray> t3Low =
+          Fun.t3(docId, fieldId, (ByteArray) null);
+      final Fun.Tuple3<Integer, SerializableByte, ByteArray> t3Hi =
+          Fun.t3(docId, fieldId, ByteArray.MAX);
+
       for (final Fun.Tuple3<Integer, SerializableByte, ByteArray> k :
-          this.invertedIdxDocTermsMap.subSet(
-              Fun.t3(docId, getFieldId(field), (ByteArray) null), true,
-              Fun.t3(docId, getFieldId(field), ByteArray.MAX), true)
-          ) {
+          this.invertedIdxDocTermsMap.subSet(t3Low, true, t3Hi, true)) {
         if (!isStopword(k.c)) {
           if (tfMap.containsKey(k.c)) {
             tfMap.put(k.c, tfMap.get(k.c) +
-                getIdxDocTermsMap().get(Fun.t3(k.c, getFieldId(field), docId)));
-            //dftEnum.getTotalTermFreq());
+                getIdxDocTermsMap().get(Fun.t3(k.c, fieldId, docId)));
           } else {
             tfMap.put(k.c, (long) getIdxDocTermsMap().get(
-                Fun.t3(k.c, getFieldId(field), docId)));
+                Fun.t3(k.c, fieldId, docId)));
           }
         }
       }
@@ -494,17 +493,27 @@ public final class DirectIndexDataProvider
     }
 
     final Iterable<Integer> uniqueDocIds = new HashSet<>(docIds);
-    @SuppressWarnings("CollectionWithoutInitialCapacity")
-    final Set<ByteArray> terms = new HashSet<>();
+    // collection can get quite large, so get a disk backed one
+    final Set<ByteArray> terms = DBMaker.newTempFileDB()
+        .deleteFilesAfterClose()
+        .closeOnJvmShutdown()
+        .compressionEnable()
+        .transactionDisable()
+        .make()
+        .createTreeSet("tmpDocTermSet")
+        .serializer(ByteArray.SERIALIZER_BTREE)
+        .make();
 
     for (final Integer docId : uniqueDocIds) {
       checkDocId(docId);
       for (final String field : getDocumentFields()) {
+        final SerializableByte fieldId = getFieldId(field);
+        final Fun.Tuple3<Integer, SerializableByte, ByteArray> t3Low =
+            Fun.t3(docId, fieldId, (ByteArray) null);
+        final Fun.Tuple3<Integer, SerializableByte, ByteArray> t3Hi =
+            Fun.t3(docId, fieldId, ByteArray.MAX);
         for (final Fun.Tuple3<Integer, SerializableByte, ByteArray> k :
-            this.invertedIdxDocTermsMap.subSet(
-                Fun.t3(docId, getFieldId(field), (ByteArray) null), true,
-                Fun.t3(docId, getFieldId(field), ByteArray.MAX), true)
-            ) {
+            this.invertedIdxDocTermsMap.subSet(t3Low, true, t3Hi, true)) {
           if (!isStopword(k.c)) {
             terms.add(k.c);
           }
@@ -702,7 +711,7 @@ public final class DirectIndexDataProvider
     static DB.BTreeSetMaker idxTermsMaker(final DB db) {
       return Objects.requireNonNull(db, "DB was null.")
           .createTreeSet(Caches.IDX_TERMS.name())
-          .serializer(ByteArray.SERIALIZER_KEY)
+          .serializer(ByteArray.SERIALIZER_BTREE)
           .nodeSize(32)
           .counterEnable();
     }
@@ -716,7 +725,7 @@ public final class DirectIndexDataProvider
     static DB.BTreeMapMaker idxDfMapMaker(final DB db) {
       return Objects.requireNonNull(db, "DB was null.")
           .createTreeMap(Caches.IDX_DFMAP.name())
-          .keySerializer(ByteArray.SERIALIZER_KEY)
+          .keySerializer(ByteArray.SERIALIZER_BTREE)
           .valueSerializer(Serializer.INTEGER)
           .nodeSize(18)
           .counterEnable();
