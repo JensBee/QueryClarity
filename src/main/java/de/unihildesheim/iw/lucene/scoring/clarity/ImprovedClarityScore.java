@@ -741,7 +741,7 @@ public final class ImprovedClarityScore
     @Override
     public void call(final ByteArray term) {
       if (term != null) {
-        final Integer df = this.collectionMetrics.df(term);
+        final int df = this.collectionMetrics.df(term);
         if (df >= this.minDf && df <= this.maxDf) {
           this.reducedTermsTarget.add(term);
         }
