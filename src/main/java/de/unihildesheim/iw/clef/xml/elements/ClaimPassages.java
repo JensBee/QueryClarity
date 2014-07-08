@@ -22,6 +22,7 @@ import javax.xml.bind.annotation.XmlElementWrapper;
 import javax.xml.bind.annotation.XmlRootElement;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 
 /**
  * JAXB for {@code claimpassages} XML documents.
@@ -57,7 +58,7 @@ public final class ClaimPassages {
    * Language elements list.
    */
   private final Collection<Language> languages =
-      new ArrayList<>(DEFAULT_LANGUAGE_SIZE);
+      new HashSet<>(DEFAULT_LANGUAGE_SIZE);
 
   /**
    * Get the list of passages groups.
