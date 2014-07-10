@@ -51,6 +51,17 @@ public final class Language {
   }
 
   /**
+   * Set a list of strings as stopwords.
+   *
+   * @param newStopwords Stopwords
+   */
+  public final void setStopwords(final Collection<String> newStopwords) {
+    final List<String> sw = new ArrayList<>(new HashSet<>(newStopwords));
+    Collections.sort(sw);
+    this.stopwords = StringUtils.join(sw, " ");
+  }
+
+  /**
    * Set a space delimited string as list of stopwords.
    *
    * @param newStopwords Stopwords as single string
@@ -58,17 +69,6 @@ public final class Language {
   public final void setStopwords(final String newStopwords) {
     final List<String> sw = new ArrayList<>(
         new HashSet<>(StringUtils.split(newStopwords, " ")));
-    Collections.sort(sw);
-    this.stopwords = StringUtils.join(sw, " ");
-  }
-
-  /**
-   * Set a list of strings as stopwords.
-   *
-   * @param newStopwords Stopwords
-   */
-  public final void setStopwords(final Collection<String> newStopwords) {
-    final List<String> sw = new ArrayList<>(new HashSet<>(newStopwords));
     Collections.sort(sw);
     this.stopwords = StringUtils.join(sw, " ");
   }
@@ -86,9 +86,9 @@ public final class Language {
       final Language other = (Language) obj;
       if (this.lang.equalsIgnoreCase(other.lang)) {
         final Collection<String> thisStopwords =
-            new ArrayList(StringUtils.split(this.stopwords, " "));
+            new ArrayList<>(StringUtils.split(this.stopwords, " "));
         final Collection<String> thatStopwords =
-            new ArrayList(StringUtils.split(other.stopwords, " "));
+            new ArrayList<>(StringUtils.split(other.stopwords, " "));
         if (thisStopwords.size() == thatStopwords.size() && thisStopwords
             .containsAll(thatStopwords)) {
           return true;

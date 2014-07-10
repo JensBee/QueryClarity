@@ -25,12 +25,12 @@ import java.util.Collection;
 import java.util.HashSet;
 
 /**
- * JAXB for {@code claimpassages} XML documents.
+ * JAXB for {@code topicpassages} XML documents.
  *
  * @author Jens Bertram
  */
 @XmlRootElement
-public final class ClaimPassages {
+public final class TopicPassages {
 
   /**
    * Default number of passages that are expected. Used as list initializer.
