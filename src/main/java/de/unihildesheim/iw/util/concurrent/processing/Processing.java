@@ -61,7 +61,7 @@ public final class Processing {
     final Integer maxThreads = GlobalConfiguration.conf().getAndAddInteger
         (IDENTIFIER + "_max-threads", 0);
     final int processors = Runtime.getRuntime().availableProcessors();
-    if (maxThreads == null || maxThreads == 0) {
+    if (maxThreads == null || maxThreads <= 0) {
       THREADS = processors;
     } else {
       THREADS = Math.min(processors, maxThreads);
@@ -284,6 +284,7 @@ public final class Processing {
           TimeMeasure.getTimeString(sourceTime.get(1L, TimeUnit.SECONDS))
       );
     } catch (final TimeoutException ex) {
+      sourceThread.cancel(true);
       throw new TargetException.TargetFailedException(
           "Source finished without result. "
               + "There may be processing errors.", ex);
@@ -324,8 +325,11 @@ public final class Processing {
      * available.
      */
     ProcessingThreadPoolExecutor() {
+      final int maxPool = (int) ((double) THREADS * 1.75);
+      LOG.debug("Initializing thread pool executor. core={} maxPool={} ka={}",
+          THREADS, maxPool, KEEPALIVE_TIME);
       this.threadPool = new ThreadPoolExecutor(THREADS,
-          Integer.MAX_VALUE, KEEPALIVE_TIME, TimeUnit.SECONDS,
+          maxPool, KEEPALIVE_TIME, TimeUnit.SECONDS,
           new SynchronousQueue<Runnable>());
     }
 
