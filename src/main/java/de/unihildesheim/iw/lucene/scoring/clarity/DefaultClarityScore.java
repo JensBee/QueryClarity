@@ -52,6 +52,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -82,6 +83,12 @@ public final class DefaultClarityScore
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       DefaultClarityScore.class);
   /**
+   * How long to wait for a model currently being calculated. If the timeout is
+   * hit the model will be calculated, regardless if it's already done in
+   * another thread.
+   */
+  private static final long DOC_MODEL_CALC_WAIT_TIMEOUT = 3000L;
+  /**
    * Provider for general index metrics.
    */
   private final Metrics metrics;
@@ -109,6 +116,11 @@ public final class DefaultClarityScore
    * Synchronization lock for document model map calculation.
    */
   private final Object docModelMapCalcSync = new Object();
+  /**
+   * List of document models currently being calculated.
+   */
+  private final Set<Integer> modelsBeingCalculated =
+      Collections.synchronizedSet(new HashSet<Integer>(100));
   /**
    * Flag indicating, if this instance has been closed.
    */
@@ -140,7 +152,7 @@ public final class DefaultClarityScore
    * @throws Buildable.BuildableException Thrown, if building the persistent
    * cache failed
    */
-  DefaultClarityScore(final Builder builder)
+  private DefaultClarityScore(final Builder builder)
       throws Buildable.BuildableException {
     Objects.requireNonNull(builder, "Builder was null.");
 
@@ -290,10 +302,8 @@ public final class DefaultClarityScore
       double modelPart = 1d;
       for (final ByteArray aTerm : terms) {
         if (docModMap.containsKey(aTerm)) {
-          assert 0d != docModMap.get(aTerm);
           modelPart *= docModMap.get(aTerm);
         } else {
-          assert 0d != getDefaultDocumentModel(aTerm);
           modelPart *= getDefaultDocumentModel(aTerm);
         }
       }
@@ -310,41 +320,68 @@ public final class DefaultClarityScore
    */
   Map<ByteArray, Double> getDocumentModel(final int docId) {
     checkClosed();
-    Map<ByteArray, Double> map;
-    if (this.docModelDataCache.containsKey(docId)) {
-      // get local cached map
-      map = this.docModelDataCache.get(docId);
-    } else {
-      // double checked locking
-      synchronized (this.docModelMapCalcSync) {
-        if (this.docModelDataCache.containsKey(docId)) {
-          // get local cached map
-          map = this.docModelDataCache.get(docId);
-        } else {
-          // get external cached map
-          map = this.extDocMan.getData(docId, DataKeys.DOCMODEL.name());
-          // build mapping, if needed
-          if (null == map || map.isEmpty()) {
-            final DocumentModel docModel = this.metrics.getDocumentModel(docId);
-            final Set<ByteArray> terms = docModel.getTermFreqMap().keySet();
 
-            map = new HashMap<>(terms.size());
-            for (final ByteArray term : terms) {
-              final Double model = (this.conf.getLangModelWeight()
-                  * docModel.metrics().relTf(term))
-                  + getDefaultDocumentModel(term);
+    // try to get pre-calculated values
+    Map<ByteArray, Double> map =
+        this.extDocMan.getData(docId, DataKeys.DOCMODEL.name());
+    final boolean calculate;
 
-              assert 0d != model;
-              map.put(term, model);
+    if (map == null || map.isEmpty()) {
+      synchronized (this.modelsBeingCalculated) {
+        if (this.modelsBeingCalculated.contains(docId)) {
+          final long deadline =
+              System.currentTimeMillis() + DOC_MODEL_CALC_WAIT_TIMEOUT;
+          while (this.modelsBeingCalculated.contains(docId)) {
+            try {
+              this.modelsBeingCalculated.wait(DOC_MODEL_CALC_WAIT_TIMEOUT);
+            } catch (InterruptedException e) {
+              break;
             }
-            // push data to persistent storage
-            this.extDocMan.setData(docModel.id, DataKeys.DOCMODEL.name(), map);
+            if (System.currentTimeMillis() >= deadline) {
+              // we timed out
+              break;
+            }
           }
-          // push to local cache
-          this.docModelDataCache.put(docId, map);
+          // calculate, if the model is still in queue (we hit the timeout)
+          calculate = this.modelsBeingCalculated.contains(docId);
+        } else {
+          this.modelsBeingCalculated.add(docId);
+          calculate = true;
         }
       }
+
+      // build map
+      if (calculate) {
+        try {
+          // document data model
+          final DocumentModel docModel = this.metrics.getDocumentModel(docId);
+          // unique list of all terms in document
+          final Set<ByteArray> terms = docModel.getTermFreqMap().keySet();
+          // store results for all terms in document
+          map = new HashMap<>(terms.size());
+
+          // calculate model values for all terms in document
+          for (final ByteArray term : terms) {
+            final Double model = (this.conf.getLangModelWeight()
+                * docModel.metrics().relTf(term))
+                + getDefaultDocumentModel(term);
+
+            assert 0d != model;
+            map.put(term, model);
+          }
+          // push data to persistent storage
+          this.extDocMan.setData(docModel.id, DataKeys.DOCMODEL.name(), map);
+        } finally {
+          synchronized (this.modelsBeingCalculated) {
+            this.modelsBeingCalculated.remove(docId);
+            this.modelsBeingCalculated.notifyAll();
+          }
+        }
+      } else {
+        map = this.extDocMan.getData(docId, DataKeys.DOCMODEL.name());
+      }
     }
+
     return map;
   }
 
@@ -448,8 +485,9 @@ public final class DefaultClarityScore
       queryObj = new TryExactTermsQuery(this.analyzer, query,
           this.dataProv.getDocumentFields());
     } catch (final ParseException e) {
-      throw new ClarityScoreCalculationException(
-          "Caught exception while building query.", e);
+      final String msg = "Caught exception while building query.";
+      LOG.error(msg, e);
+      throw new ClarityScoreCalculationException(msg, e);
     }
 
     // get feedback documents
@@ -458,9 +496,10 @@ public final class DefaultClarityScore
       feedbackDocuments =
           Feedback.getFixed(this.idxReader, queryObj,
               this.conf.getFeedbackDocCount());
-    } catch (final IOException | ParseException ex) {
-      throw new ClarityScoreCalculationException(
-          "Caught exception while preparing calculation.", ex);
+    } catch (final IOException | ParseException e) {
+      final String msg = "Caught exception while preparing calculation.";
+      LOG.error(msg, e);
+      throw new ClarityScoreCalculationException(msg, e);
     }
 
     if (feedbackDocuments.isEmpty()) {
@@ -474,8 +513,9 @@ public final class DefaultClarityScore
       // Get unique query terms
       queryTerms = QueryUtils.getUniqueQueryTerms(queryObj);
     } catch (final UnsupportedEncodingException e) {
-      throw new ClarityScoreCalculationException(
-          "Caught exception parsing query.", e);
+      final String msg = "Caught exception while parsing query.";
+      LOG.error(msg, e);
+      throw new ClarityScoreCalculationException(msg, e);
     }
 
     if (null == queryTerms || queryTerms.isEmpty()) {
@@ -494,7 +534,9 @@ public final class DefaultClarityScore
       );
       return r;
     } catch (final ProcessingException e) {
-      throw new ClarityScoreCalculationException(e);
+      final String msg = "Caught exception while calculating score.";
+      LOG.error(msg, e);
+      throw new ClarityScoreCalculationException(msg, e);
     }
   }
 
@@ -624,14 +666,13 @@ public final class DefaultClarityScore
      */
     private Collection<Integer> feedbackDocIds;
     /**
-     * Configuration prefix.
-     */
-    private static final String CONF_PREFIX =
-        DefaultClarityScore.IDENTIFIER + "-result";
-    /**
      * Number of documents in the index matching the query.
      */
     private Integer numberOfMatchingDocuments = null;
+    /**
+     * Configuration prefix.
+     */
+    private static final String CONF_PREFIX = IDENTIFIER + "-result";
     /**
      * Configuration that was used.
      */
@@ -706,10 +747,10 @@ public final class DefaultClarityScore
 
       getXml(xml);
 
-      // configuration
-      if (this.conf != null) {
-        xml.getLists().put("configuration", this.conf.entryList());
-      }
+//      // configuration
+//      if (this.conf != null) {
+//        xml.getLists().put("configuration", this.conf.entryList());
+//      }
 
       // number of feedback documents
       xml.getItems().put("feedbackDocuments",

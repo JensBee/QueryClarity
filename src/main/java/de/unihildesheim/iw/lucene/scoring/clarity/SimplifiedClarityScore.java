@@ -19,6 +19,7 @@ package de.unihildesheim.iw.lucene.scoring.clarity;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
+import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
@@ -102,8 +103,9 @@ public final class SimplifiedClarityScore
         queryTerms.add(termBa);
       }
     } catch (final UnsupportedEncodingException e) {
-      throw new ClarityScoreCalculationException(
-          "Caught exception while preparing calculation.", e);
+      final String msg = "Caught exception while preparing calculation.";
+      LOG.error(msg, e);
+      throw new ClarityScoreCalculationException(msg, e);
     }
     if (queryTerms.isEmpty()) {
       result.setEmpty("No query terms.");
@@ -159,12 +161,26 @@ public final class SimplifiedClarityScore
           termCount++;
         }
       }
+
       assert termCount > 0;
+      if (termCount == 0) {
+        LOG.warn("Term count == 0 for term {}.",
+            ByteArrayUtils.utf8ToString(queryTerm));
+        continue;
+      }
 
       final double pMl =
           Integer.valueOf(termCount).doubleValue() / Integer.valueOf(
               queryLength);
-      final double pColl = this.metrics.collection().tf(queryTerm).doubleValue()
+      final Long tf = this.metrics.collection().tf(queryTerm);
+
+      assert tf > 0L;
+      if (tf == 0L) {
+        LOG.warn("Collection term frequency == 0 for term {}.",
+            ByteArrayUtils.utf8ToString(queryTerm));
+        continue;
+      }
+      final double pColl = tf.doubleValue()
           / (double) collTermCount;
       result += pMl * MathUtils.log2(pMl / pColl);
     }
@@ -206,7 +222,7 @@ public final class SimplifiedClarityScore
   }
 
   /**
-   * Wraps the calculation reslt and additional meta information.
+   * Wraps the calculation result and additional meta information.
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class Result

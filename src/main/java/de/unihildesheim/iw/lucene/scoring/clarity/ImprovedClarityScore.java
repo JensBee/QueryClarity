@@ -56,7 +56,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -84,6 +83,12 @@ public final class ImprovedClarityScore
   static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       ImprovedClarityScore.class);
   /**
+   * How long to wait for a model currently being calculated. If the timeout is
+   * hit the model will be calculated, regardless if it's already done in
+   * another thread.
+   */
+  private static final long DOC_MODEL_CALC_WAIT_TIMEOUT = 3000L;
+  /**
    * Provider for general index metrics.
    */
   private final Metrics metrics;
@@ -100,13 +105,10 @@ public final class ImprovedClarityScore
    */
   private final Analyzer analyzer;
   /**
-   * Synchronization lock for document model calculation.
+   * List of document models currently being calculated.
    */
-  private final Object docModelCalcSync = new Object();
-  /**
-   * Synchronization lock for document model map calculation.
-   */
-  private final Object docModelMapCalcSync = new Object();
+  private final Set<Integer> modelsBeingCalculated =
+      Collections.synchronizedSet(new HashSet<Integer>(100));
   /**
    * Configuration object used for all parameters of the calculation.
    */
@@ -126,11 +128,6 @@ public final class ImprovedClarityScore
    */
   private boolean hasCache;
   /**
-   * Cached storage of Document-id -> Term, model-value.
-   */
-  @SuppressWarnings("FieldAccessedSynchronizedAndUnsynchronized")
-  private Map<Integer, Map<ByteArray, Double>> docModelDataCache;
-  /**
    * Flag indicating, if this instance has been closed.
    */
   private volatile boolean isClosed;
@@ -142,7 +139,7 @@ public final class ImprovedClarityScore
    * @throws Buildable.BuildableException Thrown, if building the cache instance
    * failed
    */
-  ImprovedClarityScore(final Builder builder)
+  private ImprovedClarityScore(final Builder builder)
       throws Buildable.BuildableException {
     Objects.requireNonNull(builder, "Builder was null.");
 
@@ -164,8 +161,6 @@ public final class ImprovedClarityScore
       final ImprovedClarityScoreConfiguration newConf) {
     this.conf = newConf;
     newConf.debugDump();
-    this.docModelDataCache = new ConcurrentHashMap<>(
-        this.conf.getMaxFeedbackDocumentsCount());
     parseConfig();
   }
 
@@ -329,13 +324,23 @@ public final class ImprovedClarityScore
     double model = 0d;
 
     for (final Integer fbDocId : fbDocIds) {
+      final Map<ByteArray, Double> docModelMap = getDocumentModel(fbDocId);
       // document model for the given term pD(t)
-      final double docModel = getDocumentModel(fbDocId, fbTerm);
+      final double docModel;
+      if (docModelMap.containsKey(fbTerm)) {
+        docModel = docModelMap.get(fbTerm);
+      } else {
+        docModel = getDocumentModel(fbDocId, fbTerm);
+      }
       // calculate the product of the document models for all query terms
       // given the current document
       double docModelQtProduct = 1d;
       for (final ByteArray qTerm : qTerms) {
-        docModelQtProduct *= getDocumentModel(fbDocId, qTerm);
+        if (docModelMap.containsKey(qTerm)) {
+          docModelQtProduct *= docModelMap.get(qTerm);
+        } else {
+          docModelQtProduct *= getDocumentModel(fbDocId, qTerm);
+        }
         if (docModelQtProduct <= 0d) {
           // short circuit, if model is already too low
           break;
@@ -357,6 +362,82 @@ public final class ImprovedClarityScore
   }
 
   /**
+   * Calculate or get the document model (pd) for a specific document.
+   *
+   * @param docId Id of the document whose model to get
+   * @return Mapping of each term in the document to it's model value available
+   * was interrupted
+   */
+  Map<ByteArray, Double> getDocumentModel(final int docId) {
+    checkClosed();
+
+    // try to get pre-calculated values
+    Map<ByteArray, Double> map =
+        this.extDocMan.getData(docId, DataKeys.DOCMODEL.name());
+    final boolean calculate;
+
+    if (map == null || map.isEmpty()) {
+      synchronized (this.modelsBeingCalculated) {
+        if (this.modelsBeingCalculated.contains(docId)) {
+          final long deadline =
+              System.currentTimeMillis() + DOC_MODEL_CALC_WAIT_TIMEOUT;
+          while (this.modelsBeingCalculated.contains(docId)) {
+            try {
+              this.modelsBeingCalculated.wait(DOC_MODEL_CALC_WAIT_TIMEOUT);
+            } catch (InterruptedException e) {
+              break;
+            }
+            if (System.currentTimeMillis() >= deadline) {
+              // we timed out
+              break;
+            }
+          }
+          // calculate, if the model is still in queue (we hit the timeout)
+          calculate = this.modelsBeingCalculated.contains(docId);
+        } else {
+          this.modelsBeingCalculated.add(docId);
+          calculate = true;
+        }
+      }
+
+      // build map
+      if (calculate) {
+        try {
+          // document data model
+          final DocumentModel docModel = this.metrics.getDocumentModel(docId);
+          // frequency of term in document
+          final double docTermFreq = docModel.metrics().tf().doubleValue();
+          // number of unique terms in document
+          final double termsInDoc =
+              docModel.metrics().uniqueTermCount().doubleValue();
+          // unique list of all terms in document
+          final Set<ByteArray> terms = docModel.getTermFreqMap().keySet();
+          // store results for all terms in document
+          map = new HashMap<>(terms.size());
+
+          // calculate model values for all terms in document
+          for (final ByteArray term : terms) {
+            map.put(term,
+                calcDocumentModel(docModel, docTermFreq, termsInDoc, term));
+          }
+          // push data to persistent storage
+          this.extDocMan.setData(docId, DataKeys.DOCMODEL.name(), map);
+        } finally {
+          synchronized (this.modelsBeingCalculated) {
+            this.modelsBeingCalculated.remove(docId);
+            this.modelsBeingCalculated.notifyAll();
+          }
+        }
+      } else {
+        map = this.extDocMan.getData(docId, DataKeys.DOCMODEL.name());
+      }
+    }
+
+    assert map != null && !map.isEmpty() : "Model map was empty.";
+    return map;
+  }
+
+  /**
    * Safe method to get the document model value for a document term. This
    * method will calculate an additional value, if the term in question is not
    * contained in the document. <br> A call to this method should only needed,
@@ -372,101 +453,50 @@ public final class ImprovedClarityScore
     Double model = getDocumentModel(docId).get(term);
     // if term not in document, calculate new value
     if (model == null) {
-      // double checked locking
-      synchronized (this.docModelCalcSync) {
-        model = getDocumentModel(docId).get(term);
-        if (model == null) {
-          final DocumentModel docModel = this.metrics.getDocumentModel(docId);
-          final double termRelIdxFreq = this.metrics.collection().relTf(term);
-          // relative collection frequency of the term
-          final double docTermFreq = docModel.metrics().tf().doubleValue();
-          final double termsInDoc =
-              docModel.metrics().uniqueTermCount().doubleValue();
+      // document data model
+      final DocumentModel docModel = this.metrics.getDocumentModel(docId);
+      // frequency of term in document
+      final double docTermFreq = docModel.metrics().tf().doubleValue();
+      // number of unique terms in document
+      final double termsInDoc =
+          docModel.metrics().uniqueTermCount().doubleValue();
 
-          final double smoothedTerm =
-              (this.conf.getDocumentModelSmoothingParameter() *
-                  termRelIdxFreq) /
-                  (docTermFreq +
-                      (this.conf.getDocumentModelSmoothingParameter() *
-                          termsInDoc));
-          model =
-              (this.conf.getDocumentModelParamLambda() *
-                  ((this.conf.getDocumentModelParamBeta() * smoothedTerm) +
-                      ((1d - this.conf.getDocumentModelParamBeta()) *
-                          termRelIdxFreq))
-              ) + ((1d - this.conf.getDocumentModelParamLambda()) *
-                  termRelIdxFreq);
-        }
-      }
+      model = calcDocumentModel(docModel, docTermFreq, termsInDoc, term);
     }
     assert model > 0d;
     return model;
   }
 
   /**
-   * Calculate or get the document model (pd) for a specific document.
+   * Calculate the document model for a given document and term.
    *
-   * @param docId Id of the document whose model to get
-   * @return Mapping of each term in the document to it's model value
+   * @param docModel Document data model
+   * @param docTermFreq Frequency of all terms in document
+   * @param termsInDoc Number of unique terms in document
+   * @param term Term to calculate
+   * @return Model for document and term
    */
-  Map<ByteArray, Double> getDocumentModel(final int docId) {
-    checkClosed();
-    Map<ByteArray, Double> map;
-    if (this.docModelDataCache.containsKey(docId)) {
-      // get local cached map
-      map = this.docModelDataCache.get(docId);
-    } else {
-      // double checked locking
-      synchronized (this.docModelMapCalcSync) {
-        if (this.docModelDataCache.containsKey(docId)) {
-          // get local cached map
-          map = this.docModelDataCache.get(docId);
-        } else {
-          // get external cached map
-          map = this.extDocMan.getData(docId, DataKeys.DM.name());
+  private double calcDocumentModel(final DocumentModel docModel,
+      final double docTermFreq, final double termsInDoc,
+      final ByteArray term) {
+    // relative frequency of the term in the whole collection
+    final double termRelIdxFreq = this.metrics.collection().relTf(term);
+    // term frequency given the document
+    final double termInDocFreq = docModel.metrics().tf(term).doubleValue();
 
-          // build mapping, if needed
-          if (map == null || map.isEmpty()) {
-            final DocumentModel docModel = this.metrics.getDocumentModel(docId);
-            final double docTermFreq = docModel.metrics().tf().doubleValue();
-            final double termsInDoc =
-                docModel.metrics().uniqueTermCount().doubleValue();
-            final Set<ByteArray> terms = docModel.getTermFreqMap().keySet();
-
-            map = new HashMap<>(terms.size());
-            for (final ByteArray term : terms) {
-              // relative collection frequency of the term
-              final double termRelIdxFreq =
-                  this.metrics.collection().relTf(term);
-              // term frequency given the document
-              final double termInDocFreq =
-                  docModel.metrics().tf(term).doubleValue();
-
-              final double smoothedTerm =
-                  (termInDocFreq +
-                      (this.conf.getDocumentModelSmoothingParameter() *
-                          termRelIdxFreq)) /
-                      (docTermFreq +
-                          (this.conf.getDocumentModelSmoothingParameter() *
-                              termsInDoc));
-              final double value =
-                  (this.conf.getDocumentModelParamLambda() *
-                      ((this.conf.getDocumentModelParamBeta() * smoothedTerm) +
-                          ((1d - this.conf.getDocumentModelParamBeta()) *
-                              termRelIdxFreq))
-                  ) + ((1d - this.conf.getDocumentModelParamLambda()) *
-                      termRelIdxFreq);
-              map.put(term, value);
-            }
-            // push data to persistent storage
-            this.extDocMan.setData(docModel.id, DataKeys.DM.name(), map);
-          }
-          // push to local cache
-          this.docModelDataCache.put(docId, map);
-        }
-      }
-    }
-    return map;
+    final double smoothedTerm =
+        (termInDocFreq +
+            (this.conf.getDocumentModelSmoothingParameter() *
+                termRelIdxFreq)) /
+            (docTermFreq +
+                (this.conf.getDocumentModelSmoothingParameter() *
+                    termsInDoc));
+    return (this.conf.getDocumentModelParamLambda() *
+        ((this.conf.getDocumentModelParamBeta() * smoothedTerm) +
+            ((1d - this.conf.getDocumentModelParamBeta()) *
+                termRelIdxFreq))
+    ) + ((1d - this.conf.getDocumentModelParamLambda()) *
+        termRelIdxFreq);
   }
 
   /**
@@ -514,8 +544,9 @@ public final class ImprovedClarityScore
       relaxableQuery = new TryExactTermsQuery(
           this.analyzer, query, this.dataProv.getDocumentFields());
     } catch (final ParseException e) {
-      throw new ClarityScoreCalculationException(
-          "Caught exception while building query.", e);
+      final String msg = "Caught exception while building query.";
+      LOG.error(msg, e);
+      throw new ClarityScoreCalculationException(msg, e);
     }
 
     // collection of feedback document ids
@@ -525,8 +556,10 @@ public final class ImprovedClarityScore
       feedbackDocIds = Feedback.getFixed(this.idxReader, relaxableQuery,
           this.conf.getMaxFeedbackDocumentsCount());
     } catch (final IOException | ParseException e) {
-      throw new ClarityScoreCalculationException("Error while retrieving " +
-          "feedback documents.", e);
+      final String msg =
+          "Caught exception while retrieving feedback documents.";
+      LOG.error(msg, e);
+      throw new ClarityScoreCalculationException(msg, e);
     }
     if (feedbackDocIds.isEmpty()) {
       result.setEmpty("No feedback documents.");
@@ -545,7 +578,7 @@ public final class ImprovedClarityScore
       LOG.debug("Document frequency threshold was {} setting to 1", minDf);
       minDf = 1;
     }
-    int maxDf = (int) (this.metrics.collection().numberOfDocuments()
+    final int maxDf = (int) (this.metrics.collection().numberOfDocuments()
         * this.conf.getMaxFeedbackTermSelectionThreshold());
     LOG.debug("Document frequency threshold: low=({} = {}) hi=({} = {})",
         minDf, this.conf.getMinFeedbackTermSelectionThreshold(),
@@ -567,8 +600,9 @@ public final class ImprovedClarityScore
           )
       ).process(fbTerms.size());
     } catch (final ProcessingException e) {
-      throw new ClarityScoreCalculationException("Failed to reduce terms by " +
-          "threshold.", e);
+      final String msg = "Failed to reduce terms by threshold.";
+      LOG.error(msg, e);
+      throw new ClarityScoreCalculationException(msg, e);
     }
 
     if (LOG.isDebugEnabled()) {
@@ -608,7 +642,9 @@ public final class ImprovedClarityScore
           )
       ).process(reducedFbTerms.size());
     } catch (final ProcessingException e) {
-      throw new ClarityScoreCalculationException(e);
+      final String msg = "Caught exception while calculating score.";
+      LOG.error(msg, e);
+      throw new ClarityScoreCalculationException(msg, e);
     }
 
     result.setScore(score.get());
@@ -688,7 +724,7 @@ public final class ImprovedClarityScore
     /**
      * Document-models.
      */
-    DM
+    DOCMODEL
   }
 
   /**
@@ -757,14 +793,14 @@ public final class ImprovedClarityScore
   public static final class Result
       extends ClarityScoreResult {
     /**
-     * Configuration prefix.
-     */
-    private static final String CONF_PREFIX = DefaultClarityScore.IDENTIFIER
-        + "-result";
-    /**
      * Configuration that was used.
      */
     private ImprovedClarityScoreConfiguration conf;
+    /**
+     * Configuration prefix.
+     */
+    private static final String CONF_PREFIX = ImprovedClarityScore.IDENTIFIER
+        + "-result";
     /**
      * Ids of feedback documents used for calculation.
      */
@@ -818,6 +854,7 @@ public final class ImprovedClarityScore
      *
      * @return Feedback documents used for calculation
      */
+    @SuppressWarnings("TypeMayBeWeakened")
     public Set<Integer> getFeedbackDocuments() {
       return Collections.unmodifiableSet(this.feedbackDocIds);
     }
@@ -827,6 +864,7 @@ public final class ImprovedClarityScore
      *
      * @return Feedback terms used for calculation
      */
+    @SuppressWarnings("TypeMayBeWeakened")
     public Set<ByteArray> getFeedbackTerms() {
       return Collections.unmodifiableSet(this.feedbackTerms);
     }
@@ -851,7 +889,7 @@ public final class ImprovedClarityScore
       if (GlobalConfiguration.conf()
           .getAndAddBoolean(CONF_PREFIX + "ListFeedbackTerms",
               Boolean.TRUE)) {
-        final List<String> fbTerms = new ArrayList<>
+        final Collection<String> fbTerms = new ArrayList<>
             (this.feedbackTerms.size());
         for (final ByteArray fbTerm : this.feedbackTerms) {
           fbTerms.add(ByteArrayUtils.utf8ToString(fbTerm));
@@ -871,13 +909,15 @@ public final class ImprovedClarityScore
         xml.getLists().put("feedbackDocuments", fbDocsList);
       }
 
-      // configuration
-      if (this.conf != null) {
-        xml.getLists().put("configuration", this.conf.entryList());
-      }
+//      // configuration
+//      if (this.conf != null) {
+//        xml.getLists().put("configuration", this.conf.entryList());
+//      }
 
       return xml;
     }
+
+
   }
 
   /**
