@@ -69,8 +69,7 @@ public final class ByteArray
   /**
    * Flag indicating, if this is a maximum value.
    */
-  @SuppressWarnings("PackageVisibleField")
-  boolean isMax = false;
+  private boolean isMax;
 
   /**
    * Private constructor. Used for {@link #MAX} only.
@@ -126,7 +125,7 @@ public final class ByteArray
     if (length == 0) {
       throw new IllegalStateException("Length is zero. " +
           "bytes-length=" + existingBytes.length + ", " +
-          "offset=" + offset + ", length=" + length);
+          "offset=" + offset);
     }
     if (length < 0) {
       throw new IllegalStateException("Length is negative. " +
@@ -172,8 +171,30 @@ public final class ByteArray
   }
 
   @Override
+  public int hashCode() {
+    return Hasher.BYTE_ARRAY.hashCode(this.bytes);
+  }
+
+  @SuppressWarnings("SimplifiableIfStatement")
+  @Override
+  public boolean equals(final Object o) {
+    if (this == o) {
+      return true;
+    }
+
+    if (o == null || !(o instanceof ByteArray)) {
+      return false;
+    }
+
+    return compareTo((ByteArray) o) == 0;
+  }
+
+  @Override
   public int compareTo(
       @SuppressWarnings("NullableProblems") final ByteArray o) {
+    if (o == null) {
+      return 1;
+    }
     if (this.isMax) {
       if (o.isMax) {
         return 0;
@@ -184,20 +205,6 @@ public final class ByteArray
       return -1;
     }
     return Fun.BYTE_ARRAY_COMPARATOR.compare(this.bytes, o.bytes);
-  }
-
-  @Override
-  public int hashCode() {
-    return Hasher.BYTE_ARRAY.hashCode(this.bytes);
-  }
-
-  @Override
-  public boolean equals(final Object o) {
-    return this == o
-        || (o instanceof ByteArray && this.isMax && ((ByteArray) o).isMax)
-        || (o instanceof ByteArray
-        && Fun.BYTE_ARRAY_COMPARATOR.compare(
-        this.bytes, ((ByteArray) o).bytes) == 0);
   }
 
   @Override
@@ -218,16 +225,13 @@ public final class ByteArray
 
     @Override
     public int compare(final ByteArray o1, final ByteArray o2) {
-      if (o1.isMax) {
-        if (o2.isMax) {
-          return 0;
-        }
+      if (o1 == null) {
+        return o2 == null ? 0 : -1;
+      }
+      if (o2 == null) {
         return 1;
       }
-      if (o2.isMax) {
-        return -1;
-      }
-      return Fun.BYTE_ARRAY_COMPARATOR.compare(o1.bytes, o2.bytes);
+      return o1.compareTo(o2);
     }
   }
 

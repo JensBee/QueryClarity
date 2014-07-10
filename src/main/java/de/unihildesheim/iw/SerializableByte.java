@@ -69,12 +69,6 @@ public final class SerializableByte
     this.value = toClone.value;
   }
 
-  @SuppressWarnings("NullableProblems")
-  @Override
-  public int compareTo(final SerializableByte o) {
-    return Byte.compare(this.value, o.value);
-  }
-
   @Override
   public int hashCode() {
     return (int) this.value;
@@ -82,8 +76,24 @@ public final class SerializableByte
 
   @Override
   public boolean equals(final Object obj) {
-    return (obj instanceof SerializableByte) &&
-        (this.value == ((SerializableByte) obj).value);
+    if (this == obj) {
+      return true;
+    }
+
+    if (obj == null || !(obj instanceof SerializableByte)) {
+      return false;
+    }
+
+    return compareTo((SerializableByte) obj) == 0;
+  }
+
+  @SuppressWarnings("NullableProblems")
+  @Override
+  public int compareTo(final SerializableByte o) {
+    if (o == null) {
+      return 1;
+    }
+    return Byte.compare(this.value, o.value);
   }
 
   @Override
@@ -105,9 +115,14 @@ public final class SerializableByte
     private static final long serialVersionUID = 6463046054600627706L;
 
     @Override
-    public int compare(final SerializableByte o1,
-        final SerializableByte o2) {
-      return Byte.compare(o1.value, o2.value);
+    public int compare(final SerializableByte o1, final SerializableByte o2) {
+      if (o1 == null) {
+        return o2 == null ? 0 : -1;
+      }
+      if (o2 == null) {
+        return 1;
+      }
+      return o1.compareTo(o2);
     }
 
   }
