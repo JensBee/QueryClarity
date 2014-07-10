@@ -22,6 +22,7 @@ import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.query.SimpleTermsQuery;
 import de.unihildesheim.iw.lucene.util.TempDiskIndex;
+import de.unihildesheim.iw.mapdb.DBMakerUtils;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.StringUtils;
@@ -100,14 +101,8 @@ public final class TestIndexDataProvider
     try {
       INDEX_SIZE = IndexSize.SMALL;
 
-      IDX = DBMaker.newTempFileDB()
-          .deleteFilesAfterClose()
-          .closeOnJvmShutdown()
-          .transactionDisable()
-          .asyncWriteEnable()
-          .asyncWriteFlushDelay(100)
-          .mmapFileEnableIfSupported()
-          .make().createTreeMap("idx")
+      IDX = DBMakerUtils.newCompressedTempFileDB().make()
+          .createTreeMap("idx")
           .keySerializer(BTreeKeySerializer.TUPLE3)
           .valueSerializer(Serializer.LONG)
           .make();
@@ -342,11 +337,20 @@ public final class TestIndexDataProvider
     return new HashSet<>(FIELDS);
   }
 
+  /**
+   * Get a {@link StandardAnalyzer} initialized with the current stopwords set.
+   *
+   * @return Analyzer with current stopwords set
+   */
+  public Analyzer getAnalyzer() {
+    return new StandardAnalyzer(LuceneDefaults.VERSION,
+        new CharArraySet(LuceneDefaults.VERSION, this.stopwordStr, true)
+    );
+  }
+
   @Override
   public int getDocumentFrequency(final ByteArray term) {
-    Objects.requireNonNull(term);
-
-    if (this.stopwordBytes.contains(term)) {
+    if (this.stopwordBytes.contains(Objects.requireNonNull(term))) {
       return 0;
     }
     int freq = 0;
@@ -359,33 +363,12 @@ public final class TestIndexDataProvider
   }
 
   /**
-   * Get a {@link StandardAnalyzer} initialized with the current stopwords set.
-   *
-   * @return Analyzer with current stopwords set
-   */
-  public Analyzer getAnalyzer() {
-    return new StandardAnalyzer(LuceneDefaults.VERSION,
-        new CharArraySet(LuceneDefaults.VERSION, this.stopwordStr, true)
-    );
-  }
-
-  /**
    * Test, if stopwords are set.
    *
    * @return True if stopwords are set
    */
   public boolean hasStopwords() {
     return !(this.stopwordBytes == null || this.stopwordBytes.isEmpty());
-  }
-
-  /**
-   * Get the flags array representing the active state of all known fields.
-   *
-   * @return Flags of document fields
-   * @see #activeFieldState
-   */
-  int[] getActiveFieldState() {
-    return this.activeFieldState.clone();
   }
 
   /**
@@ -441,6 +424,16 @@ public final class TestIndexDataProvider
     }
     return tqb.query(this.getQueryString(queryTerms)).analyzer(getAnalyzer())
         .build();
+  }
+
+  /**
+   * Get the flags array representing the active state of all known fields.
+   *
+   * @return Flags of document fields
+   * @see #activeFieldState
+   */
+  int[] getActiveFieldState() {
+    return this.activeFieldState.clone();
   }
 
   /**
@@ -649,17 +642,6 @@ public final class TestIndexDataProvider
   }
 
   /**
-   * Get a set of unique terms for a document.
-   *
-   * @param docId Document-id to lookup
-   * @return List of unique terms in document
-   */
-  public Collection<ByteArray> getDocumentTermSet(final int docId) {
-    checkDocumentId(docId);
-    return getDocumentTermFrequencyMap(docId).keySet();
-  }
-
-  /**
    * Get the overall term-frequency for a specific document.
    *
    * @param docId Document-id to lookup
@@ -766,46 +748,6 @@ public final class TestIndexDataProvider
       this.termLength = new int[]{sizes[6], sizes[7]};
       this.queryLength = new int[]{sizes[8], sizes[9]};
     }
-  }
-
-  /**
-   * Get a map with <tt>term -> frequency (in document)</tt> values for a
-   * specific document.
-   *
-   * @param docId Document-id to lookup
-   * @return Map with <tt>term -> in-document-frequency</tt> values
-   */
-  @SuppressWarnings("ObjectAllocationInLoop")
-  public Map<ByteArray, Long> getDocumentTermFrequencyMap(final int docId) {
-    if (docId < 0 || docId > DOCUMENTS_COUNT) {
-      throw new IllegalArgumentException(
-          "Illegal document id " + docId + ".");
-    }
-
-    @SuppressWarnings("CollectionWithoutInitialCapacity")
-    final Map<ByteArray, Long> termFreqMap = new HashMap<>();
-
-    for (int fieldNum = 0; fieldNum < FIELDS.size();
-         fieldNum++) {
-      if (getActiveFieldState()[fieldNum] == 1) {
-        final Iterable<ByteArray> docTerms =
-            Fun.filter(IDX.keySet(), fieldNum, docId
-            );
-        for (final ByteArray term : docTerms) {
-          if (getStopwordsBytes().contains(term)) { // skip stopwords
-            continue;
-          }
-          final Long docTermFreq = IDX.get(Fun.t3(fieldNum, docId, term));
-          if (termFreqMap.containsKey(term)) {
-            termFreqMap.put(new ByteArray(term),
-                termFreqMap.get(term) + docTermFreq);
-          } else {
-            termFreqMap.put(new ByteArray(term), docTermFreq);
-          }
-        }
-      }
-    }
-    return termFreqMap;
   }
 
   /**
@@ -924,6 +866,53 @@ public final class TestIndexDataProvider
      */
     private static final ConcurrentNavigableMap<
         Fun.Tuple3<Integer, Integer, ByteArray>, Long> IDX_REF = IDX;
+  }
+
+  /**
+   * Get a set of unique terms for a document.
+   *
+   * @param docId Document-id to lookup
+   * @return List of unique terms in document
+   */
+  public Collection<ByteArray> getDocumentTermSet(final int docId) {
+    checkDocumentId(docId);
+    return getDocumentTermFrequencyMap(docId).keySet();
+  }
+
+
+  /**
+   * Get a map with <tt>term -> frequency (in document)</tt> values for a
+   * specific document.
+   *
+   * @param docId Document-id to lookup
+   * @return Map with <tt>term -> in-document-frequency</tt> values
+   */
+  @SuppressWarnings("ObjectAllocationInLoop")
+  public Map<ByteArray, Long> getDocumentTermFrequencyMap(final int docId) {
+    checkDocumentId(docId);
+
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
+    final Map<ByteArray, Long> termFreqMap = new HashMap<>();
+
+    for (int fieldNum = 0; fieldNum < FIELDS.size(); fieldNum++) {
+      if (getActiveFieldState()[fieldNum] == 1) {
+        final Iterable<ByteArray> docTerms =
+            Fun.filter(IDX.keySet(), fieldNum, docId);
+        for (final ByteArray term : docTerms) {
+          if (this.stopwordBytes.contains(term)) { // skip stopwords
+            continue;
+          }
+          final Long docTermFreq = IDX.get(Fun.t3(fieldNum, docId, term));
+          if (termFreqMap.containsKey(term)) {
+            termFreqMap.put(new ByteArray(term),
+                termFreqMap.get(term) + docTermFreq);
+          } else {
+            termFreqMap.put(new ByteArray(term), docTermFreq);
+          }
+        }
+      }
+    }
+    return termFreqMap;
   }
 
 
@@ -1106,8 +1095,7 @@ public final class TestIndexDataProvider
     }
     checkDocumentId(documentId);
     return this.getDocumentTermFrequencyMap(documentId).keySet()
-        .contains(
-            term);
+        .contains(term);
   }
 
   @Override

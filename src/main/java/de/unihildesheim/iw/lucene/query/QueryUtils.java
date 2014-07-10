@@ -187,6 +187,7 @@ public final class QueryUtils {
    * @throws Buildable.ConfigurationException Thrown, if building the query
    * object failed
    */
+  @SuppressWarnings("TypeMayBeWeakened")
   public List<ByteArray> getAllQueryTerms(final String query)
       throws UnsupportedEncodingException,
              Buildable.ConfigurationException, Buildable.BuildException {

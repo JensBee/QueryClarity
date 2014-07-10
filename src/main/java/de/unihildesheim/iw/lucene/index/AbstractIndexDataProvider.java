@@ -302,8 +302,9 @@ abstract class AbstractIndexDataProvider
    */
   final void setIdxDocTermsMap(final ConcurrentNavigableMap<Fun.Tuple3<
       ByteArray, SerializableByte, Integer>, Integer> newIdxDocTermsMap) {
-    this.idxDocTermsMap = Objects.requireNonNull(newIdxDocTermsMap,
-        "Index document term-frequency map was null.");
+    this.idxDocTermsMap = newIdxDocTermsMap;
+//    this.idxDocTermsMap = Objects.requireNonNull(newIdxDocTermsMap,
+//        "Index document term-frequency map was null.");
   }
 
   /**
@@ -455,16 +456,12 @@ abstract class AbstractIndexDataProvider
    * @see #cachedFieldsMap
    */
   final SerializableByte getFieldId(final String fieldName) {
-    if (StringUtils.isStrippedEmpty(Objects.requireNonNull(fieldName))) {
-      throw new IllegalArgumentException("Field name was empty.");
+    if (this.cachedFieldsMap.containsKey(fieldName)) {
+      return this.cachedFieldsMap.get(
+          Objects.requireNonNull(fieldName));
     }
-
-    final SerializableByte fieldId = this.cachedFieldsMap.get(fieldName);
-    if (fieldId == null) {
-      throw new IllegalStateException("Unknown field '" + fieldName
-          + "'. No id found.");
-    }
-    return fieldId;
+    throw new IllegalStateException("Unknown field '" + fieldName
+        + "'. No id found.");
   }
 
   /**
@@ -618,7 +615,7 @@ abstract class AbstractIndexDataProvider
     if (tf == 0) {
       return 0d;
     }
-    return tf / Long.valueOf(getTermFrequency()).doubleValue();
+    return tf / (double) getTermFrequency();
   }
 
   @Override
@@ -763,7 +760,7 @@ abstract class AbstractIndexDataProvider
    * Checks, if this instance has been closed. Throws a runtime exception, if
    * the instance has already been closed.
    */
-  protected final void checkClosed() {
+  final void checkClosed() {
     if (this.isClosed) {
       throw new IllegalStateException("Instance has been closed.");
     }
@@ -775,13 +772,13 @@ abstract class AbstractIndexDataProvider
    * @param term Term to lookup
    * @return Term frequency
    */
-  final Long getTermFrequencyIgnoringStopwords(final ByteArray term) {
+  final long getTermFrequencyIgnoringStopwords(final ByteArray term) {
     Objects.requireNonNull(term, "Term was null.");
 
-    Long tf = 0L;
+    long tf = 0L;
+    Long fieldTf;
     for (final String field : this.documentFields) {
-      final Long fieldTf = this.idxTermsMap.get(Fun.t2(getFieldId(field),
-          term));
+      fieldTf = this.idxTermsMap.get(Fun.t2(getFieldId(field), term));
       if (fieldTf != null) {
         tf += fieldTf;
       }

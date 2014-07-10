@@ -59,7 +59,7 @@ public abstract class AbstractClarityScoreCalculationBuilder<T extends
   /**
    * Flag indicating, if the new instance will be temporary.
    */
-  @SuppressWarnings("PackageVisibleField")
+  @SuppressWarnings({"PackageVisibleField", "WeakerAccess"})
   boolean isTemporary;
 
   /**

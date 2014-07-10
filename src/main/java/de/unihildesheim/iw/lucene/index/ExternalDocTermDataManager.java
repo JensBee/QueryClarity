@@ -129,7 +129,8 @@ public final class ExternalDocTermDataManager {
   }
 
   /**
-   * Store term-data to the database.
+   * Store term-data to the database. Be careful, if called concurrently: the
+   * value written is not being verified and is expected to be always the same.
    *
    * @param documentId Document-id the data belongs to
    * @param term Term the data belongs to
@@ -140,20 +141,14 @@ public final class ExternalDocTermDataManager {
   public <T> T setData(final int documentId,
       final ByteArray term,
       final String key, final T value) {
-    Objects.requireNonNull(term, "Term was null.");
-    Objects.requireNonNull(value, "Value was null.");
-
-    if (StringUtils.isStrippedEmpty(
-        Objects.requireNonNull(key, "Key was null."))) {
-      throw new IllegalArgumentException("Key may not be null or empty.");
-    }
-    synchronized (this.map) {
-      @SuppressWarnings("unchecked")
-      final T ret =
-          (T) this.map.put(Fun.t3(key, documentId, new ByteArray(term)),
-              value);
-      return ret;
-    }
+    @SuppressWarnings("unchecked")
+    final T ret =
+        (T) this.map.put(Fun.t3(
+                Objects.requireNonNull(key, "Key was null."),
+                documentId,
+                new ByteArray(Objects.requireNonNull(term, "Term was null."))),
+            Objects.requireNonNull(value, "Value was null."));
+    return ret;
   }
 
   /**
@@ -167,11 +162,7 @@ public final class ExternalDocTermDataManager {
    */
   public <T> Map<ByteArray, T> getData(final int documentId,
       final String key) {
-    if (StringUtils.isStrippedEmpty(
-        Objects.requireNonNull(key, "Key was null."))) {
-      throw new IllegalArgumentException("Key may not be null or empty.");
-    }
-
+    Objects.requireNonNull(key, "Key was null.");
     @SuppressWarnings("unchecked")
     final SortedSet<Fun.Tuple3<String, Integer, ByteArray>> subSet =
         ((NavigableSet) this.map.keySet()).subSet(
@@ -199,12 +190,10 @@ public final class ExternalDocTermDataManager {
   @SuppressWarnings("unchecked")
   public <T> T getData(final int documentId, final ByteArray term,
       final String key) {
-    Objects.requireNonNull(term, "Term was null.");
-    if (StringUtils.isStrippedEmpty(
-        Objects.requireNonNull(key, "Key was null."))) {
-      throw new IllegalArgumentException("Key may not be null or empty.");
-    }
-    return (T) this.map.get(Fun.t3(key, documentId, term));
+    return (T) this.map.get(Fun.t3(
+        Objects.requireNonNull(key, "Key was null."),
+        documentId,
+        Objects.requireNonNull(term, "Term was null.")));
   }
 
   /**

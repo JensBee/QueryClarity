@@ -152,6 +152,7 @@ public final class TempDiskIndex {
    *
    * @return Index writer
    */
+  @SuppressWarnings("TypeMayBeWeakened")
   IndexWriter getWriter() {
     return this.writer;
   }
@@ -161,6 +162,7 @@ public final class TempDiskIndex {
    *
    * @return Lucene index Directory
    */
+  @SuppressWarnings("TypeMayBeWeakened")
   Directory getIndex() {
     return this.index;
   }

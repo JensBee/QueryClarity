@@ -121,22 +121,6 @@ public final class StringUtils {
   }
 
   /**
-   * Checks, if a String is empty, if all characters defined by {@link
-   * String#trim()} are removed.
-   *
-   * @param input String to check
-   * @return True, if String will be empty after stripping those characters
-   */
-  public static boolean isTrimmedEmpty(final CharSequence input) {
-    for (int i = 0; i < input.length(); i++) {
-      if ((int) input.charAt(i) > (int) ' ') {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  /**
    * Manual upper-case function that works on character level to avoid locale
    * problems.
    *
@@ -166,6 +150,9 @@ public final class StringUtils {
    * @return True, if String will be empty after stripping those characters
    */
   public static boolean isStrippedEmpty(final String input) {
+    if (input.isEmpty() || isTrimmedEmpty(input)) {
+      return true;
+    }
     for (int i = 0; i < input.length(); i++) {
       if (!Character.isWhitespace(input.codePointAt(i))) {
         return false;
@@ -186,6 +173,22 @@ public final class StringUtils {
     }
     for (int i = 0; i < input.length(); i++) {
       if (!Character.isUpperCase(input.codePointAt(i))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Checks, if a String is empty, if all characters defined by {@link
+   * String#trim()} are removed.
+   *
+   * @param input String to check
+   * @return True, if String will be empty after stripping those characters
+   */
+  public static boolean isTrimmedEmpty(final CharSequence input) {
+    for (int i = 0; i < input.length(); i++) {
+      if ((int) input.charAt(i) > (int) ' ') {
         return false;
       }
     }

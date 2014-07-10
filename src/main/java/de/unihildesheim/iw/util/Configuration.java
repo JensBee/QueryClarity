@@ -204,6 +204,7 @@ public class Configuration {
    * @return Boolean value assigned to the key, or {@code null} if there was
    * none
    */
+  @SuppressWarnings("BooleanParameter")
   public final Boolean getBoolean(final String key,
       final boolean defaultValue) {
     if (StringUtils.isStrippedEmpty(
