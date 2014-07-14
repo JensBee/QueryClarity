@@ -39,13 +39,19 @@ final class Entries {
      */
     @SuppressWarnings("PackageVisibleField")
     @XmlAttribute
-    final String key;
+    String key;
 
     /**
      * Tuple2 entries.
      */
     @SuppressWarnings("PackageVisibleField")
     List<Tuple.Tuple2<String, String>> t2List = new ArrayList<>();
+
+    /**
+     * Default constructor used for JAXB (un)marshalling.
+     */
+    public Tuple2ListEntry() {
+    }
 
     /**
      * Create a new list entry with the provided key and entries.
@@ -75,13 +81,19 @@ final class Entries {
      */
     @SuppressWarnings("PackageVisibleField")
     @XmlAttribute
-    final String key;
+    String key;
     /**
      * Entry value.
      */
     @SuppressWarnings("PackageVisibleField")
     @XmlValue
-    final String value;
+    String value;
+
+    /**
+     * Default constructor used for JAXB (un)marshalling.
+     */
+    public StringValueEntry() {
+    }
 
     /**
      * Create a new entry with a string value.
