@@ -57,6 +57,11 @@ public final class Processing {
    */
   private static final String IDENTIFIER = "Processing";
 
+  /**
+   * Thread pool manager.
+   */
+  private static final ProcessingThreadPoolExecutor POOL_EXECUTOR;
+
   static {
     final Integer maxThreads = GlobalConfiguration.conf().getAndAddInteger
         (IDENTIFIER + "_max-threads", 0);
@@ -66,14 +71,7 @@ public final class Processing {
     } else {
       THREADS = Math.min(processors, maxThreads);
     }
-  }
 
-  /**
-   * Thread pool manager.
-   */
-  private static final ProcessingThreadPoolExecutor POOL_EXECUTOR;
-
-  static {
     LOG.debug("Initialize thread pool.");
     POOL_EXECUTOR = new ProcessingThreadPoolExecutor();
     Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
@@ -209,7 +207,7 @@ public final class Processing {
     // Latch that tracks the running threads.
     final CountDownLatch threadTrackingLatch = new CountDownLatch(threadCount);
 
-    LOG.debug("Spawning {} Processing-Target threads.", threadCount);
+    LOG.debug("Using {} Processing-Target threads.", threadCount);
     for (int i = 0; i < threadCount; i++) {
       final Target<?> aTarget;
       try {
@@ -310,10 +308,10 @@ public final class Processing {
   private static final class ProcessingThreadPoolExecutor {
 
     /**
-     * Maximum seconds a thread may be idle in the pool, before it gets
-     * removed.
+     * Maximum seconds a thread may be idle in the pool, before it gets removed
+     * (seconds).
      */
-    private static final long KEEPALIVE_TIME = 5L;
+    private static final long KEEPALIVE_TIME = 60L;
     /**
      * Thread pool manager.
      */
