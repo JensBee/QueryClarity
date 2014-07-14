@@ -73,14 +73,14 @@ public final class EnglishAnalyzer
     TokenStream tok = new StandardFilter(this.matchVersion, src);
     tok = new EnglishPossessiveFilter(this.matchVersion, tok);
     tok = new LowerCaseFilter(this.matchVersion, tok);
+//    tok = new WordDelimiterFilter(tok,
+//        WordDelimiterFilter.GENERATE_NUMBER_PARTS |
+//            WordDelimiterFilter.GENERATE_WORD_PARTS |
+//            WordDelimiterFilter.SPLIT_ON_NUMERICS |
+//            WordDelimiterFilter.SPLIT_ON_CASE_CHANGE,
+//        null
+//    );
     tok = new StopFilter(this.matchVersion, tok, getStopwordSet());
-    /*
-    tok = new WordDelimiterFilter(tok,
-        WordDelimiterFilter.GENERATE_NUMBER_PARTS |
-            WordDelimiterFilter.GENERATE_WORD_PARTS |
-            WordDelimiterFilter.SPLIT_ON_CASE_CHANGE, null
-    );
-    */
     tok = new PorterStemFilter(tok);
     return new TokenStreamComponents(src, tok);
   }

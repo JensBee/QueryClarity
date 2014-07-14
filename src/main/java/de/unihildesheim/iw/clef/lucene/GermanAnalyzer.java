@@ -71,14 +71,14 @@ public final class GermanAnalyzer
         this.matchVersion, reader);
     TokenStream tok = new StandardFilter(this.matchVersion, src);
     tok = new LowerCaseFilter(this.matchVersion, tok);
+//    tok = new WordDelimiterFilter(tok,
+//        WordDelimiterFilter.GENERATE_NUMBER_PARTS |
+//            WordDelimiterFilter.GENERATE_WORD_PARTS |
+//            WordDelimiterFilter.SPLIT_ON_NUMERICS |
+//            WordDelimiterFilter.SPLIT_ON_CASE_CHANGE,
+//        null
+//    );
     tok = new StopFilter(this.matchVersion, tok, getStopwordSet());
-    /*
-    tok = new WordDelimiterFilter(tok,
-        WordDelimiterFilter.GENERATE_NUMBER_PARTS |
-            WordDelimiterFilter.GENERATE_WORD_PARTS |
-            WordDelimiterFilter.SPLIT_ON_CASE_CHANGE, null
-    );
-    */
     tok = new GermanNormalizationFilter(tok);
     tok = new GermanLightStemFilter(tok);
 

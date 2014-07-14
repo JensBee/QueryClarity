@@ -22,7 +22,7 @@ import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.StopFilter;
-import org.apache.lucene.analysis.snowball.SnowballFilter;
+import org.apache.lucene.analysis.fr.FrenchLightStemFilter;
 import org.apache.lucene.analysis.standard.StandardFilter;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.util.CharArraySet;
@@ -88,16 +88,18 @@ public final class FrenchAnalyzer
     TokenStream tok = new StandardFilter(this.matchVersion, src);
     tok = new ElisionFilter(tok, this.elisions);
     tok = new LowerCaseFilter(this.matchVersion, tok);
+//    tok = new WordDelimiterFilter(tok,
+//        WordDelimiterFilter.GENERATE_NUMBER_PARTS |
+//            WordDelimiterFilter.GENERATE_WORD_PARTS |
+//            WordDelimiterFilter.SPLIT_ON_NUMERICS |
+//            WordDelimiterFilter.SPLIT_ON_CASE_CHANGE,
+//        null
+//    );
     tok = new StopFilter(this.matchVersion, tok, getStopwordSet());
-    /*
-    tok = new WordDelimiterFilter(tok,
-        WordDelimiterFilter.GENERATE_NUMBER_PARTS |
-            WordDelimiterFilter.GENERATE_WORD_PARTS |
-            WordDelimiterFilter.SPLIT_ON_CASE_CHANGE, null
-    );
-    */
-    tok =
-        new SnowballFilter(tok, new org.tartarus.snowball.ext.FrenchStemmer());
+    tok = new FrenchLightStemFilter(tok);
+//    tok =
+//        new SnowballFilter(tok, new org.tartarus.snowball.ext.FrenchStemmer
+// ());
     return new TokenStreamComponents(src, tok);
   }
 }
