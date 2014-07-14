@@ -18,10 +18,11 @@ package de.unihildesheim.iw.util;
 
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.InternMap;
+import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -44,11 +45,6 @@ public final class ByteArrayUtils {
    * Internal {@link Map} to cache string representations of UTF8 bytes.
    */
   private static final Map<byte[], String> INTERN8
-      = Collections.synchronizedMap(new InternMap<byte[], String>(100000));
-  /**
-   * Internal {@link Map} to cache string representations of UTF16 bytes.
-   */
-  private static final Map<byte[], String> INTERN16
       = Collections.synchronizedMap(new InternMap<byte[], String>(100000));
 
   /**
@@ -82,48 +78,17 @@ public final class ByteArrayUtils {
   public static String utf8ToString(final byte[] bytes) {
     String str = INTERN8.get(Objects.requireNonNull(bytes, "Bytes were null."));
     if (str == null) {
-      try {
-        str = new String(bytes, "UTF-8");
-      } catch (final UnsupportedEncodingException ex) {
-        LOG.error("Error encoding bytes.", ex);
-      }
+      final CharsRef ref = new CharsRef(bytes.length);
+      UnicodeUtil.UTF8toUTF16(bytes, 0, bytes.length, ref);
+      str = ref.toString();
       INTERN8.put(Arrays.copyOf(bytes, bytes.length), str);
+//      try {
+//        str = new String(bytes, "UTF-8");
+//      } catch (final UnsupportedEncodingException ex) {
+//        LOG.error("Error encoding bytes.", ex);
+//      }
+//      INTERN8.put(Arrays.copyOf(bytes, bytes.length), str);
     }
     return str;
-  }
-
-  /**
-   * Convert the bytes encoded as UTF-16 to string. This does not check if the
-   * bytes are valid. If the array contains non UTF-16 bytes the behavior is
-   * undefined.
-   *
-   * @param bytes UTF-8 bytes array
-   * @return String created from bytes
-   */
-  public static String utf16ToString(final byte[] bytes) {
-    String str = INTERN16.get(Objects.requireNonNull(bytes,
-        "Bytes were null."));
-    if (str == null) {
-      try {
-        str = new String(bytes, "UTF-16");
-      } catch (final UnsupportedEncodingException ex) {
-        LOG.error("Error encoding bytes.", ex);
-      }
-      INTERN16.put(Arrays.copyOf(bytes, bytes.length), str);
-    }
-    return str;
-  }
-
-  /**
-   * Convert the bytes contained in the {@link ByteArray} encoded as UTF-16 to
-   * string. This does not check if the bytes are valid. If the array contains
-   * non UTF-16 bytes the behavior is undefined.
-   *
-   * @param bytes {@link ByteArray} containing an UTF-16 bytes array
-   * @return String created from bytes
-   */
-  public static String utf16ToString(final ByteArray bytes) {
-    return utf8ToString(Objects.requireNonNull(bytes,
-        "Bytes were null.").bytes);
   }
 }
