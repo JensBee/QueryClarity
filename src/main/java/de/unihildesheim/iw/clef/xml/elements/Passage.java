@@ -122,23 +122,29 @@ public final class Passage {
      */
     @SuppressWarnings("UnusedDeclaration")
     @XmlAttribute
-    private final String impl;
+    private String impl;
     /**
      * Flag indicating, if this result is empty.
      */
     @SuppressWarnings("UnusedDeclaration") // used by JAXB
     @XmlAttribute
-    private final boolean empty;
+    private boolean empty;
     /**
      * Score result.
      */
     @SuppressWarnings("UnusedDeclaration") // used by JAXB
     @XmlAttribute
-    private final Double score;
+    private Double score;
     /**
      * Complete result set.
      */
     private ScoringResult.ScoringResultXml result;
+
+    /**
+     * Default constructor used for JAXB (un)marshalling.
+     */
+    public Score() {
+    }
 
     /**
      * Create a new score result.
@@ -153,6 +159,18 @@ public final class Passage {
       this.impl = identifier;
       this.score = newScore;
       this.empty = isEmpty;
+    }
+
+    public boolean isEmpty() {
+      return this.empty;
+    }
+
+    public String getIdentifier() {
+      return this.impl;
+    }
+
+    public Double getScore() {
+      return this.score;
     }
 
     /**
