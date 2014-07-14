@@ -15,9 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.tools;
-
-import de.unihildesheim.iw.util.StringUtils;
+package de.unihildesheim.iw.util;
 
 import java.io.BufferedReader;
 import java.io.FileInputStream;
