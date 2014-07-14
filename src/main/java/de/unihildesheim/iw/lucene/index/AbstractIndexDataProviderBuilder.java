@@ -39,7 +39,7 @@ import java.util.Set;
  *
  * @author Jens Bertram
  */
-abstract class AbstractIndexDataProviderBuilder<T extends
+public abstract class AbstractIndexDataProviderBuilder<T extends
     AbstractIndexDataProviderBuilder<T>>
     implements Buildable {
 
@@ -137,10 +137,7 @@ abstract class AbstractIndexDataProviderBuilder<T extends
    * @return Cache name prefixed with current identifier
    */
   final String createCacheName(final String name) {
-    if (Objects.requireNonNull(name, "Cache name was null.").isEmpty()) {
-      throw new IllegalArgumentException("Empty cache name.");
-    }
-    return this.identifier + "_" + name;
+    return createCacheName(this.identifier, name);
   }
 
   /**
@@ -149,6 +146,19 @@ abstract class AbstractIndexDataProviderBuilder<T extends
    * @return Self reference of implementing class instance
    */
   abstract T getThis();
+
+  public static final String createCacheName(final String identifier, final
+  String name) {
+    if (StringUtils.isStrippedEmpty(Objects.requireNonNull(name,
+        "Cache name was null."))) {
+      throw new IllegalArgumentException("Empty cache name.");
+    }
+    if (StringUtils.isStrippedEmpty(Objects.requireNonNull(identifier,
+        "Identifier was null."))) {
+      throw new IllegalArgumentException("Empty identifier name.");
+    }
+    return identifier + "_" + name;
+  }
 
   /**
    * Set the instruction to newly create the named cache.

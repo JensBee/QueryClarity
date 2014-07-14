@@ -28,6 +28,7 @@ import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.iw.util.concurrent.processing.Source;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
 import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
+import de.unihildesheim.iw.util.termFilter.TermFilter;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.BytesRef;
 import org.mapdb.Fun;
@@ -152,6 +153,10 @@ abstract class AbstractIndexDataProvider
    * Flag indicating, if this instance is closed.
    */
   private volatile boolean isClosed;
+  /**
+   * Filter to use while indexing terms by {@link #getTerms()}.
+   */
+  private TermFilter termFilter;
 
   /**
    * Initializes the abstract instance.
@@ -308,6 +313,28 @@ abstract class AbstractIndexDataProvider
   }
 
   /**
+   * Returns the {@link TermFilter} currently set.
+   *
+   * @return Term filter or null, if none was set.
+   */
+  final TermFilter getTermFilter() {
+    return this.termFilter;
+  }
+
+  /**
+   * Set a filter to use while indexing terms by {@link #getTerms()}.
+   *
+   * @param newTermFilter New filter. May be {@code null} to use no filter at
+   * all
+   */
+  final void setTermFilter(final TermFilter newTermFilter) {
+    if (newTermFilter != null) {
+      LOG.debug("TermFilter set: {}", newTermFilter.getClass().getSimpleName());
+    }
+    this.termFilter = newTermFilter;
+  }
+
+  /**
    * Clears the index term-frequency value.
    *
    * @see #idxTf
@@ -415,6 +442,7 @@ abstract class AbstractIndexDataProvider
     return loaded;
   }
 
+
   /**
    * Collect and cache all index terms. Stop-words will be removed from the
    * list.
@@ -439,11 +467,21 @@ abstract class AbstractIndexDataProvider
         for (final String field : this.documentFields) {
           for (final ByteArray byteArray : Fun.filter(this.idxTermsMap.keySet(),
               getFieldId(field))) {
-            this.idxTerms.add(new ByteArray(byteArray));
+            if (!isStopword(byteArray)) {
+              if (this.termFilter != null) {
+                // use a term filter
+                final ByteArray fBa = this.termFilter.filter(
+                    new ByteArray(byteArray));
+                if (fBa != null) { // null to skip term
+                  this.idxTerms.add(fBa);
+                }
+              } else {
+                this.idxTerms.add(new ByteArray(byteArray));
+              }
+            }
           }
         }
       }
-      this.idxTerms.removeAll(this.stopwords);
     }
     return Collections.unmodifiableCollection(this.idxTerms);
   }
@@ -513,17 +551,8 @@ abstract class AbstractIndexDataProvider
         fieldId = getFieldId(field);
         for (final ByteArray bytes : Fun.
             filter(this.idxTermsMap.keySet(), fieldId)) {
-          newTf += this.idxTermsMap.get(Fun.t2(fieldId, bytes));
-        }
-      }
-
-      // remove term frequencies of stop-words
-      if (!this.stopwords.isEmpty()) {
-        Long tf;
-        for (final ByteArray stopWord : this.stopwords) {
-          tf = getTermFrequencyIgnoringStopwords(stopWord);
-          if (tf != null) {
-            newTf -= tf;
+          if (!isStopword(bytes)) {
+            newTf += this.idxTermsMap.get(Fun.t2(fieldId, bytes));
           }
         }
       }
@@ -757,16 +786,6 @@ abstract class AbstractIndexDataProvider
   protected abstract Collection<Integer> getDocumentIds();
 
   /**
-   * Checks, if this instance has been closed. Throws a runtime exception, if
-   * the instance has already been closed.
-   */
-  final void checkClosed() {
-    if (this.isClosed) {
-      throw new IllegalStateException("Instance has been closed.");
-    }
-  }
-
-  /**
    * Get the term frequency including stop-words.
    *
    * @param term Term to lookup
@@ -784,6 +803,16 @@ abstract class AbstractIndexDataProvider
       }
     }
     return tf;
+  }
+
+  /**
+   * Checks, if this instance has been closed. Throws a runtime exception, if
+   * the instance has already been closed.
+   */
+  final void checkClosed() {
+    if (this.isClosed) {
+      throw new IllegalStateException("Instance has been closed.");
+    }
   }
 
   /**
@@ -986,13 +1015,28 @@ abstract class AbstractIndexDataProvider
     TermCollectorTarget() {
     }
 
+    private final boolean useTermFilter = AbstractIndexDataProvider.this
+        .termFilter != null;
+
+
     @SuppressWarnings("ObjectAllocationInLoop")
     @Override
     public void call(final String fieldName) {
       if (fieldName != null) {
         for (final ByteArray byteArray : Fun
             .filter(getIdxTermsMap().keySet(), getFieldId(fieldName))) {
-          getIdxTerms().add(new ByteArray(byteArray));
+          if (!isStopword(byteArray)) {
+            if (useTermFilter) { // use a term filter
+              final ByteArray fBa =
+                  AbstractIndexDataProvider.this.termFilter.filter(
+                      new ByteArray(byteArray));
+              if (fBa != null) { // null to skip term
+                getIdxTerms().add(fBa);
+              }
+            } else {
+              getIdxTerms().add(new ByteArray(byteArray));
+            }
+          }
         }
       }
     }

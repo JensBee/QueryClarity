@@ -32,6 +32,7 @@ import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
 import de.unihildesheim.iw.util.concurrent.processing.TargetException;
 import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
+import de.unihildesheim.iw.util.termFilter.TermFilter;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.DocsEnum;
@@ -43,6 +44,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.mapdb.Atomic;
 import org.mapdb.BTreeKeySerializer;
 import org.mapdb.BTreeMap;
 import org.mapdb.DB;
@@ -82,7 +84,6 @@ public final class DirectIndexDataProvider
    * Prefix used to store {@link GlobalConfiguration configuration} data.
    */
   private static final String IDENTIFIER = "DirectIDP";
-
   /**
    * Logger instance for this class.
    */
@@ -92,7 +93,6 @@ public final class DirectIndexDataProvider
    * Data storage encapsulating class.
    */
   private final Cache cache;
-
   /**
    * Inverted keys for faster access to index document term frequency map.
    */
@@ -261,6 +261,10 @@ public final class DirectIndexDataProvider
       ret = Collections.unmodifiableCollection(getIdxDocumentIds());
     }
     return ret;
+  }
+
+  public static String getIdentifier() {
+    return IDENTIFIER;
   }
 
   /**
@@ -586,6 +590,8 @@ public final class DirectIndexDataProvider
     @SuppressWarnings("PackageVisibleField")
     boolean noOpenReadOnly;
 
+    TermFilter termFilter;
+
     /**
      * Default constructor.
      */
@@ -601,6 +607,11 @@ public final class DirectIndexDataProvider
      */
     Builder noReadOnly() {
       this.noOpenReadOnly = true;
+      return this;
+    }
+
+    public Builder termFilter(final TermFilter tf) {
+      this.termFilter = tf;
       return this;
     }
 
@@ -688,7 +699,7 @@ public final class DirectIndexDataProvider
      * @param db Database reference
      * @return Maker for {@link #invertedIdxDocTermsMap}
      */
-    static DB.BTreeSetMaker idxTermsMapInvertedKeysMaker(final DB db) {
+    public static DB.BTreeSetMaker idxTermsMapInvertedKeysMaker(final DB db) {
       return Objects.requireNonNull(db, "DB was null.")
           .createTreeSet(Stores.IDX_TERMS_MAP_INVERTED_KEYS.name())
           .serializer(IDX_INVERTED_DOCTERMSMAP_SERIALIZER)
@@ -701,7 +712,7 @@ public final class DirectIndexDataProvider
      * @param db Database reference
      * @return Maker for {@link #idxTerms}
      */
-    static DB.BTreeSetMaker idxTermsMaker(final DB db) {
+    public static DB.BTreeSetMaker idxTermsMaker(final DB db) {
       return Objects.requireNonNull(db, "DB was null.")
           .createTreeSet(Caches.IDX_TERMS.name())
           .serializer(ByteArray.SERIALIZER_BTREE)
@@ -715,7 +726,7 @@ public final class DirectIndexDataProvider
      * @param db Database reference
      * @return Maker for {@link #idxDfMap}
      */
-    static DB.BTreeMapMaker idxDfMapMaker(final DB db) {
+    public static DB.BTreeMapMaker idxDfMapMaker(final DB db) {
       return Objects.requireNonNull(db, "DB was null.")
           .createTreeMap(Caches.IDX_DFMAP.name())
           .keySerializer(ByteArray.SERIALIZER_BTREE)
@@ -730,7 +741,7 @@ public final class DirectIndexDataProvider
      * @param db Database reference
      * @return Maker for {@link #idxTermsMap}
      */
-    static DB.BTreeMapMaker idxTermsMapMkr(final DB db) {
+    public static DB.BTreeMapMaker idxTermsMapMkr(final DB db) {
       return Objects.requireNonNull(db, "DB was null.")
           .createTreeMap(Stores.IDX_TERMS_MAP.name())
           .keySerializer(IDX_TERMSMAP_KEYSERIALIZER)
@@ -760,7 +771,7 @@ public final class DirectIndexDataProvider
      * @param db Database reference
      * @return Maker for {@link #idxTermsMap} temporary merge instance
      */
-    public static DB.BTreeMapMaker idxDocTermsMapMkr2(final DB db) {
+    static DB.BTreeMapMaker idxDocTermsMapMkr2(final DB db) {
       return Objects.requireNonNull(db, "DB was null.")
           .createTreeMap(Stores.IDX_DOC_TERMS_MAP2.name())
           .keySerializer(IDX_DOCTERMSMAP_KEYSERIALIZER)
@@ -774,7 +785,7 @@ public final class DirectIndexDataProvider
      * @param db Database reference
      * @return Maker for {@link #cachedFieldsMap}
      */
-    static DB.BTreeMapMaker cachedFieldsMapMaker(final DB db) {
+    public static DB.BTreeMapMaker cachedFieldsMapMaker(final DB db) {
       return Objects.requireNonNull(db, "DB was null.")
           .createTreeMap(Stores.IDX_FIELDS.name())
           .valueSerializer(SerializableByte.SERIALIZER)
@@ -786,7 +797,7 @@ public final class DirectIndexDataProvider
      * Ids of flags being stored in the database. Those values are needed to
      * ensure data is consistent.
      */
-    private enum Flags {
+    public enum Flags {
       /**
        * List of fields currently being indexed. Used to recover from crashes.
        */
@@ -806,7 +817,7 @@ public final class DirectIndexDataProvider
      * Ids of persistent data held in the database.
      */
     @SuppressWarnings("PackageVisibleInnerClass")
-    enum Stores {
+    public enum Stores {
       /**
        * Mapping of all document terms.
        */
@@ -834,8 +845,11 @@ public final class DirectIndexDataProvider
      * Ids of temporary data caches held in the database.
      */
     @SuppressWarnings("PackageVisibleInnerClass")
-    enum Caches {
-
+    public enum Caches {
+      /**
+       * Filter used for selecting terms.
+       */
+      TERM_FILTER,
       /**
        * Set of all terms.
        */
@@ -885,6 +899,12 @@ public final class DirectIndexDataProvider
      * True, if the inverted index needs to be rebuild.
      */
     private boolean flagRebuildInvertedIndex;
+    /**
+     * Termfilter in use.
+     *
+     * @see {@link #setTermFilter(TermFilter)}
+     */
+    private Atomic.Var<TermFilter> termFilter;
 
     /**
      * Initializes the cache from the supplied builder settings.
@@ -1102,7 +1122,7 @@ public final class DirectIndexDataProvider
 //        loadPersistentDb();
 //      }
 
-      checkTransientDbState();
+      checkTransientDbState(builder);
       if (this.newTransientDb
           || this.flagStopwordsChanged
           || this.flagCacheRebuild
@@ -1634,8 +1654,50 @@ public final class DirectIndexDataProvider
      * Check for incomplete indexing tasks and if stopwords have changed. If
      * incomplete tasks are found those storage objects are removed.
      */
-    private void checkTransientDbState() {
+    private void checkTransientDbState(final Builder builder) {
       LOG.info("Checking transient database state.");
+
+      // check filter
+      // filter
+      if (!getPersistTransient().getDb().exists(CacheDbMakers.Caches
+          .TERM_FILTER.name())) {
+        getPersistTransient().getDb().createAtomicVar(
+            CacheDbMakers.Caches.TERM_FILTER.name(),
+            null, Serializer.JAVA);
+      }
+      this.termFilter = getPersistTransient().getDb()
+          .getAtomicVar(CacheDbMakers.Caches.TERM_FILTER.name());
+
+
+      final boolean hasDbFilter = this.termFilter.get() != null;
+      final boolean hasBuilderFilter = builder.termFilter != null;
+
+      if (hasDbFilter) {
+        if (hasBuilderFilter) {
+          // filter in db and builder
+          if (!getTermFilter().equals(
+              builder.termFilter)) {
+            this.termFilter.set(builder.termFilter);
+            LOG.warn("Term filter changed. Caches needs to be rebuild.");
+            this.flagCacheRebuild = true;
+          }
+        } else {
+          // filter in db, not in builder
+          LOG.warn("Index built using filter, but no filter is specified. " +
+              "Caches needs to be rebuild.");
+          this.termFilter.set(null);
+          this.flagCacheRebuild = true;
+        }
+      } else if (hasBuilderFilter) {
+        // filter not in db, but in builder
+        LOG.warn("A new term filter is specified. " +
+            "Caches needs to be rebuild.");
+        this.termFilter.set(builder.termFilter);
+        this.flagCacheRebuild = true;
+      }
+      setTermFilter(this.termFilter.get());
+
+      // check flags
       for (final CacheDbMakers.Flags flag : CacheDbMakers.Flags.values()) {
         if (getPersistTransient().getDb()
             .exists(flag.name())) {
