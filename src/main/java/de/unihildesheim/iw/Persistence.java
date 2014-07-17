@@ -439,7 +439,7 @@ public final class Persistence {
      * Builder used to create a new database.
      */
     @SuppressWarnings("PackageVisibleField")
-    final ExtDBMaker dbMkr;
+    public final ExtDBMaker dbMkr;
 
     /**
      * Random string to prefix a temporary storage with.
@@ -473,17 +473,16 @@ public final class Persistence {
      */
     private String name;
     /**
+     * Flag indicating, if the new instance will be temporary. If it's temporary
+     * any data may be deleted on JVM exit.
+     */
+    private boolean isTemporary;
+    /**
      * Database async write flush delay.
      */
     public static final int DB_ASYNC_WRITEFLUSH_DELAY = GlobalConfiguration
         .conf()
         .getAndAddInteger(CONF_PREFIX + "db-async-writeflush-delay", 100);
-    /**
-     * Flag indicating, if the new instance will be temporary. If it's temporary
-     * any data may be deleted on JVM exit.
-     */
-    private boolean isTemporary;
-
     /**
      * Initializes the builder with default values.
      */
@@ -782,7 +781,7 @@ public final class Persistence {
      * Simple extension of MapDB's {@link DBMaker} to allow specifying the
      * database file after creating the maker instance.
      */
-    private static final class ExtDBMaker
+    public static final class ExtDBMaker
         extends DBMaker {
 
       /**
@@ -816,6 +815,16 @@ public final class Persistence {
         } else {
           this.props.setProperty(Keys.readOnly, "false");
         }
+      }
+
+      public ExtDBMaker compressionDisable() {
+        this.props.remove(Keys.compression);
+        return this;
+      }
+
+      public ExtDBMaker noChecksum() {
+        this.props.remove(Keys.checksum);
+        return this;
       }
 
       /**
@@ -858,6 +867,8 @@ public final class Persistence {
         return this.props.getProperty(Keys.file);
       }
     }
+
+
 
 
   }
