@@ -27,6 +27,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListMap;
 
@@ -116,12 +118,6 @@ public final class AbstractIndexDataProviderTest
       // NOP
     }
 
-    @SuppressWarnings("ReturnOfCollectionOrArrayField")
-    @Override
-    public Collection<Integer> getDocumentIds() {
-      return DOC_IDS;
-    }
-
     @Override
     public int getDocumentFrequency(final ByteArray term) {
       throw new UnsupportedOperationException("Not supported yet.");
@@ -132,13 +128,25 @@ public final class AbstractIndexDataProviderTest
       // NOP
     }
 
+    @SuppressWarnings("ReturnOfCollectionOrArrayField")
+    @Override
+    public Iterator<Integer> getDocumentIds() {
+      return DOC_IDS.iterator();
+    }
+
     @Override
     public DocumentModel getDocumentModel(final int docId) {
       throw new UnsupportedOperationException("Not supported yet.");
     }
 
     @Override
-    public Set<ByteArray> getDocumentsTermSet(
+    public Iterator<ByteArray> getDocumentsTermsSet(
+        final Collection<Integer> docIds) {
+      throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public Iterator<Map.Entry<ByteArray, Long>> getDocumentsTerms(
         final Collection<Integer> docIds) {
       throw new UnsupportedOperationException("Not supported yet.");
     }

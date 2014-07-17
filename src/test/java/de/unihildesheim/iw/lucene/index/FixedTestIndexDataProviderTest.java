@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Set;
 
 /**
@@ -133,15 +134,14 @@ public final class FixedTestIndexDataProviderTest
     final Collection<Integer> docIds = new HashSet<>(
         FixedTestIndexDataProvider.KnownData.DOC_COUNT);
     for (int i = 0; i < FixedTestIndexDataProvider.KnownData.DOC_COUNT; i++) {
-      docIds
-          .add(RandomValue.getInteger(0, FixedTestIndexDataProvider.KnownData.
-              DOC_COUNT - 1));
+      docIds.add(RandomValue.getInteger(0, FixedTestIndexDataProvider.KnownData.
+          DOC_COUNT - 1));
     }
 
-    final Set<ByteArray> docTerms;
-    docTerms = INSTANCE.getDocumentsTermSet(docIds);
+    final Iterator<ByteArray> docTerms = INSTANCE.getDocumentsTermsSet(docIds);
     boolean found = false;
-    for (final ByteArray term : docTerms) {
+    while (docTerms.hasNext()) {
+      final ByteArray term = docTerms.next();
       for (final Integer docId : docIds) {
         if (INSTANCE.documentContains(docId, term)) {
           found = true;

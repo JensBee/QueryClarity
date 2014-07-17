@@ -23,8 +23,6 @@ import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.util.TempDiskIndex;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.RandomValue;
-import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
-import de.unihildesheim.iw.util.concurrent.processing.Source;
 
 import java.io.File;
 import java.io.IOException;
@@ -348,20 +346,30 @@ public final class FixedTestIndexDataProvider
    * @return Unique set of all index terms
    */
   public Set<ByteArray> getTermSet() {
-    return getDocumentsTermSet(getDocumentIds());
+    return getDocTermsSet(getDocIds());
   }
 
-  /**
-   * Get a unique set of all document ids.
-   *
-   * @return Document ids
-   */
-  public static Set<Integer> getDocumentIds() {
-    final Set<Integer> docIds = new HashSet<>(DOC_COUNT);
-    for (int i = 0; i < DOC_COUNT; i++) {
-      docIds.add(i);
+  private Set<ByteArray> getDocTermsSet(
+      final Collection<Integer> docIds) {
+    final Set<String> termsStr = getDocumentsTermSetStr(docIds);
+    final Set<ByteArray> termsBa = new HashSet<>(termsStr.size());
+    for (final String term : termsStr) {
+      try {
+        termsBa.add(new ByteArray(term.getBytes("UTF-8")));
+      } catch (final UnsupportedEncodingException e) {
+        throw new IllegalStateException(e);
+      }
     }
-    return docIds;
+    return termsBa;
+  }
+
+  private Set<Integer> getDocIds() {
+    return getDocumentIdsSet();
+  }
+
+  @Override
+  public Iterator<Integer> getDocumentIds() {
+    return getDocumentIdsSet().iterator();
   }
 
   public Set<String> getDocumentsTermSetStr(
@@ -382,6 +390,19 @@ public final class FixedTestIndexDataProvider
       }
     }
     return terms;
+  }
+
+  /**
+   * Get a unique set of all document ids.
+   *
+   * @return Document ids
+   */
+  public static Set<Integer> getDocumentIdsSet() {
+    final Set<Integer> docIds = new HashSet<>(DOC_COUNT);
+    for (int i = 0; i < DOC_COUNT; i++) {
+      docIds.add(i);
+    }
+    return docIds;
   }
 
   /**
@@ -412,7 +433,7 @@ public final class FixedTestIndexDataProvider
    * @return Unique set of all index terms
    */
   public Set<String> getTermSetStr() {
-    return getDocumentsTermSetStr(getDocumentIds());
+    return getDocumentsTermSetStr(getDocIds());
   }
 
   /**
@@ -444,192 +465,14 @@ public final class FixedTestIndexDataProvider
     @SuppressWarnings("PublicStaticCollectionField")
     public static final Map<String, Integer> IDX_DOCFREQ;
     /**
-     * Number of documents in index.
-     */
-    public static final int DOC_COUNT = FixedTestIndexDataProvider.DOC_COUNT;
-
-    static {
-      final Map<String, Integer> idxDocFreq = new HashMap<>(171);
-      idxDocFreq.put("a", 9);
-      idxDocFreq.put("ac", 7);
-      idxDocFreq.put("accumsan", 4);
-      idxDocFreq.put("adipiscing", 6);
-      idxDocFreq.put("aenean", 6);
-      idxDocFreq.put("aliquam", 4);
-      idxDocFreq.put("aliquet", 2);
-      idxDocFreq.put("amet", 7);
-      idxDocFreq.put("ante", 6);
-      idxDocFreq.put("arcu", 5);
-      idxDocFreq.put("at", 4);
-      idxDocFreq.put("auctor", 5);
-      idxDocFreq.put("augue", 6);
-      idxDocFreq.put("bibendum", 2);
-      idxDocFreq.put("blandit", 4);
-      idxDocFreq.put("commodo", 2);
-      idxDocFreq.put("condimentum", 4);
-      idxDocFreq.put("congue", 2);
-      idxDocFreq.put("consectetuer", 5);
-      idxDocFreq.put("consequat", 3);
-      idxDocFreq.put("convallis", 3);
-      idxDocFreq.put("cras", 4);
-      idxDocFreq.put("cubilia", 3);
-      idxDocFreq.put("cum", 1);
-      idxDocFreq.put("curabitur", 4);
-      idxDocFreq.put("curae", 3);
-      idxDocFreq.put("cursus", 4);
-      idxDocFreq.put("dapibus", 3);
-      idxDocFreq.put("diam", 2);
-      idxDocFreq.put("dictum", 2);
-      idxDocFreq.put("dictumst", 2);
-      idxDocFreq.put("dis", 1);
-      idxDocFreq.put("dolor", 7);
-      idxDocFreq.put("donec", 8);
-      idxDocFreq.put("dui", 7);
-      idxDocFreq.put("duis", 1);
-      idxDocFreq.put("egestas", 5);
-      idxDocFreq.put("eget", 8);
-      idxDocFreq.put("eleifend", 5);
-      idxDocFreq.put("elementum", 2);
-      idxDocFreq.put("elit", 3);
-      idxDocFreq.put("enim", 5);
-      idxDocFreq.put("erat", 3);
-      idxDocFreq.put("eros", 5);
-      idxDocFreq.put("est", 3);
-      idxDocFreq.put("et", 10);
-      idxDocFreq.put("etiam", 3);
-      idxDocFreq.put("eu", 7);
-      idxDocFreq.put("euismod", 4);
-      idxDocFreq.put("facilisis", 2);
-      idxDocFreq.put("fames", 2);
-      idxDocFreq.put("faucibus", 5);
-      idxDocFreq.put("felis", 3);
-      idxDocFreq.put("fermentum", 2);
-      idxDocFreq.put("feugiat", 7);
-      idxDocFreq.put("fringilla", 5);
-      idxDocFreq.put("fusce", 5);
-      idxDocFreq.put("gravida", 3);
-      idxDocFreq.put("habitant", 2);
-      idxDocFreq.put("habitasse", 2);
-      idxDocFreq.put("hac", 2);
-      idxDocFreq.put("hendrerit", 5);
-      idxDocFreq.put("iaculis", 3);
-      idxDocFreq.put("id", 7);
-      idxDocFreq.put("imperdiet", 4);
-      idxDocFreq.put("in", 10);
-      idxDocFreq.put("integer", 2);
-      idxDocFreq.put("interdum", 2);
-      idxDocFreq.put("ipsum", 9);
-      idxDocFreq.put("justo", 4);
-      idxDocFreq.put("lacinia", 2);
-      idxDocFreq.put("lacus", 5);
-      idxDocFreq.put("laoreet", 4);
-      idxDocFreq.put("lectus", 2);
-      idxDocFreq.put("leo", 7);
-      idxDocFreq.put("libero", 8);
-      idxDocFreq.put("ligula", 6);
-      idxDocFreq.put("lobortis", 2);
-      idxDocFreq.put("lorem", 5);
-      idxDocFreq.put("luctus", 5);
-      idxDocFreq.put("maecenas", 4);
-      idxDocFreq.put("magna", 4);
-      idxDocFreq.put("magnis", 1);
-      idxDocFreq.put("malesuada", 4);
-      idxDocFreq.put("massa", 3);
-      idxDocFreq.put("mattis", 3);
-      idxDocFreq.put("mauris", 5);
-      idxDocFreq.put("metus", 7);
-      idxDocFreq.put("mi", 5);
-      idxDocFreq.put("molestie", 2);
-      idxDocFreq.put("mollis", 6);
-      idxDocFreq.put("montes", 1);
-      idxDocFreq.put("morbi", 4);
-      idxDocFreq.put("mus", 1);
-      idxDocFreq.put("nam", 3);
-      idxDocFreq.put("nascetur", 1);
-      idxDocFreq.put("natoque", 1);
-      idxDocFreq.put("nec", 9);
-      idxDocFreq.put("neque", 6);
-      idxDocFreq.put("netus", 2);
-      idxDocFreq.put("nibh", 4);
-      idxDocFreq.put("nisi", 8);
-      idxDocFreq.put("nisl", 4);
-      idxDocFreq.put("non", 6);
-      idxDocFreq.put("nonummy", 3);
-      idxDocFreq.put("nulla", 6);
-      idxDocFreq.put("nullam", 7);
-      idxDocFreq.put("nunc", 9);
-      idxDocFreq.put("odio", 4);
-      idxDocFreq.put("orci", 6);
-      idxDocFreq.put("ornare", 1);
-      idxDocFreq.put("parturient", 1);
-      idxDocFreq.put("pede", 6);
-      idxDocFreq.put("pellentesque", 6);
-      idxDocFreq.put("penatibus", 1);
-      idxDocFreq.put("pharetra", 1);
-      idxDocFreq.put("phasellus", 7);
-      idxDocFreq.put("placerat", 4);
-      idxDocFreq.put("platea", 2);
-      idxDocFreq.put("porta", 2);
-      idxDocFreq.put("porttitor", 2);
-      idxDocFreq.put("posuere", 4);
-      idxDocFreq.put("praesent", 5);
-      idxDocFreq.put("pretium", 5);
-      idxDocFreq.put("primis", 3);
-      idxDocFreq.put("proin", 2);
-      idxDocFreq.put("pulvinar", 3);
-      idxDocFreq.put("purus", 5);
-      idxDocFreq.put("quam", 6);
-      idxDocFreq.put("quis", 8);
-      idxDocFreq.put("quisque", 4);
-      idxDocFreq.put("rhoncus", 3);
-      idxDocFreq.put("ridiculus", 1);
-      idxDocFreq.put("risus", 4);
-      idxDocFreq.put("rutrum", 4);
-      idxDocFreq.put("sagittis", 5);
-      idxDocFreq.put("sapien", 6);
-      idxDocFreq.put("scelerisque", 2);
-      idxDocFreq.put("sed", 9);
-      idxDocFreq.put("sem", 5);
-      idxDocFreq.put("semper", 4);
-      idxDocFreq.put("senectus", 2);
-      idxDocFreq.put("sit", 7);
-      idxDocFreq.put("sociis", 1);
-      idxDocFreq.put("sodales", 3);
-      idxDocFreq.put("sollicitudin", 2);
-      idxDocFreq.put("suscipit", 2);
-      idxDocFreq.put("suspendisse", 2);
-      idxDocFreq.put("tellus", 4);
-      idxDocFreq.put("tempor", 2);
-      idxDocFreq.put("tempus", 2);
-      idxDocFreq.put("tincidunt", 7);
-      idxDocFreq.put("tortor", 4);
-      idxDocFreq.put("tristique", 2);
-      idxDocFreq.put("turpis", 6);
-      idxDocFreq.put("ullamcorper", 5);
-      idxDocFreq.put("ultrices", 4);
-      idxDocFreq.put("ultricies", 4);
-      idxDocFreq.put("urna", 4);
-      idxDocFreq.put("ut", 9);
-      idxDocFreq.put("varius", 4);
-      idxDocFreq.put("vehicula", 2);
-      idxDocFreq.put("vel", 6);
-      idxDocFreq.put("velit", 5);
-      idxDocFreq.put("venenatis", 4);
-      idxDocFreq.put("vestibulum", 7);
-      idxDocFreq.put("vitae", 5);
-      idxDocFreq.put("vivamus", 2);
-      idxDocFreq.put("viverra", 4);
-      idxDocFreq.put("volutpat", 3);
-      idxDocFreq.put("vulputate", 4);
-      IDX_DOCFREQ = Collections.unmodifiableMap(idxDocFreq);
-    }
-
-    /**
      * Term frequency values for document 0.
      */
     @SuppressWarnings("PublicStaticCollectionField")
     public static final Map<String, Integer> TF_DOC_0;
-
+    /**
+     * Number of documents in index.
+     */
+    public static final int DOC_COUNT = FixedTestIndexDataProvider.DOC_COUNT;
     static {
       final Map<String, Integer> idxTermFreq = new HashMap<>(171);
       idxTermFreq.put("et", 21);
@@ -806,12 +649,186 @@ public final class FixedTestIndexDataProvider
       IDX_TERMFREQ = Collections.unmodifiableMap(idxTermFreq);
     }
 
+    static {
+      final Map<String, Integer> idxDocFreq = new HashMap<>(171);
+      idxDocFreq.put("a", 9);
+      idxDocFreq.put("ac", 7);
+      idxDocFreq.put("accumsan", 4);
+      idxDocFreq.put("adipiscing", 6);
+      idxDocFreq.put("aenean", 6);
+      idxDocFreq.put("aliquam", 4);
+      idxDocFreq.put("aliquet", 2);
+      idxDocFreq.put("amet", 7);
+      idxDocFreq.put("ante", 6);
+      idxDocFreq.put("arcu", 5);
+      idxDocFreq.put("at", 4);
+      idxDocFreq.put("auctor", 5);
+      idxDocFreq.put("augue", 6);
+      idxDocFreq.put("bibendum", 2);
+      idxDocFreq.put("blandit", 4);
+      idxDocFreq.put("commodo", 2);
+      idxDocFreq.put("condimentum", 4);
+      idxDocFreq.put("congue", 2);
+      idxDocFreq.put("consectetuer", 5);
+      idxDocFreq.put("consequat", 3);
+      idxDocFreq.put("convallis", 3);
+      idxDocFreq.put("cras", 4);
+      idxDocFreq.put("cubilia", 3);
+      idxDocFreq.put("cum", 1);
+      idxDocFreq.put("curabitur", 4);
+      idxDocFreq.put("curae", 3);
+      idxDocFreq.put("cursus", 4);
+      idxDocFreq.put("dapibus", 3);
+      idxDocFreq.put("diam", 2);
+      idxDocFreq.put("dictum", 2);
+      idxDocFreq.put("dictumst", 2);
+      idxDocFreq.put("dis", 1);
+      idxDocFreq.put("dolor", 7);
+      idxDocFreq.put("donec", 8);
+      idxDocFreq.put("dui", 7);
+      idxDocFreq.put("duis", 1);
+      idxDocFreq.put("egestas", 5);
+      idxDocFreq.put("eget", 8);
+      idxDocFreq.put("eleifend", 5);
+      idxDocFreq.put("elementum", 2);
+      idxDocFreq.put("elit", 3);
+      idxDocFreq.put("enim", 5);
+      idxDocFreq.put("erat", 3);
+      idxDocFreq.put("eros", 5);
+      idxDocFreq.put("est", 3);
+      idxDocFreq.put("et", 10);
+      idxDocFreq.put("etiam", 3);
+      idxDocFreq.put("eu", 7);
+      idxDocFreq.put("euismod", 4);
+      idxDocFreq.put("facilisis", 2);
+      idxDocFreq.put("fames", 2);
+      idxDocFreq.put("faucibus", 5);
+      idxDocFreq.put("felis", 3);
+      idxDocFreq.put("fermentum", 2);
+      idxDocFreq.put("feugiat", 7);
+      idxDocFreq.put("fringilla", 5);
+      idxDocFreq.put("fusce", 5);
+      idxDocFreq.put("gravida", 3);
+      idxDocFreq.put("habitant", 2);
+      idxDocFreq.put("habitasse", 2);
+      idxDocFreq.put("hac", 2);
+      idxDocFreq.put("hendrerit", 5);
+      idxDocFreq.put("iaculis", 3);
+      idxDocFreq.put("id", 7);
+      idxDocFreq.put("imperdiet", 4);
+      idxDocFreq.put("in", 10);
+      idxDocFreq.put("integer", 2);
+      idxDocFreq.put("interdum", 2);
+      idxDocFreq.put("ipsum", 9);
+      idxDocFreq.put("justo", 4);
+      idxDocFreq.put("lacinia", 2);
+      idxDocFreq.put("lacus", 5);
+      idxDocFreq.put("laoreet", 4);
+      idxDocFreq.put("lectus", 2);
+      idxDocFreq.put("leo", 7);
+      idxDocFreq.put("libero", 8);
+      idxDocFreq.put("ligula", 6);
+      idxDocFreq.put("lobortis", 2);
+      idxDocFreq.put("lorem", 5);
+      idxDocFreq.put("luctus", 5);
+      idxDocFreq.put("maecenas", 4);
+      idxDocFreq.put("magna", 4);
+      idxDocFreq.put("magnis", 1);
+      idxDocFreq.put("malesuada", 4);
+      idxDocFreq.put("massa", 3);
+      idxDocFreq.put("mattis", 3);
+      idxDocFreq.put("mauris", 5);
+      idxDocFreq.put("metus", 7);
+      idxDocFreq.put("mi", 5);
+      idxDocFreq.put("molestie", 2);
+      idxDocFreq.put("mollis", 6);
+      idxDocFreq.put("montes", 1);
+      idxDocFreq.put("morbi", 4);
+      idxDocFreq.put("mus", 1);
+      idxDocFreq.put("nam", 3);
+      idxDocFreq.put("nascetur", 1);
+      idxDocFreq.put("natoque", 1);
+      idxDocFreq.put("nec", 9);
+      idxDocFreq.put("neque", 6);
+      idxDocFreq.put("netus", 2);
+      idxDocFreq.put("nibh", 4);
+      idxDocFreq.put("nisi", 8);
+      idxDocFreq.put("nisl", 4);
+      idxDocFreq.put("non", 6);
+      idxDocFreq.put("nonummy", 3);
+      idxDocFreq.put("nulla", 6);
+      idxDocFreq.put("nullam", 7);
+      idxDocFreq.put("nunc", 9);
+      idxDocFreq.put("odio", 4);
+      idxDocFreq.put("orci", 6);
+      idxDocFreq.put("ornare", 1);
+      idxDocFreq.put("parturient", 1);
+      idxDocFreq.put("pede", 6);
+      idxDocFreq.put("pellentesque", 6);
+      idxDocFreq.put("penatibus", 1);
+      idxDocFreq.put("pharetra", 1);
+      idxDocFreq.put("phasellus", 7);
+      idxDocFreq.put("placerat", 4);
+      idxDocFreq.put("platea", 2);
+      idxDocFreq.put("porta", 2);
+      idxDocFreq.put("porttitor", 2);
+      idxDocFreq.put("posuere", 4);
+      idxDocFreq.put("praesent", 5);
+      idxDocFreq.put("pretium", 5);
+      idxDocFreq.put("primis", 3);
+      idxDocFreq.put("proin", 2);
+      idxDocFreq.put("pulvinar", 3);
+      idxDocFreq.put("purus", 5);
+      idxDocFreq.put("quam", 6);
+      idxDocFreq.put("quis", 8);
+      idxDocFreq.put("quisque", 4);
+      idxDocFreq.put("rhoncus", 3);
+      idxDocFreq.put("ridiculus", 1);
+      idxDocFreq.put("risus", 4);
+      idxDocFreq.put("rutrum", 4);
+      idxDocFreq.put("sagittis", 5);
+      idxDocFreq.put("sapien", 6);
+      idxDocFreq.put("scelerisque", 2);
+      idxDocFreq.put("sed", 9);
+      idxDocFreq.put("sem", 5);
+      idxDocFreq.put("semper", 4);
+      idxDocFreq.put("senectus", 2);
+      idxDocFreq.put("sit", 7);
+      idxDocFreq.put("sociis", 1);
+      idxDocFreq.put("sodales", 3);
+      idxDocFreq.put("sollicitudin", 2);
+      idxDocFreq.put("suscipit", 2);
+      idxDocFreq.put("suspendisse", 2);
+      idxDocFreq.put("tellus", 4);
+      idxDocFreq.put("tempor", 2);
+      idxDocFreq.put("tempus", 2);
+      idxDocFreq.put("tincidunt", 7);
+      idxDocFreq.put("tortor", 4);
+      idxDocFreq.put("tristique", 2);
+      idxDocFreq.put("turpis", 6);
+      idxDocFreq.put("ullamcorper", 5);
+      idxDocFreq.put("ultrices", 4);
+      idxDocFreq.put("ultricies", 4);
+      idxDocFreq.put("urna", 4);
+      idxDocFreq.put("ut", 9);
+      idxDocFreq.put("varius", 4);
+      idxDocFreq.put("vehicula", 2);
+      idxDocFreq.put("vel", 6);
+      idxDocFreq.put("velit", 5);
+      idxDocFreq.put("venenatis", 4);
+      idxDocFreq.put("vestibulum", 7);
+      idxDocFreq.put("vitae", 5);
+      idxDocFreq.put("vivamus", 2);
+      idxDocFreq.put("viverra", 4);
+      idxDocFreq.put("volutpat", 3);
+      idxDocFreq.put("vulputate", 4);
+      IDX_DOCFREQ = Collections.unmodifiableMap(idxDocFreq);
+    }
     /**
      * Term frequency values for document 1.
      */
     @SuppressWarnings("PublicStaticCollectionField")
     public static final Map<String, Integer> TF_DOC_1;
-
     static {
       final Map<String, Integer> tfDoc1 = new HashMap<>(70);
       tfDoc1.put("etiam", 3);
@@ -886,18 +903,11 @@ public final class FixedTestIndexDataProvider
       tfDoc1.put("a", 1);
       TF_DOC_1 = Collections.unmodifiableMap(tfDoc1);
     }
-
-    /**
-     * Number of fields per document.
-     */
-    public static final int FIELD_COUNT = FixedTestIndexDataProvider
-        .FIELD_COUNT;
     /**
      * Term frequency values for document 2.
      */
     @SuppressWarnings("PublicStaticCollectionField")
     public static final Map<String, Integer> TF_DOC_2;
-
     static {
       final Map<String, Integer> tfDoc0 = new HashMap<>(65);
       tfDoc0.put("justo", 3);
@@ -1043,11 +1053,15 @@ public final class FixedTestIndexDataProvider
     }
 
     /**
+     * Number of fields per document.
+     */
+    public static final int FIELD_COUNT = FixedTestIndexDataProvider
+        .FIELD_COUNT;
+    /**
      * Term frequency values for document 3.
      */
     @SuppressWarnings("PublicStaticCollectionField")
     public static final Map<String, Integer> TF_DOC_3;
-
     static {
       final Map<String, Integer> tfDoc3 = new HashMap<>(71);
       tfDoc3.put("imperdiet", 4);
@@ -1715,22 +1729,7 @@ public final class FixedTestIndexDataProvider
 
   @Override
   public Iterator<ByteArray> getTermsIterator() {
-    return getDocumentsTermSet(getDocumentIds()).iterator();
-  }
-
-  @Override
-  public Source<ByteArray> getTermsSource() {
-    return new CollectionSource<>(getDocumentsTermSet(getDocumentIds()));
-  }
-
-  @Override
-  public Iterator<Integer> getDocumentIdIterator() {
-    return getDocumentIds().iterator();
-  }
-
-  @Override
-  public Source<Integer> getDocumentIdSource() {
-    return new CollectionSource<>(getDocumentIds());
+    return getDocumentsTermsSet(getDocIds());
   }
 
   @Override
@@ -1769,18 +1768,32 @@ public final class FixedTestIndexDataProvider
 
   @SuppressWarnings("ObjectAllocationInLoop")
   @Override
-  public Set<ByteArray> getDocumentsTermSet(
+  public Iterator<ByteArray> getDocumentsTermsSet(
       final Collection<Integer> docIds) {
-    final Set<String> termsStr = getDocumentsTermSetStr(docIds);
-    final Set<ByteArray> termsBa = new HashSet<>(termsStr.size());
-    for (final String term : termsStr) {
-      try {
-        termsBa.add(new ByteArray(term.getBytes("UTF-8")));
-      } catch (final UnsupportedEncodingException e) {
-        throw new IllegalStateException(e);
+    return getDocTermsSet(docIds).iterator();
+  }
+
+  @Override
+  public Iterator<Map.Entry<ByteArray, Long>> getDocumentsTerms(
+      final Collection<Integer> docIds) {
+    final Map<ByteArray, Long> tfMap = new HashMap<>();
+    for (int docId : docIds) {
+      for (Map.Entry<String, Integer> entry : KnownData.getDocumentTfMap
+          (docId).entrySet()) {
+        try {
+          final ByteArray termBa = new ByteArray(entry.getKey().getBytes
+              ("UTF-8"));
+          if (tfMap.containsKey(termBa)) {
+            tfMap.put(termBa, tfMap.get(termBa) + 1L);
+          } else {
+            tfMap.put(termBa, 1L);
+          }
+        } catch (UnsupportedEncodingException e) {
+          throw new IllegalStateException("Term encoding error!", e);
+        }
       }
     }
-    return termsBa;
+    return tfMap.entrySet().iterator();
   }
 
 

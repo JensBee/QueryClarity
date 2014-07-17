@@ -66,7 +66,7 @@ public final class DocumentModelTest
       final boolean excludeStopwords = stopwords != null;
       final Metrics metrics = new Metrics(index);
 
-      final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+      final Iterator<Integer> docIdIt = index.getDocumentIds();
       while (docIdIt.hasNext()) {
         final int docId = docIdIt.next();
         final DocumentModel docModel = metrics.getDocumentModel(docId);
@@ -99,7 +99,7 @@ public final class DocumentModelTest
       final boolean excludeStopwords = stopwords != null;
       final Metrics metrics = new Metrics(index);
 
-      final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+      final Iterator<Integer> docIdIt = index.getDocumentIds();
       while (docIdIt.hasNext()) {
         final int docId = docIdIt.next();
         final Map<ByteArray, Long> tfMap =
@@ -224,7 +224,7 @@ public final class DocumentModelTest
     try (final IndexDataProvider index = getInstance()) {
       final Metrics metrics = new Metrics(index);
       final int smoothingAmount = 100;
-      final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+      final Iterator<Integer> docIdIt = index.getDocumentIds();
       while (docIdIt.hasNext()) {
         final int docId = docIdIt.next();
         final DocumentModel docModel = metrics.getDocumentModel(docId);
@@ -254,7 +254,7 @@ public final class DocumentModelTest
           this.referenceIndex.getStopwordsBytes();
       final boolean excludeStopwords = stopwords != null;
 
-      final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+      final Iterator<Integer> docIdIt = index.getDocumentIds();
       while (docIdIt.hasNext()) {
         final int docId = docIdIt.next();
         final DocumentModel docModel = metrics.getDocumentModel(docId);
@@ -286,7 +286,7 @@ public final class DocumentModelTest
           this.referenceIndex.getStopwordsBytes();
       final boolean excludeStopwords = stopwords != null;
 
-      final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+      final Iterator<Integer> docIdIt = index.getDocumentIds();
       while (docIdIt.hasNext()) {
         final int docId = docIdIt.next();
         final DocumentModel docModel = metrics.getDocumentModel(docId);
@@ -313,7 +313,7 @@ public final class DocumentModelTest
   public void testMetrics()
       throws Exception {
     try (final IndexDataProvider index = getInstance()) {
-      final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+      final Iterator<Integer> docIdIt = index.getDocumentIds();
       final Metrics metrics = new Metrics(index);
       while (docIdIt.hasNext()) {
         final int docId = docIdIt.next();

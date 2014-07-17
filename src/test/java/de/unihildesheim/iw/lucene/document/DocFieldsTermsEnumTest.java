@@ -67,7 +67,7 @@ public final class DocFieldsTermsEnumTest
       final DocFieldsTermsEnum instance = new DocFieldsTermsEnum(
           TestIndexDataProvider.getIndexReader(),
           index.getDocumentFields());
-      final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+      final Iterator<Integer> docIdIt = index.getDocumentIds();
       while (docIdIt.hasNext()) {
         instance.setDocument(docIdIt.next());
       }
@@ -85,7 +85,7 @@ public final class DocFieldsTermsEnumTest
     try (final IndexDataProvider index = getInstance()) {
       final DocFieldsTermsEnum instance = new DocFieldsTermsEnum(
           TestIndexDataProvider.getIndexReader(), index.getDocumentFields());
-      final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+      final Iterator<Integer> docIdIt = index.getDocumentIds();
 
       BytesRef br;
       while (docIdIt.hasNext()) {
@@ -131,7 +131,7 @@ public final class DocFieldsTermsEnumTest
       final boolean excludeStopwords = this.referenceIndex.hasStopwords();
       final Metrics metrics = new Metrics(index);
 
-      final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+      final Iterator<Integer> docIdIt = index.getDocumentIds();
       while (docIdIt.hasNext()) {
         final int docId = docIdIt.next();
         final Map<ByteArray, Long> tfMap =
@@ -188,7 +188,7 @@ public final class DocFieldsTermsEnumTest
           this.referenceIndex.getStopwordsBytes();
       final boolean excludeStopwords = this.referenceIndex.hasStopwords();
 
-      final Iterator<Integer> docIdIt = index.getDocumentIdIterator();
+      final Iterator<Integer> docIdIt = index.getDocumentIds();
       while (docIdIt.hasNext()) {
         final int docId = docIdIt.next();
         final Map<ByteArray, Long> tfMap = this.referenceIndex

@@ -21,7 +21,6 @@ import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.lucene.index.FixedTestIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.IndexTestUtils;
-import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.RandomValue;
@@ -34,9 +33,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -64,7 +62,7 @@ public final class ImprovedClarityScoreTest
   /**
    * Allowed delta in clarity score calculation. Single term calculation.
    */
-  private static final double DELTA_SCORE_SINGLE = Double.valueOf("9E-17");
+  private static final double DELTA_SCORE_SINGLE = Double.valueOf("9E-16");
   /**
    * Global singleton instance of the test-index.
    */
@@ -94,7 +92,7 @@ public final class ImprovedClarityScoreTest
   }
 
   /**
-   * Test of {@link ImprovedClarityScore#getDocumentModel(int)}.
+   * Test of getDocumentModel.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
@@ -107,7 +105,8 @@ public final class ImprovedClarityScoreTest
       for (int docId = 0;
            docId < FixedTestIndexDataProvider.KnownData.DOC_COUNT;
            docId++) {
-        final Map<ByteArray, Double> models = instance.getDocumentModel(docId);
+        final Map<ByteArray, Double> models = instance.extDocMan.getData(
+            docId, ImprovedClarityScore.DataKeys.DOCMODEL.name());
 
         for (final Map.Entry<ByteArray, Double> modelEntry : models
             .entrySet()) {
@@ -140,8 +139,7 @@ public final class ImprovedClarityScoreTest
   }
 
   /**
-   * Test of {@link ImprovedClarityScore#getDocumentModel}. Test with invalid
-   * document ids.
+   * Test of getDocumentModel. Test with invalid document ids.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
@@ -154,26 +152,20 @@ public final class ImprovedClarityScoreTest
       int docId;
 
       docId = -10;
-      try {
-        instance.getDocumentModel(docId);
-        Assert.fail("Expected an Exception to be thrown");
-      } catch (final IllegalArgumentException e) {
-        // pass
-      }
+      Assert.assertTrue("Unknown docId model should be empty.",
+          instance.extDocMan.getData(
+              docId, ImprovedClarityScore.DataKeys.DOCMODEL.name()).isEmpty());
 
       docId = FixedTestIndexDataProvider.KnownData.DOC_COUNT + 1;
-      try {
-        instance.getDocumentModel(docId);
-        Assert.fail("Expected an Exception to be thrown");
-      } catch (final IllegalArgumentException e) {
-        // pass
-      }
+      Assert.assertTrue("Unknown docId model should be empty.",
+          instance.extDocMan.getData(
+              docId, ImprovedClarityScore.DataKeys.DOCMODEL.name()).isEmpty());
     }
   }
 
   /**
-   * Test of {@link ImprovedClarityScore#getQueryModel(ByteArray, Collection,
-   * Set)}. Run for a single term.
+   * Test of {@link ImprovedClarityScore#getQueryModel(ByteArray)}. Run for a
+   * single term.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
@@ -190,7 +182,11 @@ public final class ImprovedClarityScoreTest
       final Set<String> qTerms = Collections.singleton(term);
       final Set<Integer> fbDocIds = Collections.singleton(0);
 
-      final double result = instance.getQueryModel(termBa, qTermsBa, fbDocIds);
+      final Map<ByteArray, Integer> qTermsMap = Collections.singletonMap(
+          termBa, 1);
+      instance.testSetValues(fbDocIds, qTermsMap);
+
+      final double result = instance.getQueryModel(termBa);
       final double expected = calculateQueryModel(term, qTerms, fbDocIds);
 
       Assert.assertEquals("Single term query model value mismatch.",
@@ -215,6 +211,7 @@ public final class ImprovedClarityScoreTest
     final Collection<String> calcTerms = new ArrayList<>(queryTerms.size() + 1);
     calcTerms.addAll(queryTerms);
     calcTerms.add(term);
+
     for (final Integer docId : feedbackDocumentIds) {
       double modelValuePart = 1d;
       for (final String cTerm : calcTerms) {
@@ -272,8 +269,8 @@ public final class ImprovedClarityScoreTest
   }
 
   /**
-   * Test of {@link ImprovedClarityScore#getQueryModel(ByteArray, Collection,
-   * Set)}. Random terms.
+   * Test of {@link ImprovedClarityScore#getQueryModel(ByteArray)}. Random
+   * terms.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
@@ -284,7 +281,8 @@ public final class ImprovedClarityScoreTest
     try (ImprovedClarityScore instance = getInstanceBuilder()
         .configuration(ICC_CONF).build()) {
       // use all documents for feedback
-      final Set<Integer> fbDocIds = FixedTestIndexDataProvider.getDocumentIds();
+      final Set<Integer> fbDocIds =
+          FixedTestIndexDataProvider.getDocumentIdsSet();
 
       // some random terms from the index will make up a query
       final Tuple.Tuple2<List<String>, List<ByteArray>> randQTerms =
@@ -292,13 +290,19 @@ public final class ImprovedClarityScoreTest
       final List<ByteArray> qTerms = randQTerms.b;
       final List<String> qTermsStr = randQTerms.a;
 
+      final Map<ByteArray, Integer> qTermsMap = new HashMap<>(qTerms.size());
+      for (final ByteArray qTerm : qTerms) {
+        qTermsMap.put(qTerm, 1);
+      }
+      instance.testSetValues(fbDocIds, qTermsMap);
+
       // compare calculations for all terms in index
       final Iterator<ByteArray> termsIt = FIXED_INDEX.getTermsIterator();
       while (termsIt.hasNext()) {
         final ByteArray term = termsIt.next();
         final String termStr = ByteArrayUtils.utf8ToString(term);
 
-        final double result = instance.getQueryModel(term, qTerms, fbDocIds);
+        final double result = instance.getQueryModel(term);
 
         // calculate expected result
         final double expected =
@@ -311,8 +315,8 @@ public final class ImprovedClarityScoreTest
   }
 
   /**
-   * Test of {@link ImprovedClarityScore#getQueryModel(ByteArray, Collection,
-   * Set)}. Fixed terms.
+   * Test of {@link ImprovedClarityScore#getQueryModel(ByteArray)}. Fixed
+   * terms.
    *
    * @throws java.lang.Exception Any exception thrown indicates an error
    */
@@ -324,7 +328,8 @@ public final class ImprovedClarityScoreTest
     try (ImprovedClarityScore instance = getInstanceBuilder()
         .configuration(ICC_CONF).build()) {
       // use all documents for feedback
-      final Set<Integer> fbDocIds = FixedTestIndexDataProvider.getDocumentIds();
+      final Set<Integer> fbDocIds = FixedTestIndexDataProvider
+          .getDocumentIdsSet();
 
       // fixed terms from the index will make up a query
       final List<String> sortedIdxTerms = FIXED_INDEX.getSortedTermList();
@@ -336,13 +341,19 @@ public final class ImprovedClarityScoreTest
         qTermsStr.add(sortedIdxTerms.get(i));
       }
 
+      final Map<ByteArray, Integer> qTermsMap = new HashMap<>(qTerms.size());
+      for (final ByteArray qTerm : qTerms) {
+        qTermsMap.put(qTerm, 1);
+      }
+      instance.testSetValues(fbDocIds, qTermsMap);
+
       // compare calculations for all terms in index
       final Iterator<ByteArray> termsIt = FIXED_INDEX.getTermsIterator();
       while (termsIt.hasNext()) {
         final ByteArray term = termsIt.next();
         final String termStr = ByteArrayUtils.utf8ToString(term);
 
-        final double result = instance.getQueryModel(term, qTerms, fbDocIds);
+        final double result = instance.getQueryModel(term);
 
         // calculate expected result
         final double expected =
@@ -354,76 +365,24 @@ public final class ImprovedClarityScoreTest
     }
   }
 
-  /**
-   * Test of {@link ImprovedClarityScore.FbTermReducerTarget}.
-   *
-   * @throws java.lang.Exception Any exception thrown indicates an error
-   */
-  @SuppressWarnings("ObjectAllocationInLoop")
-  @Test
-  public void testTermReducerTarget()
-      throws Exception {
-    final Metrics metrics = new Metrics(FIXED_INDEX);
-    LinkedList<ByteArray> reducedFbTerms;
-    ImprovedClarityScore.FbTermReducerTarget trTarget;
-    Iterator<ByteArray> idxTermsIt;
-
-    // all terms should be included (minDocFreq == 0)
-    reducedFbTerms = new LinkedList<>();
-    trTarget = new ImprovedClarityScore.FbTermReducerTarget(
-        metrics.collection(), 0, 1, reducedFbTerms);
-    idxTermsIt = FIXED_INDEX.getTermsIterator();
-    while (idxTermsIt.hasNext()) {
-      final ByteArray term = idxTermsIt.next();
-      trTarget.call(term);
-    }
-
-    idxTermsIt = FIXED_INDEX.getTermsIterator();
-    while (idxTermsIt.hasNext()) {
-      Assert.assertTrue("Term should be in reduced set with threshold == 0.",
-          reducedFbTerms.contains(idxTermsIt.next()));
-    }
-
-    // test for each known document frequency value
-    final Iterable<Integer> docFreqs =
-        new HashSet<>(FixedTestIndexDataProvider.KnownData
-            .IDX_DOCFREQ.values());
-    for (final Integer filterDocFreq : docFreqs) {
-      reducedFbTerms = new LinkedList<>();
-      trTarget = new ImprovedClarityScore.FbTermReducerTarget(
-          metrics.collection(), filterDocFreq, 1, reducedFbTerms);
-
-      idxTermsIt = FIXED_INDEX.getTermsIterator();
-      while (idxTermsIt.hasNext()) {
-        final ByteArray term = idxTermsIt.next();
-        trTarget.call(term);
+  private Map.Entry<ByteArray, Long> mkEntry(final ByteArray term,
+      final long val) {
+    return new Map.Entry<ByteArray, Long>() {
+      @Override
+      public ByteArray getKey() {
+        return term;
       }
 
-      for (final Map.Entry<String, Integer> docFreqEntry :
-          FixedTestIndexDataProvider
-              .KnownData.IDX_DOCFREQ.entrySet()) {
-        final int freq = docFreqEntry.getValue();
-        @SuppressWarnings("ObjectAllocationInLoop")
-        final ByteArray termBytes = new ByteArray(docFreqEntry.getKey()
-            .getBytes("UTF-8"));
-        if (freq >= filterDocFreq) {
-          Assert.assertTrue(
-              "DocFreq (" + freq + ", " + metrics.collection().df(termBytes) +
-                  ") " +
-                  "over or equal to threshold " +
-                  "(" + filterDocFreq + "). Term (" + docFreqEntry.getKey() +
-                  ") should  be in reduced set.",
-              reducedFbTerms.contains(termBytes)
-          );
-        } else {
-          Assert.assertFalse("DocFreq (" + freq + ") below threshold " +
-                  "(" + filterDocFreq + "). Term (" + docFreqEntry.getKey() +
-                  ") should not be in reduced set.",
-              reducedFbTerms.contains(termBytes)
-          );
-        }
+      @Override
+      public Long getValue() {
+        return val;
       }
-    }
+
+      @Override
+      public Long setValue(final Long value) {
+        return null;
+      }
+    };
   }
 
   /**
@@ -441,9 +400,16 @@ public final class ImprovedClarityScoreTest
           .TF_DOC_0.entrySet().iterator().next().getKey();
       System.out.println("Term=" + term);
 
+      // use all documents for feedback
+      final Set<Integer> fbDocIds = FixedTestIndexDataProvider
+          .getDocumentIdsSet();
+      final Map<ByteArray, Integer> qTermsMap = Collections.singletonMap(new
+          ByteArray(term.getBytes("UTF-8")), 1);
+      instance.testSetValues(fbDocIds, qTermsMap);
+
       final ImprovedClarityScore.Result result =
           instance.calculateClarity(term);
-      final double expected = calculateScore(result);
+      final double expected = calculateScore(instance, result);
 
       Assert.assertEquals("Single term score value differs.",
           expected, result.getScore(), DELTA_SCORE_SINGLE);
@@ -459,6 +425,7 @@ public final class ImprovedClarityScoreTest
    * @throws Exception Any exception thrown indicates an error
    */
   private static double calculateScore(
+      final ImprovedClarityScore instance,
       final ImprovedClarityScore.Result result)
       throws Exception {
     double score = 0d;
@@ -467,13 +434,19 @@ public final class ImprovedClarityScoreTest
     for (final ByteArray qTerm : result.getQueryTerms()) {
       qTermsStr.add(ByteArrayUtils.utf8ToString(qTerm));
     }
-    for (final ByteArray term : result.getFeedbackTerms()) {
-      final String termStr = ByteArrayUtils.utf8ToString(term);
+
+    Iterator<Map.Entry<ByteArray, Long>> fbTermsIt = instance.dataProv
+        .getDocumentsTerms(result.getFeedbackDocuments());
+
+    while (fbTermsIt.hasNext()) {
+      final Map.Entry<ByteArray, Long> fbTermEntry = fbTermsIt.next();
+      final String termStr = ByteArrayUtils.utf8ToString(fbTermEntry.getKey());
       final double pq = calculateQueryModel(termStr, qTermsStr,
           result.getFeedbackDocuments());
-      score += pq * MathUtils.log2(pq / FIXED_INDEX.getRelativeTermFrequency
-          (term));
+      score += (pq * MathUtils.log2(pq / FIXED_INDEX.getRelativeTermFrequency
+          (fbTermEntry.getKey()))) * fbTermEntry.getValue();
     }
+
     return score;
   }
 
@@ -495,10 +468,20 @@ public final class ImprovedClarityScoreTest
 
       // create a query string from the list of terms
       final String queryStr = StringUtils.join(qTermsStr, " ");
+      // use all documents for feedback
+      final Set<Integer> fbDocIds = FixedTestIndexDataProvider
+          .getDocumentIdsSet();
+
+      final Map<ByteArray, Integer> qTermsMap = new HashMap<>(
+          randQTerms.b.size());
+      for (final ByteArray qTerm : randQTerms.b) {
+        qTermsMap.put(qTerm, 1);
+      }
+      instance.testSetValues(fbDocIds, qTermsMap);
 
       final ImprovedClarityScore.Result result = instance.calculateClarity
           (queryStr);
-      final double score = calculateScore(result);
+      final double score = calculateScore(instance, result);
 
       Assert.assertEquals("Clarity score mismatch.", score, result.getScore(),
           DELTA_SCORE);

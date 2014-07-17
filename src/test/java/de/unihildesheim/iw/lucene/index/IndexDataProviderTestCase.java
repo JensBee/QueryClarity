@@ -24,9 +24,6 @@ import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderTest
     .AbstractIndexDataProviderTestImpl;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.RandomValue;
-import de.unihildesheim.iw.util.concurrent.processing.Processing;
-import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
-import de.unihildesheim.iw.util.concurrent.processing.TestTargets;
 import org.apache.lucene.index.IndexReader;
 import org.junit.Assert;
 import org.junit.Test;
@@ -40,7 +37,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Shared test functions for {@link IndexDataProvider} implementing classes.
@@ -859,7 +855,7 @@ public abstract class IndexDataProviderTestCase
       return;
     }
     try (final IndexDataProvider instance = setupFixedInstanceTest()) {
-      final Iterator<Integer> docIdIt = FIXED_INDEX.getDocumentIdIterator();
+      final Iterator<Integer> docIdIt = FIXED_INDEX.getDocumentIds();
 
       while (docIdIt.hasNext()) {
         final Integer docId = docIdIt.next();
@@ -907,7 +903,7 @@ public abstract class IndexDataProviderTestCase
   private void runTestGetDocumentModel(final IndexDataProvider instance) {
     final boolean excludeStopwords = this.referenceIndex.hasStopwords();
     final Iterator<Integer> docIdIt = this.referenceIndex
-        .getDocumentIdIterator();
+        .getDocumentIds();
 
     while (docIdIt.hasNext()) {
       final Integer docId = docIdIt.next();
@@ -999,7 +995,7 @@ public abstract class IndexDataProviderTestCase
       final long docCount =
           (long) FixedTestIndexDataProvider.KnownData.DOC_COUNT;
       long docCountIt = 0L;
-      final Iterator<Integer> result = instance.getDocumentIdIterator();
+      final Iterator<Integer> result = instance.getDocumentIds();
 
       while (result.hasNext()) {
         docCountIt++;
@@ -1035,7 +1031,7 @@ public abstract class IndexDataProviderTestCase
   private void runTestGetDocumentIdIterator(final IndexDataProvider instance) {
     final long docCount = this.referenceIndex.getDocumentCount();
     long docCountIt = 0L;
-    final Iterator<Integer> result = instance.getDocumentIdIterator();
+    final Iterator<Integer> result = instance.getDocumentIds();
 
     while (result.hasNext()) {
       docCountIt++;
@@ -1094,127 +1090,6 @@ public abstract class IndexDataProviderTestCase
     try (final IndexDataProvider instance =
              setupInstanceForTesting(Setup.RANDFIELD_STOPPED)) {
       runTestGetDocumentIdIterator(instance);
-    }
-  }
-
-  /**
-   * Test of getDocumentIdSource method. Testing against {@link
-   * FixedTestIndexDataProvider}.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  public final void testGetDocumentIdSource__fixedIdx()
-      throws Exception {
-    if (!canTestAgainstFixedInstance()) {
-      return;
-    }
-    try (final IndexDataProvider instance = setupFixedInstanceTest()) {
-      final AtomicLong counter = new AtomicLong(0L);
-      new Processing(
-          new TargetFuncCall<>(
-              instance.getDocumentIdSource(),
-              new TestTargets.FuncCall<Integer>(counter)
-          )
-      ).process(FixedTestIndexDataProvider.KnownData.DOC_COUNT);
-
-      Assert.assertEquals(
-          msg(instance, "Not all items provided by source or processed by " +
-              "target."),
-          (long) FixedTestIndexDataProvider.KnownData.DOC_COUNT, counter.get()
-      );
-    }
-  }
-
-  /**
-   * Test of getDocumentIdSource method. Plain.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  public final void testGetDocumentIdSource__plain()
-      throws Exception {
-    if (!canTest()) {
-      return;
-    }
-    try (final IndexDataProvider instance =
-             setupInstanceForTesting(Setup.PLAIN)) {
-      runTestGetDocumentIdSource(instance);
-    }
-  }
-
-  /**
-   * Test of getDocumentIdSource method.
-   *
-   * @param instance {@link IndexDataProvider} implementation to test
-   * @throws Exception Any exception thrown indicates an error
-   */
-  private void runTestGetDocumentIdSource(final IndexDataProvider instance)
-      throws Exception {
-
-    final AtomicLong counter = new AtomicLong(0L);
-    new Processing(
-        new TargetFuncCall<>(
-            instance.getDocumentIdSource(),
-            new TestTargets.FuncCall<Integer>(counter)
-        )
-    ).process((int) this.referenceIndex.getDocumentCount());
-
-    Assert.assertEquals(
-        msg(instance, "Not all items provided by source or processed by " +
-            "target."),
-        this.referenceIndex.getDocumentCount(), counter.get()
-    );
-  }
-
-  /**
-   * Test of getDocumentIdSource method. Using stopwords.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  public final void testGetDocumentIdSource_stopped()
-      throws Exception {
-    if (!canTest()) {
-      return;
-    }
-    try (final IndexDataProvider instance =
-             setupInstanceForTesting(Setup.STOPPED)) {
-      runTestGetDocumentIdSource(instance);
-    }
-  }
-
-  /**
-   * Test of getDocumentIdSource method. Using random fields.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  public final void testGetDocumentIdSource_randField()
-      throws Exception {
-    if (!canTest()) {
-      return;
-    }
-    try (final IndexDataProvider instance =
-             setupInstanceForTesting(Setup.RANDFIELD)) {
-      runTestGetDocumentIdSource(instance);
-    }
-  }
-
-  /**
-   * Test of getDocumentIdSource method. Using random fields & stopwords.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  public final void testGetDocumentIdSource_randField_stopped()
-      throws Exception {
-    if (!canTest()) {
-      return;
-    }
-    try (final IndexDataProvider instance =
-             setupInstanceForTesting(Setup.RANDFIELD_STOPPED)) {
-      runTestGetDocumentIdSource(instance);
     }
   }
 
@@ -1333,7 +1208,7 @@ public abstract class IndexDataProviderTestCase
       return;
     }
     try (final IndexDataProvider instance = setupFixedInstanceTest()) {
-      final Iterator<Integer> docIdIt = FIXED_INDEX.getDocumentIdIterator();
+      final Iterator<Integer> docIdIt = FIXED_INDEX.getDocumentIds();
 
       while (docIdIt.hasNext()) {
         Assert.assertTrue(msg(instance, "Document not found."),
@@ -1358,8 +1233,7 @@ public abstract class IndexDataProviderTestCase
     if (!canTest()) {
       return;
     }
-    final Iterator<Integer> docIdIt = this.referenceIndex
-        .getDocumentIdIterator();
+    final Iterator<Integer> docIdIt = this.referenceIndex.getDocumentIds();
     try (final IndexDataProvider instance =
              setupInstanceForTesting(Setup.PLAIN)) {
       while (docIdIt.hasNext()) {
@@ -1399,7 +1273,7 @@ public abstract class IndexDataProviderTestCase
    */
   private void runTestDocumentContains(final IndexDataProvider instance) {
     final boolean excludeStopwords = this.referenceIndex.hasStopwords();
-    final Iterator<Integer> docIdIt = instance.getDocumentIdIterator();
+    final Iterator<Integer> docIdIt = instance.getDocumentIds();
 
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
@@ -1473,130 +1347,7 @@ public abstract class IndexDataProviderTestCase
   }
 
   /**
-   * Test of getTermsSource method. Testing against {@link
-   * FixedTestIndexDataProvider}.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  public final void testGetTermsSource__fixedIdx()
-      throws Exception {
-    if (!canTestAgainstFixedInstance()) {
-      return;
-    }
-    try (final IndexDataProvider instance = setupFixedInstanceTest()) {
-      final AtomicLong counter = new AtomicLong(0L);
-      new Processing(
-          new TargetFuncCall<>(
-              instance.getTermsSource(),
-              new TestTargets.FuncCall<ByteArray>(counter)
-          )
-      ).process(FixedTestIndexDataProvider.KnownData.TERM_COUNT_UNIQUE);
-
-      Assert.assertEquals(
-          msg(instance, "Not all items provided by source or processed by " +
-              "target."),
-          (long) FIXED_INDEX.getTermSet().size(),
-          (long) counter.intValue()
-      );
-    }
-  }
-
-  /**
-   * Test of getTermsSource method. Plain.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  public final void testGetTermsSource__plain()
-      throws Exception {
-    if (!canTest()) {
-      return;
-    }
-    try (final IndexDataProvider instance =
-             setupInstanceForTesting(Setup.PLAIN)) {
-      runTestGetTermsSource(instance);
-    }
-  }
-
-  /**
-   * Test of getTermsSource method.
-   *
-   * @param instance {@link IndexDataProvider} implementation to test
-   * @throws Exception Any Exception thrown indicates an error
-   */
-  private void runTestGetTermsSource(final IndexDataProvider instance)
-      throws Exception {
-
-    final AtomicLong counter = new AtomicLong(0L);
-    new Processing(
-        new TargetFuncCall<>(
-            instance.getTermsSource(),
-            new TestTargets.FuncCall<ByteArray>(counter)
-        )
-    ).process((int) this.referenceIndex.getUniqueTermsCount());
-
-    Assert.assertEquals(
-        msg(instance, "Not all items provided by source or processed by " +
-            "target."),
-        (long) this.referenceIndex.getTermSet().size(),
-        (long) counter.intValue()
-    );
-  }
-
-  /**
-   * Test of getTermsSource method. Using stopwords.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  public final void testGetTermsSource__stopped()
-      throws Exception {
-    if (!canTest()) {
-      return;
-    }
-    try (final IndexDataProvider instance =
-             setupInstanceForTesting(Setup.STOPPED)) {
-      runTestGetTermsSource(instance);
-    }
-  }
-
-  /**
-   * Test of getTermsSource method. Using random fields.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  public final void testGetTermsSource__randField()
-      throws Exception {
-    if (!canTest()) {
-      return;
-    }
-    try (final IndexDataProvider instance =
-             setupInstanceForTesting(Setup.RANDFIELD)) {
-      runTestGetTermsSource(instance);
-    }
-  }
-
-  /**
-   * Test of getTermsSource method. Using random fields & stopwords.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
-  @Test
-  public final void testGetTermsSource__randField_stopped()
-      throws Exception {
-    if (!canTest()) {
-      return;
-    }
-    try (final IndexDataProvider instance =
-             setupInstanceForTesting(Setup.RANDFIELD_STOPPED)) {
-      runTestGetTermsSource(instance);
-    }
-  }
-
-  /**
-   * Test of getDocumentsTermSet method. Plain.
+   * Test of getDocumentsTermsSet method. Plain.
    *
    * @throws Exception Any exception thrown indicates an error
    */
@@ -1613,7 +1364,7 @@ public abstract class IndexDataProviderTestCase
   }
 
   /**
-   * Test method for getDocumentsTermSet method.
+   * Test method for getDocumentsTermsSet method.
    *
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
@@ -1632,9 +1383,20 @@ public abstract class IndexDataProviderTestCase
       }
     }
 
-    final Collection<ByteArray> expResult =
-        this.referenceIndex.getDocumentsTermSet(docIds);
-    final Collection<ByteArray> result = instance.getDocumentsTermSet(docIds);
+    // collect expected results
+    final Collection<ByteArray> expResult = new ArrayList<>();
+    final Iterator<ByteArray> expIt = this.referenceIndex
+        .getDocumentsTermsSet(docIds);
+    while (expIt.hasNext()) {
+      expResult.add(expIt.next());
+    }
+
+    // collect instance results
+    final Collection<ByteArray> result = new ArrayList<>();
+    final Iterator<ByteArray> resIt = instance.getDocumentsTermsSet(docIds);
+    while (resIt.hasNext()) {
+      result.add(resIt.next());
+    }
 
     Assert.assertEquals(
         msg(instance, "Not the same amount of terms retrieved (stopped: " +
@@ -1659,7 +1421,7 @@ public abstract class IndexDataProviderTestCase
   }
 
   /**
-   * Test of getDocumentsTermSet method. Using stopwords.
+   * Test of getDocumentsTermsSet method. Using stopwords.
    *
    * @throws Exception Any exception thrown indicates an error
    */
@@ -1676,7 +1438,7 @@ public abstract class IndexDataProviderTestCase
   }
 
   /**
-   * Test of getDocumentsTermSet method. Using stopwords.
+   * Test of getDocumentsTermsSet method. Using stopwords.
    *
    * @throws Exception Any exception thrown indicates an error
    */
@@ -1693,7 +1455,7 @@ public abstract class IndexDataProviderTestCase
   }
 
   /**
-   * Test of getDocumentsTermSet method. Using stopwords & random fields.
+   * Test of getDocumentsTermsSet method. Using stopwords & random fields.
    *
    * @throws Exception Any exception thrown indicates an error
    */
@@ -1904,9 +1666,16 @@ public abstract class IndexDataProviderTestCase
     try (final AbstractIndexDataProvider instance =
              (AbstractIndexDataProvider) setupFixedInstanceTest()) {
 
-      final Collection<Integer> docIds = new ArrayList<>(instance.
-          getDocumentIds());
-      final Iterator<Integer> docIdIt = FIXED_INDEX.getDocumentIdIterator();
+      final Collection<Integer> docIds = new ArrayList<>();
+      final Iterator<Integer> instanceDocIdIt = instance.
+          getDocumentIds();
+      while (instanceDocIdIt.hasNext()) {
+        docIds.add(instanceDocIdIt.next());
+      }
+
+      final Iterator<Integer> docIdIt = FIXED_INDEX.getDocumentIds();
+
+
       while (docIdIt.hasNext()) {
         final Integer docId = docIdIt.next();
         Assert.assertTrue(msg(instance, "Doc-id was missing. docId=" + docId),
@@ -1933,10 +1702,14 @@ public abstract class IndexDataProviderTestCase
     try (final AbstractIndexDataProvider instance =
              (AbstractIndexDataProvider)
                  setupInstanceForTesting(Setup.PLAIN)) {
-      final Collection<Integer> docIds = new ArrayList<>(instance.
-          getDocumentIds());
-      final Iterator<Integer> docIdIt = this.referenceIndex
-          .getDocumentIdIterator();
+      final Collection<Integer> docIds = new ArrayList<>();
+      final Iterator<Integer> instanceDocIdIt = instance.
+          getDocumentIds();
+      while (instanceDocIdIt.hasNext()) {
+        docIds.add(instanceDocIdIt.next());
+      }
+
+      final Iterator<Integer> docIdIt = this.referenceIndex.getDocumentIds();
       while (docIdIt.hasNext()) {
         final Integer docId = docIdIt.next();
         Assert.assertTrue(msg(instance, "Doc-id was missing. docId=" + docId),

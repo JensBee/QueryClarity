@@ -366,8 +366,7 @@ public final class TestIndexDataProviderTest
    */
   @Test
   public void testGetDocumentTermSet() {
-    final Iterator<Integer> docIdIt = this.referenceIndex
-        .getDocumentIdIterator();
+    final Iterator<Integer> docIdIt = this.referenceIndex.getDocumentIds();
     while (docIdIt.hasNext()) {
       final int docId = docIdIt.next();
       final Collection<ByteArray> result = this.referenceIndex

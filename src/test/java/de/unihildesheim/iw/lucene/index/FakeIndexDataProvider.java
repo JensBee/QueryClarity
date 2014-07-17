@@ -18,11 +18,11 @@ package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
-import de.unihildesheim.iw.util.concurrent.processing.Source;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -69,17 +69,7 @@ public final class FakeIndexDataProvider
   }
 
   @Override
-  public Source<ByteArray> getTermsSource() {
-    throw new UnsupportedOperationException("Not supported yet.");
-  }
-
-  @Override
-  public Iterator<Integer> getDocumentIdIterator() {
-    throw new UnsupportedOperationException("Not supported yet.");
-  }
-
-  @Override
-  public Source<Integer> getDocumentIdSource() {
+  public Iterator<Integer> getDocumentIds() {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 
@@ -99,7 +89,13 @@ public final class FakeIndexDataProvider
   }
 
   @Override
-  public Set<ByteArray> getDocumentsTermSet(
+  public Iterator<ByteArray> getDocumentsTermsSet(
+      final Collection<Integer> docIds) {
+    throw new UnsupportedOperationException("Not supported yet.");
+  }
+
+  @Override
+  public Iterator<Map.Entry<ByteArray, Long>> getDocumentsTerms(
       final Collection<Integer> docIds) {
     throw new UnsupportedOperationException("Not supported yet.");
   }
