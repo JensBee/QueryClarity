@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -136,6 +137,21 @@ public abstract class ClarityScoreResult
    */
   public final Collection<ByteArray> getQueryTerms() {
     return Collections.unmodifiableCollection(this.queryTerms);
+  }
+
+  /**
+   * Set the query terms used. Expects a map of term->count.
+   *
+   * @param qTerms Query terms map
+   */
+  final void setQueryTerms(final Map<ByteArray, Integer> qTerms) {
+    Objects.requireNonNull(qTerms);
+    this.queryTerms = new ArrayList<>(qTerms.size());
+    for (final Map.Entry<ByteArray, Integer> te : qTerms.entrySet()) {
+      for (int i = 1; i <= te.getValue(); i++) {
+        this.queryTerms.add(te.getKey());
+      }
+    }
   }
 
   /**
