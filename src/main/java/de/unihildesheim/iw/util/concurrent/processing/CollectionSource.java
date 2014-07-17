@@ -17,31 +17,19 @@
 package de.unihildesheim.iw.util.concurrent.processing;
 
 import java.util.Collection;
-import java.util.Iterator;
-import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Wraps the given {@link Collection} as {@link Source}. Thread safety is
- * handled by using a synchronized collection wrapper. If the collection gets
- * modified while being used as source, the behavior is undefined.
+ * Wraps the given {@link Collection} as {@link Source}.
  *
  * @param <T> Type of the collections elements
+ * @author Jens Bertram
  */
 public final class CollectionSource<T>
-    extends Source<T> {
+    extends IterableSource<T> {
   /**
-   * Wrapped collection acting as source.
+   * Number of items in the source collection.
    */
-  private final Collection<T> collection;
-  /**
-   * Number of provided items.
-   */
-  private final AtomicLong sourcedItemCount;
-  /**
-   * Iterator over the wrapped source.
-   */
-  private volatile Iterator<T> itemsIt;
+  private final long itemsCount;
 
   /**
    * Wrap the specified collection using it as source.
@@ -50,47 +38,34 @@ public final class CollectionSource<T>
    */
   @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
   public CollectionSource(final Collection<T> coll) {
-    if (Objects.requireNonNull(coll, "Collection was null.").isEmpty()) {
-      throw new IllegalArgumentException("Empty collection.");
+    super(coll);
+    this.itemsCount = getItemsCount(coll);
+  }
+
+  /**
+   * Get the number of items present in the source collection. Will manually
+   * count the number of entries, if it's larger than {@link
+   * Integer#MAX_VALUE}.
+   *
+   * @param coll Collection whose items to count
+   * @return Number of items in the collection
+   */
+  private static long getItemsCount(final Collection coll) {
+    final int count = coll.size();
+    // worst case - we have to calculate the real size
+    if (count == Integer.MAX_VALUE) {
+      long manualCount = 0L;
+      for (final Object ignored : coll) {
+        manualCount++;
+      }
+      return manualCount;
     }
-    this.sourcedItemCount = new AtomicLong(0L);
-    this.collection = coll;
+    return (long) count;
   }
 
   @Override
-  public synchronized Long call() {
-    if (isRunning()) {
-      throw new SourceException.SourceIsRunningException();
-    }
-    this.itemsIt = this.collection.iterator();
-    super.call();
-    return this.sourcedItemCount.get();
-  }
-
-  @Override
-  public long getSourcedItemCount() {
-    return this.sourcedItemCount.get();
-  }
-
-  @SuppressWarnings("ReturnOfNull")
-  @Override
-  public synchronized T next() {
-    if (isFinished()) {
-      throw new SourceException.SourceHasFinishedException();
-    }
-    if (this.itemsIt != null && this.itemsIt.hasNext()) {
-      this.sourcedItemCount.incrementAndGet();
-      return this.itemsIt.next();
-    }
-    stop();
-    return null;
-  }
-
-  @Override
-  public Long getItemCount()
-      throws ProcessingException {
-    checkRunStatus();
-    return (long) this.collection.size();
+  public Long getItemCount() {
+    return this.itemsCount;
   }
 
 }
