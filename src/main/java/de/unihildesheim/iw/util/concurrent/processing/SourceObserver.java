@@ -119,7 +119,7 @@ public final class SourceObserver<T>
       this.source.awaitStart();
       this.runTime.start();
       long lastStatus = 0L;
-      long status;
+      long status = 0L;
       final int step;
       final Long itemCount;
 
@@ -139,14 +139,15 @@ public final class SourceObserver<T>
       }
 
       while (!this.terminate) {
+        status = this.source.getSourcedItemCount();
         switch (type) {
           case PLAIN:
             this.runTime.stop();
-            showStatus(false);
+            showStatus(lastStatus, status);
+            lastStatus = status;
             this.runTime.start();
             break;
           case ITEM_COUNTER:
-            status = this.source.getSourcedItemCount();
             // check if max wait time elapsed
             if (this.runTime.getElapsedMillis() >= (double) INTERVAL) {
               this.runTime.stop();
@@ -166,7 +167,8 @@ public final class SourceObserver<T>
             break;
           case SINGLE:
             this.runTime.stop();
-            showStatus(true);
+            showStatus(lastStatus, status);
+            lastStatus = status;
             this.runTime.start();
             break;
         }
@@ -192,29 +194,23 @@ public final class SourceObserver<T>
   /**
    * Show a timed status message.
    *
-   * @param isSingle True, if only a single thread is accessing the {@link
-   * Source}
+   * @param lastStatus Items processed on last status
+   * @param status Items processed on current status
    */
-  private void showStatus(final boolean isSingle) {
+  private void showStatus(final long lastStatus,
+      final long status) {
     final long count = this.source.getSourcedItemCount();
     final String text;
-    if (isSingle) {
-      if (count <= 1L) {
-        text = "Processing {} item since {}.";
-      } else {
-        text = "Processing {} items since {}.";
-      }
-      LOG.info(text,
+    if (count <= 1L) {
+      LOG.info("Processed {} item after {}s, running since {}.",
           this.source.getSourcedItemCount(),
+          this.runTime.getElapsedSeconds(),
           this.overallTime.getTimeString());
     } else {
-      if (count <= 1L) {
-        text = "Processed {} item after {}s, running since {}.";
-      } else {
-        text = "Processed {} items after {}s, running since {}.";
-      }
-      LOG.info(text,
-          this.source.getSourcedItemCount(),
+      final long progress = status - lastStatus;
+      LOG.info("Processed {} items (+{}) after {}s, running since {}.",
+          status,
+          progress,
           this.runTime.getElapsedSeconds(),
           this.overallTime.getTimeString());
     }
@@ -237,7 +233,7 @@ public final class SourceObserver<T>
       // multi process info
       final long progress = status - lastStatus;
       LOG.info("Processing {} of {} items ({} {}%). "
-              + "{}s since last status. Running for {}. Time left {}.",
+              + "{}s since last status. Running for {}. Time left: {}.",
           status, itemCount,
           "+" + progress,
           (status * 100L) / itemCount,
@@ -248,7 +244,7 @@ public final class SourceObserver<T>
     } else {
       // single process info
       LOG.info("Processing {} item. {}s since last status. Running for {}. "
-              + "Time left {}.",
+              + "Time left: {}.",
           itemCount, this.runTime.getElapsedSeconds(),
           this.overallTime.getTimeString(),
           TimeMeasure.getTimeString(estimate)
