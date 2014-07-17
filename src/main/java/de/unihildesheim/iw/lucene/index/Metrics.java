@@ -20,8 +20,8 @@ package de.unihildesheim.iw.lucene.index;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
+import de.unihildesheim.iw.mapdb.DBMakerUtils;
 import de.unihildesheim.iw.util.MathUtils;
-import org.mapdb.DBMaker;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -49,7 +49,7 @@ public final class Metrics {
    * Cache for created {@link DocumentModel}s.
    */
   private final Map<Integer, DocumentModel> docModelCache =
-      DBMaker.newCache(0.5); // size is in GB
+      DBMakerUtils.newCompressedCache(0.5); // size in GB
 
   /**
    * Creates a new instance using the provided DataProvider for statistical
