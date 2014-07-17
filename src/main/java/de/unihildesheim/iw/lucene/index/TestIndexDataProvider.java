@@ -29,7 +29,6 @@ import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
-import de.unihildesheim.iw.util.concurrent.processing.Source;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
 import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import org.apache.lucene.analysis.Analyzer;
@@ -348,20 +347,6 @@ public final class TestIndexDataProvider
     );
   }
 
-  @Override
-  public int getDocumentFrequency(final ByteArray term) {
-    if (this.stopwordBytes.contains(Objects.requireNonNull(term))) {
-      return 0;
-    }
-    int freq = 0;
-    for (final Integer docId : getDocumentIds()) {
-      if (documentContains(docId, term)) {
-        freq++;
-      }
-    }
-    return freq;
-  }
-
   /**
    * Test, if stopwords are set.
    *
@@ -369,6 +354,20 @@ public final class TestIndexDataProvider
    */
   public boolean hasStopwords() {
     return !(this.stopwordBytes == null || this.stopwordBytes.isEmpty());
+  }
+
+  @Override
+  public int getDocumentFrequency(final ByteArray term) {
+    if (this.stopwordBytes.contains(Objects.requireNonNull(term))) {
+      return 0;
+    }
+    int freq = 0;
+    for (final Integer docId : getDocumentIdsSet()) {
+      if (documentContains(docId, term)) {
+        freq++;
+      }
+    }
+    return freq;
   }
 
   /**
@@ -427,16 +426,6 @@ public final class TestIndexDataProvider
   }
 
   /**
-   * Get the flags array representing the active state of all known fields.
-   *
-   * @return Flags of document fields
-   * @see #activeFieldState
-   */
-  int[] getActiveFieldState() {
-    return this.activeFieldState.clone();
-  }
-
-  /**
    * Get a random query matching terms from the documents in index. The terms in
    * the query are not unique. The query string may contain stopwords.
    *
@@ -468,6 +457,16 @@ public final class TestIndexDataProvider
     }
     assert !stopwords.isEmpty();
     return stopwords;
+  }
+
+  /**
+   * Get the flags array representing the active state of all known fields.
+   *
+   * @return Flags of document fields
+   * @see #activeFieldState
+   */
+  int[] getActiveFieldState() {
+    return this.activeFieldState.clone();
   }
 
   /**
@@ -868,6 +867,7 @@ public final class TestIndexDataProvider
         Fun.Tuple3<Integer, Integer, ByteArray>, Long> IDX_REF = IDX;
   }
 
+
   /**
    * Get a set of unique terms for a document.
    *
@@ -879,6 +879,29 @@ public final class TestIndexDataProvider
     return getDocumentTermFrequencyMap(docId).keySet();
   }
 
+  /**
+   * Get a set of unique terms for a document.
+   *
+   * @param docId Document-id to lookup
+   * @return List of unique terms in document
+   */
+  public Collection<ByteArray> getDocumentTermList(final int docId) {
+    checkDocumentId(docId);
+
+    final Map<ByteArray, Long> tfMap = getDocumentTermFrequencyMap(docId);
+    long entries = 0L;
+    for (final long cnt : tfMap.values()) {
+      entries += cnt;
+    }
+    final List<ByteArray> termList = new ArrayList<>((int) entries);
+
+    for (final Entry<ByteArray, Long> tfMapEntry : tfMap.entrySet()) {
+      for (long cnt = 1L; cnt <= tfMapEntry.getValue(); cnt++) {
+        termList.add(tfMapEntry.getKey());
+      }
+    }
+    return termList;
+  }
 
   /**
    * Get a map with <tt>term -> frequency (in document)</tt> values for a
@@ -956,12 +979,22 @@ public final class TestIndexDataProvider
    *
    * @return All known document-ids
    */
-  private static Collection<Integer> getDocumentIds() {
-    final Collection<Integer> docIds = new ArrayList<>(DOCUMENTS_COUNT);
+  public Set<Integer> getDocumentIdsSet() {
+    final Set<Integer> docIds = new HashSet<>(DOCUMENTS_COUNT);
     for (int i = 0; i < DOCUMENTS_COUNT; i++) {
       docIds.add(i);
     }
     return docIds;
+  }
+
+  /**
+   * Get a collection of all known document-ids.
+   *
+   * @return All known document-ids
+   */
+  @Override
+  public Iterator<Integer> getDocumentIds() {
+    return Collections.unmodifiableSet(getDocumentIdsSet()).iterator();
   }
 
   /**
@@ -1045,21 +1078,6 @@ public final class TestIndexDataProvider
   }
 
   @Override
-  public Source<ByteArray> getTermsSource() {
-    return new CollectionSource<>(this.getTermSet());
-  }
-
-  @Override
-  public Iterator<Integer> getDocumentIdIterator() {
-    return getDocumentIds().iterator();
-  }
-
-  @Override
-  public Source<Integer> getDocumentIdSource() {
-    return new CollectionSource<>(getDocumentIds());
-  }
-
-  @Override
   public long getUniqueTermsCount() {
     return (long) this.getTermSet().size();
   }
@@ -1133,7 +1151,31 @@ public final class TestIndexDataProvider
   }
 
   @Override
-  public Set<ByteArray> getDocumentsTermSet(
+  public Iterator<Entry<ByteArray, Long>> getDocumentsTerms(
+      final Collection<Integer> docIds) {
+    if (Objects.requireNonNull(docIds).isEmpty()) {
+      throw new IllegalArgumentException("Empty document id list.");
+    }
+    final Collection<Integer> uniqueDocIds = new HashSet<>(docIds);
+    // roughly estimate a size
+    final Map<ByteArray, Long> termsMap = new HashMap<>(uniqueDocIds.size
+        () * (INDEX_SIZE.docLength[0] / 5));
+
+    for (final Integer docId : uniqueDocIds) {
+      checkDocumentId(docId);
+      for (final ByteArray t : getDocumentTermList(docId)) {
+        if (termsMap.containsKey(t)) {
+          termsMap.put(t, termsMap.get(t) + 1L);
+        } else {
+          termsMap.put(t, 1L);
+        }
+      }
+    }
+    return termsMap.entrySet().iterator();
+  }
+
+  @Override
+  public Iterator<ByteArray> getDocumentsTermsSet(
       final Collection<Integer> docIds) {
     if (Objects.requireNonNull(docIds).isEmpty()) {
       throw new IllegalArgumentException("Empty document id list.");
@@ -1147,7 +1189,7 @@ public final class TestIndexDataProvider
       checkDocumentId(docId);
       terms.addAll(this.getDocumentTermSet(docId));
     }
-    return terms;
+    return terms.iterator();
   }
 
   @Override

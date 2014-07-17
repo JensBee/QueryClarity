@@ -25,7 +25,6 @@ import de.unihildesheim.iw.util.TimeMeasure;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
-import de.unihildesheim.iw.util.concurrent.processing.Source;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
 import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import de.unihildesheim.iw.util.termFilter.TermFilter;
@@ -659,25 +658,6 @@ abstract class AbstractIndexDataProvider
   }
 
   @Override
-  public final Source<ByteArray> getTermsSource()
-      throws ProcessingException {
-    checkClosed();
-    return new CollectionSource<>(getTerms());
-  }
-
-  @Override
-  public final Iterator<Integer> getDocumentIdIterator() {
-    checkClosed();
-    return getDocumentIds().iterator();
-  }
-
-  @Override
-  public final Source<Integer> getDocumentIdSource() {
-    checkClosed();
-    return new CollectionSource<>(getDocumentIds());
-  }
-
-  @Override
   public final long getUniqueTermsCount()
       throws DataProviderException {
     checkClosed();
@@ -698,9 +678,8 @@ abstract class AbstractIndexDataProvider
   }
 
   @Override
-  public final long getDocumentCount() {
-    checkClosed();
-    return (long) getDocumentIds().size();
+  public long getDocumentCount() {
+    return this.idxDocumentIds.size();
   }
 
   @Override
@@ -777,13 +756,6 @@ abstract class AbstractIndexDataProvider
     this.indexLastCommitGeneration = Objects.requireNonNull(cGen,
         "Commit generation was null.");
   }
-
-  /**
-   * Collect and cache all document-ids from the index.
-   *
-   * @return Unique collection of all document ids
-   */
-  protected abstract Collection<Integer> getDocumentIds();
 
   /**
    * Get the term frequency including stop-words.

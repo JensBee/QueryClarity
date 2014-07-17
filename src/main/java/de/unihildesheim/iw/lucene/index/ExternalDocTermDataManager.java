@@ -17,20 +17,24 @@
 package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.ByteArray;
+import de.unihildesheim.iw.SerializableByte;
+import de.unihildesheim.iw.mapdb.TupleSerializer;
 import de.unihildesheim.iw.util.StringUtils;
 import org.mapdb.BTreeKeySerializer;
+import org.mapdb.BTreeMap;
+import org.mapdb.Bind;
 import org.mapdb.DB;
 import org.mapdb.Fun;
 import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.SortedSet;
-import java.util.concurrent.ConcurrentNavigableMap;
 
 /**
  * Manages the externally stored document term-data.
@@ -38,13 +42,11 @@ import java.util.concurrent.ConcurrentNavigableMap;
  * @author Jens Bertram
  */
 public final class ExternalDocTermDataManager {
-
   /**
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(
       ExternalDocTermDataManager.class);
-
   /**
    * Database handling storage.
    */
@@ -54,11 +56,16 @@ public final class ExternalDocTermDataManager {
    */
   private final String prefix;
   /**
-   * Map that holds term data. Mapping is {@code (Identifier, DocumentId, Term)}
+   * Map that holds term data. Mapping is {@code (DocumentId, Term, Identifier)}
    * to {@code Value}.
    */
-  private final ConcurrentNavigableMap<
-      Fun.Tuple3<String, Integer, ByteArray>, Object> map;
+  private final BTreeMap<Fun.Tuple3<Integer, ByteArray, SerializableByte>,
+      Double> map;
+  /**
+   * Lookup map for {@link #map} with inverted keys mapping.
+   */
+  private final BTreeMap<Fun.Tuple3<Integer, SerializableByte, ByteArray>,
+      Fun.Tuple3<Integer, ByteArray, SerializableByte>> lookupMap;
 
   /**
    * Initialize the manager.
@@ -76,21 +83,29 @@ public final class ExternalDocTermDataManager {
     this.db = newDb;
 
     this.prefix = newPrefix;
-    this.map = getMap(this.prefix);
+    this.map = getMap();
+    this.lookupMap = getLookupMap();
+
+    Bind.secondaryKey(
+        this.map, this.lookupMap, new Fun.Function2<
+            Fun.Tuple3<Integer, SerializableByte, ByteArray>,
+            Fun.Tuple3<Integer, ByteArray, SerializableByte>, Double>() {
+          @Override
+          public Fun.Tuple3<Integer, SerializableByte, ByteArray> run(
+              final Fun.Tuple3<Integer, ByteArray, SerializableByte> key,
+              final Double val) {
+            return Fun.t3(key.a, key.c, key.b);
+          }
+        });
   }
 
   /**
    * Loads a stored prefix map from the database into the cache.
    *
-   * @param newPrefix Prefix to load
    * @return Map matching the provided prefix
    */
-  private ConcurrentNavigableMap<Fun.Tuple3<String, Integer, ByteArray>,
-      Object> getMap(final String newPrefix) {
-    if (StringUtils.isStrippedEmpty(
-        Objects.requireNonNull(newPrefix, "Prefix was null."))) {
-      throw new IllegalArgumentException("No prefix specified.");
-    }
+  private BTreeMap<Fun.Tuple3<Integer, ByteArray, SerializableByte>,
+      Double> getMap() {
     // stored data
     if (!this.db.exists(this.prefix)) {
       LOG.debug("Creating a new docTermData map with prefix '{}'",
@@ -99,7 +114,7 @@ public final class ExternalDocTermDataManager {
 
     final BTreeKeySerializer mapKeySerializer
         = new BTreeKeySerializer.Tuple3KeySerializer<>(null, null,
-        Serializer.STRING, Serializer.INTEGER, ByteArray.SERIALIZER);
+        Serializer.INTEGER, ByteArray.SERIALIZER, SerializableByte.SERIALIZER);
     final DB.BTreeMapMaker mapMkr = this.db.createTreeMap(this.prefix)
         .valueSerializer(Serializer.BASIC)
         .nodeSize(6)
@@ -108,10 +123,41 @@ public final class ExternalDocTermDataManager {
   }
 
   /**
+   * Loads a stored prefix lookup map from the database into the cache.
+   *
+   * @return Lookup map matching the provided prefix
+   */
+  private BTreeMap<Fun.Tuple3<Integer, SerializableByte, ByteArray>,
+      Fun.Tuple3<Integer, ByteArray, SerializableByte>> getLookupMap() {
+    final String mapName = this.prefix + "_lookup";
+    // stored data
+    if (!this.db.exists(mapName)) {
+      LOG.debug("Creating a new docTermData lookup map with prefix '{}'",
+          this.prefix);
+    }
+
+    final BTreeKeySerializer mapKeySerializer
+        = new BTreeKeySerializer.Tuple3KeySerializer<>(null, null,
+        Serializer.INTEGER, SerializableByte.SERIALIZER, ByteArray.SERIALIZER);
+    final DB.BTreeMapMaker mapMkr = this.db.createTreeMap(mapName)
+        .valueSerializer(new TupleSerializer.Tuple3Serializer(
+            Serializer.INTEGER, ByteArray.SERIALIZER,
+            SerializableByte.SERIALIZER))
+        .nodeSize(6)
+        .keySerializer(mapKeySerializer);
+    return mapMkr.makeOrGet();
+  }
+
+  public ExternalDocTermDataManager getSubCollection(final String name) {
+    return new ExternalDocTermDataManager(this.db, this.prefix + '_' + name);
+  }
+
+  /**
    * Remove any custom data stored while using the index.
    */
   public synchronized void clear() {
     this.map.clear();
+    this.lookupMap.clear();
   }
 
   /**
@@ -121,9 +167,9 @@ public final class ExternalDocTermDataManager {
    * @param key Key to identify the data
    * @param data Key, value pairs to store
    */
-  public <T> void setData(final int documentId, final String key,
-      final Map<ByteArray, T> data) {
-    for (final Map.Entry<ByteArray, T> d : data.entrySet()) {
+  public void setData(final int documentId, final SerializableByte key,
+      final Map<ByteArray, Double> data) {
+    for (final Map.Entry<ByteArray, Double> d : data.entrySet()) {
       setData(documentId, d.getKey(), key, d.getValue());
     }
   }
@@ -138,43 +184,62 @@ public final class ExternalDocTermDataManager {
    * @param value Value to store
    * @return Any previous assigned data, or null, if there was none
    */
-  public <T> T setData(final int documentId,
+  public Double setData(final int documentId,
       final ByteArray term,
-      final String key, final T value) {
+      final SerializableByte key, final Double value) {
     @SuppressWarnings("unchecked")
-    final T ret =
-        (T) this.map.put(Fun.t3(
-                Objects.requireNonNull(key, "Key was null."),
+    final Double ret =
+        this.map.put(Fun.t3(
                 documentId,
-                new ByteArray(Objects.requireNonNull(term, "Term was null."))),
+                new ByteArray(Objects.requireNonNull(term, "Term was null.")),
+                Objects.requireNonNull(key, "Key was null.")),
             Objects.requireNonNull(value, "Value was null."));
     return ret;
   }
 
+  public Map<Fun.Tuple3<Integer, ByteArray, SerializableByte>, Double>
+  getRawData(final int documentId, final SerializableByte key) {
+    return this.map.subMap(Fun.t3(documentId, (ByteArray) null, key), true,
+        Fun.t3(documentId, ByteArray.MAX, key), true);
+  }
+
+  public Double getDirect(final SerializableByte key, final int documentId,
+      final ByteArray term) {
+    return this.map.get(Fun.t3(documentId, term, key));
+  }
+
   /**
    * Get stored document term-data for a specific key. This returns only
-   * <tt>term, value</tt> pairs for the given document and prefix.
+   * <tt>term, value</tt> pairs for the given document and prefix. This method
+   * is rather slow.
    *
    * @param documentId Document-id whose data to get
    * @param key Key to identify the data to get
    * @return Map with stored data for the given combination or null if there is
    * no data
    */
-  public <T> Map<ByteArray, T> getData(final int documentId,
-      final String key) {
+  public Map<ByteArray, Double> getData(final int documentId,
+      final SerializableByte key) {
     Objects.requireNonNull(key, "Key was null.");
-    @SuppressWarnings("unchecked")
-    final SortedSet<Fun.Tuple3<String, Integer, ByteArray>> subSet =
-        ((NavigableSet) this.map.keySet()).subSet(
-            Fun.t3(key, documentId, null),
-            Fun.t3(key, documentId, Fun.<ByteArray>HI())
+    final SortedSet<Fun.Tuple3<Integer, SerializableByte, ByteArray>> subSet =
+        ((NavigableSet) this.lookupMap.keySet()).subSet(
+            Fun.t3(documentId, key, null),
+            Fun.t3(documentId, key, ByteArray.MAX)
         );
-    final Map<ByteArray, T> retMap = new HashMap<>(subSet.size());
-    for (final Fun.Tuple3<String, Integer, ByteArray> t3 : subSet) {
-      @SuppressWarnings("unchecked")
-      final T val = (T) this.map.get(Fun.t3(key, documentId, t3.c));
-      retMap.put(t3.c, val);
+
+    if (subSet.isEmpty()) {
+      // no data stored
+      return Collections.emptyMap();
     }
+
+    final Map<ByteArray, Double> retMap = new HashMap<>(subSet.size());
+
+    for (final Fun.Tuple3<Integer, SerializableByte, ByteArray> t3 : subSet) {
+      retMap.put(t3.c, this.map.get(Fun.t3(documentId, t3.c, key)));
+    }
+
+    assert !retMap.isEmpty() : "Map is empty!";
+
     return retMap;
   }
 
@@ -187,12 +252,11 @@ public final class ExternalDocTermDataManager {
    * @return Value stored for the given combination, or null if there was no
    * data stored
    */
-  @SuppressWarnings("unchecked")
-  public <T> T getData(final int documentId, final ByteArray term,
-      final String key) {
-    return (T) this.map.get(Fun.t3(
-        Objects.requireNonNull(key, "Key was null."),
+  public Double getData(final int documentId, final ByteArray term,
+      final SerializableByte key) {
+    return this.map.get(Fun.t3(
         documentId,
+        Objects.requireNonNull(key, "Key was null."),
         Objects.requireNonNull(term, "Term was null.")));
   }
 

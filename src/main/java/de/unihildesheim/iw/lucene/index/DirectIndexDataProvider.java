@@ -24,6 +24,7 @@ import de.unihildesheim.iw.SerializableByte;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.mapdb.DBMakerUtils;
+import de.unihildesheim.iw.mapdb.TupleSerializer;
 import de.unihildesheim.iw.util.FileUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
@@ -54,8 +55,6 @@ import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.text.NumberFormat;
@@ -65,6 +64,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.Set;
@@ -233,34 +233,6 @@ public final class DirectIndexDataProvider
       throw new DataProviderException("Failed to warm-up document " +
           "frequencies", e);
     }
-  }
-
-  /**
-   * {@inheritDoc} Deleted documents will be removed from the list.
-   *
-   * @return Unique collection of all (non-deleted) document ids
-   */
-  @Override
-  protected Collection<Integer> getDocumentIds() {
-    final Collection<Integer> ret;
-
-    // cache initially, if needed
-    if (getIdxDocumentIds() == null) {
-      final int maxDoc = getIndexReader().maxDoc();
-      setIdxDocumentIds(new HashSet<Integer>(maxDoc));
-
-      final Bits liveDocs = MultiFields.getLiveDocs(getIndexReader());
-      for (int i = 0; i < maxDoc; i++) {
-        if (liveDocs != null && !liveDocs.get(i)) {
-          continue;
-        }
-        getIdxDocumentIds().add(i);
-      }
-      ret = Collections.unmodifiableCollection(getIdxDocumentIds());
-    } else {
-      ret = Collections.unmodifiableCollection(getIdxDocumentIds());
-    }
-    return ret;
   }
 
   public static String getIdentifier() {
@@ -439,6 +411,29 @@ public final class DirectIndexDataProvider
   }
 
   /**
+   * {@inheritDoc} Deleted documents will be removed from the list.
+   *
+   * @return Unique collection of all (non-deleted) document ids
+   */
+  @Override
+  public Iterator<Integer> getDocumentIds() {
+    if (getIdxDocumentIds().isEmpty()) {
+      // rebuild doc-ids set from inverted doc-terms map
+      LOG.info("Building document-id index.");
+      final TimeMeasure tm = new TimeMeasure().start();
+      for (Fun.Tuple3<Integer, SerializableByte, ByteArray> t3 :
+          this.invertedIdxDocTermsMap) {
+        getIdxDocumentIds().add(t3.a);
+      }
+      LOG.info("Document-id index built with {} entries.",
+          getIdxDocumentIds().size());
+      LOG.debug("Document-id index built. Took {}.",
+          tm.stop().getTimeString());
+    }
+    return Collections.unmodifiableSet(getIdxDocumentIds()).iterator();
+  }
+
+  /**
    * {@inheritDoc} Stop-words will be skipped while creating the model.
    *
    * @param docId Document-id to create the model from
@@ -488,18 +483,66 @@ public final class DirectIndexDataProvider
    * @return List of terms from all documents, with stopwords excluded
    */
   @Override
-  public Set<ByteArray> getDocumentsTermSet(
+  public Iterator<ByteArray> getDocumentsTermsSet(
+      final Collection<Integer> docIds) {
+    return getDocumentsTerms(docIds, true).keySet().iterator();
+//    if (Objects.requireNonNull(docIds, "Document ids were null.").isEmpty()) {
+//      throw new IllegalArgumentException("Document id list was empty.");
+//    }
+//
+//    final Iterable<Integer> uniqueDocIds = new HashSet<>(docIds);
+//    // collection can get quite large, so get a disk backed one
+//    final Set<ByteArray> terms = DBMakerUtils.newCompressedTempFileDB().make()
+//        .createTreeSet("tmpDocTermSet")
+//        .serializer(ByteArray.SERIALIZER_BTREE)
+//        .make();
+//
+//    for (final Integer docId : uniqueDocIds) {
+//      checkDocId(docId);
+//      for (final String field : getDocumentFields()) {
+//        final SerializableByte fieldId = getFieldId(field);
+//        final Fun.Tuple3<Integer, SerializableByte, ByteArray> t3Low =
+//            Fun.t3(docId, fieldId, (ByteArray) null);
+//        final Fun.Tuple3<Integer, SerializableByte, ByteArray> t3Hi =
+//            Fun.t3(docId, fieldId, ByteArray.MAX);
+//        for (final Fun.Tuple3<Integer, SerializableByte, ByteArray> k :
+//            this.invertedIdxDocTermsMap.subSet(t3Low, true, t3Hi, true)) {
+//          if (!isStopword(k.c)) {
+//            terms.add(k.c);
+//          }
+//        }
+//      }
+//    }
+//    return terms.iterator();
+  }
+
+  @Override
+  public Iterator<Map.Entry<ByteArray, Long>> getDocumentsTerms(
       final Collection<Integer> docIds) {
     if (Objects.requireNonNull(docIds, "Document ids were null.").isEmpty()) {
       throw new IllegalArgumentException("Document id list was empty.");
     }
 
-    final Iterable<Integer> uniqueDocIds = new HashSet<>(docIds);
-    // collection can get quite large, so get a disk backed one
-    final Set<ByteArray> terms = DBMakerUtils.newCompressedTempFileDB().make()
-        .createTreeSet("tmpDocTermSet")
-        .serializer(ByteArray.SERIALIZER_BTREE)
+    return getDocumentsTerms(docIds, false).entrySet().iterator();
+  }
+
+  private Map<ByteArray, Long> getDocumentsTerms(
+      final Collection<Integer> docIds, final boolean asSet) {
+    if (Objects.requireNonNull(docIds, "Document ids were null.").isEmpty()) {
+      throw new IllegalArgumentException("Document id list was empty.");
+    }
+
+    final Long baseValue = 1L;
+
+    // the final map can get quite large, so get a disk backed one
+    final Map<ByteArray, Long> termsMap = DBMakerUtils.newCompressedTempFileDB()
+        .make()
+        .createTreeMap("tmpDocTermSet")
+        .keySerializer(ByteArray.SERIALIZER_BTREE)
+        .valueSerializer(Serializer.LONG)
         .make();
+
+    final Iterable<Integer> uniqueDocIds = new HashSet<>(docIds);
 
     for (final Integer docId : uniqueDocIds) {
       checkDocId(docId);
@@ -512,12 +555,17 @@ public final class DirectIndexDataProvider
         for (final Fun.Tuple3<Integer, SerializableByte, ByteArray> k :
             this.invertedIdxDocTermsMap.subSet(t3Low, true, t3Hi, true)) {
           if (!isStopword(k.c)) {
-            terms.add(k.c);
+            if (termsMap.containsKey(k.c) && !asSet) {
+              // only store updated values, if needed
+              termsMap.put(k.c, termsMap.get(k.c) + 1L);
+            } else {
+              termsMap.put(k.c, baseValue); // 1L
+            }
           }
         }
       }
     }
-    return terms;
+    return termsMap;
   }
 
   /**
@@ -707,6 +755,19 @@ public final class DirectIndexDataProvider
     }
 
     /**
+     * Get a maker for {@link #getIdxDocumentIds()}. Persistent.
+     *
+     * @param db Database reference
+     * @return Maker for {@link #getIdxDocumentIds()}
+     */
+    public static DB.BTreeSetMaker idxDocIdsMaker(final DB db) {
+      return Objects.requireNonNull(db, "DB was null.")
+          .createTreeSet(Stores.IDX_DOC_IDS.name())
+          .serializer(BTreeKeySerializer.ZERO_OR_POSITIVE_INT)
+          .counterEnable();
+    }
+
+    /**
      * Get a maker for {@link #idxTerms}. Transient.
      *
      * @param db Database reference
@@ -818,6 +879,10 @@ public final class DirectIndexDataProvider
      */
     @SuppressWarnings("PackageVisibleInnerClass")
     public enum Stores {
+      /**
+       * List of document ids.
+       */
+      IDX_DOC_IDS,
       /**
        * Mapping of all document terms.
        */
@@ -1002,33 +1067,37 @@ public final class DirectIndexDataProvider
                     return result;
                   }
                 }),
-            new Serializer<Fun.Tuple3<ByteArray, SerializableByte, Integer>>() {
-
-              @Override
-              public void serialize(final DataOutput out,
-                  final Fun.Tuple3<ByteArray, SerializableByte, Integer> value)
-                  throws IOException {
-                ByteArray.SERIALIZER.serialize(out, value.a);
-                SerializableByte.SERIALIZER.serialize(out, value.b);
-                Serializer.INTEGER.serialize(out, value.c);
-              }
-
-              @Override
-              public Fun.Tuple3<ByteArray, SerializableByte,
-                  Integer> deserialize(
-                  final DataInput in, final int available)
-                  throws IOException {
-                return Fun.t3(
-                    ByteArray.SERIALIZER.deserialize(in, available),
-                    SerializableByte.SERIALIZER.deserialize(in, available),
-                    Serializer.INTEGER.deserialize(in, available));
-              }
-
-              @Override
-              public int fixedSize() {
-                return -1;
-              }
-            }
+            new TupleSerializer.Tuple3Serializer(ByteArray.SERIALIZER,
+                SerializableByte.SERIALIZER, Serializer.INTEGER)
+//            new Serializer<Fun.Tuple3<ByteArray, SerializableByte,
+// Integer>>() {
+//
+//              @Override
+//              public void serialize(final DataOutput out,
+//                  final Fun.Tuple3<ByteArray, SerializableByte,
+// Integer> value)
+//                  throws IOException {
+//                ByteArray.SERIALIZER.serialize(out, value.a);
+//                SerializableByte.SERIALIZER.serialize(out, value.b);
+//                Serializer.INTEGER.serialize(out, value.c);
+//              }
+//
+//              @Override
+//              public Fun.Tuple3<ByteArray, SerializableByte,
+//                  Integer> deserialize(
+//                  final DataInput in, final int available)
+//                  throws IOException {
+//                return Fun.t3(
+//                    ByteArray.SERIALIZER.deserialize(in, available),
+//                    SerializableByte.SERIALIZER.deserialize(in, available),
+//                    Serializer.INTEGER.deserialize(in, available));
+//              }
+//
+//              @Override
+//              public int fixedSize() {
+//                return -1;
+//              }
+//            }
         );
         final int nodeSize = 32;
         final long counterRecId = getPersistStatic().getDb().getEngine().put
@@ -1111,6 +1180,8 @@ public final class DirectIndexDataProvider
           NumberFormat.getIntegerInstance().format(
               (long) DirectIndexDataProvider.this.invertedIdxDocTermsMap
                   .size()));
+
+      // use inverted index to get document ids, if ids are empty
 
 //      if (!builder.noOpenReadOnly) {
 //        LOG.info("Re-opening persistent database read-only.");
@@ -1249,6 +1320,10 @@ public final class DirectIndexDataProvider
               LOG.warn("Invalid database state. Index terms map not found. " +
                   "Database needs to be rebuild.");
               break;
+            case IDX_DOC_IDS:
+              LOG.warn("Invalid database state. Document id list not found. " +
+                  "Database needs to be rebuild.");
+              break;
             default:
               // no rebuild needed, if unhandled item is missing
               this.flagCacheRebuild = false;
@@ -1332,6 +1407,15 @@ public final class DirectIndexDataProvider
           .counterEnable()
           .<Fun.Tuple3<ByteArray, SerializableByte, Integer>,
               Integer>makeOrGet());
+
+      // load document-id list
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("hasIdxDocIdList: {}", getPersistStatic().getDb().exists
+            (CacheDbMakers.Stores.IDX_DOC_IDS.name()));
+      }
+      setIdxDocumentIds(CacheDbMakers.idxDocIdsMaker(
+          getPersistStatic().getDb())
+          .<Integer>makeOrGet());
 
       // load index term-map
       if (LOG.isDebugEnabled()) {

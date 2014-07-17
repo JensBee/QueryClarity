@@ -18,12 +18,11 @@ package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
-import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
-import de.unihildesheim.iw.util.concurrent.processing.Source;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -94,27 +93,11 @@ public interface IndexDataProvider
       throws DataProviderException;
 
   /**
-   * Get a {@link Source} providing all known terms.
-   *
-   * @return {@link Source} providing all known terms
-   * @throws ProcessingException Thrown in case of Processing errors
-   */
-  Source<ByteArray> getTermsSource()
-      throws ProcessingException;
-
-  /**
    * Get an iterator over all known document-ids.
    *
    * @return Iterator over document-ids
    */
-  Iterator<Integer> getDocumentIdIterator();
-
-  /**
-   * Get a {@link Source} providing all known document ids.
-   *
-   * @return {@link Source} providing all known document ids
-   */
-  Source<Integer> getDocumentIdSource();
+  Iterator<Integer> getDocumentIds();
 
   /**
    * Get the number of unique terms in the index.
@@ -145,11 +128,22 @@ public interface IndexDataProvider
    * Get a unique set of terms for all documents identified by their id.
    *
    * @param docIds List of document ids to extract terms from
+   * @return Set of terms from all documents
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  Iterator<ByteArray> getDocumentsTermsSet(final Collection<Integer> docIds)
+      throws IOException;
+
+  /**
+   * Get a map of terms for all documents identified by their id. The mapping is
+   * {@code term -> term-count}.
+   *
+   * @param docIds List of document ids to extract terms from
    * @return List of terms from all documents
    * @throws IOException Thrown on low-level I/O errors
    */
-  Set<ByteArray> getDocumentsTermSet(final Collection<Integer> docIds)
-      throws IOException;
+  Iterator<Map.Entry<ByteArray, Long>> getDocumentsTerms(final
+  Collection<Integer> docIds);
 
   /**
    * Get the number of all Documents (models) known to this instance.
