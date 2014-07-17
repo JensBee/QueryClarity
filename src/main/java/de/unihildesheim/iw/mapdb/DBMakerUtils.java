@@ -18,6 +18,7 @@
 package de.unihildesheim.iw.mapdb;
 
 import org.mapdb.DBMaker;
+import org.mapdb.HTreeMap;
 
 /**
  * @author Jens Bertram
@@ -57,5 +58,16 @@ public final class DBMakerUtils {
   public static DBMaker newMemoryDirectDB() {
     return DBMaker.newMemoryDirectDB()
         .transactionDisable();
+  }
+
+  public static <K, V> HTreeMap<K, V> newCompressedCache(final double size) {
+    return DBMaker.newMemoryDirectDB()
+        .transactionDisable()
+        .compressionEnable()
+        .make()
+        .createHashMap("cache")
+        .expireStoreSize(size)
+//        .counterEnable()
+        .make();
   }
 }
