@@ -17,7 +17,9 @@
 package de.unihildesheim.iw.lucene.document;
 
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
+import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.TimeMeasure;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.IndexSearcher;
@@ -179,6 +181,10 @@ public final class Feedback {
       docIds.add(scoreDoc.doc);
     }
 
+//    if (!docIds.isEmpty()) {
+//      LOG.debug("{}", searcher.explain(query, results.scoreDocs[0].doc));
+//    }
+
     return docIds;
   }
 
@@ -227,6 +233,7 @@ public final class Feedback {
 
     final int maxRetDocs = getMaxDocs(searcher.getIndexReader(), docCount);
     final Query q = query.getQueryObj();
+//    LOG.debug("getFixed: initial q={}", q);
     final Set<Integer> docIds = getDocs(searcher, q, docCount);
 
     int docsToGet;
@@ -249,6 +256,57 @@ public final class Feedback {
         LOG.info("Cannot relax query any more. Returning only {} documents" +
             ".", docIds.size());
         break;
+      }
+    }
+
+    LOG.debug("Returning {} documents.", docIds.size());
+    return docIds;
+  }
+
+  public static Set<Integer> getFixed(final IndexReader reader,
+      final Query query, final String[] fields, final int docCount)
+      throws IOException {
+    final IndexSearcher searcher = new IndexSearcher(reader);
+    return getFixed(searcher, query, fields, docCount);
+  }
+
+  public static Set<Integer> getFixed(final IndexSearcher searcher,
+      final Query query, final String[] fields, final int docCount)
+      throws IOException {
+    Objects.requireNonNull(searcher, "IndexSearcher was null.");
+    Objects.requireNonNull(query, "Query was null.");
+
+//    LOG.debug("getFixed: q={}", query);
+
+    final int maxRetDocs = getMaxDocs(searcher.getIndexReader(), docCount);
+    final Set<Integer> docIds = getDocs(searcher, query, docCount);
+
+    int docsToGet = maxRetDocs - docIds.size();
+    if (docsToGet > 0) {
+      LOG.info("Got {} matching feedback documents. "
+          + "Getting additional {} random feedback " +
+          "documents...", docIds.size(), docsToGet);
+      final int numDocs = searcher.getIndexReader().numDocs();
+      int randomDoc;
+      Document doc;
+      int trie = 0;
+      final int maxTry = docsToGet * 10;
+      while (docsToGet > 0 && trie >= maxTry) {
+        randomDoc = RandomValue.getInteger(0, numDocs);
+        if (!docIds.contains(randomDoc)) {
+          doc = searcher.getIndexReader().document(randomDoc);
+          for (final String field : fields) {
+            if (doc.getField(field) != null) {
+              docIds.add(randomDoc);
+              docsToGet--;
+              break;
+            }
+          }
+        }
+        trie++;
+      }
+      if (trie >= maxTry) {
+        LOG.warn("Giving up searching for random documents.");
       }
     }
 
