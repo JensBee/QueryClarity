@@ -103,7 +103,7 @@ public final class TryExactTermsQuery
       this.query.add(bc);
     }
     this.query.setMinimumNumberShouldMatch(this.uniqueQueryTerms.size());
-    LOG.debug("TEQ {}", this.query);
+//    LOG.debug("TEQ {}", this.query);
   }
 
   /**
