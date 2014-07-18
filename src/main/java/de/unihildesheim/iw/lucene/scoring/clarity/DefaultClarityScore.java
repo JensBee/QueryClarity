@@ -21,21 +21,17 @@ import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.Closable;
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.Persistence;
-import de.unihildesheim.iw.SerializableByte;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.document.Feedback;
-import de.unihildesheim.iw.lucene.index.ExternalDocTermDataManager;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.lucene.query.TryExactTermsQuery;
 import de.unihildesheim.iw.mapdb.DBMakerUtils;
-import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
-import de.unihildesheim.iw.util.concurrent.AtomicDouble;
 import de.unihildesheim.iw.util.concurrent.processing.IteratorSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
@@ -45,9 +41,11 @@ import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.queryparser.classic.QueryParserBase;
+import org.mapdb.BTreeKeySerializer;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
+import org.mapdb.Fun;
 import org.mapdb.Serializer;
 import org.slf4j.LoggerFactory;
 
@@ -85,19 +83,24 @@ public final class DefaultClarityScore
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       DefaultClarityScore.class);
   /**
-   * How long to wait for a model currently being calculated. If the timeout is
-   * hit the model will be calculated, regardless if it's already done in
-   * another thread.
-   */
-  private static final long DOC_MODEL_CALC_WAIT_TIMEOUT = 1000L;
-  /**
    * Provider for general index metrics.
    */
-  protected final Metrics metrics;
+  @SuppressWarnings("PackageVisibleField")
+  final Metrics metrics; // accessed from inner class
+  /**
+   * Caches values of document and query models. Those need to be normalized
+   * before calculating the score.
+   */
+  @SuppressWarnings("PackageVisibleField") // access from inner class
+  final Set<Fun.Tuple3<Double, Double, Long>> dataSet = this.cache
+      .createTreeSet("dataSet")
+      .serializer(new BTreeKeySerializer.Tuple3KeySerializer(
+          null, null, Serializer.BASIC, Serializer.BASIC, Serializer.LONG))
+      .make();
   /**
    * {@link IndexDataProvider} to use.
    */
-  final IndexDataProvider dataProv;
+  private final IndexDataProvider dataProv;
   /**
    * Configuration object used for all parameters of the calculation.
    */
@@ -111,13 +114,32 @@ public final class DefaultClarityScore
    */
   private final Analyzer analyzer;
   /**
+   * In memory database for creating temporary caches.
+   */
+  private final DB cache = DBMaker.newMemoryDirectDB()
+      .transactionDisable()
+      .make();
+  /**
+   * Caching a part of the query model calculation formula.
+   */
+  private final Map<Integer, Double> queryModelPartCache = this.cache
+      .createTreeMap("qmCache")
+      .keySerializer(BTreeKeySerializer.ZERO_OR_POSITIVE_INT)
+      .valueSerializer(Serializer.BASIC)
+      .make();
+  /**
+   * Caching the values of default document models that get used, if a term is
+   * not in a specific document.
+   */
+  private final Map<ByteArray, Double> defaultDocModelCache = this.cache
+      .createTreeMap("ddmCache")
+      .keySerializer(ByteArray.SERIALIZER_BTREE)
+      .valueSerializer(Serializer.BASIC)
+      .make();
+  /**
    * Set of feedback documents to use for calculation.
    */
-  protected Set<Integer> feedbackDocIds;
-  /**
-   * Manager object for extended document data.
-   */
-  ExternalDocTermDataManager extDocMan;
+  private Set<Integer> feedbackDocIds;
   /**
    * Flag indicating, if this instance has been closed.
    */
@@ -130,21 +152,11 @@ public final class DefaultClarityScore
    * List of query terms provided.
    */
   private Map<ByteArray, Integer> queryTerms;
-
-  private DB cache = DBMaker.newMemoryDirectDB()
-      .transactionDisable()
-      .make();
-  private Map<Integer, Double> queryModelPartCache = cache
-      .createHashMap("qmCache")
-      .keySerializer(Serializer.INTEGER)
-      .valueSerializer(Serializer.BASIC)
-      .expireStoreSize(0.5) // size in GB
-      .make();
-  private Map<ByteArray, Double> defaultDocModelCache = cache
-      .createTreeMap("ddmCache")
-      .keySerializer(ByteArray.SERIALIZER_BTREE)
-      .valueSerializer(Serializer.BASIC)
-      .make();
+  /**
+   * Disk based storage of document models. Containing only models for
+   * document-term combinations.
+   */
+  private Map<Fun.Tuple2<Integer, ByteArray>, Double> docModelStore;
 
   /**
    * Create a new instance using a builder.
@@ -181,7 +193,9 @@ public final class DefaultClarityScore
       throws Buildable.BuildableException {
     final Persistence.Builder psb = builder.persistenceBuilder;
     psb.dbMkr.compressionDisable()
-        .noChecksum();
+        .noChecksum()
+        .cacheSize(65536)
+        .transactionDisable();
 
     final Persistence persistence;
     boolean createNew = false;
@@ -259,36 +273,63 @@ public final class DefaultClarityScore
           this.dataProv.getStopwords());
     }
 
-    this.extDocMan =
-        new ExternalDocTermDataManager(this.persist.getDb(), IDENTIFIER);
+    this.docModelStore = this.persist.getDb()
+        .createTreeMap(DataKeys.DOCMODEL.name())
+        .keySerializer(new BTreeKeySerializer.Tuple2KeySerializer<>(
+            null, Serializer.INTEGER, ByteArray.SERIALIZER))
+        .valueSerializer(Serializer.BASIC)
+        .makeOrGet();
+
     if (clearCache) {
       LOG.info("Clearing document model data cache.");
-      this.extDocMan.clear();
+      clearStore();
     }
   }
 
+  /**
+   * Clears all cached and stored values.
+   */
+  private void clearStore() {
+    // clear cache
+    this.defaultDocModelCache.clear();
+    this.queryModelPartCache.clear();
+    // clear store
+    this.docModelStore.clear();
+  }
+
+  /**
+   * Set values used for unit testing.
+   *
+   * @param testFbDocIds List of feedback documents to use
+   * @param testQueryTerms List of query terms to use
+   */
+  @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
   void testSetValues(final Set<Integer> testFbDocIds,
       final Map<ByteArray, Integer> testQueryTerms) {
     this.feedbackDocIds = testFbDocIds;
     this.queryTerms = testQueryTerms;
-    this.defaultDocModelCache.clear();
-    this.queryModelPartCache.clear();
-    this.extDocMan.clear();
+
+    clearStore();
     cacheDocumentModels();
   }
 
+  /**
+   * Caches all values that can be pre-calculated and are used for scoring.
+   */
   @SuppressWarnings("ObjectAllocationInLoop")
   private void cacheDocumentModels() {
-    Map<ByteArray, Double> map;
+    // Cache the value of the language model weighting factor.
     final double langModelWeight = this.conf.getLangModelWeight();
-
+    // cache results in extra db - data-set can get quite large
     final DB memDb = DBMakerUtils.newCompressedMemoryDirectDB().make();
+    // list of feedback terms get cached to iterate only one time
     final Set<ByteArray> fbTerms = memDb.createTreeSet("fbTerms").make();
 
     // get an iterator over all feedback terms
     final Iterator<Map.Entry<ByteArray, Long>> fbTermIt = this.dataProv
         .getDocumentsTerms(this.feedbackDocIds);
 
+    // build set of feedback terms
     while (fbTermIt.hasNext()) {
       fbTerms.add(fbTermIt.next().getKey());
     }
@@ -312,79 +353,53 @@ public final class DefaultClarityScore
     // run pre-calculation for all feedback documents
     for (final Integer docId : this.feedbackDocIds) {
       final DocumentModel docModel = this.metrics.getDocumentModel(docId);
-      map = this.extDocMan.getData(docId, DataKeys.DOCMODEL.id());
-      if (map == null || map.isEmpty()) {
-        map = new HashMap<>((int) ((double) this.queryTerms.size() * 1.5));
-      }
 
       // calculate model values for all unique feedback terms
       for (final ByteArray term : fbTerms) {
+        final Fun.Tuple2<Integer, ByteArray> mapKey = Fun.t2(docId, term);
         // skip, if term is not in document - ad-hoc calculation is cheap
-        if (docModel.contains(term) && !map.containsKey(term)) {
-          final Double model = (
+        if (docModel.contains(term) &&
+            !this.docModelStore.containsKey(mapKey)) {
+          this.docModelStore.put(mapKey, (
               langModelWeight * docModel.metrics().relTf(term))
-              + this.defaultDocModelCache.get(term);
-          map.put(term, model);
+              + this.defaultDocModelCache.get(term));
         }
       }
 
       // calculate model values for all unique query terms
       for (final ByteArray term : this.queryTerms.keySet()) {
-        if (!map.containsKey(term)) {
+        final Fun.Tuple2<Integer, ByteArray> mapKey = Fun.t2(docId, term);
+        if (!this.docModelStore.containsKey(mapKey)) {
           if (docModel.contains(term)) {
-            map.put(term, (langModelWeight
+            this.docModelStore.put(mapKey, (langModelWeight
                 * docModel.metrics().relTf(term))
                 + this.defaultDocModelCache.get(term));
           }
         }
       }
+    }
 
-      if (!map.isEmpty()) {
-        this.extDocMan.setData(docId, DataKeys.DOCMODEL.id(), map);
+    // calculate the static portion of the query model for all query terms
+    final Set<Map.Entry<ByteArray, Integer>> qtSet = this.queryTerms.entrySet();
+    Double currentDocValue;
+    for (final Integer docId : this.feedbackDocIds) {
+      // calculate for all query terms (try cache first)
+      double modelPart = 1d;
+      for (final Map.Entry<ByteArray, Integer> qTermEntry : qtSet) {
+        currentDocValue =
+            this.docModelStore.get(Fun.t2(docId, qTermEntry.getKey()));
+        if (currentDocValue == null) {
+          // term not in document
+          currentDocValue = this.defaultDocModelCache.get(qTermEntry.getKey());
+        }
+        modelPart *= (currentDocValue * qTermEntry.getValue());
       }
+      this.queryModelPartCache.put(docId, modelPart);
     }
 
     memDb.close();
     this.persist.getDb().compact();
   }
-
-//  /**
-//   * Calculate or get the document model (pd) for a specific document and
-// term.
-//   *
-//   * @param docId Id of the document whose model to get
-//   * @param term to calculate for
-//   * @return Model value
-//   */
-//  @SuppressWarnings("ReuseOfLocalVariable")
-//  double getDocumentModel(final int docId, final ByteArray term) {
-//    // try to get pre-calculated values
-//    Map<ByteArray, Double> map =
-//        this.extDocMan.getData(docId, DataKeys.DOCMODEL.name());
-//    Double model = 0d;
-//
-//    if (map == null || map.isEmpty()) {
-//      map = new HashMap<>((int) ((double) this.queryTerms.size() * 1.5));
-//      final DocumentModel docModel = this.metrics.getDocumentModel(docId);
-//
-//      if (docModel.contains(term)) {
-//        model = (this.conf.getLangModelWeight()
-//            * this.metrics.getDocumentModel(docId).metrics().relTf(term))
-//            + getDefaultDocumentModel(term);
-//        map.put(term, model);
-//      }
-//
-//      // push data to persistent storage
-//      this.extDocMan.setData(docId, DataKeys.DOCMODEL.name(), map);
-//    } else {
-//      model = map.get(term);
-//    }
-//
-//    if (model == null || model == 0d) {
-//      return getDefaultDocumentModel(term);
-//    }
-//    return model;
-//  }
 
   /**
    * Calculate or get the default value, if the term is not contained in
@@ -398,62 +413,6 @@ public final class DefaultClarityScore
         this.metrics.collection().relTf(term));
   }
 
-//  /**
-//   * Calculate or get the document model (pd) for a specific document. This
-// will
-//   * pre-calculate all models for all query terms.
-//   *
-//   * @param docId Id of the document whose model to get
-//   * @return Mapping of each term in the document to it's model value
-//   */
-//  Map<ByteArray, Double> getDocumentModel(final int docId) {
-//    // try to get pre-calculated values
-//    Map<ByteArray, Double> map =
-//        this.extDocMan.getData(docId, DataKeys.DOCMODEL.name());
-//
-//    if (map == null || map.isEmpty()) {
-//      LOG.debug("empty");
-//      // store results for all query terms
-//      map = new HashMap<>((int) (this.queryTerms.size() * 1.5));
-//
-//      double langModelWeight = this.conf.getLangModelWeight();
-//      final DocumentModel docModel = this.metrics.getDocumentModel(docId);
-//
-//      // calculate model values for all unique query terms
-//      for (final ByteArray term : this.queryTerms.keySet()) {
-//        final Double model;
-//        if (docModel.contains(term)) {
-//          model = (langModelWeight
-//              * docModel.metrics().relTf(term))
-//              + getDefaultDocumentModel(term);
-//        } else {
-//          model = getDefaultDocumentModel(term);
-//        }
-//
-//        assert 0d != model;
-//        map.put(term, model);
-//      }
-//
-//      // calculate model values for all unique feedback terms
-//      final Iterator<Map.Entry<ByteArray, Long>> fbTermIt = this.dataProv
-//          .getDocumentsTerms(this.feedbackDocIds);
-//
-//      while (fbTermIt.hasNext()) {
-//        final ByteArray term = fbTermIt.next().getKey();
-//        if (docModel.contains(term)) {
-//          final Double model = (langModelWeight
-//              * docModel.metrics().relTf(term))
-//              + getDefaultDocumentModel(term);
-//          map.put(term, model);
-//        }
-//      }
-//
-//      // push data to persistent storage
-//      this.extDocMan.setData(docId, DataKeys.DOCMODEL.name(), map);
-//    }
-//    return map;
-//  }
-
   /**
    * Calculate or get the query model for a given term. Calculation is based on
    * a set of feedback documents and a list of query terms.
@@ -462,39 +421,18 @@ public final class DefaultClarityScore
    * @return Model value
    */
   double getQueryModel(final ByteArray term) {
-    // cache for query terms set
-    Set<Map.Entry<ByteArray, Integer>> qtSet = null;
     double modelPart;
-    Double currentDocValue;
     double model = 0d;
     // go through all documents
     for (final Integer docId : this.feedbackDocIds) {
-      // calculate for all query terms (try cache first)
-      try {
-        modelPart = this.queryModelPartCache.get(docId);
-      } catch (final NullPointerException e) {
-        if (qtSet == null) {
-          qtSet = this.queryTerms.entrySet();
-        }
-        modelPart = 1d;
-        for (final Map.Entry<ByteArray, Integer> qTermEntry : qtSet) {
-          currentDocValue = this.extDocMan.getDirect(
-              DataKeys.DOCMODEL.id(), docId, qTermEntry.getKey());
-          if (currentDocValue == null) {
-            // term not in document
-            currentDocValue =
-                this.defaultDocModelCache.get(qTermEntry.getKey());
-          }
-          modelPart *= (currentDocValue * qTermEntry.getValue());
-        }
-        this.queryModelPartCache.put(docId, modelPart);
-      }
+      // get the static part for all query terms (pre-calculated)
+      modelPart = this.queryModelPartCache.get(docId);
 
-      // .. and for the current feedback term
+      // get the value for the current document & feedback term
       try {
-        model = (modelPart * this.defaultDocModelCache.get(term));
+        model += (modelPart * this.docModelStore.get(Fun.t2(docId, term)));
       } catch (final NullPointerException e) {
-        model = (modelPart * this.defaultDocModelCache.get(term));
+        model += (modelPart * this.defaultDocModelCache.get(term));
       }
     }
     return model;
@@ -536,7 +474,7 @@ public final class DefaultClarityScore
     final TryExactTermsQuery queryObj;
     try {
       queryObj =
-          new TryExactTermsQuery(this.analyzer, QueryParser.escape(query),
+          new TryExactTermsQuery(this.analyzer, QueryParserBase.escape(query),
               this.dataProv.getDocumentFields());
     } catch (final ParseException e) {
       final String msg = "Caught exception while building query.";
@@ -549,7 +487,7 @@ public final class DefaultClarityScore
       this.feedbackDocIds =
           Feedback.getFixed(this.idxReader, queryObj,
               this.conf.getFeedbackDocCount());
-    } catch (final IOException | ParseException e) {// | ParseException e) {
+    } catch (final IOException | ParseException e) {
       final String msg = "Caught exception while preparing calculation.";
       LOG.error(msg, e);
       throw new ClarityScoreCalculationException(msg, e);
@@ -649,19 +587,43 @@ public final class DefaultClarityScore
     // non existent (in collection) terms are now removed
     result.setQueryTerms(this.queryTerms);
 
-    LOG.info("Calculating query language model using feedback vocabulary.");
+    LOG.info("Calculating language model values using feedback vocabulary.");
     // now calculate the score using all feedback terms
-    // collect from feedback documents
-    final AtomicDouble score = new AtomicDouble(0d);
+    // collected from feedback documents
     new Processing().setSourceAndTarget(
         new TargetFuncCall<>(
             new IteratorSource<>(
                 this.dataProv.getDocumentsTerms(this.feedbackDocIds)),
-            new ScoreCalculatorTarget(score)
+            new ScoreCalculatorTarget()
         )
     ).process();
 
-    result.setScore(score.doubleValue());
+    LOG.info("Normalizing data-set values.");
+    Double pqSum = 0d;
+    Double pcSum = 0d;
+    for (final Fun.Tuple3<Double, Double, Long> ds : this.dataSet) {
+      pqSum += (ds.a * ds.c);
+      pcSum += (ds.b * ds.c);
+    }
+    LOG.debug("pcSum={} pqSum={}", pcSum, pqSum);
+
+    LOG.info("Calculating final score.");
+    Double score = 0d;
+    double pq;
+    double pc;
+    for (final Fun.Tuple3<Double, Double, Long> ds : this.dataSet) {
+      pq = ds.a / pqSum;
+      pc = ds.b / pcSum;
+      if (pc == 0 && pq != 0) {
+        LOG.warn("KL constraint violation! Zero pc, pq >0. Skipping entry.");
+      } else {
+        score += ((pq * MathUtils.log2(pq / pc)) * ds.c);
+//        LOG.debug("pq={} pc={} || pq={} pc={} score={}", ds.a, ds.b, pq, pc,
+//            score);
+      }
+    }
+
+    result.setScore(score);
     return result;
   }
 
@@ -693,24 +655,14 @@ public final class DefaultClarityScore
    * Keys to store calculation results in document models and access properties
    * stored in the {@link IndexDataProvider}.
    */
-  @SuppressWarnings("PublicInnerClass")
-  enum DataKeys {
+  @SuppressWarnings({"PublicInnerClass", "PackageVisibleInnerClass"})
+  enum DataKeys { // needs access for unit testing
 
     /**
      * Stores the document model for a specific term in a {@link
      * DocumentModel}.
      */
-    DOCMODEL((byte) 0);
-
-    final SerializableByte id;
-
-    DataKeys(byte itemId) {
-      this.id = new SerializableByte(itemId);
-    }
-
-    SerializableByte id() {
-      return this.id;
-    }
+    DOCMODEL
   }
 
   /**
@@ -727,15 +679,11 @@ public final class DefaultClarityScore
     /**
      * Number of documents in the index matching the query.
      */
-    private Integer numberOfMatchingDocuments = null;
+    private Integer numberOfMatchingDocuments;
     /**
      * Configuration that was used.
      */
-    private DefaultClarityScoreConfiguration conf = null;
-    /**
-     * Configuration prefix.
-     */
-    private static final String CONF_PREFIX = IDENTIFIER + "-result";
+    private DefaultClarityScoreConfiguration conf;
 
     /**
      * Creates an object wrapping the result with meta information.
@@ -756,6 +704,11 @@ public final class DefaultClarityScore
       this.feedbackDocIds = new ArrayList<>(fbDocIds.size());
       this.feedbackDocIds.addAll(fbDocIds);
     }
+
+    /**
+     * Configuration prefix.
+     */
+    private static final String CONF_PREFIX = IDENTIFIER + "-result";
 
     /**
      * Set the number of documents in the index matching the query.
@@ -831,6 +784,10 @@ public final class DefaultClarityScore
     }
 
 
+
+
+
+
   }
 
   /**
@@ -901,57 +858,19 @@ public final class DefaultClarityScore
   private final class ScoreCalculatorTarget
       extends TargetFuncCall.TargetFunc<Map.Entry<ByteArray, Long>> {
     /**
-     * Shared instance to store calculation results.
-     */
-    private final AtomicDouble target;
-
-    /**
-     * Initialize the calculation target.
-     *
-     * @param score Atomic value to add up the score
-     */
-    ScoreCalculatorTarget(final AtomicDouble score) {
-      this.target = Objects.requireNonNull(score,
-          "Calculation result target was null.");
-    }
-
-    /**
      * Calculate the score portion for a given term using already calculated
      * query models.
      */
     @Override
     public void call(final Map.Entry<ByteArray, Long> termEntry) {
       if (termEntry != null) {
-        final double pq = getQueryModel(termEntry.getKey());
-        if (pq <= 0d) {
-          LOG.warn("Query model <= 0 ({}) for term '{}'.", pq,
-              ByteArrayUtils.utf8ToString(termEntry.getKey()));
-        } else {
-          final double value = pq * MathUtils.log2(pq /
-              DefaultClarityScore.this.metrics.collection()
-                  .relTf(termEntry.getKey()));
-          // add the value n-times the terms is in the feedback list
-          this.target.addAndGet(termEntry.getValue() * value);
-        }
+        DefaultClarityScore.this.dataSet.add(
+            Fun.t3(
+                getQueryModel(termEntry.getKey()),
+                DefaultClarityScore.this.metrics.collection()
+                    .relTf(termEntry.getKey()),
+                termEntry.getValue()));
       }
     }
   }
-
-//  /**
-//   * {@link Processing} {@link Target} for document model creation.
-//   */
-//  private final class DocumentModelCalculatorTarget
-//      extends TargetFuncCall.TargetFunc<Integer> {
-//    /**
-//     * Calculate the document model.
-//     *
-//     * @param docId Current document-id
-//     */
-//    @Override
-//    public void call(final Integer docId) {
-//      if (docId != null) {
-//        getDocumentModel(docId);
-//      }
-//    }
-//  }
 }
