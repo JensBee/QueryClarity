@@ -142,10 +142,12 @@ public final class SourceObserver<T>
         status = this.source.getSourcedItemCount();
         switch (type) {
           case PLAIN:
-            this.runTime.stop();
-            showStatus(lastStatus, status);
-            lastStatus = status;
-            this.runTime.start();
+            if (this.runTime.getElapsedMillis() >= (double) INTERVAL) {
+              this.runTime.stop();
+              showStatus(lastStatus, status);
+              lastStatus = status;
+              this.runTime.start();
+            }
             break;
           case ITEM_COUNTER:
             // check if max wait time elapsed
@@ -166,10 +168,12 @@ public final class SourceObserver<T>
               }
             break;
           case SINGLE:
-            this.runTime.stop();
-            showStatus(lastStatus, status);
-            lastStatus = status;
-            this.runTime.start();
+            if (this.runTime.getElapsedMillis() >= (double) INTERVAL) {
+              this.runTime.stop();
+              showStatus(lastStatus, status);
+              lastStatus = status;
+              this.runTime.start();
+            }
             break;
         }
         // wait a bit, till next update
