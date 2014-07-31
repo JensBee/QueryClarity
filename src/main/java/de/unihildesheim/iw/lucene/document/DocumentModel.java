@@ -25,6 +25,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * Meta-data model for document related information.
@@ -66,7 +68,7 @@ public final class DocumentModel
    *
    * @param builder Builder to use
    */
-  DocumentModel(final Builder builder) {
+  private DocumentModel(final Builder builder) {
     assert builder != null;
 
     this.id = builder.docId;
@@ -104,7 +106,22 @@ public final class DocumentModel
   }
 
   /**
-   * Get the document-frequency for a specific term.
+   * Get the relative frequency for a specific term in the document.
+   *
+   * @param term Term to lookup
+   * @return Frequency in the associated document or <tt>0</tt>, if unknown
+   */
+  public double relTf(final ByteArray term) {
+    final Long tFreq = this.termFreqMap.get(Objects.requireNonNull(term,
+        "Term was null."));
+    if (tFreq == null) {
+      return 0d;
+    }
+    return tFreq.doubleValue() / (double) this.termFrequency;
+  }
+
+  /**
+   * Get the frequency for a specific term in the document.
    *
    * @param term Term to lookup
    * @return Frequency in the associated document or <tt>0</tt>, if unknown
@@ -124,16 +141,16 @@ public final class DocumentModel
    * @return Number of unique terms in document
    */
   public long termCount() {
-    final Integer count = this.termFreqMap.size();
-    // check for case where are more than Integer.MAX_VALUE entries
+    final int count = this.termFreqMap.size();
+    // worst case - we have to calculate the real size
     if (count == Integer.MAX_VALUE) {
-      Long manualCount = 0L;
+      long manualCount = 0L;
       for (final ByteArray ignored : this.termFreqMap.keySet()) {
         manualCount++;
       }
       return manualCount;
     }
-    return count.longValue();
+    return (long) count;
   }
 
   /**
@@ -166,17 +183,16 @@ public final class DocumentModel
     final DocumentModel other = (DocumentModel) o;
 
     if (this.id != other.id || this.termFrequency != other.termFrequency
-        || this.termFreqMap.size() != other.getTermFreqMap().size()) {
+        || this.termFreqMap.size() != other.termFreqMap.size()) {
       return false;
     }
 
-    if (!other.getTermFreqMap()
-        .keySet().containsAll(this.termFreqMap.keySet())) {
+    if (!other.termFreqMap.keySet().containsAll(this.termFreqMap.keySet())) {
       return false;
     }
 
     for (final Entry<ByteArray, Long> entry : this.termFreqMap.entrySet()) {
-      if (entry.getValue().compareTo(other.getTermFreqMap().get(entry.getKey()))
+      if (entry.getValue().compareTo(other.termFreqMap.get(entry.getKey()))
           != 0) {
         return false;
       }
@@ -210,7 +226,7 @@ public final class DocumentModel
      * Term -> frequency mapping for every known term in the document.
      */
     @SuppressWarnings("PackageVisibleField")
-    final Map<ByteArray, Long> termFreqMap;
+    final ConcurrentMap<ByteArray, Long> termFreqMap;
 
     /**
      * Id to identify the corresponding document.
@@ -225,7 +241,7 @@ public final class DocumentModel
      */
     public Builder(final int documentId) {
       this.docId = documentId;
-      this.termFreqMap = new HashMap<>(DEFAULT_TERMS_COUNT);
+      this.termFreqMap = new ConcurrentHashMap<>(DEFAULT_TERMS_COUNT);
     }
 
     /**
@@ -238,7 +254,8 @@ public final class DocumentModel
       Objects.requireNonNull(docModel, "DocumentModel was null.");
 
       this.docId = docModel.id;
-      this.termFreqMap = new HashMap<>(docModel.getTermFreqMap().size());
+      this.termFreqMap = new ConcurrentHashMap<>(
+          docModel.getTermFreqMap().size());
       this.termFreqMap.putAll(docModel.getTermFreqMap());
     }
 
@@ -253,7 +270,7 @@ public final class DocumentModel
     public Builder(final int documentId,
         final int termsCount) {
       this.docId = documentId;
-      this.termFreqMap = new HashMap<>(termsCount);
+      this.termFreqMap = new ConcurrentHashMap<>(termsCount);
     }
 
     /**
@@ -271,7 +288,30 @@ public final class DocumentModel
     }
 
     /**
-     * Set the document frequency for a list of terms.
+     * Set or add the document frequency for a specific term. Sets the
+     * frequency, if no value is currently stored or adds the new value to the
+     * existing value. Thread safe, as the new value is being verified.
+     *
+     * @param term Term
+     * @param freq Document frequency of the term
+     * @return Self reference
+     */
+    public Builder setOrAddTermFrequency(final ByteArray term,
+        final long freq) {
+      Long oldValue = this.termFreqMap.putIfAbsent(
+          Objects.requireNonNull(term, "Term was null."), freq);
+      if (oldValue != null && freq > 0) {
+        while (!this.termFreqMap.replace(term, oldValue, oldValue + freq)) {
+          oldValue = this.termFreqMap.get(term);
+        }
+      }
+      return this;
+    }
+
+    /**
+     * Set the document frequency for a list of terms. This operation is not
+     * thread safe as only {@link ConcurrentMap#put(Object, Object)} is called
+     * for each entry..
      *
      * @param map Map containing {@code term} to  {@code frequency} mappings
      * @return Self reference

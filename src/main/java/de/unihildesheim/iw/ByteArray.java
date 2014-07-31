@@ -37,7 +37,6 @@ import java.util.Objects;
  */
 public final class ByteArray
     implements Comparable<ByteArray>, Serializable {
-
   /**
    * Static ByteArray representing a maximum value. Used for caparisons.
    */
@@ -62,21 +61,25 @@ public final class ByteArray
    */
   private static final long serialVersionUID = -302418892162242172L;
   /**
+   * Empty bytes constant.
+   */
+  private static final byte[] EMPTY_BYTES = {};
+  /**
+   * True is this is the special maximum value.
+   */
+  private final boolean isMax;
+  /**
    * Bytes held by this instance.
    */
   @SuppressWarnings("PublicField")
   public byte[] bytes;
-  /**
-   * Flag indicating, if this is a maximum value.
-   */
-  private boolean isMax;
 
   /**
-   * Private constructor. Used for {@link #MAX} only.
+   * Private constructor. Used for special instances.
    */
   private ByteArray() {
     this.isMax = true;
-    this.bytes = new byte[]{(byte) 0};
+    this.bytes = EMPTY_BYTES;
   }
 
   /**
@@ -85,7 +88,7 @@ public final class ByteArray
    * @param toClone Instance to copy values from
    */
   public ByteArray(final ByteArray toClone) {
-    this(toClone.bytes.clone());
+    this(toClone.bytes);
   }
 
   /**
@@ -98,6 +101,7 @@ public final class ByteArray
       throw new IllegalArgumentException("Empty bytes given.");
     }
 
+    this.isMax = false;
     this.bytes = Arrays.copyOf(existingBytes, existingBytes.length);
   }
 
@@ -156,6 +160,7 @@ public final class ByteArray
               "offset=" + offset + ", length=" + length);
     }
 
+    this.isMax = false;
     this.bytes = Arrays.copyOfRange(existingBytes, offset, length);
     assert this.bytes.length > 0;
   }
@@ -223,10 +228,11 @@ public final class ByteArray
      */
     private static final long serialVersionUID = -2948227099968496081L;
 
+    @SuppressWarnings("VariableNotUsedInsideIf")
     @Override
     public int compare(final ByteArray o1, final ByteArray o2) {
       if (o1 == null) {
-        return o2 == null ? 0 : -1;
+        return (o2 == null) ? 0 : -1;
       }
       if (o2 == null) {
         return 1;
@@ -236,7 +242,8 @@ public final class ByteArray
   }
 
   /**
-   * Custom MapDB {@link Serializer} for {@link ByteArray} objects.
+   * Custom MapDB {@link Serializer} for {@link ByteArray} objects. Does not
+   * handle n{@code null} values.
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class ByteArraySerializer
@@ -250,8 +257,6 @@ public final class ByteArray
     @Override
     public void serialize(final DataOutput out, final ByteArray value)
         throws IOException {
-      assert value != null && value.bytes != null && value.bytes.length >
-          0 : "ByteArray was null or empty.";
       Serializer.BYTE_ARRAY.serialize(out, value.bytes);
     }
 
@@ -259,7 +264,6 @@ public final class ByteArray
     public ByteArray deserialize(final DataInput in, final int available)
         throws IOException {
       final byte[] value = Serializer.BYTE_ARRAY.deserialize(in, available);
-      assert value != null && value.length > 0 : "ByteArray was null or empty.";
       return new ByteArray(value);
     }
 

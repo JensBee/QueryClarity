@@ -80,16 +80,6 @@ public final class AtomicDouble
   }
 
   /**
-   * Eventually sets to the given value.
-   *
-   * @param newValue the new value
-   */
-  public void lazySet(final double newValue) {
-    final long next = Double.doubleToRawLongBits(newValue);
-    UPDATER.lazySet(this, next);
-  }
-
-  /**
    * Atomically sets to the given value and returns the old value.
    *
    * @param newValue the new value
