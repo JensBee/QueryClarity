@@ -82,6 +82,10 @@ public final class SourceObserver<T>
    * Flag indicating, if this instance should terminate.
    */
   private volatile boolean terminate;
+  /**
+   * Number of items in source. Set if provided manually.
+   */
+  private long numberOfItems = -1L;
 
   /**
    * Attach a status observer to a specified {@link Source}.
@@ -89,8 +93,12 @@ public final class SourceObserver<T>
    * @param threadCount Number of threads querying the {@link Source}
    * @param newSource {@link Source} whose progress to observe
    */
-  public SourceObserver(final int threadCount, final Source newSource) {
+  public SourceObserver(final int threadCount, final Source newSource,
+      final Long itemCount) {
     this.terminate = false;
+    if (itemCount != null && itemCount > 0L) {
+      this.numberOfItems = itemCount;
+    }
     this.source = Objects.requireNonNull(newSource, "Source was null.");
     this.overallTime = new TimeMeasure();
     this.runTime = new TimeMeasure();
@@ -121,21 +129,21 @@ public final class SourceObserver<T>
       long lastStatus = 0L;
       long status = 0L;
       final int step;
-      final Long itemCount;
 
-      if (this.source.getItemCount() != null) {
-        itemCount = this.source.getItemCount();
-        if (this.numberOfThreads == itemCount) {
+      if (this.numberOfItems > -1L || this.source.getItemCount() != null) {
+        if (this.numberOfItems == -1L) {
+          this.numberOfItems = this.source.getItemCount();
+        }
+        if (this.numberOfThreads == this.numberOfItems) {
           type = LoopType.SINGLE;
           step = 0;
         } else {
           type = LoopType.ITEM_COUNTER;
-          step = (int) (itemCount * STEP_SIZE);
+          step = (int) ((double) this.numberOfItems * STEP_SIZE);
         }
       } else {
         type = LoopType.PLAIN;
         step = 0;
-        itemCount = 0L;
       }
 
       while (!this.terminate) {
@@ -153,7 +161,7 @@ public final class SourceObserver<T>
             // check if max wait time elapsed
             if (this.runTime.getElapsedMillis() >= (double) INTERVAL) {
               this.runTime.stop();
-              showStatus(itemCount, lastStatus, status);
+              showStatus(this.numberOfItems, lastStatus, status);
               lastStatus = status;
               this.runTime.start();
             } else
@@ -162,7 +170,7 @@ public final class SourceObserver<T>
               if (lastStatus < status && step > 0 &&
                   status % (long) step == 0) {
                 this.runTime.stop();
-                showStatus(itemCount, lastStatus, status);
+                showStatus(this.numberOfItems, lastStatus, status);
                 lastStatus = status;
                 this.runTime.start();
               }

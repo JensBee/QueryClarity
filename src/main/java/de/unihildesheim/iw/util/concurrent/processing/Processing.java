@@ -39,24 +39,20 @@ import java.util.concurrent.TimeoutException;
  * @author Jens Bertram
  */
 public final class Processing {
-
   /**
    * Default number of target threads to run. Defaults to the number of
    * available processors.
    */
   public static final int THREADS;
-
   /**
    * Logger instance for this class.
    */
   static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       Processing.class);
-
   /**
    * Prefix used to store {@link GlobalConfiguration configuration}.
    */
   private static final String IDENTIFIER = "Processing";
-
   /**
    * Thread pool manager.
    */
@@ -88,11 +84,14 @@ public final class Processing {
    * Processing {@link Source}.
    */
   private Source source;
-
   /**
    * Processing {@link Target}.
    */
   private Target target;
+  /**
+   * Number of items in source, if set manually.
+   */
+  private long souceDataCount = 0;
 
   /**
    * Creates a new processing pipe, deriving the {@link Source} from the {@link
@@ -157,6 +156,11 @@ public final class Processing {
     return this;
   }
 
+  public Processing setSourceDataCount(final long count) {
+    this.souceDataCount = count;
+    return this;
+  }
+
   /**
    * Reuse this instance by setting a new {@link Target}.
    *
@@ -208,6 +212,15 @@ public final class Processing {
     final CountDownLatch threadTrackingLatch = new CountDownLatch(threadCount);
 
     LOG.debug("Using {} Processing-Target threads.", threadCount);
+
+    LOG.trace("Starting Processing-Source.");
+    final Future<Long> sourceThread = POOL_EXECUTOR.runSource(this.source);
+    LOG.trace("Starting Processing-Observer.");
+    final SourceObserver sourceObserver = new SourceObserver(threadCount,
+        this.source, this.souceDataCount);
+    final Future<Double> sourceTime = POOL_EXECUTOR.runObserver(sourceObserver);
+
+    LOG.trace("Starting Processing-Target threads.");
     for (int i = 0; i < threadCount; i++) {
       final Target<?> aTarget;
       try {
@@ -218,17 +231,6 @@ public final class Processing {
       }
       aTarget.setLatch(threadTrackingLatch);
       targets.add(aTarget);
-    }
-
-    LOG.trace("Starting Processing-Source.");
-    final Future<Long> sourceThread = POOL_EXECUTOR.runSource(this.source);
-    LOG.trace("Starting Processing-Observer.");
-    final SourceObserver sourceObserver = new SourceObserver(threadCount,
-        this.source);
-    final Future<Double> sourceTime = POOL_EXECUTOR.runObserver(sourceObserver);
-
-    LOG.trace("Starting Processing-Target threads.");
-    for (final Target<?> aTarget : targets) {
       targetStates.add(POOL_EXECUTOR.runTarget(aTarget));
     }
 
