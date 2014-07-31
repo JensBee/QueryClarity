@@ -214,32 +214,6 @@ public final class DocumentModelTest
   }
 
   /**
-   * Test of getSmoothedTermFrequency method, of class DocumentModel.
-   *
-   * @throws Exception Any exception indicates an error
-   */
-  @Test
-  public void testGetSmoothedRelativeTermFrequency()
-      throws Exception {
-    try (final IndexDataProvider index = getInstance()) {
-      final Metrics metrics = new Metrics(index);
-      final int smoothingAmount = 100;
-      final Iterator<Integer> docIdIt = index.getDocumentIds();
-      while (docIdIt.hasNext()) {
-        final int docId = docIdIt.next();
-        final DocumentModel docModel = metrics.getDocumentModel(docId);
-        final Metrics.DocumentMetrics dm = docModel.metrics();
-        for (final ByteArray bw : docModel.getTermFreqMap().keySet()) {
-          Assert.assertNotEquals(
-              msg("Smoothed and absolute relative term frequency "
-                  + "should not be the same."), dm.relTf(bw), dm.
-                  smoothedRelativeTermFrequency(bw, (double) smoothingAmount));
-        }
-      }
-    }
-  }
-
-  /**
    * Test of tf method, of class DocumentModel.
    *
    * @throws Exception Any exception indicates an error

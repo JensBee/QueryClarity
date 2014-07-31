@@ -26,6 +26,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -132,7 +133,7 @@ public final class TestIndexDataProviderTest
     for (final String term : qTerms) {
       @SuppressWarnings("ObjectAllocationInLoop")
       final long result = this.referenceIndex.getTermFrequency(new ByteArray
-          (term.getBytes("UTF-8")));
+          (term.getBytes(StandardCharsets.UTF_8)));
       Assert
           .assertNotEquals("Term frequency was 0 for search term.", 0L, result);
     }
@@ -212,7 +213,7 @@ public final class TestIndexDataProviderTest
     for (final String term : qTerms) {
       final long result =
           this.referenceIndex.getTermFrequency(new ByteArray(term.getBytes(
-              "UTF-8")));
+              StandardCharsets.UTF_8)));
       Assert
           .assertNotEquals("Term frequency was 0 for search term.", 0L, result);
       Assert.assertTrue("Unknown term found.", oQueryTermsStr.contains(term));

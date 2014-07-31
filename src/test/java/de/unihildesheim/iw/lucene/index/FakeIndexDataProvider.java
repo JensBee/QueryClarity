@@ -19,6 +19,7 @@ package de.unihildesheim.iw.lucene.index;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
@@ -54,7 +55,7 @@ public final class FakeIndexDataProvider
   }
 
   @Override
-  public double getRelativeTermFrequency(final ByteArray term) {
+  public BigDecimal getRelativeTermFrequency(final ByteArray term) {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 
@@ -89,13 +90,23 @@ public final class FakeIndexDataProvider
   }
 
   @Override
-  public Iterator<ByteArray> getDocumentsTermsSet(
-      final Collection<Integer> docIds) {
+  public Map<ByteArray, Long> getDocumentTerms(final int docId) {
     throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
   public Iterator<Map.Entry<ByteArray, Long>> getDocumentsTerms(
+      final Collection<Integer> docIds) {
+    throw new UnsupportedOperationException("Not supported yet.");
+  }
+
+  @Override
+  public Set<ByteArray> getDocumentTermsSet(final int docId) {
+    throw new UnsupportedOperationException("Not supported yet.");
+  }
+
+  @Override
+  public Iterator<ByteArray> getDocumentsTermsSet(
       final Collection<Integer> docIds) {
     throw new UnsupportedOperationException("Not supported yet.");
   }

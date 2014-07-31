@@ -25,6 +25,7 @@ import de.unihildesheim.iw.util.RandomValue;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -80,7 +81,7 @@ public final class FixedTestIndexDataProviderTest
           (long) FixedTestIndexDataProvider.KnownData
               .IDX_DOCFREQ.get(term),
           (long) INSTANCE.getDocumentFrequency(
-              new ByteArray(term.getBytes("UTF-8")))
+              new ByteArray(term.getBytes(StandardCharsets.UTF_8)))
       );
     }
   }

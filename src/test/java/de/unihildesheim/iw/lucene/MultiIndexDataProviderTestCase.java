@@ -18,6 +18,7 @@ package de.unihildesheim.iw.lucene;
 
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.TestCase;
+import de.unihildesheim.iw.lucene.index.DirectAccessIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.DirectIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
@@ -145,6 +146,14 @@ public class MultiIndexDataProviderTestCase
             .warmUp() // important!
             .build();
         break;
+      case DIRECT_ACCESS:
+        instance = new DirectAccessIndexDataProvider.Builder()
+            .documentFields(fields)
+            .stopwords(stopwords)
+            .indexPath(TestIndexDataProvider.getIndexDir())
+            .indexReader(TestIndexDataProvider.getIndexReader())
+            .build();
+        break;
       default:
         instance = this.referenceIndex;
         break;
@@ -178,6 +187,8 @@ public class MultiIndexDataProviderTestCase
     switch (this.dpType) {
       case DIRECT:
         return DirectIndexDataProvider.class.getCanonicalName();
+      case DIRECT_ACCESS:
+        return DirectAccessIndexDataProvider.class.getCanonicalName();
       default:
         return this.referenceIndex.getClass().getCanonicalName();
     }
@@ -235,6 +246,10 @@ public class MultiIndexDataProviderTestCase
     /**
      * {@link DirectIndexDataProvider}
      */
-    DIRECT
+    DIRECT,
+    /**
+     * {@link DirectAccessIndexDataProvider}
+     */
+    DIRECT_ACCESS
   }
 }

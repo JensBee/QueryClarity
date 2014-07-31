@@ -21,15 +21,20 @@ import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.lucene.index.FixedTestIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.IndexTestUtils;
+import de.unihildesheim.iw.util.BigDecimalCache;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import org.junit.Assert;
 import org.junit.Test;
+import org.mapdb.Fun;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -39,7 +44,11 @@ import java.util.List;
  */
 public final class SimplifiedClarityScoreTest
     extends TestCase {
-
+  /**
+   * Logger instance for this class.
+   */
+  private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
+      SimplifiedClarityScoreTest.class);
   /**
    * Allowed delta in clarity score calculation.
    */
@@ -80,7 +89,7 @@ public final class SimplifiedClarityScoreTest
    */
   private static SimplifiedClarityScore.Builder getInstanceBuilder()
       throws IOException {
-    return new SimplifiedClarityScore.Builder()
+    return (SimplifiedClarityScore.Builder) new SimplifiedClarityScore.Builder()
         .indexReader(FixedTestIndexDataProvider.TMP_IDX.getReader())
         .analyzer(IndexTestUtils.getAnalyzer())
         .indexDataProvider(FIXED_INDEX);
@@ -93,28 +102,55 @@ public final class SimplifiedClarityScoreTest
    * @param result Result set
    * @return Clarity score
    */
+  @SuppressWarnings("ObjectAllocationInLoop")
   private static double calculateScore(
       final SimplifiedClarityScore.Result result) {
     // calculate reference
     final int ql = result.getQueryTerms().size(); // number of terms in query
-    final List<String> qTermsStr = new ArrayList<>(ql);
+    final Collection<String> qTermsStr = new ArrayList<>(ql);
     for (final ByteArray qTerm : result.getQueryTerms()) {
       qTermsStr.add(ByteArrayUtils.utf8ToString(qTerm));
     }
 
-    double score = 0d;
-    final Iterable<String> uniqueQTerms = new HashSet<>(qTermsStr);
-    for (final String qTerm : uniqueQTerms) {
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
+    final List<Fun.Tuple2<BigDecimal, BigDecimal>> dataSet = new ArrayList<>();
+    for (final String qTerm : qTermsStr) {
       final int times = timesInCollection(qTermsStr, qTerm);
       assert times > 0;
-      final double qMod = (double) times / (double) ql; // query model
-      final double relTf = // relative collection term frequency
-          FixedTestIndexDataProvider.KnownData.IDX_TERMFREQ.get(qTerm)
-              .doubleValue() /
-              (double) FixedTestIndexDataProvider.KnownData.TERM_COUNT;
-      score += qMod * MathUtils.log2(qMod / relTf);
+      final BigDecimal qMod = BigDecimalCache.get((double) times).divide
+          (BigDecimalCache.get((double) ql), MathUtils.MATH_CONTEXT);
+      // query model
+      dataSet.add(Fun.t2(qMod, FIXED_INDEX.getRelativeTermFrequency(new
+          ByteArray(qTerm.getBytes(StandardCharsets.UTF_8)))));
     }
-    return score;
+
+    // normalization of calculation values
+    BigDecimal pqSum = BigDecimal.ZERO;
+    BigDecimal pcSum = BigDecimal.ZERO;
+    for (final Fun.Tuple2<BigDecimal, BigDecimal> ds : dataSet) {
+      pqSum = pqSum.add(ds.a);
+      pcSum = pcSum.add(ds.b);
+    }
+
+    LOG.debug("pqSum={} pcSum={} data{}", pqSum, pcSum, dataSet);
+
+    // scoring
+    Double score = 0d;
+    BigDecimal pq = BigDecimal.ZERO;
+    BigDecimal pc = BigDecimal.ZERO;
+    for (final Fun.Tuple2<BigDecimal, BigDecimal> ds : dataSet) {
+      if (ds.a.compareTo(BigDecimal.ZERO) == 0 || ds.b.compareTo(BigDecimal
+          .ZERO) == 0) {
+        // ds.b == 0
+        // implies ds.a == 0
+        continue;
+      }
+      pq = ds.a.divide(pqSum, MathUtils.MATH_CONTEXT);
+      pc = ds.b.divide(pcSum, MathUtils.MATH_CONTEXT);
+      score += pq.doubleValue() *
+          (Math.log(pq.doubleValue()) - Math.log(pc.doubleValue()));
+    }
+    return score / MathUtils.LOG2;
   }
 
   /**

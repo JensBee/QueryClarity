@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
 
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashSet;
 
@@ -57,7 +58,7 @@ public final class IndexTestUtils {
   public static Collection<Tuple.Tuple4<
       Integer, ByteArray, String, Integer>> generateTermData(
       final IndexDataProvider index, final int amount)
-      throws UnsupportedEncodingException {
+      throws UnsupportedEncodingException, DataProviderException {
     if (amount <= 0) {
       throw new IllegalArgumentException("Amount must be greater than 0.");
     }
@@ -81,7 +82,7 @@ public final class IndexTestUtils {
   public static Collection<Tuple.Tuple4<Integer, ByteArray, String, Integer>>
   generateTermData(final IndexDataProvider index,
       final Integer documentId, final String key, final int amount)
-      throws UnsupportedEncodingException {
+      throws UnsupportedEncodingException, DataProviderException {
     assert amount > 0;
     final String finalKey;
 
@@ -113,7 +114,7 @@ public final class IndexTestUtils {
       }
       @SuppressWarnings("ObjectAllocationInLoop")
       final ByteArray term = new ByteArray(RandomValue.getString(1, 20).
-          getBytes("UTF-8"));
+          getBytes(StandardCharsets.UTF_8));
       final int val = RandomValue.getInteger();
       if (unique.add(Tuple.tuple3(docId, term, finalKey)) && termData.add(Tuple.
           tuple4(docId, term, finalKey, val))) {

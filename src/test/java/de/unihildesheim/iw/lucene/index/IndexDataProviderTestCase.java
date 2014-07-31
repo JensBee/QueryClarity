@@ -278,7 +278,8 @@ public abstract class IndexDataProviderTestCase
    *
    * @param instance {@link IndexDataProvider} implementation to test
    */
-  private void runTestGetTermFrequency_0args(final IndexDataProvider instance) {
+  private void runTestGetTermFrequency_0args(final IndexDataProvider instance)
+      throws Exception {
     Assert.assertEquals(
         msg(instance, "Term frequency differs."),
         this.referenceIndex.getTermFrequency(),
@@ -409,7 +410,8 @@ public abstract class IndexDataProviderTestCase
    * @throws Exception Any exception thrown indicates an error
    */
   private void runTestGetTermFrequency_ByteArray(
-      final IndexDataProvider instance) {
+      final IndexDataProvider instance)
+      throws DataProviderException {
     final boolean excludeStopwords = this.referenceIndex.hasStopwords();
     final Iterator<ByteArray> idxTermsIt = this.referenceIndex
         .getTermsIterator();
@@ -504,8 +506,8 @@ public abstract class IndexDataProviderTestCase
         final ByteArray idxTerm = idxTermsIt.next();
         Assert.assertEquals(
             msg(instance, "Relative term frequency differs. term=" + idxTerm),
-            FIXED_INDEX.getRelativeTermFrequency(idxTerm),
-            instance.getRelativeTermFrequency(idxTerm), 0d
+            FIXED_INDEX.getRelativeTermFrequency(idxTerm).doubleValue(),
+            instance.getRelativeTermFrequency(idxTerm).doubleValue(), 0d
         );
       }
     }
@@ -535,7 +537,8 @@ public abstract class IndexDataProviderTestCase
    * @throws Exception Any exception thrown indicates an error
    */
   private void runTestGetRelativeTermFrequency(
-      final IndexDataProvider instance) {
+      final IndexDataProvider instance)
+      throws DataProviderException {
 
     final boolean excludeStopwords = this.referenceIndex.hasStopwords();
     final Iterator<ByteArray> idxTermsIt = this.referenceIndex
@@ -546,8 +549,8 @@ public abstract class IndexDataProviderTestCase
       Assert.assertEquals(
           msg(instance, "Relative term frequency differs (stopped: "
               + excludeStopwords + "). term=" + idxTerm),
-          this.referenceIndex.getRelativeTermFrequency(idxTerm),
-          instance.getRelativeTermFrequency(idxTerm), 0d
+          this.referenceIndex.getRelativeTermFrequency(idxTerm).doubleValue(),
+          instance.getRelativeTermFrequency(idxTerm).doubleValue(), 0d
       );
 
       if (excludeStopwords) {
@@ -784,7 +787,8 @@ public abstract class IndexDataProviderTestCase
    *
    * @param instance {@link IndexDataProvider} implementation to test
    */
-  private void runTestGetDocumentCount(final IndexDataProvider instance) {
+  private void runTestGetDocumentCount(final IndexDataProvider instance)
+      throws DataProviderException {
     Assert.assertEquals(
         msg(instance, "Different number of documents reported."),
         this.referenceIndex.getDocumentCount(),
@@ -900,7 +904,8 @@ public abstract class IndexDataProviderTestCase
    *
    * @param instance {@link IndexDataProvider} implementation to test
    */
-  private void runTestGetDocumentModel(final IndexDataProvider instance) {
+  private void runTestGetDocumentModel(final IndexDataProvider instance)
+      throws DataProviderException {
     final boolean excludeStopwords = this.referenceIndex.hasStopwords();
     final Iterator<Integer> docIdIt = this.referenceIndex
         .getDocumentIds();
@@ -1028,7 +1033,8 @@ public abstract class IndexDataProviderTestCase
    *
    * @param instance {@link IndexDataProvider} implementation to test
    */
-  private void runTestGetDocumentIdIterator(final IndexDataProvider instance) {
+  private void runTestGetDocumentIdIterator(final IndexDataProvider instance)
+      throws DataProviderException {
     final long docCount = this.referenceIndex.getDocumentCount();
     long docCountIt = 0L;
     final Iterator<Integer> result = instance.getDocumentIds();
@@ -1271,7 +1277,8 @@ public abstract class IndexDataProviderTestCase
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
-  private void runTestDocumentContains(final IndexDataProvider instance) {
+  private void runTestDocumentContains(final IndexDataProvider instance)
+      throws DataProviderException {
     final boolean excludeStopwords = this.referenceIndex.hasStopwords();
     final Iterator<Integer> docIdIt = instance.getDocumentIds();
 
@@ -1520,7 +1527,8 @@ public abstract class IndexDataProviderTestCase
    * @param instance {@link IndexDataProvider} implementation to test
    * @throws Exception Any exception thrown indicates an error
    */
-  private void runTestGetDocumentFrequency(final IndexDataProvider instance) {
+  private void runTestGetDocumentFrequency(final IndexDataProvider instance)
+      throws DataProviderException {
     final boolean excludeStopwords = this.referenceIndex.hasStopwords();
 
     for (final ByteArray term : this.referenceIndex.getTermSet()) {

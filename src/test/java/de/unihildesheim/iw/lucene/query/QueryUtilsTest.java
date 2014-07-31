@@ -29,6 +29,7 @@ import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -81,7 +82,7 @@ public final class QueryUtilsTest
       final String term = RandomValue.getString(1, 15);
 
       if (!stopwords.contains(term)) {
-        termsBw.add(new ByteArray(term.getBytes("UTF-8")));
+        termsBw.add(new ByteArray(term.getBytes(StandardCharsets.UTF_8)));
       }
       terms.add(term);
     }
@@ -129,7 +130,7 @@ public final class QueryUtilsTest
       final String term = RandomValue.getString(1, 15);
 
       if (!stopwords.contains(term)) {
-        termsBw.add(new ByteArray(term.getBytes("UTF-8")));
+        termsBw.add(new ByteArray(term.getBytes(StandardCharsets.UTF_8)));
       }
       terms.add(term);
     }

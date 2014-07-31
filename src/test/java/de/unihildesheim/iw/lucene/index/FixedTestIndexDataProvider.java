@@ -21,12 +21,16 @@ import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.util.TempDiskIndex;
+import de.unihildesheim.iw.util.BigDecimalCache;
 import de.unihildesheim.iw.util.ByteArrayUtils;
+import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.RandomValue;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -331,7 +335,7 @@ public final class FixedTestIndexDataProvider
     for (int i = 0; i < qTermCount; i++) {
       final String term = idxTerms.get(RandomValue.getInteger(0, maxTerm));
       qTermsStr.add(term);
-      qTerms.add(new ByteArray(term.getBytes("UTF-8")));
+      qTerms.add(new ByteArray(term.getBytes(StandardCharsets.UTF_8)));
     }
 
     assert !qTerms.isEmpty();
@@ -354,22 +358,13 @@ public final class FixedTestIndexDataProvider
     final Set<String> termsStr = getDocumentsTermSetStr(docIds);
     final Set<ByteArray> termsBa = new HashSet<>(termsStr.size());
     for (final String term : termsStr) {
-      try {
-        termsBa.add(new ByteArray(term.getBytes("UTF-8")));
-      } catch (final UnsupportedEncodingException e) {
-        throw new IllegalStateException(e);
-      }
+      termsBa.add(new ByteArray(term.getBytes(StandardCharsets.UTF_8)));
     }
     return termsBa;
   }
 
   private Set<Integer> getDocIds() {
     return getDocumentIdsSet();
-  }
-
-  @Override
-  public Iterator<Integer> getDocumentIds() {
-    return getDocumentIdsSet().iterator();
   }
 
   public Set<String> getDocumentsTermSetStr(
@@ -390,6 +385,11 @@ public final class FixedTestIndexDataProvider
       }
     }
     return terms;
+  }
+
+  @Override
+  public Iterator<Integer> getDocumentIds() {
+    return getDocumentIdsSet().iterator();
   }
 
   /**
@@ -470,9 +470,90 @@ public final class FixedTestIndexDataProvider
     @SuppressWarnings("PublicStaticCollectionField")
     public static final Map<String, Integer> TF_DOC_0;
     /**
+     * Term frequency values for document 1.
+     */
+    @SuppressWarnings("PublicStaticCollectionField")
+    public static final Map<String, Integer> TF_DOC_1;
+    /**
      * Number of documents in index.
      */
     public static final int DOC_COUNT = FixedTestIndexDataProvider.DOC_COUNT;
+
+    static {
+      final Map<String, Integer> tfDoc1 = new HashMap<>(70);
+      tfDoc1.put("etiam", 3);
+      tfDoc1.put("eget", 3);
+      tfDoc1.put("ante", 3);
+      tfDoc1.put("viverra", 2);
+      tfDoc1.put("vitae", 2);
+      tfDoc1.put("vel", 2);
+      tfDoc1.put("ut", 2);
+      tfDoc1.put("ultricies", 2);
+      tfDoc1.put("tincidunt", 2);
+      tfDoc1.put("tempus", 2);
+      tfDoc1.put("tellus", 2);
+      tfDoc1.put("sit", 2);
+      tfDoc1.put("sem", 2);
+      tfDoc1.put("rhoncus", 2);
+      tfDoc1.put("quis", 2);
+      tfDoc1.put("quam", 2);
+      tfDoc1.put("nisi", 2);
+      tfDoc1.put("nam", 2);
+      tfDoc1.put("maecenas", 2);
+      tfDoc1.put("lorem", 2);
+      tfDoc1.put("libero", 2);
+      tfDoc1.put("faucibus", 2);
+      tfDoc1.put("amet", 2);
+      tfDoc1.put("aenean", 2);
+      tfDoc1.put("venenatis", 1);
+      tfDoc1.put("varius", 1);
+      tfDoc1.put("ullamcorper", 1);
+      tfDoc1.put("semper", 1);
+      tfDoc1.put("sed", 1);
+      tfDoc1.put("sapien", 1);
+      tfDoc1.put("rutrum", 1);
+      tfDoc1.put("quisque", 1);
+      tfDoc1.put("pulvinar", 1);
+      tfDoc1.put("porttitor", 1);
+      tfDoc1.put("phasellus", 1);
+      tfDoc1.put("orci", 1);
+      tfDoc1.put("odio", 1);
+      tfDoc1.put("nunc", 1);
+      tfDoc1.put("nullam", 1);
+      tfDoc1.put("nulla", 1);
+      tfDoc1.put("neque", 1);
+      tfDoc1.put("nec", 1);
+      tfDoc1.put("metus", 1);
+      tfDoc1.put("luctus", 1);
+      tfDoc1.put("ligula", 1);
+      tfDoc1.put("leo", 1);
+      tfDoc1.put("laoreet", 1);
+      tfDoc1.put("ipsum", 1);
+      tfDoc1.put("in", 1);
+      tfDoc1.put("imperdiet", 1);
+      tfDoc1.put("id", 1);
+      tfDoc1.put("hendrerit", 1);
+      tfDoc1.put("feugiat", 1);
+      tfDoc1.put("eu", 1);
+      tfDoc1.put("et", 1);
+      tfDoc1.put("eros", 1);
+      tfDoc1.put("enim", 1);
+      tfDoc1.put("eleifend", 1);
+      tfDoc1.put("dui", 1);
+      tfDoc1.put("donec", 1);
+      tfDoc1.put("dapibus", 1);
+      tfDoc1.put("curabitur", 1);
+      tfDoc1.put("consequat", 1);
+      tfDoc1.put("condimentum", 1);
+      tfDoc1.put("blandit", 1);
+      tfDoc1.put("augue", 1);
+      tfDoc1.put("aliquam", 1);
+      tfDoc1.put("adipiscing", 1);
+      tfDoc1.put("ac", 1);
+      tfDoc1.put("a", 1);
+      TF_DOC_1 = Collections.unmodifiableMap(tfDoc1);
+    }
+
     static {
       final Map<String, Integer> idxTermFreq = new HashMap<>(171);
       idxTermFreq.put("et", 21);
@@ -649,6 +730,12 @@ public final class FixedTestIndexDataProvider
       IDX_TERMFREQ = Collections.unmodifiableMap(idxTermFreq);
     }
 
+    /**
+     * Term frequency values for document 2.
+     */
+    @SuppressWarnings("PublicStaticCollectionField")
+    public static final Map<String, Integer> TF_DOC_2;
+
     static {
       final Map<String, Integer> idxDocFreq = new HashMap<>(171);
       idxDocFreq.put("a", 9);
@@ -824,90 +911,7 @@ public final class FixedTestIndexDataProvider
       idxDocFreq.put("vulputate", 4);
       IDX_DOCFREQ = Collections.unmodifiableMap(idxDocFreq);
     }
-    /**
-     * Term frequency values for document 1.
-     */
-    @SuppressWarnings("PublicStaticCollectionField")
-    public static final Map<String, Integer> TF_DOC_1;
-    static {
-      final Map<String, Integer> tfDoc1 = new HashMap<>(70);
-      tfDoc1.put("etiam", 3);
-      tfDoc1.put("eget", 3);
-      tfDoc1.put("ante", 3);
-      tfDoc1.put("viverra", 2);
-      tfDoc1.put("vitae", 2);
-      tfDoc1.put("vel", 2);
-      tfDoc1.put("ut", 2);
-      tfDoc1.put("ultricies", 2);
-      tfDoc1.put("tincidunt", 2);
-      tfDoc1.put("tempus", 2);
-      tfDoc1.put("tellus", 2);
-      tfDoc1.put("sit", 2);
-      tfDoc1.put("sem", 2);
-      tfDoc1.put("rhoncus", 2);
-      tfDoc1.put("quis", 2);
-      tfDoc1.put("quam", 2);
-      tfDoc1.put("nisi", 2);
-      tfDoc1.put("nam", 2);
-      tfDoc1.put("maecenas", 2);
-      tfDoc1.put("lorem", 2);
-      tfDoc1.put("libero", 2);
-      tfDoc1.put("faucibus", 2);
-      tfDoc1.put("amet", 2);
-      tfDoc1.put("aenean", 2);
-      tfDoc1.put("venenatis", 1);
-      tfDoc1.put("varius", 1);
-      tfDoc1.put("ullamcorper", 1);
-      tfDoc1.put("semper", 1);
-      tfDoc1.put("sed", 1);
-      tfDoc1.put("sapien", 1);
-      tfDoc1.put("rutrum", 1);
-      tfDoc1.put("quisque", 1);
-      tfDoc1.put("pulvinar", 1);
-      tfDoc1.put("porttitor", 1);
-      tfDoc1.put("phasellus", 1);
-      tfDoc1.put("orci", 1);
-      tfDoc1.put("odio", 1);
-      tfDoc1.put("nunc", 1);
-      tfDoc1.put("nullam", 1);
-      tfDoc1.put("nulla", 1);
-      tfDoc1.put("neque", 1);
-      tfDoc1.put("nec", 1);
-      tfDoc1.put("metus", 1);
-      tfDoc1.put("luctus", 1);
-      tfDoc1.put("ligula", 1);
-      tfDoc1.put("leo", 1);
-      tfDoc1.put("laoreet", 1);
-      tfDoc1.put("ipsum", 1);
-      tfDoc1.put("in", 1);
-      tfDoc1.put("imperdiet", 1);
-      tfDoc1.put("id", 1);
-      tfDoc1.put("hendrerit", 1);
-      tfDoc1.put("feugiat", 1);
-      tfDoc1.put("eu", 1);
-      tfDoc1.put("et", 1);
-      tfDoc1.put("eros", 1);
-      tfDoc1.put("enim", 1);
-      tfDoc1.put("eleifend", 1);
-      tfDoc1.put("dui", 1);
-      tfDoc1.put("donec", 1);
-      tfDoc1.put("dapibus", 1);
-      tfDoc1.put("curabitur", 1);
-      tfDoc1.put("consequat", 1);
-      tfDoc1.put("condimentum", 1);
-      tfDoc1.put("blandit", 1);
-      tfDoc1.put("augue", 1);
-      tfDoc1.put("aliquam", 1);
-      tfDoc1.put("adipiscing", 1);
-      tfDoc1.put("ac", 1);
-      tfDoc1.put("a", 1);
-      TF_DOC_1 = Collections.unmodifiableMap(tfDoc1);
-    }
-    /**
-     * Term frequency values for document 2.
-     */
-    @SuppressWarnings("PublicStaticCollectionField")
-    public static final Map<String, Integer> TF_DOC_2;
+
     static {
       final Map<String, Integer> tfDoc0 = new HashMap<>(65);
       tfDoc0.put("justo", 3);
@@ -1053,15 +1057,11 @@ public final class FixedTestIndexDataProvider
     }
 
     /**
-     * Number of fields per document.
-     */
-    public static final int FIELD_COUNT = FixedTestIndexDataProvider
-        .FIELD_COUNT;
-    /**
      * Term frequency values for document 3.
      */
     @SuppressWarnings("PublicStaticCollectionField")
     public static final Map<String, Integer> TF_DOC_3;
+
     static {
       final Map<String, Integer> tfDoc3 = new HashMap<>(71);
       tfDoc3.put("imperdiet", 4);
@@ -1202,6 +1202,11 @@ public final class FixedTestIndexDataProvider
       TF_DOC_4 = Collections.unmodifiableMap(tfDoc4);
     }
 
+    /**
+     * Number of fields per document.
+     */
+    public static final int FIELD_COUNT = FixedTestIndexDataProvider
+        .FIELD_COUNT;
     /**
      * Term frequency values for document 5.
      */
@@ -1678,6 +1683,7 @@ public final class FixedTestIndexDataProvider
 
   }
 
+
   @Override
   public long getTermFrequency() {
     return (long) KnownData.TERM_COUNT;
@@ -1712,14 +1718,14 @@ public final class FixedTestIndexDataProvider
   }
 
   @Override
-  public double getRelativeTermFrequency(final ByteArray term) {
+  public BigDecimal getRelativeTermFrequency(final ByteArray term) {
     assert term != null;
     final Long termFrequency = getTermFrequency(term);
     if (termFrequency == null) {
-      return 0d;
+      return BigDecimal.ZERO;
     }
-    return termFrequency.doubleValue() / Long.valueOf(getTermFrequency()).
-        doubleValue();
+    return BigDecimalCache.get(termFrequency).divide(BigDecimalCache.get
+        (getTermFrequency()), MathUtils.MATH_CONTEXT);
   }
 
   @Override
@@ -1750,12 +1756,8 @@ public final class FixedTestIndexDataProvider
     final Map<String, Integer> kTfMap = KnownData.getDocumentTfMap(docId);
 
     for (final Map.Entry<String, Integer> entry : kTfMap.entrySet()) {
-      try {
-        tfMap.put(new ByteArray(entry.getKey().getBytes("UTF-8")),
-            entry.getValue().longValue());
-      } catch (final UnsupportedEncodingException e) {
-        throw new IllegalStateException(e);
-      }
+      tfMap.put(new ByteArray(entry.getKey().getBytes(StandardCharsets.UTF_8)),
+          entry.getValue().longValue());
     }
     dmBuilder.setTermFrequency(tfMap);
     return dmBuilder.getModel();
@@ -1764,6 +1766,11 @@ public final class FixedTestIndexDataProvider
   @Override
   public boolean hasDocument(final int docId) {
     return !(docId < 0 || docId > (DOC_COUNT - 1));
+  }
+
+  @Override
+  public Map<ByteArray, Long> getDocumentTerms(final int docId) {
+    return _getDocumentsTerms(Collections.singleton(docId));
   }
 
   @SuppressWarnings("ObjectAllocationInLoop")
@@ -1776,26 +1783,31 @@ public final class FixedTestIndexDataProvider
   @Override
   public Iterator<Map.Entry<ByteArray, Long>> getDocumentsTerms(
       final Collection<Integer> docIds) {
+    return _getDocumentsTerms(docIds).entrySet().iterator();
+  }
+
+  public Map<ByteArray, Long> _getDocumentsTerms(
+      final Collection<Integer> docIds) {
     final Map<ByteArray, Long> tfMap = new HashMap<>();
     for (int docId : docIds) {
       for (Map.Entry<String, Integer> entry : KnownData.getDocumentTfMap
           (docId).entrySet()) {
-        try {
-          final ByteArray termBa = new ByteArray(entry.getKey().getBytes
-              ("UTF-8"));
-          if (tfMap.containsKey(termBa)) {
-            tfMap.put(termBa, tfMap.get(termBa) + 1L);
-          } else {
-            tfMap.put(termBa, 1L);
-          }
-        } catch (UnsupportedEncodingException e) {
-          throw new IllegalStateException("Term encoding error!", e);
+        final ByteArray termBa = new ByteArray(entry.getKey().getBytes
+            (StandardCharsets.UTF_8));
+        if (tfMap.containsKey(termBa)) {
+          tfMap.put(termBa, tfMap.get(termBa) + 1L);
+        } else {
+          tfMap.put(termBa, 1L);
         }
       }
     }
-    return tfMap.entrySet().iterator();
+    return tfMap;
   }
 
+  @Override
+  public Set<ByteArray> getDocumentTermsSet(final int docId) {
+    return getDocTermsSet(Collections.singleton(docId));
+  }
 
   @Override
   public long getDocumentCount() {
