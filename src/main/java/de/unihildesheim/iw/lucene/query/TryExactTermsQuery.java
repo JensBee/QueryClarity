@@ -103,7 +103,7 @@ public final class TryExactTermsQuery
       this.query.add(bc);
     }
     this.query.setMinimumNumberShouldMatch(this.uniqueQueryTerms.size());
-//    LOG.debug("TEQ {}", this.query);
+    LOG.debug("TEQ {} uQt={}", this.query, this.uniqueQueryTerms);
   }
 
   /**
@@ -128,6 +128,7 @@ public final class TryExactTermsQuery
       //noinspection HardcodedFileSeparator
       LOG.debug("Relax to {}/{}", matchCount - 1, this.uniqueQueryTerms.size());
       this.query.setMinimumNumberShouldMatch(matchCount - 1);
+//      LOG.debug("TEQ {}", this.query);
       return true;
     }
     return false;
