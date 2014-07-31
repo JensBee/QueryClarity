@@ -25,6 +25,7 @@ import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.mapdb.DBMakerUtils;
 import de.unihildesheim.iw.mapdb.TupleSerializer;
+import de.unihildesheim.iw.util.BigDecimalCache;
 import de.unihildesheim.iw.util.FileUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
@@ -57,6 +58,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.util.Collection;
 import java.util.Collections;
@@ -67,6 +69,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Objects;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentNavigableMap;
 
@@ -90,9 +93,20 @@ public final class DirectIndexDataProvider
   private static final Logger LOG =
       LoggerFactory.getLogger(DirectIndexDataProvider.class);
   /**
+   * Memory cache for relative term frequency values.
+   */
+  private static final Map<ByteArray, BigDecimal> RELTF_CACHE =
+      DBMakerUtils.newCompressedCache(0.1); // size in GB
+  /**
    * Data storage encapsulating class.
    */
   private final Cache cache;
+  /**
+   * Temporary DB to cache large datasets.
+   */
+  private final DB tmpDb;
+  private final Random random;
+  private final Map<ByteArray, Long> idxTfCache;
   /**
    * Inverted keys for faster access to index document term frequency map.
    */
@@ -139,6 +153,13 @@ public final class DirectIndexDataProvider
       throw new DataProviderException.CacheException(
           "Failed to initialize cache.", e);
     }
+
+    this.random = new Random();
+    this.tmpDb = DBMakerUtils.newCompressedTempFileDB().make();
+    this.idxTfCache = this.tmpDb.createTreeMap("idxTfCache")
+        .keySerializer(ByteArray.SERIALIZER_BTREE)
+        .valueSerializer(Serializer.LONG)
+        .make();
 
     if (builder.doWarmUp) {
       try {
@@ -213,7 +234,8 @@ public final class DirectIndexDataProvider
   }
 
   @Override
-  protected void warmUpDocumentIds() {
+  protected void warmUpDocumentIds()
+      throws DataProviderException {
     checkClosed();
     warmUpDocumentIds_default();
   }
@@ -233,6 +255,35 @@ public final class DirectIndexDataProvider
       throw new DataProviderException("Failed to warm-up document " +
           "frequencies", e);
     }
+  }
+
+  public Long getTermFrequency(final ByteArray term) {
+    Long tf = this.idxTfCache.get(term);
+    if (tf == null) {
+      tf = super.getTermFrequency(term);
+      if (tf > 0L) {
+        this.idxTfCache.put(term, tf);
+      }
+    }
+    return tf;
+  }
+
+  /**
+   * {@inheritDoc} Stop-words will be skipped (their value is <tt>0</tt>).
+   */
+  @Override
+  public BigDecimal getRelativeTermFrequency(final ByteArray term) {
+    final Long tf = getTermFrequency(term);
+    if (tf == 0L) {
+      return BigDecimal.ZERO;
+    }
+    BigDecimal value = RELTF_CACHE.get(term);
+    if (value == null) {
+      value = BigDecimalCache.get(tf).divide(
+          BigDecimalCache.get(getTermFrequency()), MATH_CONTEXT);
+      RELTF_CACHE.put(term, value);
+    }
+    return value;
   }
 
   public static String getIdentifier() {
@@ -476,44 +527,9 @@ public final class DirectIndexDataProvider
     }
   }
 
-  /**
-   * {@inheritDoc} Stop-words will be skipped.
-   *
-   * @param docIds List of document ids to extract terms from
-   * @return List of terms from all documents, with stopwords excluded
-   */
   @Override
-  public Iterator<ByteArray> getDocumentsTermsSet(
-      final Collection<Integer> docIds) {
-    return getDocumentsTerms(docIds, true).keySet().iterator();
-//    if (Objects.requireNonNull(docIds, "Document ids were null.").isEmpty()) {
-//      throw new IllegalArgumentException("Document id list was empty.");
-//    }
-//
-//    final Iterable<Integer> uniqueDocIds = new HashSet<>(docIds);
-//    // collection can get quite large, so get a disk backed one
-//    final Set<ByteArray> terms = DBMakerUtils.newCompressedTempFileDB().make()
-//        .createTreeSet("tmpDocTermSet")
-//        .serializer(ByteArray.SERIALIZER_BTREE)
-//        .make();
-//
-//    for (final Integer docId : uniqueDocIds) {
-//      checkDocId(docId);
-//      for (final String field : getDocumentFields()) {
-//        final SerializableByte fieldId = getFieldId(field);
-//        final Fun.Tuple3<Integer, SerializableByte, ByteArray> t3Low =
-//            Fun.t3(docId, fieldId, (ByteArray) null);
-//        final Fun.Tuple3<Integer, SerializableByte, ByteArray> t3Hi =
-//            Fun.t3(docId, fieldId, ByteArray.MAX);
-//        for (final Fun.Tuple3<Integer, SerializableByte, ByteArray> k :
-//            this.invertedIdxDocTermsMap.subSet(t3Low, true, t3Hi, true)) {
-//          if (!isStopword(k.c)) {
-//            terms.add(k.c);
-//          }
-//        }
-//      }
-//    }
-//    return terms.iterator();
+  public Map<ByteArray, Long> getDocumentTerms(final int docId) {
+    return getDocumentsTerms(Collections.singleton(docId), false);
   }
 
   @Override
@@ -526,6 +542,23 @@ public final class DirectIndexDataProvider
     return getDocumentsTerms(docIds, false).entrySet().iterator();
   }
 
+  @Override
+  public Set<ByteArray> getDocumentTermsSet(final int docId) {
+    return getDocumentsTerms(Collections.singleton(docId), true).keySet();
+  }
+
+  /**
+   * {@inheritDoc} Stop-words will be skipped.
+   *
+   * @param docIds List of document ids to extract terms from
+   * @return List of terms from all documents, with stopwords excluded
+   */
+  @Override
+  public Iterator<ByteArray> getDocumentsTermsSet(
+      final Collection<Integer> docIds) {
+    return getDocumentsTerms(docIds, true).keySet().iterator();
+  }
+
   private Map<ByteArray, Long> getDocumentsTerms(
       final Collection<Integer> docIds, final boolean asSet) {
     if (Objects.requireNonNull(docIds, "Document ids were null.").isEmpty()) {
@@ -535,9 +568,8 @@ public final class DirectIndexDataProvider
     final Long baseValue = 1L;
 
     // the final map can get quite large, so get a disk backed one
-    final Map<ByteArray, Long> termsMap = DBMakerUtils.newCompressedTempFileDB()
-        .make()
-        .createTreeMap("tmpDocTermSet")
+    final Map<ByteArray, Long> termsMap = this.tmpDb
+        .createTreeMap(docIds.hashCode() + String.valueOf(random.nextLong()))
         .keySerializer(ByteArray.SERIALIZER_BTREE)
         .valueSerializer(Serializer.LONG)
         .make();
@@ -557,7 +589,7 @@ public final class DirectIndexDataProvider
           if (!isStopword(k.c)) {
             if (termsMap.containsKey(k.c) && !asSet) {
               // only store updated values, if needed
-              termsMap.put(k.c, termsMap.get(k.c) + 1L);
+              termsMap.put(new ByteArray(k.c), termsMap.get(k.c) + 1L);
             } else {
               termsMap.put(k.c, baseValue); // 1L
             }
@@ -1067,7 +1099,7 @@ public final class DirectIndexDataProvider
                     return result;
                   }
                 }),
-            new TupleSerializer.Tuple3Serializer(ByteArray.SERIALIZER,
+            new TupleSerializer.Tuple3Serializer<>(ByteArray.SERIALIZER,
                 SerializableByte.SERIALIZER, Serializer.INTEGER)
 //            new Serializer<Fun.Tuple3<ByteArray, SerializableByte,
 // Integer>>() {
@@ -1540,10 +1572,10 @@ public final class DirectIndexDataProvider
 
       // collect terms in memory first and commit to disk later
       // this greatly improves performance
-      final DB cacheDB = DBMakerUtils.newCompressedMemoryDirectDB().make();
-      final BTreeMap<Fun.Tuple3<
-          ByteArray, SerializableByte, Integer>, Integer> cacheMap =
-          CacheDbMakers.idxDocTermsMapMkr(cacheDB).make();
+//      final DB cacheDB = DBMakerUtils.newCompressedMemoryDirectDB().make();
+//      final BTreeMap<Fun.Tuple3<
+//          ByteArray, SerializableByte, Integer>, Integer> cacheMap =
+//          CacheDbMakers.idxDocTermsMapMkr(cacheDB).make();
 
       final Processing processing = new Processing();
       if (arContexts.size() == 1) {
@@ -1582,7 +1614,9 @@ public final class DirectIndexDataProvider
           processing.setSourceAndTarget(
               new TargetFuncCall<>(
                   new CollectionSource<>(termSet),
-                  new IndexFieldsTermsCollectorTarget(cacheMap, field)
+//                  new IndexFieldsTermsCollectorTarget(cacheMap, field)
+                  new IndexFieldsTermsCollectorTarget(getIdxDocTermsMap(),
+                      field)
               )
           ).process(termSet.size());
         }
@@ -1592,100 +1626,104 @@ public final class DirectIndexDataProvider
         processing.setSourceAndTarget(
             new TargetFuncCall<>(
                 new CollectionSource<>(arContexts),
-                new IndexSegmentTermsCollectorTarget(cacheMap, updatingFields)
+//                new IndexSegmentTermsCollectorTarget(cacheMap, updatingFields)
+                new IndexSegmentTermsCollectorTarget(getIdxDocTermsMap(),
+                    updatingFields)
             )
         ).process(arContexts.size());
       }
 
-      LOG.info("Storing {} items.",
-          NumberFormat.getIntegerInstance().format((long) cacheMap.size()));
-      final TimeMeasure tm = new TimeMeasure().start();
-      if (getIdxDocTermsMap().isEmpty()) {
-        LOG.debug("Streaming results using pump.");
-
-        // delete old map, will be re-created using pump
-        setIdxDocTermsMap(null);
-        getPersistStatic().getDb().delete(
-            CacheDbMakers.Stores.IDX_DOC_TERMS_MAP.name());
-        setIdxDocTermsMap(
-            CacheDbMakers.idxDocTermsMapMkr(getPersistStatic().getDb())
-                .counterEnable()
-                .keySerializer(CacheDbMakers.IDX_DOCTERMSMAP_KEYSERIALIZER)
-                .pumpSource(
-                    cacheMap.descendingKeySet().iterator(),
-                    new Fun.Function1<Integer, Fun.Tuple3<
-                        ByteArray, SerializableByte, Integer>>() {
-                      @Override
-                      public Integer run(
-                          final Fun.Tuple3<
-                              ByteArray, SerializableByte, Integer> t3) {
-                        return cacheMap.get(t3);
-                      }
-                    })
-                .<Fun.Tuple3<ByteArray, SerializableByte, Integer>,
-                    Integer>make()
-        );
-      } else {
-        LOG.debug("Merging results using pump.");
-        // delete any existing temporary merge map
-        if (getPersistStatic().getDb().exists(
-            CacheDbMakers.Stores.IDX_DOC_TERMS_MAP2.name())) {
-          getPersistStatic().getDb().delete(
-              CacheDbMakers.Stores.IDX_DOC_TERMS_MAP2.name());
-        }
-
-        /**
-         * Function extracting the value from the two document-term maps {@link
-         * cacheMap} and {@link getIdxDocTermsMap()} by a given key.
-         */
-        final class Func1
-            implements Fun.Function1<Integer, Fun.Tuple3<
-            ByteArray, SerializableByte, Integer>> {
-
-          @Override
-          public Integer run(
-              final Fun.Tuple3<ByteArray, SerializableByte, Integer> t3) {
-            final Integer val = cacheMap.get(t3);
-            if (val == null) {
-              return getIdxDocTermsMap().get(t3);
-            } else {
-              if (!val.equals(getIdxDocTermsMap().get(t3))) {
-                throw new IllegalStateException("Value clash! " +
-                    "Got different values for document term frequency: " +
-                    "cacheMap=" + val + " db=" + getIdxDocTermsMap().get(t3));
-              }
-              return val;
-            }
-          }
-        }
-
-        // create temporary merged map
-        setIdxDocTermsMap(
-            CacheDbMakers.idxDocTermsMapMkr2(
-                getPersistStatic().getDb())
-                .counterEnable()
-                .pumpSource(
-                    Pump.<Fun.Tuple3<ByteArray, SerializableByte,
-                        Integer>>merge(
-                        getIdxDocTermsMap().descendingKeySet().iterator(),
-                        cacheMap.descendingKeySet().iterator()),
-                    new Func1())
-                .<Fun.Tuple3<ByteArray, SerializableByte, Integer>,
-                    Integer>make()
-        );
-
-        commit(CacheDB.PERSISTENT);
-        // delete old map
-        getPersistStatic().getDb()
-            .delete(CacheDbMakers.Stores.IDX_DOC_TERMS_MAP.name());
-        // rename merged to new name
-        getPersistStatic().getDb().rename(
-            CacheDbMakers.Stores.IDX_DOC_TERMS_MAP2.name(),
-            CacheDbMakers.Stores.IDX_DOC_TERMS_MAP.name()
-        );
-      }
-      cacheDB.close();
-      LOG.info("Storing results finished after {}.", tm.stop().getTimeString());
+//      LOG.info("Storing {} items.",
+//          NumberFormat.getIntegerInstance().format((long) cacheMap.size()));
+//      final TimeMeasure tm = new TimeMeasure().start();
+//      if (getIdxDocTermsMap().isEmpty()) {
+//        LOG.debug("Streaming results using pump.");
+//
+//        // delete old map, will be re-created using pump
+//        setIdxDocTermsMap(null);
+//        getPersistStatic().getDb().delete(
+//            CacheDbMakers.Stores.IDX_DOC_TERMS_MAP.name());
+//        setIdxDocTermsMap(
+//            CacheDbMakers.idxDocTermsMapMkr(getPersistStatic().getDb())
+//                .counterEnable()
+//                .keySerializer(CacheDbMakers.IDX_DOCTERMSMAP_KEYSERIALIZER)
+//                .pumpSource(
+//                    cacheMap.descendingKeySet().iterator(),
+//                    new Fun.Function1<Integer, Fun.Tuple3<
+//                        ByteArray, SerializableByte, Integer>>() {
+//                      @Override
+//                      public Integer run(
+//                          final Fun.Tuple3<
+//                              ByteArray, SerializableByte, Integer> t3) {
+//                        return cacheMap.get(t3);
+//                      }
+//                    })
+//                .<Fun.Tuple3<ByteArray, SerializableByte, Integer>,
+//                    Integer>make()
+//        );
+//      } else {
+//        LOG.debug("Merging results using pump.");
+//        // delete any existing temporary merge map
+//        if (getPersistStatic().getDb().exists(
+//            CacheDbMakers.Stores.IDX_DOC_TERMS_MAP2.name())) {
+//          getPersistStatic().getDb().delete(
+//              CacheDbMakers.Stores.IDX_DOC_TERMS_MAP2.name());
+//        }
+//
+//        /**
+//         * Function extracting the value from the two document-term maps
+// {@link
+//         * cacheMap} and {@link getIdxDocTermsMap()} by a given key.
+//         */
+//        final class Func1
+//            implements Fun.Function1<Integer, Fun.Tuple3<
+//            ByteArray, SerializableByte, Integer>> {
+//
+//          @Override
+//          public Integer run(
+//              final Fun.Tuple3<ByteArray, SerializableByte, Integer> t3) {
+//            final Integer val = cacheMap.get(t3);
+//            if (val == null) {
+//              return getIdxDocTermsMap().get(t3);
+//            } else {
+//              if (!val.equals(getIdxDocTermsMap().get(t3))) {
+//                throw new IllegalStateException("Value clash! " +
+//                    "Got different values for document term frequency: " +
+//                    "cacheMap=" + val + " db=" + getIdxDocTermsMap().get(t3));
+//              }
+//              return val;
+//            }
+//          }
+//        }
+//
+//        // create temporary merged map
+//        setIdxDocTermsMap(
+//            CacheDbMakers.idxDocTermsMapMkr2(
+//                getPersistStatic().getDb())
+//                .counterEnable()
+//                .pumpSource(
+//                    Pump.<Fun.Tuple3<ByteArray, SerializableByte,
+//                        Integer>>merge(
+//                        getIdxDocTermsMap().descendingKeySet().iterator(),
+//                        cacheMap.descendingKeySet().iterator()),
+//                    new Func1())
+//                .<Fun.Tuple3<ByteArray, SerializableByte, Integer>,
+//                    Integer>make()
+//        );
+//
+//        commit(CacheDB.PERSISTENT);
+//        // delete old map
+//        getPersistStatic().getDb()
+//            .delete(CacheDbMakers.Stores.IDX_DOC_TERMS_MAP.name());
+//        // rename merged to new name
+//        getPersistStatic().getDb().rename(
+//            CacheDbMakers.Stores.IDX_DOC_TERMS_MAP2.name(),
+//            CacheDbMakers.Stores.IDX_DOC_TERMS_MAP.name()
+//        );
+//      }
+//      cacheDB.close();
+//      LOG.info("Storing results finished after {}.",
+// tm.stop().getTimeString());
 
       // all fields successful updated
       getPersistStatic().getDb()

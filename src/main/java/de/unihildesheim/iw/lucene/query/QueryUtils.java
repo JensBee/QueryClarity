@@ -18,18 +18,25 @@ package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.ByteArray;
+import de.unihildesheim.iw.lucene.index.DataProviderException;
+import de.unihildesheim.iw.lucene.index.Metrics;
+import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.IndexReader;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -40,7 +47,11 @@ import java.util.Set;
  * @author Jens Bertram
  */
 public final class QueryUtils {
-
+  /**
+   * Logger instance for this class.
+   */
+  private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
+      QueryUtils.class);
   /**
    * Document fields to use.
    */
@@ -78,14 +89,89 @@ public final class QueryUtils {
    * stopwords from the query string.
    *
    * @param query Query string to tokenize
-   * @param newAnalyzer Analyzer to use
+   * @param analyzer Analyzer to use
+   * @return Tokenized query string with stop-words removed
+   * @see #tokenizeQuery(String, Analyzer, Metrics.CollectionMetrics)
+   */
+  public static List<ByteArray> tokenizeQuery(final String query,
+      final Analyzer analyzer)
+      throws DataProviderException {
+    return tokenizeQuery(query, analyzer, null);
+  }
+
+  /**
+   * Tokenizes a query string using Lucenes analyzer. This also removes
+   * stopwords from the query string. The {@link Metrics.CollectionMetrics}
+   * instance is used to skip terms no found in the collection.
+   *
+   * @param query Query string to tokenize
+   * @param analyzer Analyzer to use
+   * @param cMetrics Collection metrics to skip terms not in the collection. If
+   * null all terms wll be included.
    * @return Tokenized query string with stop-words removed
    */
+  @SuppressWarnings("ObjectAllocationInLoop")
+  public static List<ByteArray> tokenizeQuery(final String query,
+      final Analyzer analyzer, final Metrics.CollectionMetrics cMetrics)
+      throws DataProviderException {
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
+    final List<ByteArray> result = new ArrayList<>();
+    try (TokenStream stream = analyzer.tokenStream(null, query)) {
+      stream.reset();
+      while (stream.incrementToken()) {
+        result.add(new ByteArray(stream.getAttribute(CharTermAttribute.class)
+            .toString().getBytes(StandardCharsets.UTF_8)));
+      }
+    } catch (final IOException e) {
+      // not thrown b/c we're using a string reader
+    }
+    if (cMetrics != null) {
+      removeUnknownTerms(cMetrics, result);
+    }
+    return result;
+  }
+
+  /**
+   * Remove terms from the given collection, if they are not found in the
+   * collection.
+   *
+   * @param cMetrics Metrics to access term frequency values
+   * @param terms Collection of terms to check against the collection
+   */
+  private static void removeUnknownTerms(final Metrics.CollectionMetrics
+      cMetrics, final Iterable<ByteArray> terms)
+      throws DataProviderException {
+    final Iterator<ByteArray> termsIt = terms.iterator();
+    final StringBuilder sb = new StringBuilder(
+        "Skipped terms (stopword or not in collection): [");
+    boolean removed = false;
+    while (termsIt.hasNext()) {
+      final ByteArray term = termsIt.next();
+      if (cMetrics.tf(term) <= 0L) {
+        sb.append(ByteArrayUtils.utf8ToString(term)).append(' ');
+        termsIt.remove();
+        removed = true;
+      }
+    }
+    if (removed) {
+      LOG.warn(sb.toString().trim() + "].");
+    }
+  }
+
+  /**
+   * Tokenizes a query string using Lucenes analyzer. This also removes
+   * stopwords from the query string.
+   *
+   * @param query Query string to tokenize
+   * @param analyzer Analyzer to use
+   * @return Tokenized query string with stop-words removed
+   * @deprecated
+   */
   public static List<String> tokenizeQueryString(final String query,
-      final Analyzer newAnalyzer) {
+      final Analyzer analyzer) {
     @SuppressWarnings("CollectionWithoutInitialCapacity")
     final List<String> result = new ArrayList<>();
-    try (TokenStream stream = newAnalyzer.tokenStream(null, query)) {
+    try (TokenStream stream = analyzer.tokenStream(null, query)) {
       stream.reset();
       while (stream.incrementToken()) {
         result.add(stream.getAttribute(CharTermAttribute.class).toString());
@@ -97,57 +183,60 @@ public final class QueryUtils {
   }
 
   /**
-   * Extract all unique terms from the query. Stopwords are not removed.
+   * Tokenizes a query string using Lucenes analyzer. This also removes
+   * stopwords from the query string. Returns a mapping of query-term to
+   * in-query-frequency.
    *
-   * @param query Query to parse
-   * @return List of unique query terms extracted from the given query
-   * @throws java.io.UnsupportedEncodingException Thrown, if encoding a term to
-   * UTF-8 fails
+   * @param query Query string
+   * @param analyzer Analyzer used to parse the query String
+   * @return mapping of query-term to in-query-frequency
+   * @see #tokenizeAndMapQuery(String, Analyzer, Metrics.CollectionMetrics)
    */
-  public static Set<ByteArray> getUniqueQueryTerms(
-      final TermsProvidingQuery query)
-      throws UnsupportedEncodingException {
-    return new HashSet<>(extractTerms(query));
+  public static Map<ByteArray, Integer> tokenizeAndMapQuery(final
+  String query, final Analyzer analyzer)
+      throws DataProviderException {
+    return tokenizeAndMapQuery(query, analyzer, null);
   }
 
   /**
-   * Break down a query to it's single terms. Stopwords are not removed.
+   * Tokenizes a query string using Lucenes analyzer. This also removes
+   * stopwords from the query string. Returns a mapping of query-term to
+   * in-query-frequency. The {@link Metrics.CollectionMetrics} instance is used
+   * to skip terms no found in the collection.
    *
-   * @param query Query to extract terms from
-   * @return Collection of all terms from the query string
-   * @throws java.io.UnsupportedEncodingException Thrown, if encoding a term to
-   * UTF-8 fails
+   * @param query Query String
+   * @param analyzer Analyzer used to parse the query String
+   * @param cMetrics Collection metrics to skip terms not in the collection. If
+   * null all terms wll be included.
+   * @return mapping of query-term to in-query-frequency with optonally terms
+   * not in the collection skipped
    */
   @SuppressWarnings("ObjectAllocationInLoop")
-  private static List<ByteArray> extractTerms(final TermsProvidingQuery query)
-      throws UnsupportedEncodingException {
-    assert query != null;
-
-    final Collection<String> qTerms = query.getQueryTerms();
-
-    if (qTerms.isEmpty()) {
-      throw new IllegalStateException("Query string returned no terms.");
+  public static Map<ByteArray, Integer> tokenizeAndMapQuery(final
+  String query, final Analyzer analyzer,
+      final Metrics.CollectionMetrics cMetrics)
+      throws DataProviderException {
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
+    final Map<ByteArray, Integer> result = new HashMap<>();
+    try (TokenStream stream = analyzer.tokenStream(null, query)) {
+      stream.reset();
+      while (stream.incrementToken()) {
+        final ByteArray term = new ByteArray(stream.getAttribute
+            (CharTermAttribute.class).toString()
+            .getBytes(StandardCharsets.UTF_8));
+        if (result.containsKey(term)) {
+          result.put(term, result.get(term) + 1);
+        } else {
+          result.put(term, 1);
+        }
+      }
+    } catch (final IOException e) {
+      // not thrown b/c we're using a string reader
     }
-    final List<ByteArray> bwTerms = new ArrayList<>(qTerms.size());
-    for (final String qTerm : qTerms) {
-      final ByteArray termBa = new ByteArray(qTerm.getBytes("UTF-8"));
-      bwTerms.add(termBa);
+    if (cMetrics != null) {
+      removeUnknownTerms(cMetrics, result.keySet());
     }
-    return bwTerms;
-  }
-
-  /**
-   * Extract all terms from the query. Stopwords are not removed.
-   *
-   * @param query Query to parse
-   * @return Collection of all terms from the query string
-   * @throws java.io.UnsupportedEncodingException Thrown, if encoding a term to
-   * UTF-8 fails
-   */
-  public static List<ByteArray> getAllQueryTerms(
-      final TermsProvidingQuery query)
-      throws UnsupportedEncodingException {
-    return extractTerms(query);
+    return result;
   }
 
   /**
@@ -155,16 +244,14 @@ public final class QueryUtils {
    *
    * @param query Query to extract terms from
    * @return Collection of terms from the query string
-   * @throws java.io.UnsupportedEncodingException Thrown, if encoding a term to
-   * UTF-8 fails
    * @throws Buildable.BuildException Thrown, if building the query object
    * failed
    * @throws Buildable.ConfigurationException Thrown, if building the query
    * object failed
+   * @deprecated
    */
   public Set<ByteArray> getUniqueQueryTerms(final String query)
-      throws UnsupportedEncodingException,
-             Buildable.ConfigurationException, Buildable.BuildException {
+      throws Buildable.ConfigurationException, Buildable.BuildException {
     if (StringUtils.isStrippedEmpty(
         Objects.requireNonNull(query, "Query was null."))) {
       throw new IllegalArgumentException("Query was empty.");
@@ -176,21 +263,44 @@ public final class QueryUtils {
   }
 
   /**
+   * Break down a query to it's single terms. Stopwords are not removed.
+   *
+   * @param query Query to extract terms from
+   * @return Collection of all terms from the query string
+   * @deprecated
+   */
+  @SuppressWarnings("ObjectAllocationInLoop")
+  private static List<ByteArray> extractTerms(final TermsProvidingQuery query) {
+    assert query != null;
+
+    final Collection<String> qTerms = query.getQueryTerms();
+
+    if (qTerms.isEmpty()) {
+      throw new IllegalStateException("Query string returned no terms.");
+    }
+    final List<ByteArray> bwTerms = new ArrayList<>(qTerms.size());
+    for (final String qTerm : qTerms) {
+      final ByteArray termBa =
+          new ByteArray(qTerm.getBytes(StandardCharsets.UTF_8));
+      bwTerms.add(termBa);
+    }
+    return bwTerms;
+  }
+
+  /**
    * Extract all terms from the query. Stopwords are not removed.
    *
    * @param query Query to extract terms from
    * @return Collection of all terms from the query string
-   * @throws java.io.UnsupportedEncodingException Thrown, if encoding a term to
-   * UTF-8 fails
    * @throws Buildable.BuildException Thrown, if building the query object
    * failed
    * @throws Buildable.ConfigurationException Thrown, if building the query
    * object failed
+   * @deprecated
    */
   @SuppressWarnings("TypeMayBeWeakened")
   public List<ByteArray> getAllQueryTerms(final String query)
-      throws UnsupportedEncodingException,
-             Buildable.ConfigurationException, Buildable.BuildException {
+      throws Buildable.ConfigurationException, Buildable.BuildException {
     if (StringUtils.isStrippedEmpty(
         Objects.requireNonNull(query, "Query was null."))) {
       throw new IllegalArgumentException("Query was empty.");

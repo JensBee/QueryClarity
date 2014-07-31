@@ -18,12 +18,14 @@
 package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.mapdb.DBMakerUtils;
+import de.unihildesheim.iw.util.BigDecimalCache;
 import de.unihildesheim.iw.util.MathUtils;
+import org.nevec.rjm.BigDecimalMath;
 
-import java.util.Iterator;
+import java.math.BigDecimal;
+import java.math.MathContext;
 import java.util.Map;
 import java.util.Objects;
 
@@ -37,6 +39,7 @@ import java.util.Objects;
  * @author Jens Bertram
  */
 public final class Metrics {
+  private static final MathContext MATH_CONTEXT = MathContext.DECIMAL128;
   /**
    * Collection related metrics are gathered in this object.
    */
@@ -79,7 +82,8 @@ public final class Metrics {
    * @param docId Lucene document-id of the target document
    * @return Metrics instance for the specific document
    */
-  public DocumentMetrics document(final int docId) {
+  public DocumentMetrics document(final int docId)
+      throws DataProviderException {
     return document(getDocumentModel(docId));
   }
 
@@ -101,7 +105,8 @@ public final class Metrics {
    * @param documentId Id of the document whose model to get
    * @return Document-model for the given document id
    */
-  public DocumentModel getDocumentModel(final int documentId) {
+  public DocumentModel getDocumentModel(final int documentId)
+      throws DataProviderException {
     DocumentModel d = this.docModelCache.get(documentId);
     if (d == null) {
       d = this.dataProv.getDocumentModel(documentId);
@@ -149,10 +154,19 @@ public final class Metrics {
      * @param term Term whose frequency to get
      * @return Frequency value
      */
-    public double wdf(final ByteArray term) {
+    public BigDecimal wdf(final ByteArray term) {
       Objects.requireNonNull(term, "Term was null.");
-      return MathUtils.log2(tf(term).doubleValue() + 1d) /
-          MathUtils.log2(tf().doubleValue());
+
+      return BigDecimalMath.log(
+          BigDecimal.ONE.add(BigDecimalCache.get(tf(term))))
+          .divide(MathUtils.BD_LOG2, MATH_CONTEXT)
+          .divide(
+              BigDecimalMath.log(BigDecimalCache.get(tf()))
+                  .divide(MathUtils.BD_LOG2, MATH_CONTEXT)
+          );
+
+//      return MathUtils.log2(tf(term).doubleValue() + 1d) /
+//          MathUtils.log2(tf().doubleValue());
     }
 
     /**
@@ -200,24 +214,6 @@ public final class Metrics {
     }
 
     /**
-     * Get the relative term frequency for a term in the document. Calculated
-     * using Bayesian smoothing using Dirichlet priors.
-     *
-     * @param term Term to lookup
-     * @param smoothing Smoothing parameter
-     * @return Smoothed relative term frequency
-     */
-    public double smoothedRelativeTermFrequency(final ByteArray term,
-        final double smoothing) {
-      Objects.requireNonNull(term, "Term was null.");
-      final double termFreq = this.docModel.tf(term).doubleValue();
-      final double relCollFreq = relTf(term);
-      return ((termFreq + smoothing) * relCollFreq) / (termFreq + (Integer.
-          valueOf(this.docModel.getTermFreqMap().size()).doubleValue() *
-          smoothing));
-    }
-
-    /**
      * Get the relative term frequency for a term in the document. Calculated by
      * dividing the frequency of the given term by the frequency of all terms in
      * the document.
@@ -225,14 +221,17 @@ public final class Metrics {
      * @param term Term to lookup
      * @return Relative frequency. Zero if term is not in document.
      */
-    public Double relTf(final ByteArray term) {
+    public BigDecimal relTf(final ByteArray term) {
       Objects.requireNonNull(term, "Term was null.");
       final Long tf = this.docModel.tf(term);
-      if (0 == tf) {
-        return 0d;
+      if (tf == 0L) {
+        return BigDecimal.ZERO;
+//        return 0d;
       }
-      return tf.doubleValue() / Long.valueOf(this.docModel.termFrequency)
-          .doubleValue();
+      return BigDecimalCache.get(tf).divide(
+          BigDecimalCache.get(this.docModel.termFrequency), MATH_CONTEXT);
+//      return tf.doubleValue() / Long.valueOf(this.docModel.termFrequency)
+//          .doubleValue();
     }
   }
 
@@ -260,7 +259,8 @@ public final class Metrics {
      * @param term Term to lookup
      * @return Collection frequency of the given term
      */
-    public Long tf(final ByteArray term) {
+    public Long tf(final ByteArray term)
+        throws DataProviderException {
       return getDataProvider()
           .getTermFrequency(Objects.requireNonNull(term, "Term was null."));
     }
@@ -270,7 +270,8 @@ public final class Metrics {
      *
      * @return Collection term frequency
      */
-    public Long tf() {
+    public Long tf()
+        throws DataProviderException {
       return getDataProvider().getTermFrequency();
     }
 
@@ -282,7 +283,8 @@ public final class Metrics {
      * @param term Term to lookup
      * @return Relative collection frequency of the given term
      */
-    public Double relTf(final ByteArray term) {
+    public BigDecimal relTf(final ByteArray term)
+        throws DataProviderException {
       return getDataProvider()
           .getRelativeTermFrequency(Objects.requireNonNull(term,
               "Term was null."));
@@ -295,7 +297,8 @@ public final class Metrics {
      * @param term Term to calculate
      * @return Inverse document frequency (log10)
      */
-    public Double idf(final ByteArray term) {
+    public BigDecimal idf(final ByteArray term)
+        throws DataProviderException {
       return idf(term, 10d);
     }
 
@@ -307,10 +310,19 @@ public final class Metrics {
      * @param logBase Logarithmic base
      * @return Inverse document frequency (logN)
      */
-    public Double idf(final ByteArray term, final double logBase) {
+    public BigDecimal idf(final ByteArray term, final double logBase)
+        throws DataProviderException {
       Objects.requireNonNull(term, "Term was null.");
-      return MathUtils.logN(logBase,
-          (1d + (numberOfDocuments().doubleValue() / df(term).doubleValue())));
+
+      return
+          BigDecimalMath.log(BigDecimalCache.get(numberOfDocuments())
+              .divide(BigDecimalCache.get(df(term)))
+              .add(BigDecimal.ONE))
+              .divide(BigDecimalMath.log(BigDecimalCache.get(logBase)));
+
+//      return MathUtils.logN(logBase,
+//          (1d + (numberOfDocuments().doubleValue() / df(term).doubleValue()
+// )));
     }
 
     /**
@@ -318,7 +330,8 @@ public final class Metrics {
      *
      * @return Number of documents in index
      */
-    public Long numberOfDocuments() {
+    public Long numberOfDocuments()
+        throws DataProviderException {
       return getDataProvider().getDocumentCount();
     }
 
@@ -328,7 +341,8 @@ public final class Metrics {
      * @param term Term to lookup.
      * @return Document frequency of the given term
      */
-    public Integer df(final ByteArray term) {
+    public Integer df(final ByteArray term)
+        throws DataProviderException {
       return getDataProvider().getDocumentFrequency(Objects.requireNonNull(term,
           "Term was null."));
     }
@@ -340,7 +354,8 @@ public final class Metrics {
      * @param term Term to calculate
      * @return Inverse document frequency BM25 (logN)
      */
-    public Double idfBM25(final ByteArray term) {
+    public BigDecimal idfBM25(final ByteArray term)
+        throws DataProviderException {
       return idfBM25(term, 10d);
     }
 
@@ -352,47 +367,20 @@ public final class Metrics {
      * @param logBase Logarithmic base
      * @return Inverse document frequency BM25 (logN)
      */
-    public Double idfBM25(final ByteArray term, final double logBase) {
-      final double docFreq = df(Objects.requireNonNull(term,
-          "Term was null.")).doubleValue();
-      return MathUtils.logN(logBase,
-          (numberOfDocuments().doubleValue() - docFreq + 0.5)
-              / (docFreq + 0.5));
-    }
-
-    /**
-     * Iterate over all terms in the index providing each term and it's index
-     * frequency.
-     *
-     * @return Iterator providing <tt>term, index</tt> frequency value pairs
-     * @throws DataProviderException Thrown, if an error occurred while
-     * retrieving data from the provider
-     */
-    public Iterator<Tuple.Tuple2<ByteArray, Long>> termFrequencyIterator()
+    public BigDecimal idfBM25(final ByteArray term, final double logBase)
         throws DataProviderException {
-      return new Iterator<Tuple.Tuple2<ByteArray, Long>>() {
-        /**
-         * All index terms iterator.
-         */
-        private final Iterator<ByteArray> idxTerms =
-            getDataProvider().getTermsIterator();
+      final int docFreq = df(Objects.requireNonNull(term,
+          "Term was null."));
 
-        @Override
-        public boolean hasNext() {
-          return this.idxTerms.hasNext();
-        }
+      return
+          BigDecimalMath.log(
+              BigDecimalCache.get(numberOfDocuments() - docFreq + 0.5)
+                  .divide(BigDecimalCache.get(docFreq + 0.5))
+          ).divide(BigDecimalMath.log(BigDecimalCache.get(logBase)));
 
-        @Override
-        public Tuple.Tuple2<ByteArray, Long> next() {
-          final ByteArray term = this.idxTerms.next();
-          return Tuple.tuple2(term, getDataProvider().getTermFrequency(term));
-        }
-
-        @Override
-        public void remove() {
-          throw new UnsupportedOperationException("Not supported yet.");
-        }
-      };
+//      return MathUtils.logN(logBase,
+//          (numberOfDocuments().doubleValue() - docFreq + 0.5)
+//              / (docFreq + 0.5));
     }
   }
 }

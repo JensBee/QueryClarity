@@ -20,6 +20,7 @@ import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.Persistence;
 import de.unihildesheim.iw.SerializableByte;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
+import de.unihildesheim.iw.util.BigDecimalCache;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
@@ -35,6 +36,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.UnsupportedEncodingException;
+import java.math.BigDecimal;
+import java.math.MathContext;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -53,55 +57,47 @@ import java.util.concurrent.ConcurrentNavigableMap;
 abstract class AbstractIndexDataProvider
     implements IndexDataProvider {
 
+  static final MathContext MATH_CONTEXT = MathContext.DECIMAL128;
   /**
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(
       AbstractIndexDataProvider.class);
-
   /**
    * Flag indicating, if this instance is temporary (no data is hold
    * persistent).
    */
   private final boolean isTemporary;
-
   /**
    * Flag indicating, if caches are filled (warmed).
    */
   private volatile boolean warmed;
-
   /**
    * Transient cached overall term frequency of the index.
    */
   private volatile Long idxTf;
-
   /**
    * Transient cached collection of all (non deleted) document-ids.
    */
   private volatile Set<Integer> idxDocumentIds;
-
   /**
    * Transient cached document-frequency map for all terms in index.
    */
   private volatile ConcurrentNavigableMap<ByteArray, Integer> idxDfMap;
-
   /**
    * List of stop-words to exclude from term frequency calculations.
    * Byte-encoded list for internal use.
    */
   private volatile Set<ByteArray> stopwords = Collections.emptySet();
-
   /**
    * List of stop-words to exclude from term frequency calculations. Cached
    * String set.
    */
   private volatile Set<String> stopwordsStr = Collections.emptySet();
-
   /**
    * Transient cached collection of all index terms.
    */
   private volatile Set<ByteArray> idxTerms;
-
   /**
    * Persistent cached collection of all index terms mapped by document field.
    * Mapping is {@code (Field, Term)} to {@code Frequency}. Fields are indexed
@@ -377,7 +373,7 @@ abstract class AbstractIndexDataProvider
         Objects.requireNonNull(word, "Term was null."))) {
       throw new IllegalArgumentException("Term was empty.");
     }
-    return isStopword(new ByteArray(word.getBytes("UTF-8")));
+    return isStopword(new ByteArray(word.getBytes(StandardCharsets.UTF_8)));
   }
 
   /**
@@ -603,7 +599,8 @@ abstract class AbstractIndexDataProvider
   /**
    * Pre-cache document-ids.
    */
-  protected abstract void warmUpDocumentIds();
+  protected abstract void warmUpDocumentIds()
+      throws DataProviderException;
 
   /**
    * Pre-cache term-document frequencies.
@@ -617,8 +614,7 @@ abstract class AbstractIndexDataProvider
    * {@inheritDoc} Stop-words will be skipped (their value is <tt>0</tt>).
    */
   @Override
-  public final Long getTermFrequency(final ByteArray term) {
-    checkClosed();
+  public Long getTermFrequency(final ByteArray term) {
     if (this.stopwords.contains(Objects.requireNonNull(term,
         "Term was null."))) {
       // skip stop-words
@@ -631,19 +627,13 @@ abstract class AbstractIndexDataProvider
    * {@inheritDoc} Stop-words will be skipped (their value is <tt>0</tt>).
    */
   @Override
-  public final double getRelativeTermFrequency(final ByteArray term) {
-    checkClosed();
-    if (this.stopwords.contains(Objects.requireNonNull(term,
-        "Term was null."))) {
-      // skip stop-words
-      return 0d;
+  public BigDecimal getRelativeTermFrequency(final ByteArray term) {
+    final long tf = getTermFrequency(term);
+    if (tf == 0L) {
+      return BigDecimal.ZERO;
     }
-
-    final double tf = getTermFrequency(term).doubleValue();
-    if (tf == 0) {
-      return 0d;
-    }
-    return tf / (double) getTermFrequency();
+    return BigDecimalCache.get(tf).divide(
+        BigDecimalCache.get(getTermFrequency()), MATH_CONTEXT);
   }
 
   @Override
@@ -742,7 +732,8 @@ abstract class AbstractIndexDataProvider
     for (final String word : words) {
       // terms in Lucene are UTF-8 encoded
       @SuppressWarnings("ObjectAllocationInLoop")
-      final ByteArray termBa = new ByteArray(word.getBytes("UTF-8"));
+      final ByteArray termBa =
+          new ByteArray(word.getBytes(StandardCharsets.UTF_8));
       this.stopwords.add(termBa);
     }
   }
@@ -807,7 +798,8 @@ abstract class AbstractIndexDataProvider
   /**
    * Default implementation of {@link #warmUpDocumentIds()}.
    */
-  final void warmUpDocumentIds_default() {
+  final void warmUpDocumentIds_default()
+      throws DataProviderException {
     final TimeMeasure tStep = new TimeMeasure();
     // cache document ids
     if (this.idxDocumentIds == null || this.idxDocumentIds.isEmpty()) {

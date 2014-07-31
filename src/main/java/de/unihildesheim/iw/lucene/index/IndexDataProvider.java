@@ -20,6 +20,7 @@ import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
@@ -41,7 +42,8 @@ public interface IndexDataProvider
    *
    * @return The frequency of all terms in the index
    */
-  long getTermFrequency();
+  long getTermFrequency()
+      throws DataProviderException;
 
   /**
    * Instructs the data provider to pre-fill caches, etc.
@@ -58,7 +60,8 @@ public interface IndexDataProvider
    * @return The frequency of the term in the index, or <tt>null</tt> if none
    * was stored
    */
-  Long getTermFrequency(final ByteArray term);
+  Long getTermFrequency(final ByteArray term)
+      throws DataProviderException;
 
   /**
    * Get the document frequency of a single term in the index.
@@ -66,7 +69,8 @@ public interface IndexDataProvider
    * @param term Term to lookup
    * @return The frequency of the term in the index
    */
-  int getDocumentFrequency(final ByteArray term);
+  int getDocumentFrequency(final ByteArray term)
+      throws DataProviderException;
 
   /**
    * Get the relative term frequency for a term in the index.
@@ -74,7 +78,8 @@ public interface IndexDataProvider
    * @param term Term to lookup
    * @return Relative term frequency for the given term
    */
-  double getRelativeTermFrequency(final ByteArray term);
+  BigDecimal getRelativeTermFrequency(final ByteArray term)
+      throws DataProviderException;
 
   /**
    * Close this instance. This is meant for handling cleanups after using this
@@ -97,7 +102,8 @@ public interface IndexDataProvider
    *
    * @return Iterator over document-ids
    */
-  Iterator<Integer> getDocumentIds();
+  Iterator<Integer> getDocumentIds()
+      throws DataProviderException;
 
   /**
    * Get the number of unique terms in the index.
@@ -114,7 +120,8 @@ public interface IndexDataProvider
    * @param docId Lucene document-id
    * @return Document-model associated with the given Lucene document-id
    */
-  DocumentModel getDocumentModel(final int docId);
+  DocumentModel getDocumentModel(final int docId)
+      throws DataProviderException;
 
   /**
    * Test if a document (model) for the specific document-id is known.
@@ -122,17 +129,19 @@ public interface IndexDataProvider
    * @param docId Document-id to lookup
    * @return True if a model is known, false otherwise
    */
-  boolean hasDocument(final int docId);
+  boolean hasDocument(final int docId)
+      throws DataProviderException;
 
   /**
-   * Get a unique set of terms for all documents identified by their id.
+   * Get a map of terms for a document identified by it's id. The mapping is
+   * {@code term -> term-count}.
    *
-   * @param docIds List of document ids to extract terms from
-   * @return Set of terms from all documents
+   * @param docId Document id to extract terms from
+   * @return List of terms from documents
    * @throws IOException Thrown on low-level I/O errors
    */
-  Iterator<ByteArray> getDocumentsTermsSet(final Collection<Integer> docIds)
-      throws IOException;
+  Map<ByteArray, Long> getDocumentTerms(int docId)
+      throws DataProviderException;
 
   /**
    * Get a map of terms for all documents identified by their id. The mapping is
@@ -143,14 +152,36 @@ public interface IndexDataProvider
    * @throws IOException Thrown on low-level I/O errors
    */
   Iterator<Map.Entry<ByteArray, Long>> getDocumentsTerms(final
-  Collection<Integer> docIds);
+  Collection<Integer> docIds)
+      throws DataProviderException;
+
+  /**
+   * Get a set of all terms from the document identified by it's id.
+   *
+   * @param docId Document id to extract terms from
+   * @return Set of terms from documents
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  Set<ByteArray> getDocumentTermsSet(final int docId)
+      throws DataProviderException;
+
+  /**
+   * Get a set of terms for all documents identified by their id.
+   *
+   * @param docIds List of document ids to extract terms from
+   * @return Set of terms from all documents
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  Iterator<ByteArray> getDocumentsTermsSet(final Collection<Integer> docIds)
+      throws DataProviderException;
 
   /**
    * Get the number of all Documents (models) known to this instance.
    *
    * @return Number of Documents known
    */
-  long getDocumentCount();
+  long getDocumentCount()
+      throws DataProviderException;
 
   /**
    * Check if a document contains the given term.
@@ -160,7 +191,8 @@ public interface IndexDataProvider
    * @return True, if it contains the term, false otherwise
    */
   @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
-  boolean documentContains(final int documentId, final ByteArray term);
+  boolean documentContains(final int documentId, final ByteArray term)
+      throws DataProviderException;
 
   /**
    * Get the last commit generation id of the Lucene index. Only available, if
@@ -169,33 +201,38 @@ public interface IndexDataProvider
    *
    * @return Commit generation id
    */
-  Long getLastIndexCommitGeneration();
+  Long getLastIndexCommitGeneration()
+      throws DataProviderException;
 
   /**
    * Get the list of currently visible document fields.
    *
    * @return List of document field names
    */
-  Set<String> getDocumentFields();
+  Set<String> getDocumentFields()
+      throws DataProviderException;
 
   /**
    * Get the list of stopwords currently in use.
    *
    * @return List of words to exclude
    */
-  Set<String> getStopwords();
+  Set<String> getStopwords()
+      throws DataProviderException;
 
   /**
    * Get the list of stopwords currently in use.
    *
    * @return List of words to exclude
    */
-  Set<ByteArray> getStopwordsBytes();
+  Set<ByteArray> getStopwordsBytes()
+      throws DataProviderException;
 
   /**
    * Flag indicating, if this instance is closed.
    *
    * @return True, if instance was disposed
    */
-  boolean isClosed();
+  boolean isClosed()
+      throws DataProviderException;
 }

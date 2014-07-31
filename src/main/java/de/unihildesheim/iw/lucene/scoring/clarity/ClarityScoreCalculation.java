@@ -16,6 +16,8 @@
  */
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
+import de.unihildesheim.iw.lucene.index.DataProviderException;
+
 import java.io.IOException;
 
 /**
@@ -37,7 +39,8 @@ public interface ClarityScoreCalculation
    * class, if calculation fails
    */
   ClarityScoreResult calculateClarity(final String query)
-      throws ClarityScoreCalculationException, IOException;
+      throws ClarityScoreCalculationException, IOException,
+             DataProviderException;
 
   /**
    * Get a short identifier for this calculation implementation.

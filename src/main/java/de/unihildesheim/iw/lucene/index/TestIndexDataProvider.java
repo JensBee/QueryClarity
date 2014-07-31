@@ -23,6 +23,7 @@ import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.query.SimpleTermsQuery;
 import de.unihildesheim.iw.lucene.util.TempDiskIndex;
 import de.unihildesheim.iw.mapdb.DBMakerUtils;
+import de.unihildesheim.iw.util.BigDecimalCache;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.StringUtils;
@@ -45,6 +46,9 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.math.BigDecimal;
+import java.math.MathContext;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -95,6 +99,10 @@ public final class TestIndexDataProvider
    * Number of documents in index.
    */
   static final int DOCUMENTS_COUNT;
+  /**
+   * Context for high precision math calculations.
+   */
+  static final MathContext MATH_CONTEXT = MathContext.DECIMAL128;
 
   static {
     try {
@@ -356,20 +364,6 @@ public final class TestIndexDataProvider
     return !(this.stopwordBytes == null || this.stopwordBytes.isEmpty());
   }
 
-  @Override
-  public int getDocumentFrequency(final ByteArray term) {
-    if (this.stopwordBytes.contains(Objects.requireNonNull(term))) {
-      return 0;
-    }
-    int freq = 0;
-    for (final Integer docId : getDocumentIdsSet()) {
-      if (documentContains(docId, term)) {
-        freq++;
-      }
-    }
-    return freq;
-  }
-
   /**
    * Get a list of all index terms. The list is <u>not</u> unique. Stopwords
    * will be excluded.
@@ -399,6 +393,20 @@ public final class TestIndexDataProvider
       }
     }
     return terms;
+  }
+
+  @Override
+  public int getDocumentFrequency(final ByteArray term) {
+    if (this.stopwordBytes.contains(Objects.requireNonNull(term))) {
+      return 0;
+    }
+    int freq = 0;
+    for (final Integer docId : getDocumentIdsSet()) {
+      if (documentContains(docId, term)) {
+        freq++;
+      }
+    }
+    return freq;
   }
 
   /**
@@ -457,16 +465,6 @@ public final class TestIndexDataProvider
     }
     assert !stopwords.isEmpty();
     return stopwords;
-  }
-
-  /**
-   * Get the flags array representing the active state of all known fields.
-   *
-   * @return Flags of document fields
-   * @see #activeFieldState
-   */
-  int[] getActiveFieldState() {
-    return this.activeFieldState.clone();
   }
 
   /**
@@ -548,6 +546,16 @@ public final class TestIndexDataProvider
 
     LOG.debug("Test query: {}", queryStr);
     return queryStr;
+  }
+
+  /**
+   * Get the flags array representing the active state of all known fields.
+   *
+   * @return Flags of document fields
+   * @see #activeFieldState
+   */
+  int[] getActiveFieldState() {
+    return this.activeFieldState.clone();
   }
 
   /**
@@ -820,12 +828,8 @@ public final class TestIndexDataProvider
               this.seedTermList.size() - 1));
           // add it to the list of known terms
           final ByteArray docTermBytes;
-          try {
-            docTermBytes = new ByteArray(docTerm.getBytes("UTF-8"));
-          } catch (final UnsupportedEncodingException ex) {
-            LOCAL_LOG.error("Error encoding term. term={}", docTerm);
-            continue;
-          }
+          docTermBytes =
+              new ByteArray(docTerm.getBytes(StandardCharsets.UTF_8));
 
           // count term frequencies
           if (fieldTermFreq.containsKey(docTermBytes)) {
@@ -952,7 +956,7 @@ public final class TestIndexDataProvider
     this.stopwordStr = new HashSet<>(newStopwords);
     for (final String w : newStopwords) {
       @SuppressWarnings("ObjectAllocationInLoop")
-      final ByteArray wBa = new ByteArray(w.getBytes("UTF-8"));
+      final ByteArray wBa = new ByteArray(w.getBytes(StandardCharsets.UTF_8));
       this.stopwordBytes.add(wBa);
     }
   }
@@ -1057,19 +1061,20 @@ public final class TestIndexDataProvider
   }
 
   @Override
-  public double getRelativeTermFrequency(final ByteArray term) {
+  public BigDecimal getRelativeTermFrequency(final ByteArray term) {
     Objects.requireNonNull(term);
 
     if (this.stopwordBytes.contains(term)) { // skip stopwords
-      return 0d;
+      return BigDecimal.ZERO;
     }
 
     final Long termFrequency = getTermFrequency(term);
     if (termFrequency == null) {
-      return 0d;
+      return BigDecimal.ZERO;
     }
-    return termFrequency.doubleValue() / Long.valueOf(getTermFrequency()).
-        doubleValue();
+
+    return BigDecimalCache.get(termFrequency)
+        .divide(BigDecimalCache.get(getTermFrequency()), MATH_CONTEXT);
   }
 
   @Override
@@ -1097,6 +1102,12 @@ public final class TestIndexDataProvider
     Objects.requireNonNull(docId);
 
     return !(docId < 0 || docId > (DOCUMENTS_COUNT - 1));
+  }
+
+  @Override
+  public Map<ByteArray, Long> getDocumentTerms(final int docId) {
+    checkDocumentId(docId);
+    return _getDocumentsTerms(Collections.singleton(docId));
   }
 
   @Override
@@ -1153,6 +1164,11 @@ public final class TestIndexDataProvider
   @Override
   public Iterator<Entry<ByteArray, Long>> getDocumentsTerms(
       final Collection<Integer> docIds) {
+    return _getDocumentsTerms(docIds).entrySet().iterator();
+  }
+
+  public Map<ByteArray, Long> _getDocumentsTerms(
+      final Collection<Integer> docIds) {
     if (Objects.requireNonNull(docIds).isEmpty()) {
       throw new IllegalArgumentException("Empty document id list.");
     }
@@ -1171,7 +1187,12 @@ public final class TestIndexDataProvider
         }
       }
     }
-    return termsMap.entrySet().iterator();
+    return termsMap;
+  }
+
+  @Override
+  public Set<ByteArray> getDocumentTermsSet(final int docId) {
+    return null;
   }
 
   @Override

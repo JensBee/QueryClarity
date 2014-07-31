@@ -237,13 +237,17 @@ public final class ImprovedClarityScoreConfiguration
      * feedback documents retrieved is lower than this value, the query will
      * be simplified to retrieve more results.
      * <br>
-     * Hauff, Murdock & Baeza-Yates used a value of 10 for theirs tests.
+     * Hauff, Murdock & Baeza-Yates: every document must match all query
+     * terms, if this is not the case, the query should be relaxed to get at
+     * least one match.
      */
-    DEFAULTS.put(Keys.FB_DOCS_MIN.name(), "10");
+    DEFAULTS.put(Keys.FB_DOCS_MIN.name(), "1");
     /**
-     * Maximum number of feedback documents to use.
+     * Maximum number of feedback documents to use. A positive Integer or
+     * {@code -1} to set this to all matching documents.
      * <br>
-     * Hauff, Murdock & Baeza-Yates used a value of 1000 for theirs tests.
+     * Hauff, Murdock & Baeza-Yates evaluated with 10, 50, 100. 250, 500, 700,
+     * 1000 documents.
      */
     DEFAULTS.put(Keys.FB_DOCS_MAX.name(), "1000");
     /**
@@ -251,18 +255,21 @@ public final class ImprovedClarityScoreConfiguration
      * feedback document must occur in min n% of the documents
      * in the index. If it's not the case it will be ignored.
      * <br>
+     * A value of {@code 0} sets the minimum number of documents that must
+     * match to {@code 1}.
+     * <br>
      * Hauff, Murdock & Baeza-Yates evaluated n with 1% (0.01), 10% (0.1),
      * 100% (1).
      */
-    DEFAULTS.put(Keys.TERM_SELECTION_THRESHOLD_MIN.name(), "0.1");
+    DEFAULTS.put(Keys.TERM_SELECTION_THRESHOLD_MIN.name(), "0");
     /**
      * Threshold to select terms from feedback documents. A term from a
-     * feedback document must occur in min n% of the documents
+     * feedback document must occur in max n% of the documents
      * in the index. If it's not the case it will be ignored.
      * <br>
      * Hauff, Murdock & Baeza-Yates evaluated n with 1% (0.01), 10% (0.1),
      * 100% (1).
      */
-    DEFAULTS.put(Keys.TERM_SELECTION_THRESHOLD_MAX.name(), "1");
+    DEFAULTS.put(Keys.TERM_SELECTION_THRESHOLD_MAX.name(), "0.1");
   }
 }

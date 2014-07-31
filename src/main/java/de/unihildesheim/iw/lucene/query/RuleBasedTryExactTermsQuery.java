@@ -19,6 +19,7 @@ package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.LuceneDefaults;
+import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.util.ByteArrayUtils;
@@ -32,7 +33,7 @@ import org.apache.lucene.queryparser.flexible.standard.QueryParserUtil;
 import org.apache.lucene.search.Query;
 import org.slf4j.LoggerFactory;
 
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -91,14 +92,12 @@ public final class RuleBasedTryExactTermsQuery
    * @param newFields Fields to query
    * @param rule Query simplifying rule
    * @throws ParseException Thrown, if the query could not be parsed
-   * @throws UnsupportedEncodingException Thrown, if a query term could not be
-   * encoded to a target charset
    */
   public RuleBasedTryExactTermsQuery(final IndexDataProvider dataProv,
       final Analyzer analyzer, final String query,
       final QueryParser.Operator operator, final Set<String> newFields,
       final RelaxRule rule)
-      throws ParseException, UnsupportedEncodingException {
+      throws ParseException, DataProviderException {
     Objects.requireNonNull(dataProv, "DataProvider was null.");
     Objects.requireNonNull(analyzer, "Analyzer was null.");
     Objects.requireNonNull(operator, "Operator was null.");
@@ -145,7 +144,8 @@ public final class RuleBasedTryExactTermsQuery
 
       for (final String term : this.uniqueQueryTerms) {
         @SuppressWarnings("ObjectAllocationInLoop")
-        final ByteArray termBa = new ByteArray(term.getBytes("UTF-8"));
+        final ByteArray termBa =
+            new ByteArray(term.getBytes(StandardCharsets.UTF_8));
         if (RelaxRule.HIGHEST_TERMFREQ == rule) {
           this.termFreqCache.put(termBa, metrics.collection().tf(termBa));
         } else {

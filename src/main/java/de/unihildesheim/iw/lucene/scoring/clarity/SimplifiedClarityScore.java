@@ -17,20 +17,24 @@
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.ByteArray;
+import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
-import de.unihildesheim.iw.util.ByteArrayUtils;
+import de.unihildesheim.iw.util.BigDecimalCache;
+import de.unihildesheim.iw.util.Configuration;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
+import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
 import org.apache.lucene.analysis.Analyzer;
+import org.mapdb.Fun;
 import org.slf4j.LoggerFactory;
 
-import java.io.UnsupportedEncodingException;
+import java.math.BigDecimal;
+import java.math.MathContext;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -50,19 +54,17 @@ public final class SimplifiedClarityScore
    * Prefix used to identify externally stored data.
    */
   static final String IDENTIFIER = "SCS";
-
+  static final MathContext MATH_CONTEXT = MathContext.DECIMAL128;
   /**
    * Logger instance for this class.
    */
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       SimplifiedClarityScore.class);
-
   /**
    * Provider for general index metrics.
    */
   @SuppressWarnings("PackageVisibleField")
   final Metrics metrics;
-
   /**
    * Lucene query analyzer.
    */
@@ -77,13 +79,13 @@ public final class SimplifiedClarityScore
     Objects.requireNonNull(builder, "Builder was null.");
 
     // set configuration
-    this.metrics = new Metrics(builder.idxDataProvider);
-    this.analyzer = builder.analyzer;
+    this.metrics = new Metrics(builder.getIndexDataProvider());
+    this.analyzer = builder.getAnalyzer();
   }
 
   @Override
   public Result calculateClarity(final String query)
-      throws ClarityScoreCalculationException {
+      throws ClarityScoreCalculationException, DataProviderException {
     if (StringUtils.isStrippedEmpty(
         Objects.requireNonNull(query, "Query was null."))) {
       throw new IllegalArgumentException("Query was empty.");
@@ -91,22 +93,10 @@ public final class SimplifiedClarityScore
     final Result result = new Result();
 
     // pre-check query terms
-    final Collection<ByteArray> queryTerms;
-    try {
-      // get all query terms - list must NOT be unique!
-      final List<String> qTerms =
-          QueryUtils.tokenizeQueryString(query, this.analyzer);
-      queryTerms = new ArrayList<>(qTerms.size());
-      for (final String term : qTerms) {
-        @SuppressWarnings("ObjectAllocationInLoop")
-        final ByteArray termBa = new ByteArray(term.getBytes("UTF-8"));
-        queryTerms.add(termBa);
-      }
-    } catch (final UnsupportedEncodingException e) {
-      final String msg = "Caught exception while preparing calculation.";
-      LOG.error(msg, e);
-      throw new ClarityScoreCalculationException(msg, e);
-    }
+    // mapping of term->in query freq. Does not remove unknown terms
+    final Map<ByteArray, Integer> queryTerms =
+        QueryUtils.tokenizeAndMapQuery(query, this.analyzer);
+
     if (queryTerms.isEmpty()) {
       result.setEmpty("No query terms.");
       return result;
@@ -116,8 +106,39 @@ public final class SimplifiedClarityScore
     LOG.info("Calculating clarity score. query={}", query);
     final TimeMeasure timeMeasure = new TimeMeasure().start();
 
+    // length of the query
+    int queryLength = 0;
+    for (final Integer count : queryTerms.values()) {
+      queryLength += count;
+    }
+    // number of terms in collection
+    final long collTermCount = this.metrics.collection().tf();
+
+    // calculate max likelihood of the query model for each term in the
+    // query
+    // iterate over all unique query terms
+    final List<Fun.Tuple2<BigDecimal, BigDecimal>> dataSet =
+        new ArrayList<>(queryTerms.size());
+    for (final Map.Entry<ByteArray, Integer> qTermEntry :
+        queryTerms.entrySet()) {
+      final BigDecimal pMl =
+          BigDecimalCache.get(qTermEntry.getValue())
+              .divide(BigDecimalCache.get(queryLength), MATH_CONTEXT);
+//          qTermEntry.getValue().doubleValue() / (double) queryLength;
+      dataSet.add(
+          Fun.t2(pMl, this.metrics.collection().relTf(qTermEntry.getKey())));
+    }
+
     final double score;
-    score = calculateScore(queryTerms);
+    try {
+      score = MathUtils.KlDivergence.calcBig(
+          dataSet, MathUtils.KlDivergence.sumBigValues(dataSet)
+      ).doubleValue();
+    } catch (final ProcessingException e) {
+      final String msg = "Caught exception while calculating score.";
+      LOG.error(msg, e);
+      throw new ClarityScoreCalculationException(msg, e);
+    }
 
     LOG.debug("Calculation results: query={} score={}.", query, score);
 
@@ -133,61 +154,6 @@ public final class SimplifiedClarityScore
     return IDENTIFIER;
   }
 
-  /**
-   * Calculate the Simplified Clarity Score for the given query terms.
-   *
-   * @param queryTerms Query terms to use for calculation
-   * @return The calculated score
-   */
-  double calculateScore(final Collection<ByteArray> queryTerms) {
-    // length of the (rewritten) query
-    final int queryLength = queryTerms.size();
-    // number of terms in collection
-    final long collTermCount = this.metrics.collection().tf();
-    // create a unique list of query terms
-    final Iterable<ByteArray> uniqueQueryTerms = new HashSet<>(queryTerms);
-
-    double result = 0d;
-
-    // calculate max likelihood of the query model for each term in the
-    // query
-    // iterate over all unique query terms
-    for (final ByteArray queryTerm : uniqueQueryTerms) {
-      // number of times a query term appears in the query
-      int termCount = 0;
-      // count the number of occurrences in the non-unique list
-      for (final ByteArray aTerm : queryTerms) {
-        if (queryTerm.equals(aTerm)) {
-          termCount++;
-        }
-      }
-
-      assert termCount > 0;
-      if (termCount == 0) {
-        LOG.warn("Term count == 0 for term {}.",
-            ByteArrayUtils.utf8ToString(queryTerm));
-        continue;
-      }
-
-      final double pMl =
-          Integer.valueOf(termCount).doubleValue() / Integer.valueOf(
-              queryLength);
-      final Long tf = this.metrics.collection().tf(queryTerm);
-
-      assert tf > 0L;
-      if (tf == 0L) {
-        LOG.warn("Collection term frequency == 0 for term {}.",
-            ByteArrayUtils.utf8ToString(queryTerm));
-        continue;
-      }
-      final double pColl = tf.doubleValue()
-          / (double) collTermCount;
-      result += pMl * MathUtils.log2(pMl / pColl);
-    }
-
-    return result;
-  }
-
   @Override
   public void close()
       throws Exception {
@@ -199,13 +165,19 @@ public final class SimplifiedClarityScore
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class Builder
-      extends AbstractClarityScoreCalculationBuilder<Builder> {
+      extends ClarityScoreCalculationBuilder<SimplifiedClarityScore,
+      Configuration> {
 
     /**
      * Initializes the builder.
      */
     public Builder() {
       super(IDENTIFIER);
+    }
+
+    @Override
+    public Builder getThis() {
+      return this;
     }
 
     @Override
@@ -216,8 +188,13 @@ public final class SimplifiedClarityScore
     }
 
     @Override
-    protected Builder getThis() {
-      return this;
+    public void validate()
+        throws ConfigurationException {
+      new Validator(this, new Feature[]{
+          Feature.ANALYZER,
+          Feature.DATA_PROVIDER,
+          Feature.INDEX_READER
+      });
     }
   }
 
