@@ -33,13 +33,13 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Test for {@link Feedback}.
+ * Test for {@link FeedbackQuery}.
  *
  * @author Jens Bertram
  */
 @SuppressWarnings("ParameterizedParametersStaticCollection")
 @RunWith(Parameterized.class)
-public final class FeedbackTest
+public final class FeedbackQueryTest
     extends MultiIndexDataProviderTestCase {
 
   /**
@@ -48,7 +48,7 @@ public final class FeedbackTest
    * @param dataProv {@link IndexDataProvider} to use
    * @param rType Data provider configuration
    */
-  public FeedbackTest(
+  public FeedbackQueryTest(
       final DataProviders dataProv,
       final RunType rType) {
     super(dataProv, rType);
@@ -67,7 +67,7 @@ public final class FeedbackTest
       final long maxDocCount = instance.getDocumentCount();
       Collection<Integer> result;
       for (int i = 1; (long) i < maxDocCount; i += 10) {
-        result = Feedback.get(TestIndexDataProvider.getIndexReader(),
+        result = FeedbackQuery.get(TestIndexDataProvider.getIndexReader(),
             this.referenceIndex.getQueryObj().getQueryObj(), i);
         Assert.assertNotEquals(msg("There must be results."),
             0L, (long) result.size());
@@ -85,7 +85,7 @@ public final class FeedbackTest
       throws Exception {
     // try to get some random results
     final Collection<Integer> result;
-    result = Feedback.get(TestIndexDataProvider.getIndexReader(),
+    result = FeedbackQuery.get(TestIndexDataProvider.getIndexReader(),
         this.referenceIndex.getQueryObj().getQueryObj(), -1);
     Assert.assertNotEquals(
         msg("No documents retrieved from feedback.", this.referenceIndex),
@@ -126,7 +126,8 @@ public final class FeedbackTest
       boolean foundDoc = false;
       final Query query = this.referenceIndex.getSTQueryObj
           (singleTermQuery).getQueryObj();
-      result = Feedback.get(TestIndexDataProvider.getIndexReader(), query, -1);
+      result = FeedbackQuery
+          .get(TestIndexDataProvider.getIndexReader(), query, -1);
       for (final Integer docId : result) {
         if (docId.equals(docModel.id)) {
           foundDoc = true;
@@ -137,7 +138,7 @@ public final class FeedbackTest
           + " searchId=" + docModel.id), foundDoc);
 
       foundDoc = false;
-      result = Feedback.get(TestIndexDataProvider.getIndexReader(),
+      result = FeedbackQuery.get(TestIndexDataProvider.getIndexReader(),
           this.referenceIndex.getSTQueryObj(multiTermQuery).getQueryObj(),
           -1
       );
@@ -162,7 +163,7 @@ public final class FeedbackTest
     try (final IndexDataProvider index = getInstance()) {
       // wrapper function - just test if it succeeds
       Assert.assertFalse(msg("No results."),
-          Feedback.get(TestIndexDataProvider.getIndexReader(),
+          FeedbackQuery.get(TestIndexDataProvider.getIndexReader(),
               this.referenceIndex.getQueryObj().getQueryObj(),
               RandomValue.getInteger(1, (int) index.getDocumentCount())
           ).isEmpty()
