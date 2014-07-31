@@ -82,12 +82,6 @@ public final class ByteArrayUtils {
       UnicodeUtil.UTF8toUTF16(bytes, 0, bytes.length, ref);
       str = ref.toString();
       INTERN8.put(Arrays.copyOf(bytes, bytes.length), str);
-//      try {
-//        str = new String(bytes, "UTF-8");
-//      } catch (final UnsupportedEncodingException ex) {
-//        LOG.error("Error encoding bytes.", ex);
-//      }
-//      INTERN8.put(Arrays.copyOf(bytes, bytes.length), str);
     }
     return str;
   }
