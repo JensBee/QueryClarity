@@ -127,6 +127,7 @@ public final class DocFieldsTermsEnum {
   public DocFieldsTermsEnum setDocument(final int documentId)
       throws IOException {
     this.docId = documentId;
+    this.hasEnum = false;
     this.docFields = this.reader.getTermVectors(documentId);
     if (this.docFields == null) {
       throw new IllegalStateException("No term vectors stored. docId="
