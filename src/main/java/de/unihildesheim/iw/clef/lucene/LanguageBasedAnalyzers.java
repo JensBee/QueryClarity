@@ -17,6 +17,7 @@
 
 package de.unihildesheim.iw.clef.lucene;
 
+import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
@@ -115,7 +116,8 @@ public final class LanguageBasedAnalyzers {
   @SuppressWarnings("AssignmentToNull")
   public static Analyzer createInstance(
       final LanguageAnalyzers lang,
-      final IndexDataProvider dataProv) {
+      final IndexDataProvider dataProv)
+      throws DataProviderException {
     final Analyzer analyzer;
     switch (Objects.requireNonNull(lang, "Language was null.")) {
       case DE:

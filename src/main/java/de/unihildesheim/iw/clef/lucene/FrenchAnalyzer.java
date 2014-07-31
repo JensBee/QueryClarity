@@ -18,6 +18,7 @@
 package de.unihildesheim.iw.clef.lucene;
 
 import de.unihildesheim.iw.lucene.LuceneDefaults;
+import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
@@ -66,7 +67,8 @@ public final class FrenchAnalyzer
    * Builds an analyzer with the default Lucene version and stopwords from the
    * given {@link IndexDataProvider}.
    */
-  public FrenchAnalyzer(final IndexDataProvider dataProv) {
+  public FrenchAnalyzer(final IndexDataProvider dataProv)
+      throws DataProviderException {
     super(LuceneDefaults.VERSION, new CharArraySet(LuceneDefaults.VERSION,
         dataProv.getStopwords(), true));
     this.elisions.addAll(Arrays.asList(DEFAULT_ELISIONS));
