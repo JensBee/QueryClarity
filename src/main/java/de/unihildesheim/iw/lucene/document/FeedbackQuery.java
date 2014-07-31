@@ -41,18 +41,18 @@ import java.util.Set;
  *
  * @author Jens Bertram
  */
-public final class Feedback {
+public final class FeedbackQuery {
 
   /**
    * Logger instance for this class.
    */
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
-      Feedback.class);
+      FeedbackQuery.class);
 
   /**
    * Private constructor for utility class.
    */
-  private Feedback() {
+  private FeedbackQuery() {
     // empty private constructor for utility class
   }
 
@@ -109,6 +109,9 @@ public final class Feedback {
    */
   private static int getMaxDocs(final IndexReader reader, final int docCount) {
     final int maxRetDocs; // maximum number of documents that can be returned
+    if (docCount == Integer.MAX_VALUE) {
+      return reader.maxDoc();
+    }
     final int maxIdxDocs = reader.maxDoc();
     if (docCount > maxIdxDocs) {
       maxRetDocs = Math.min(maxIdxDocs, docCount);
@@ -189,6 +192,117 @@ public final class Feedback {
   }
 
   /**
+   * Same as {@link #getMin(IndexSearcher, RelaxableQuery, int)}, but creates a
+   * new {@link IndexSearcher} from the provided {@link IndexReader}.
+   *
+   * @param reader Reader to access the Lucene index
+   * @param query Relaxable query to get matching documents
+   * @param minDocCount Minimum number of documents to try to reach. Results may
+   * be higher, if there are more matching documents in the index
+   * @return List of documents matching the (relaxed) query
+   * @throws IOException Thrown on low-level I/O errors
+   * @throws ParseException Thrown on errors parsing a relaxed query
+   */
+  public static Set<Integer> getMin(final IndexReader reader,
+      final RelaxableQuery query, final int minDocCount)
+      throws IOException, ParseException {
+    final IndexSearcher searcher = new IndexSearcher(reader);
+    return getMin(searcher, query, minDocCount);
+  }
+
+  /**
+   * Try to get a minimum number of feedback documents. If the number of
+   * feedback documents is not reached by running an initial query the query get
+   * relaxed (simplified) to reach a higher number of matching feedback
+   * documents. If the minimum number of documents could not be reached by
+   * relaxing the query all matching documents collected so far are
+   * returned.<br> The documents in the returned set are ordered by their
+   * relevance. Sorting is from best to worst matching.
+   *
+   * @param searcher Searcher to issue queries
+   * @param query Relaxable query to get matching documents
+   * @param minDocCount Minimum number of documents to try to reach. Results may
+   * be higher, if there are more matching documents in the index
+   * @return List of documents matching the (relaxed) query
+   * @throws IOException Thrown on low-level I/O errors
+   * @throws ParseException Thrown on errors parsing a relaxed query
+   */
+  public static Set<Integer> getMin(final IndexSearcher searcher,
+      final RelaxableQuery query, final int minDocCount)
+      throws IOException, ParseException {
+    return getMinMax(searcher, query, minDocCount, Integer.MAX_VALUE);
+  }
+
+  /**
+   * @param searcher Searcher to issue queries
+   * @param query Relaxable query to get matching documents
+   * @param minDocs Minimum number of documents to get. Must be greater than
+   * zero.
+   * @param maxDocCount Maximum number o documents to get. {@code -1} for
+   * unlimited or greater than zero.
+   * @return List of documents matching the (relaxed) query
+   * @throws IOException Thrown on low-level I/O errors
+   * @throws ParseException Thrown on errors parsing a relaxed query
+   */
+  public static Set<Integer> getMinMax(final IndexSearcher searcher,
+      final RelaxableQuery query, final int minDocs, int maxDocCount)
+      throws IOException, ParseException {
+    Objects.requireNonNull(searcher, "IndexSearcher was null.");
+    Objects.requireNonNull(query, "Query was null.");
+
+    final int maxDocs;
+    if (maxDocCount == -1) {
+      maxDocs = Integer.MAX_VALUE;
+    } else if (maxDocCount < 0) {
+      throw new IllegalArgumentException("Maximum number of documents must " +
+          "be -1 (unlimited) or greater than zero.");
+    } else {
+      maxDocs = maxDocCount;
+    }
+    if (minDocs <= 0) {
+      throw new IllegalArgumentException("Minimum number of documents must be" +
+          " greater than zero.");
+    }
+
+    final int maxRetDocs = getMaxDocs(searcher.getIndexReader(), maxDocs);
+    final Query q = query.getQueryObj();
+//    LOG.debug("getMinMax: initial q={}", q);
+    final Set<Integer> docIds = getDocs(searcher, q, maxRetDocs);
+
+    int docsToGet;
+    while (docIds.size() < minDocs) {
+      docsToGet = maxRetDocs - docIds.size();
+      if (maxDocCount > 0) {
+        LOG.info("Got {} matching feedback documents. "
+            + "Relaxing query to get additional {} feedback " +
+            "documents...", docIds.size(), docsToGet);
+      } else {
+        LOG.info("Got {} matching feedback documents. "
+            + "Relaxing query to reach the minimum of {} feedback " +
+            "documents...", docIds.size(), minDocs);
+      }
+      if (query.relax()) {
+        final Set<Integer> result = getDocs(searcher, q, maxRetDocs);
+        if (result.size() > docsToGet) {
+          final Iterator<Integer> docIdIt = result.iterator();
+          while (docIdIt.hasNext() && docIds.size() < maxDocs) {
+            docIds.add(docIdIt.next());
+          }
+        } else {
+          docIds.addAll(result);
+        }
+      } else {
+        LOG.info("Cannot relax query any more. Returning only {} documents" +
+            ".", docIds.size());
+        break;
+      }
+    }
+
+    LOG.debug("Returning {} documents.", docIds.size());
+    return docIds;
+  }
+
+  /**
    * Same as {@link #getFixed(IndexSearcher, RelaxableQuery, int)}, but creates
    * a new {@link IndexSearcher} from the provided {@link IndexReader}.
    *
@@ -228,39 +342,28 @@ public final class Feedback {
   public static Set<Integer> getFixed(final IndexSearcher searcher,
       final RelaxableQuery query, final int docCount)
       throws IOException, ParseException {
-    Objects.requireNonNull(searcher, "IndexSearcher was null.");
-    Objects.requireNonNull(query, "Query was null.");
+    return getMinMax(searcher, query, docCount, docCount);
+  }
 
-    final int maxRetDocs = getMaxDocs(searcher.getIndexReader(), docCount);
-    final Query q = query.getQueryObj();
-//    LOG.debug("getFixed: initial q={}", q);
-    final Set<Integer> docIds = getDocs(searcher, q, docCount);
-
-    int docsToGet;
-    while (docIds.size() < docCount) {
-      docsToGet = maxRetDocs - docIds.size();
-      LOG.info("Got {} matching feedback documents. "
-          + "Relaxing query to get additional {} feedback " +
-          "documents...", docIds.size(), docsToGet);
-      if (query.relax()) {
-        final Set<Integer> result = getDocs(searcher, q, maxRetDocs);
-        if (result.size() > docsToGet) {
-          final Iterator<Integer> docIdIt = result.iterator();
-          while (docIdIt.hasNext() && docIds.size() < docCount) {
-            docIds.add(docIdIt.next());
-          }
-        } else {
-          docIds.addAll(result);
-        }
-      } else {
-        LOG.info("Cannot relax query any more. Returning only {} documents" +
-            ".", docIds.size());
-        break;
-      }
-    }
-
-    LOG.debug("Returning {} documents.", docIds.size());
-    return docIds;
+  /**
+   * Same as {@link #getMinMax(IndexSearcher, RelaxableQuery, int, int)}, but
+   * creates a new {@link IndexSearcher} from the provided {@link IndexReader}.
+   *
+   * @param reader Reader to access the Lucene index
+   * @param query Relaxable query to get matching documents
+   * @param minDocCount Minimum number of documents to get. Must be greater than
+   * zero.
+   * @param maxDocCount Maximum number o documents to get. {@code -1} for
+   * unlimited or greater than zero.
+   * @return List of documents matching the (relaxed) query
+   * @throws IOException Thrown on low-level I/O errors
+   * @throws ParseException Thrown on errors parsing a relaxed query
+   */
+  public static Set<Integer> getMinMax(final IndexReader reader,
+      final RelaxableQuery query, final int minDocCount, int maxDocCount)
+      throws IOException, ParseException {
+    final IndexSearcher searcher = new IndexSearcher(reader);
+    return getMinMax(searcher, query, minDocCount, maxDocCount);
   }
 
   public static Set<Integer> getFixed(final IndexReader reader,
