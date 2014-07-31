@@ -27,6 +27,7 @@ import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.DataOutput;
 import java.io.DataOutputStream;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Test for {@link ByteArray}.
@@ -40,7 +41,8 @@ public final class ByteArrayTest
   @Test
   public void testSerialize()
       throws Exception {
-    final ByteArray original = new ByteArray("test".getBytes("UTF-8"));
+    final ByteArray original =
+        new ByteArray("test".getBytes(StandardCharsets.UTF_8));
 
     final ByteArrayOutputStream baos = new ByteArrayOutputStream(1024);
     final DataOutput dos = new DataOutputStream(baos);
