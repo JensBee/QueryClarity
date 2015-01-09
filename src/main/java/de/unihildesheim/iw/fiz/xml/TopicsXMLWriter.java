@@ -15,12 +15,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.clef.xml;
+package de.unihildesheim.iw.fiz.xml;
 
-import de.unihildesheim.iw.clef.xml.elements.Language;
-import de.unihildesheim.iw.clef.xml.elements.Passage;
-import de.unihildesheim.iw.clef.xml.elements.PassagesGroup;
-import de.unihildesheim.iw.clef.xml.elements.ScoreType;
+import de.unihildesheim.iw.fiz.xml.elements.Language;
+import de.unihildesheim.iw.fiz.xml.elements.Passage;
+import de.unihildesheim.iw.fiz.xml.elements.PassagesGroup;
+import de.unihildesheim.iw.fiz.xml.elements.ScoreType;
 
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.Marshaller;
