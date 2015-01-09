@@ -138,6 +138,7 @@ public final class Passage {
     /**
      * Complete result set.
      */
+    @XmlElement
     private ScoringResult.ScoringResultXml result;
 
     /**
@@ -178,7 +179,6 @@ public final class Passage {
      *
      * @return Scoring result
      */
-    @XmlElement
     public ScoringResult.ScoringResultXml getResult() {
       return this.result;
     }
