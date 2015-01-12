@@ -29,6 +29,28 @@ import java.io.Serializable;
  * @author Jens Bertram
  */
 public class TupleSerializer {
+
+  @SuppressWarnings("PublicInnerClass")
+  public static class Tuple2BaseSerializer<A, B>
+      implements Serializable, Serializer<Fun.Tuple2<A,B>> {
+    @Override
+    public void serialize(final DataOutput out, final Fun.Tuple2<A, B> value)
+        throws IOException {
+      Serializer.BASIC.serialize(out, value);
+    }
+
+    @Override
+    public Fun.Tuple2<A, B> deserialize(final DataInput in, final int available)
+        throws IOException {
+      return (Fun.Tuple2<A,B>) Serializer.BASIC.deserialize(in, available);
+    }
+
+    @Override
+    public int fixedSize() {
+      return -1;
+    }
+  }
+
   public static class Tuple3Serializer<A, B, C>
       implements Serializer<Fun.Tuple3<A, B, C>>, Serializable {
 
