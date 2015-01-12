@@ -2,7 +2,7 @@
 
 # memory setting
 JVM_MEM="-Xms128m -Xmx2G"
-JVM_DEFAULT="-server -d64" # -d64 -ea
+JVM_DEFAULT="-server -d64"
 
 JVM="$JVM_DEFAULT $JVM_MEM"
 MAVEN_OPTS="$MAVEN_OPTS $JVM"
