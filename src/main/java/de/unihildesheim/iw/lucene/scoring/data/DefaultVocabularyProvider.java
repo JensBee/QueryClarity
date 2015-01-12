@@ -20,6 +20,9 @@ package de.unihildesheim.iw.lucene.scoring.data;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
+import de.unihildesheim.iw.mapdb.DBMakerUtils;
+import org.mapdb.DB;
+import org.slf4j.LoggerFactory;
 
 import java.util.Iterator;
 import java.util.Objects;
@@ -35,13 +38,26 @@ import java.util.Set;
  */
 public class DefaultVocabularyProvider
     implements VocabularyProvider {
+
+  /**
+   * Logger instance for this class.
+   */
+  static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
+      DefaultVocabularyProvider.class);
   private IndexDataProvider dataProv;
   private Set<Integer> docIds;
+  private Filter filter;
 
   @Override
   public VocabularyProvider indexDataProvider(
       final IndexDataProvider indexDataProvider) {
     this.dataProv = Objects.requireNonNull(indexDataProvider);
+    return this;
+  }
+
+  @Override
+  public VocabularyProvider filter(final Filter filter) {
+    this.filter = Objects.requireNonNull(filter);
     return this;
   }
 
@@ -54,8 +70,49 @@ public class DefaultVocabularyProvider
   @Override
   public Iterator<ByteArray> get()
       throws DataProviderException {
-    return Objects.requireNonNull(this.dataProv, "Data provider not set.")
-        .getDocumentsTermsSet(
-            Objects.requireNonNull(this.docIds, "Document ids not set."));
+    LOG.debug("Generating vocabulary");
+    final Iterator<ByteArray> termsIt = Objects.requireNonNull(
+        this.dataProv, "Data provider not set.").getDocumentsTermsSet(
+        Objects.requireNonNull(this.docIds, "Document ids not set."));
+
+    if (this.filter == null) {
+      // forward the plain iterator
+      return termsIt;
+    }
+
+    LOG.debug("Using filter");
+    final DB termsCache = DBMakerUtils.newCompressedTempFileDB().make();
+    final Set<ByteArray> terms = termsCache.createTreeSet("termsCache")
+        .serializer(ByteArray.SERIALIZER_BTREE)
+        .make();
+    while (termsIt.hasNext()) {
+      final ByteArray term = this.filter.filter(termsIt.next());
+      if (term != null) {
+        terms.add(term);
+      }
+    }
+
+    return new Iterator<ByteArray>() {
+      private final Iterator<ByteArray> termsIt = terms.iterator();
+
+      @Override
+      public boolean hasNext() {
+        final boolean state = this.termsIt.hasNext();
+        if (!state) {
+          termsCache.close();
+        }
+        return state;
+      }
+
+      @Override
+      public ByteArray next() {
+        return this.termsIt.next();
+      }
+
+      @Override
+      public void remove() {
+        throw new UnsupportedOperationException();
+      }
+    };
   }
 }

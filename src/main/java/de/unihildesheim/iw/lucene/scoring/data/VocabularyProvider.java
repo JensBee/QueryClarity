@@ -46,10 +46,26 @@ public interface VocabularyProvider {
   VocabularyProvider documentIds(final Set<Integer> documentIds);
 
   /**
+   * Set a filter filtering out unwanted terms.
+   * @param filter Filter
+   * @return Self reference
+   */
+  VocabularyProvider filter(final Filter filter);
+
+  /**
    * Get the vocabulary.
    *
    * @return Vocabulary
    */
   Iterator<ByteArray> get()
       throws DataProviderException;
+
+  public interface Filter {
+    /**
+     * Filter a term.
+     * @param term Term to filter
+     * @return The term or {@code null}, if it should be filtered out.
+     */
+    public ByteArray filter(final ByteArray term) throws DataProviderException;
+  }
 }
