@@ -37,7 +37,7 @@ public abstract class ClarityScoreCalculationBuilder<S extends
    */
   private C conf;
   /**
-   * Flag indicating, f pre-calculation of scoring values may be done by
+   * Flag indicating, if pre-calculation of scoring values may be done by
    * implementation.
    */
   private boolean preCalculate;
