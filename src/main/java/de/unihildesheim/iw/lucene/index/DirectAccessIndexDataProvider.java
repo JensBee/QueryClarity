@@ -26,6 +26,10 @@ import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.mapdb.DBMakerUtils;
 import de.unihildesheim.iw.util.BigDecimalCache;
 import de.unihildesheim.iw.util.TimeMeasure;
+import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
+import de.unihildesheim.iw.util.concurrent.processing.Processing;
+import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
+import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
@@ -49,9 +53,12 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.mapdb.Atomic;
 import org.mapdb.BTreeKeySerializer;
 import org.mapdb.BTreeMap;
+import org.mapdb.Bind;
 import org.mapdb.DB;
+import org.mapdb.Fun;
 import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,12 +70,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.WeakHashMap;
 
 /**
  * @author Jens Bertram
@@ -95,58 +102,56 @@ public class DirectAccessIndexDataProvider
   /**
    * {@link IndexReader} to access the Lucene index.
    */
-  private final IndexReader idxReader;
+  protected final IndexReader idxReader;
   /**
    * Document fields.
    */
-  private final Set<String> fields;
+  protected final Set<String> fields;
   /**
    * Stopwords in byte representation.
    */
-  private final Set<ByteArray> stopwords;
+  protected final Set<byte[]> stopwords;
 
   /**
    * Disk-backed storage for large collections.
    */
   private final DB cache;
   /**
-   * Stopwords as string.
+   * Stopwords as {@link String}.
    */
   private final Set<String> stopwordsStr;
   /**
+   * Stopwords as {@link ByteArray}.
+   */
+  private final Set<ByteArray> stopwordsBytes;
+  /**
    * Cached index frequency values for single terms.
    */
-  private final BTreeMap<ByteArray, Long> termFreqCache;
+  protected final BTreeMap<byte[], Long> c_termFreqs;
+  /**
+   * Cached relative index frequency values for single terms.
+   */
+  private final BTreeMap<byte[], BigDecimal> c_relTermFreqs;
   /**
    * Cached document frequency values for single terms.
    */
-  private final BTreeMap<ByteArray, Integer> docFreqCache;
+  private final BTreeMap<byte[], Integer> c_docFreqs;
   /**
    * Cached list of document ids that have content in the current field(s) and
    * are not marked as deleted.
    */
-  private final BTreeMap<Integer, Object> documentIds;
+  private final BTreeMap<Integer, Object> c_documentIds;
   /**
    * Cached list of all terms currently available in all known documents and
    * fields.
    */
-  private final BTreeMap<ByteArray, Object> idxTerms;
+  // accessed from inner classes
+  @SuppressWarnings("ProtectedField")
+  protected final BTreeMap<byte[], Object> c_idxTerms;
   /**
    * Stores last commit generation of the Lucene index.
    */
   private final Long idxCommitGeneration;
-  /**
-   * Keep track of temporary databases to close on closing this instance.
-   */
-  private final WeakHashMap<DB, Object> tempCaches;
-  /**
-   * Cache for calculated term sets from multiple documents.
-   */
-  private final DB termSetCacheDB;
-  /**
-   * Cache keys for calculated term sets from multiple documents.
-   */
-  private final List<List<Integer>> termSetCacheEntries;
   /**
    * Cache livedocs value from current IndexReader.
    */
@@ -158,11 +163,37 @@ public class DirectAccessIndexDataProvider
   /**
    * Frequency of all known terms in the index.
    */
-  private long idxTermFrequency = -1L;
+  private long idxTermFrequency;
+  /**
+   * Frequency of all known terms in the index. Cached as {@link BigDecimal}
+   * value for calculations.
+   */
+  private BigDecimal idxTermFrequency_bd;
   /**
    * Flag indicating, if this instance has been closed.
    */
   private boolean isClosed;
+  /**
+   * Startup log prefix.
+   */
+  private static final String LOG_STARTINFO = "Startup:";
+  /**
+   * Caches term sets merged from multiple documents. Mapping is {@code
+   * (document ids)} -> {@code (termId, frequency)}. Values in the {@code
+   * long[]} array are stored as tuples, where the first long is the termId, the
+   * second the frequency value.
+   */
+  private final Map<int[], long[]> c_termSets;
+  /**
+   * Mapping of term to an unique id. Used to store term related data.
+   */
+  @SuppressWarnings("FieldAccessedSynchronizedAndUnsynchronized")
+  private final BTreeMap<byte[], Long> c_termIds;
+  private final Atomic.Long termIdIndex;
+  /**
+   * Inverse map of {@link #c_termIds}. Created automatically.
+   */
+  private final BTreeMap<Long, byte[]> c_termIdsInv;
 
   /**
    * Builder based constructor.
@@ -174,46 +205,81 @@ public class DirectAccessIndexDataProvider
   @SuppressWarnings("ObjectAllocationInLoop")
   public DirectAccessIndexDataProvider(final Builder builder)
       throws DataProviderException {
+    // create caches
+    this.cache = DBMakerUtils.newTempFileDB().make();
+    this.stopwords = this.cache.createTreeSet("stopwords")
+        .serializer(new BTreeKeySerializer.BasicKeySerializer(
+            Serializer.BYTE_ARRAY))
+        .comparator(Fun.BYTE_ARRAY_COMPARATOR)
+        .make();
+    this.c_termFreqs = this.cache.createTreeMap("termFreqCache")
+        .keySerializerWrap(Serializer.BYTE_ARRAY)
+        .valueSerializer(Serializer.LONG)
+        .comparator(Fun.BYTE_ARRAY_COMPARATOR)
+        .make();
+    this.c_relTermFreqs = this.cache.createTreeMap("relTermFreqs")
+        .keySerializerWrap(Serializer.BYTE_ARRAY)
+        .valueSerializer(Serializer.BASIC)
+        .comparator(Fun.BYTE_ARRAY_COMPARATOR)
+        .make();
+    this.c_docFreqs = this.cache.createTreeMap("docFreqs")
+        .keySerializerWrap(Serializer.BYTE_ARRAY)
+        .valueSerializer(Serializer.INTEGER)
+        .comparator(Fun.BYTE_ARRAY_COMPARATOR)
+        .make();
+    this.c_documentIds = this.cache.createTreeMap("documentIds")
+        .keySerializer(BTreeKeySerializer.ZERO_OR_POSITIVE_INT)
+        .valueSerializer(null)
+        .counterEnable()
+        .make();
+    this.c_idxTerms = this.cache.createTreeMap("idxTerms")
+        .keySerializerWrap(Serializer.BYTE_ARRAY)
+        .valueSerializer(null)
+        .comparator(Fun.BYTE_ARRAY_COMPARATOR)
+        .counterEnable()
+        .make();
+    this.c_termSets = this.cache
+        .createTreeMap("termSets")
+        .keySerializerWrap(Serializer.INT_ARRAY)
+        .valueSerializer(Serializer.LONG_ARRAY)
+        .comparator(Fun.INT_ARRAY_COMPARATOR)
+        .make();
+    this.c_termIds = this.cache
+        .createTreeMap("termIds")
+        .keySerializerWrap(Serializer.BYTE_ARRAY)
+        .valueSerializer(Serializer.LONG)
+        .comparator(Fun.BYTE_ARRAY_COMPARATOR)
+        .counterEnable()
+        .makeOrGet();
+    this.termIdIndex = this.cache
+        .createAtomicLong("termIdIndex", 0);
+    this.c_termIdsInv = this.cache
+        .createTreeMap("termIdsInverse")
+        .keySerializer(BTreeKeySerializer.ZERO_OR_POSITIVE_LONG)
+        .valueSerializer(Serializer.BYTE_ARRAY)
+        .counterEnable()
+        .makeOrGet();
+
+    // bind listener to create inverse map on adds to real map
+    Bind.mapInverse(this.c_termIds, this.c_termIdsInv);
+
     // set stopwords
     this.stopwordsStr = new HashSet<>(builder.stopwords.size());
     this.stopwordsStr.addAll(builder.stopwords);
-    this.stopwords = new HashSet<>(builder.stopwords.size());
+    this.stopwordsBytes = new HashSet<>(builder.stopwords.size());
     for (final String word : this.stopwordsStr) {
-      this.stopwords.add(new ByteArray(word.getBytes(StandardCharsets.UTF_8)));
+      final byte[] wordBytes = word.getBytes(StandardCharsets.UTF_8);
+      this.stopwordsBytes.add(new ByteArray(wordBytes));
+      this.stopwords.add(wordBytes);
     }
 
+    // set Lucene index reader
     this.idxReader = builder.idxReader;
     this.idxCommitGeneration = builder.lastCommitGeneration;
+
+    // set fields to use
     this.fields = new HashSet<>(builder.documentFields.size());
     this.fields.addAll(builder.documentFields);
-
-    // create cache data structures
-    this.tempCaches = new WeakHashMap<>(100);
-    this.cache = DBMakerUtils.newTempFileDB().make();
-    this.termFreqCache = this.cache.createTreeMap("termFreqCache")
-        .keySerializer(ByteArray.SERIALIZER_BTREE)
-        .valueSerializer(Serializer.LONG)
-        .make();
-    this.docFreqCache = this.cache.createTreeMap("docFreqCache")
-        .keySerializer(ByteArray.SERIALIZER_BTREE)
-        .valueSerializer(Serializer.INTEGER)
-        .make();
-    this.documentIds = this.cache.createTreeMap("documentIds")
-        .keySerializer(BTreeKeySerializer.ZERO_OR_POSITIVE_INT)
-            //.valueSerializer(Serializer.BOOLEAN)
-        .valueSerializer(null)
-        .counterEnable()
-        .make();
-    this.idxTerms = this.cache.createTreeMap("idxTerms")
-        .keySerializer(ByteArray.SERIALIZER_BTREE)
-            //.valueSerializer(Serializer.BOOLEAN)
-        .valueSerializer(null)
-        .counterEnable()
-        .make();
-
-    this.termSetCacheDB = DBMakerUtils.newCompressedTempFileDB().make();
-    this.tempCaches.put(this.termSetCacheDB, Boolean.TRUE);
-    this.termSetCacheEntries = new ArrayList<>(1000);
 
     // cache some Lucene values
     this.liveDocs = MultiFields.getLiveDocs(this.idxReader);
@@ -221,9 +287,27 @@ public class DirectAccessIndexDataProvider
 
     try {
       initCache();
-    } catch (final IOException | ParseException e) {
+    } catch (final IOException | ParseException | ProcessingException e) {
       throw new DataProviderException("Failed to initialize caches.", e);
     }
+  }
+
+  /**
+   * Get an unique id for an index term.
+   *
+   * @param term Term to lookup
+   * @return Unique id for the given term
+   */
+  private Long getTermId(final ByteArray term) {
+    Long termId = this.c_termIds.get(term.bytes);
+    if (termId == null) {
+      termId = this.termIdIndex.incrementAndGet();
+      final Long oldId = this.c_termIds.putIfAbsent(term.bytes, termId);
+      if (oldId != null) {
+        termId = oldId;
+      }
+    }
+    return termId;
   }
 
   /**
@@ -232,11 +316,17 @@ public class DirectAccessIndexDataProvider
    * @throws IOException Thrown on low-level I/O errors
    * @throws DataProviderException Wrapped IOException Thrown on low-level I/O
    * errors
+   * @throws ParseException Thrown if the query estimating the maximum of
+   * matching documents has failed
    */
   private void initCache()
-      throws IOException, DataProviderException, ParseException {
-    collectDocuments();
-    collectIndexTerms();
+      throws IOException, DataProviderException, ParseException,
+             ProcessingException {
+    collectDocuments(); // cache all documents
+    collectIndexTerms(); // cache all index terms
+    calcTermFrequency(); // cache overall index term frequency value
+    LOG.info("Compacting cache");
+    this.cache.compact();
   }
 
   /**
@@ -249,8 +339,8 @@ public class DirectAccessIndexDataProvider
   @SuppressWarnings("ObjectAllocationInLoop")
   private void collectDocuments()
       throws IOException, ParseException {
-    LOG.info("Collecting all documents from index with field(s) {}",
-        this.fields);
+    LOG.info("{} Collecting all documents from index with field(s) {}",
+        LOG_STARTINFO, this.fields);
     final TimeMeasure tm = new TimeMeasure().start();
 
     final IndexSearcher searcher = new IndexSearcher(this.idxReader);
@@ -273,61 +363,141 @@ public class DirectAccessIndexDataProvider
       matches = searcher.search(query, expResults);
       LOG.debug("Query returned {} matching documents.", matches.totalHits);
       for (final ScoreDoc doc : matches.scoreDocs) {
-        this.documentIds.put(doc.doc, IGNORED_MAP_VALUE);
+        this.c_documentIds.put(doc.doc, IGNORED_MAP_VALUE);
       }
     }
 
-    LOG.info("Collecting {} documents from index with field(s) {} took {}",
-        this.documentIds.size(), this.fields, tm.stop().getTimeString());
+    LOG.info("{} Collecting {} documents from index with field(s) {} took {}",
+        LOG_STARTINFO, this.c_documentIds.size(), this.fields,
+        tm.stop().getTimeString());
   }
 
   /**
-   * Collects all terms from all currently set fields.
+   * Collects all terms from all currently set fields. This is really slow, if
+   * the index is largely fragmented.
    *
    * @throws DataProviderException Wrapped {@link IOException} which gets thrown
    * on low-level I/O errors
    */
   private void collectIndexTerms()
-      throws DataProviderException {
+      throws DataProviderException, ProcessingException {
     if (this.stopwords.isEmpty()) {
-      LOG.info("Collecting all terms from index (fields {})", this.fields);
+      LOG.info("{} Collecting all terms from index (fields {})",
+          LOG_STARTINFO, this.fields);
     } else {
       LOG.info(
-          "Collecting all terms from index (fields {}), excluding stopwords",
-          this.fields);
+          "{} Collecting all terms from index (fields {}), excluding stopwords",
+          LOG_STARTINFO, this.fields);
     }
     final TimeMeasure tm = new TimeMeasure().start();
 
-    Terms terms;
-    TermsEnum termsEnum = TermsEnum.EMPTY;
+    if (this.idxReader.leaves().size() > 1) {
+      final int segCount = this.idxReader.leaves().size();
+      LOG.info("Collecting terms from {} segments.", segCount);
+      new Processing().setSourceAndTarget(
+          new TargetFuncCall<>(
+              new CollectionSource<>(this.idxReader.leaves()),
+              new TargetFuncCall.TargetFunc<AtomicReaderContext>() {
+                @Override
+                public void call(final AtomicReaderContext aContext)
+                    throws Exception {
+                  if (aContext == null) {
+                    return;
+                  }
+                  Terms terms;
+                  TermsEnum termsEnum = TermsEnum.EMPTY;
+                  for (final String field : DirectAccessIndexDataProvider.this
+                      .fields) {
+                    terms = aContext.reader().terms(field);
+                    if (terms != null) {
+                      termsEnum = terms.iterator(termsEnum);
+                      BytesRef term = termsEnum.next();
+                      while (term != null) {
+                        final byte[] termBytes = BytesRefUtils.copyBytes(term);
+                        // skip, if stopword
+                        if (!DirectAccessIndexDataProvider.this
+                            .stopwords.contains(termBytes) &&
+                            termsEnum.seekExact(term)) {
+                          // term frequency
+                          if (DirectAccessIndexDataProvider.this
+                              .c_termFreqs.containsKey(termBytes)) {
+                            DirectAccessIndexDataProvider.this
+                                .c_termFreqs.put(termBytes,
+                                DirectAccessIndexDataProvider.this
+                                    .c_termFreqs.get(termBytes) +
+                                    termsEnum.totalTermFreq());
+                          } else {
+                            DirectAccessIndexDataProvider.this
+                                .c_termFreqs.put(
+                                termBytes, termsEnum.totalTermFreq());
+                          }
 
-    // iterate over all fields
-    for (final String field : this.fields) {
-      try {
-        terms = getMultiTermsInstance(field);
-        if (terms != null) {
-          termsEnum = terms.iterator(termsEnum);
-          BytesRef term = termsEnum.next();
-          while (term != null) {
-            final ByteArray termBytes = BytesRefUtils.toByteArray(term);
-            // skip, if stopword
-            if (!this.stopwords.contains(termBytes)) {
-              if (termsEnum.seekExact(term)) {
-                this.idxTerms.put(termBytes, IGNORED_MAP_VALUE);
+                          // document frequency
+                          if (DirectAccessIndexDataProvider.this
+                              .c_docFreqs.containsKey(termBytes)) {
+                            DirectAccessIndexDataProvider.this
+                                .c_docFreqs.put(termBytes,
+                                DirectAccessIndexDataProvider.this
+                                    .c_docFreqs.get(termBytes) +
+                                    termsEnum.docFreq());
+                          } else {
+                            DirectAccessIndexDataProvider.this
+                                .c_docFreqs.put(
+                                termBytes, termsEnum.docFreq());
+                          }
+
+                          // terms
+                          DirectAccessIndexDataProvider.this
+                              .c_idxTerms.put(termBytes, IGNORED_MAP_VALUE);
+                        }
+                        term = termsEnum.next();
+                      }
+                    }
+                  }
+                }
               }
+          )
+      ).process(segCount);
+    } else {
+      Terms terms;
+      TermsEnum termsEnum = TermsEnum.EMPTY;
+
+      // iterate over all fields
+      for (final String field : this.fields) {
+        try {
+          terms = getMultiTermsInstance(field);
+          if (terms != null) {
+            termsEnum = terms.iterator(termsEnum);
+            BytesRef term = termsEnum.next();
+            while (term != null) {
+              final byte[] termBytes = BytesRefUtils.copyBytes(term);
+              // skip, if stopword
+              if (!this.stopwords.contains(termBytes) &&
+                  termsEnum.seekExact(term)) {
+                if (this.c_termFreqs.containsKey(termBytes)) {
+                  this.c_termFreqs.put(termBytes,
+                      this.c_termFreqs.get(termBytes) +
+                          termsEnum.totalTermFreq());
+                } else {
+                  this.c_termFreqs.put(termBytes, termsEnum.totalTermFreq());
+                }
+
+                this.c_idxTerms.put(termBytes, IGNORED_MAP_VALUE);
+              }
+              term = termsEnum.next();
             }
-            term = termsEnum.next();
           }
+        } catch (final IOException e) {
+          throw new DataProviderException(
+              "Caught exception trying to get terms from field '"
+                  + field + "'.", e);
         }
-      } catch (final IOException e) {
-        throw new DataProviderException(
-            "Caught exception trying to get terms from field '"
-                + field + "'.", e);
       }
     }
 
-    LOG.info("Collecting {} terms from index (fields {}) took {}",
-        this.idxTerms.size(), this.fields, tm.stop().getTimeString());
+    LOG.info("{} Collecting {} terms from index (fields {}) took {}",
+        LOG_STARTINFO, this.c_idxTerms.size(), this.fields,
+        tm.stop().getTimeString());
   }
 
   /**
@@ -374,70 +544,39 @@ public class DirectAccessIndexDataProvider
     }
   }
 
+  /**
+   * Calculate the index term frequency value. This is the sum of all
+   * frequencies of all terms in the index (excluding stopwords).
+   */
+  private void calcTermFrequency() {
+    if (this.stopwords.isEmpty()) {
+      LOG.info("{} Calculating index term frequency value (fields {})",
+          LOG_STARTINFO, this.fields);
+    } else {
+      LOG.info(
+          "{} Calculating index term frequency value (fields {}), " +
+              "excluding stopwords", LOG_STARTINFO, this.fields);
+    }
+    final TimeMeasure tm = new TimeMeasure().start();
+    long freq = 0L;
+
+    for (final Long aFreq : this.c_termFreqs.values()) {
+      freq += aFreq;
+    }
+
+    this.idxTermFrequency = freq;
+
+    LOG.info("{} Calculating index term frequency value ({})"
+            + "for fields {} took {}.", LOG_STARTINFO,
+        this.idxTermFrequency, this.fields, tm.stop().getTimeString());
+
+    this.idxTermFrequency_bd = BigDecimal.valueOf(this.idxTermFrequency);
+  }
+
   @Override
   public long getTermFrequency()
       throws DataProviderException {
-    if (this.idxTermFrequency < 0L) {
-      // already calculated
-      return this.idxTermFrequency;
-    }
-
-    LOG.info("Calculating index term frequency value for fields {}",
-        this.fields);
-    final TimeMeasure tm = new TimeMeasure().start();
-
-    long freq = 0L; // final frequency value
-    Terms terms;
-    TermsEnum termsEnum = TermsEnum.EMPTY;
-
-    // iterate over all fields
-    for (final String field : this.fields) {
-      try {
-        terms = getMultiTermsInstance(field);
-
-        if (terms == null) {
-          // field does not exist
-          continue;
-        }
-
-        if (this.stopwords.isEmpty()) {
-          // no stopwords set - simply add all term frequencies
-          freq += terms.getSumTotalTermFreq();
-        } else {
-          // stopwords are set - we have to check each term manually
-          termsEnum = terms.iterator(termsEnum);
-          BytesRef term = termsEnum.next();
-
-          // iterate over all terms in current field
-          while (term != null) {
-            if (!this.stopwords.contains(BytesRefUtils.toByteArray(term))) {
-              // docsEnum should never get null, field and term are already
-              // checked
-              final DocsEnum docsEnum = getTermDocsEnum(field, term);
-              int docId = docsEnum.nextDoc();
-
-              // iterate over all documents that have the current term in the
-              // current field
-              while (docId != DocIdSetIterator.NO_MORE_DOCS) {
-                freq += (long) docsEnum.freq();
-                docId = docsEnum.nextDoc();
-              }
-            }
-            term = termsEnum.next();
-          }
-        }
-      } catch (final IOException e) {
-        throw new DataProviderException(
-            "Caught exception trying to get terms from field '"
-                + field + "'.", e);
-      }
-    }
-
-    LOG.info("Calculating index term frequency value for fields {} took {}",
-        this.fields, tm.stop().getTimeString());
-
-    this.idxTermFrequency = freq;
-    return freq;
+    return this.idxTermFrequency;
   }
 
   @Override
@@ -449,100 +588,64 @@ public class DirectAccessIndexDataProvider
   @Override
   public Long getTermFrequency(final ByteArray term)
       throws DataProviderException {
-    if (this.stopwords.contains(term)) {
+    if (this.stopwords.contains(term.bytes)) {
       // stopword - term not available
       return 0L;
     }
 
-    // check for a cached value
-    Long freq = this.termFreqCache.get(term);
-    if (freq == null) {
-      freq = 0L;
-      // calculate value
-      Terms terms;
-      TermsEnum termsEnum = TermsEnum.EMPTY;
-      final BytesRef termBytes = BytesRefUtils.refFromByteArray(term);
-
-      // iterate over all fields
-      for (final String field : this.fields) {
-        try {
-          terms = getMultiTermsInstance(field);
-          if (terms != null) {
-            termsEnum = terms.iterator(termsEnum);
-            if (termsEnum.seekExact(termBytes)) {
-              // docsEnum should never get null, field and term are already
-              // checked
-              final DocsEnum docsEnum = getTermDocsEnum(field, termBytes);
-              int docId = docsEnum.nextDoc();
-
-              // iterate over all documents that have the current term in the
-              // current field
-              while (docId != DocIdSetIterator.NO_MORE_DOCS) {
-                freq += (long) docsEnum.freq();
-                docId = docsEnum.nextDoc();
-              }
-            }
-          }
-        } catch (final IOException e) {
-          throw new DataProviderException(
-              "Caught exception trying to get terms from field '"
-                  + field + "'.", e);
-        }
-      }
-
-      this.termFreqCache.put(term, freq);
-    }
-    return freq;
+    return this.c_termFreqs.get(term.bytes);
   }
 
   @Override
   public int getDocumentFrequency(final ByteArray term)
       throws DataProviderException {
-    if (this.stopwords.contains(term)) {
+    if (this.stopwords.contains(term.bytes)) {
       // stopword - term not available
       return 0;
     }
 
-    // check for a cached value
-    Integer freq = this.docFreqCache.get(term);
-    if (freq == null) {
-      // calculate value
-      Terms terms;
-      TermsEnum termsEnum = TermsEnum.EMPTY;
-      final BytesRef termBytes = BytesRefUtils.refFromByteArray(term);
-      final Set<Integer> collectedDocIds = new HashSet<>(500);
+    return this.c_docFreqs.get(term.bytes);
 
-      // iterate over all fields
-      DocsEnum docsEnum;
-      for (final String field : this.fields) {
-        try {
-          terms = getMultiTermsInstance(field);
-          if (terms != null) {
-            termsEnum = terms.iterator(termsEnum);
-            if (termsEnum.seekExact(termBytes)) {
-              // docsEnum should never get null, field and term are already
-              // checked
-              docsEnum = getTermDocsEnum(field, termBytes);
-              int docId = docsEnum.nextDoc();
-
-              // iterate over all documents that have the current term in the
-              // current field
-              while (docId != DocIdSetIterator.NO_MORE_DOCS) {
-                collectedDocIds.add(docId);
-                docId = docsEnum.nextDoc();
-              }
-            }
-          }
-        } catch (final IOException e) {
-          throw new DataProviderException(
-              "Caught exception trying to get terms from field '"
-                  + field + "'.", e);
-        }
-      }
-      freq = collectedDocIds.size();
-      this.docFreqCache.put(term, freq);
-    }
-    return freq;
+//    // check for a cached value
+//    Integer freq = this.c_docFreqs.get(term.bytes);
+//    if (freq == null) {
+//      // calculate value
+//      Terms terms;
+//      TermsEnum termsEnum = TermsEnum.EMPTY;
+//      final BytesRef termBytes = BytesRefUtils.refFromByteArray(term);
+//      final Set<Integer> collectedDocIds = new HashSet<>(500);
+//
+//      // iterate over all fields
+//      DocsEnum docsEnum;
+//      for (final String field : this.fields) {
+//        try {
+//          terms = getMultiTermsInstance(field);
+//          if (terms != null) {
+//            termsEnum = terms.iterator(termsEnum);
+//            if (termsEnum.seekExact(termBytes)) {
+//              // docsEnum should never get null, field and term are already
+//              // checked
+//              docsEnum = getTermDocsEnum(field, termBytes);
+//              int docId = docsEnum.nextDoc();
+//
+//              // iterate over all documents that have the current term in the
+//              // current field
+//              while (docId != DocIdSetIterator.NO_MORE_DOCS) {
+//                collectedDocIds.add(docId);
+//                docId = docsEnum.nextDoc();
+//              }
+//            }
+//          }
+//        } catch (final IOException e) {
+//          throw new DataProviderException(
+//              "Caught exception trying to get terms from field '"
+//                  + field + "'.", e);
+//        }
+//      }
+//      freq = collectedDocIds.size();
+//      this.c_docFreqs.put(term.bytes, freq);
+//    }
+//    return freq;
   }
 
   /**
@@ -567,28 +670,38 @@ public class DirectAccessIndexDataProvider
     return null;
   }
 
+  /**
+   * {@inheritDoc} Once calculated those values are cached for this instance.
+   *
+   * @param term Term to lookup
+   * @return Relative frequency of the given term in the collection
+   * @throws DataProviderException
+   */
+  @SuppressWarnings("ReuseOfLocalVariable")
   @Override
   public BigDecimal getRelativeTermFrequency(final ByteArray term)
       throws DataProviderException {
-    final long tf = getTermFrequency(term);
-    if (tf == 0L) {
+    // try get cached value
+    BigDecimal rTf = this.c_relTermFreqs.get(term.bytes);
+    if (rTf != null) {
+      return rTf;
+    }
+
+    // calc new value
+    final Long tf = this.c_termFreqs.get(term.bytes);
+    if (tf == null) {
       return BigDecimal.ZERO;
     }
-    return BigDecimalCache.get(tf).divide(
-        BigDecimalCache.get(getTermFrequency()), MATH_CONTEXT);
+    rTf = BigDecimalCache.get(tf)
+        .divide(this.idxTermFrequency_bd, MATH_CONTEXT);
+    this.c_relTermFreqs.put(term.bytes, rTf);
+
+    return rTf;
   }
 
   @Override
   public void close() {
     LOG.info("Closing IndexDataProvider.");
-    if (!this.tempCaches.isEmpty()) {
-      LOG.debug("Releasing temporary files.");
-      for (final DB db : this.tempCaches.keySet()) {
-        if (!db.isClosed()) {
-          db.close();
-        }
-      }
-    }
     if (!this.cache.isClosed()) {
       LOG.debug("Releasing cache.");
       this.cache.close();
@@ -598,17 +711,39 @@ public class DirectAccessIndexDataProvider
 
   @Override
   public Iterator<ByteArray> getTermsIterator() {
-    return this.idxTerms.keySet().iterator();
+    return new Iterator<ByteArray>() {
+      /**
+       * Iterator over {@code byte[]} entries from {@link
+       * DirectAccessIndexDataProvider#c_idxTerms}.
+       */
+      private final Iterator<byte[]> byteIterator =
+          DirectAccessIndexDataProvider.this.c_idxTerms.keySet().iterator();
+
+      @Override
+      public boolean hasNext() {
+        return this.byteIterator.hasNext();
+      }
+
+      @Override
+      public ByteArray next() {
+        return new ByteArray(this.byteIterator.next());
+      }
+
+      @Override
+      public void remove() {
+        throw new UnsupportedOperationException();
+      }
+    };
   }
 
   @Override
   public Iterator<Integer> getDocumentIds() {
-    return this.documentIds.keySet().iterator();
+    return this.c_documentIds.keySet().iterator();
   }
 
   @Override
   public long getUniqueTermsCount() {
-    return this.idxTerms.sizeLong();
+    return this.c_idxTerms.sizeLong();
   }
 
   @SuppressWarnings("ReturnOfNull")
@@ -626,7 +761,7 @@ public class DirectAccessIndexDataProvider
 
   @Override
   public boolean hasDocument(final int docId) {
-    return this.documentIds.containsKey(docId);
+    return this.c_documentIds.containsKey(docId);
   }
 
   @Override
@@ -664,7 +799,7 @@ public class DirectAccessIndexDataProvider
   @Override
   public long getDocumentCount()
       throws DataProviderException {
-    return this.documentIds.sizeLong();
+    return this.c_documentIds.sizeLong();
   }
 
   @Override
@@ -673,6 +808,7 @@ public class DirectAccessIndexDataProvider
     if (!hasDocument(documentId)) {
       return false;
     }
+
     final BytesRef termBytes = BytesRefUtils.refFromByteArray(term);
     DocsEnum docsEnum;
 
@@ -718,7 +854,7 @@ public class DirectAccessIndexDataProvider
 
   @Override
   public Set<ByteArray> getStopwordsBytes() {
-    return Collections.unmodifiableSet(this.stopwords);
+    return Collections.unmodifiableSet(this.stopwordsBytes);
   }
 
   @Override
@@ -734,15 +870,35 @@ public class DirectAccessIndexDataProvider
    * @throws DataProviderException Wrapped {@link IOException} which gets thrown
    * on low-level I/O errors
    */
+  @SuppressWarnings("ObjectAllocationInLoop")
   private Map<ByteArray, Long> getDocumentsTermsMap(
       final Collection<Integer> docIds)
       throws DataProviderException {
-    final Map<ByteArray, Long> termsMap = getCachedTermSetMap(docIds);
 
-    // already cached
-    if (!termsMap.isEmpty()) {
+    // construct the cache key
+    final List<Integer> docIdList = new ArrayList<>(docIds);
+    Collections.sort(docIdList);
+    final int[] termsMapKey = new int[docIdList.size()];
+    for (int i = 0; i < docIdList.size(); i++) {
+      termsMapKey[i] = docIdList.get(i);
+    }
+
+    final Map<ByteArray, Long> termsMap;
+
+    // try to get a cached map
+    final long[] termIds = this.c_termSets.get(termsMapKey);
+    if (termIds != null) {
+      termsMap = new HashMap<>((int) Math.ceil(
+          (double) (termIds.length / 2) / 0.75));
+      for (int i = 0; i < termIds.length; i += 2) {
+        termsMap.put(
+            new ByteArray(this.c_termIdsInv.get(termIds[i])),
+            termIds[i + 1]);
+      }
       return termsMap;
     }
+
+    termsMap = new HashMap<>(500 * docIds.size()); // rough size guess
 
     boolean hasTermVectors = true;
     // see, if we can use termVectors - it's usually faster
@@ -775,7 +931,6 @@ public class DirectAccessIndexDataProvider
     }
 
     if (hasTermVectors) {
-//      LOG.debug("Collecting terms using TermVectors.");
       try {
         final DocFieldsTermsEnum dftEnum =
             new DocFieldsTermsEnum(this.idxReader, this.fields);
@@ -789,7 +944,7 @@ public class DirectAccessIndexDataProvider
           while (term != null) {
             final ByteArray termBytes = BytesRefUtils.toByteArray(term);
             // skip, if stopword
-            if (!this.stopwords.contains(termBytes)) {
+            if (!this.stopwords.contains(termBytes.bytes)) {
               if (termsMap.containsKey(termBytes)) {
                 termsMap.put(termBytes, termsMap.get(termBytes)
                     + dftEnum.getTotalTermFreq());
@@ -810,7 +965,6 @@ public class DirectAccessIndexDataProvider
 
     // re-check again, if termVectors are there, but collecting terms has failed
     if (!hasTermVectors) {
-//      LOG.debug("Collecting terms using direct method.");
       Terms terms;
       TermsEnum termsEnum = TermsEnum.EMPTY;
       BytesRef term;
@@ -822,12 +976,14 @@ public class DirectAccessIndexDataProvider
             termsEnum = terms.iterator(termsEnum);
             term = termsEnum.next();
             while (term != null) {
-              if (termsEnum.seekExact(term)) {
+              final ByteArray termBytes = BytesRefUtils.toByteArray(term);
+              // skip stopwords and check, if term is there
+              if (!this.stopwords.contains(termBytes.bytes) &&
+                  termsEnum.seekExact(term)) {
                 docsEnum = getTermDocsEnum(field, term);
                 final int docId = docsEnum.nextDoc();
                 while (docId != DocIdSetIterator.NO_MORE_DOCS) {
                   if (docIds.contains(docId)) {
-                    final ByteArray termBytes = BytesRefUtils.toByteArray(term);
                     if (termsMap.containsKey(termBytes)) {
                       termsMap.put(termBytes, termsMap.get(termBytes)
                           + (long) docsEnum.freq());
@@ -847,34 +1003,17 @@ public class DirectAccessIndexDataProvider
       }
     }
 
-    return termsMap;
-  }
-
-  /**
-   * Tries to load an already calculated TermSetMap. If none was cached an new
-   * empty map will be created.
-   *
-   * @param docIds Document ids for which to build the map
-   * @return The cached map or an empty new one
-   */
-  private Map<ByteArray, Long> getCachedTermSetMap(
-      final Collection<Integer> docIds) {
-    final List<Integer> docIdsSorted = new ArrayList<>(docIds);
-
-    synchronized (this.termSetCacheEntries) {
-      Integer mapId = this.termSetCacheEntries.indexOf(docIdsSorted);
-      if (mapId < 0) {
-        mapId = this.termSetCacheEntries.size();
-        this.termSetCacheEntries.add(docIdsSorted);
-      }
-
-      // if there's already a map with the combination of document id's,
-      // it will be returned - otherwise it will be newly created
-      return this.termSetCacheDB.createTreeMap(mapId.toString())
-          .keySerializer(ByteArray.SERIALIZER_BTREE)
-          .valueSerializer(Serializer.LONG)
-          .makeOrGet();
+    // create values for caching
+    final long[] termsMapValue = new long[termsMap.size() * 2];
+    int termsMapEntryCount = 0;
+    for (final Map.Entry<ByteArray, Long> tmE : termsMap.entrySet()) {
+      termsMapValue[termsMapEntryCount] = getTermId(tmE.getKey());
+      termsMapValue[termsMapEntryCount + 1] = tmE.getValue();
+      termsMapEntryCount += 2;
     }
+    this.c_termSets.put(termsMapKey, termsMapValue);
+
+    return termsMap;
   }
 
   /**
