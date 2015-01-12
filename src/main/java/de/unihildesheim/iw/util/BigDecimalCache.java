@@ -18,6 +18,10 @@
 package de.unihildesheim.iw.util;
 
 import de.unihildesheim.iw.mapdb.DBMakerUtils;
+import org.mapdb.BTreeKeySerializer;
+import org.mapdb.DB;
+import org.mapdb.Fun;
+import org.mapdb.Serializer;
 
 import java.math.BigDecimal;
 import java.util.Map;
@@ -26,16 +30,33 @@ import java.util.Map;
  * @author Jens Bertram
  */
 public class BigDecimalCache {
+  private static final DB CACHE = DBMakerUtils.newTempFileDB().make();
   /**
    * Cache long values.
    */
   private static final Map<Long, BigDecimal> NUMBER_CACHE_L =
-      DBMakerUtils.newCompressedCache(0.25); // size in GB
+      CACHE.createTreeMap("cacheLong")
+      .keySerializer(BTreeKeySerializer.ZERO_OR_POSITIVE_LONG)
+      .valueSerializer(Serializer.BASIC)
+      .make();
   /**
    * Cache double values.
    */
   private static final Map<Double, BigDecimal> NUMBER_CACHE_D =
-      DBMakerUtils.newCompressedCache(0.25); // size in GB
+      CACHE.createTreeMap("cacheDouble")
+          .keySerializer(BTreeKeySerializer.BASIC)
+          .valueSerializer(Serializer.BASIC)
+          .make();
+
+  /**
+   * Cache Multiplication results of {@link BigDecimal}s
+   */
+  private static final Map<Fun.Tuple2<BigDecimal, BigDecimal>,
+      BigDecimal> MUL_CACHE =
+      CACHE.createTreeMap("cacheMul")
+          .keySerializer(BTreeKeySerializer.BASIC)
+          .valueSerializer(Serializer.BASIC)
+          .make();
 
   public static BigDecimal get(final long val) {
     BigDecimal ret = NUMBER_CACHE_L.get(val);
@@ -53,5 +74,20 @@ public class BigDecimalCache {
       NUMBER_CACHE_D.put(val, ret);
     }
     return ret;
+  }
+
+  public static BigDecimal getMul(
+      final Fun.Tuple2<BigDecimal, BigDecimal> val) {
+    BigDecimal ret = MUL_CACHE.get(val);
+    if (ret == null) {
+      ret = val.a.multiply(val.b);
+      MUL_CACHE.put(val, ret);
+    }
+    return ret;
+  }
+
+  public static BigDecimal getMul(
+      final BigDecimal val1, final BigDecimal val2) {
+    return getMul(Fun.t2(val1, val2));
   }
 }
