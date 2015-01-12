@@ -19,10 +19,8 @@ package de.unihildesheim.iw.lucene;
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.lucene.index.DirectAccessIndexDataProvider;
-import de.unihildesheim.iw.lucene.index.DirectIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.TestIndexDataProvider;
-import de.unihildesheim.iw.util.RandomValue;
 import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -134,18 +132,6 @@ public class MultiIndexDataProviderTestCase
     this.referenceIndex.prepareTestEnvironment(fields, stopwords);
 
     switch (this.dpType) {
-      case DIRECT:
-        instance = new DirectIndexDataProvider.Builder()
-            .temporary()
-            .documentFields(fields)
-            .stopwords(stopwords)
-            .dataPath(TestIndexDataProvider.getDataDir())
-            .indexPath(TestIndexDataProvider.getIndexDir())
-            .indexReader(TestIndexDataProvider.getIndexReader())
-            .createCache("test-" + RandomValue.getString(16))
-            .warmUp() // important!
-            .build();
-        break;
       case DIRECT_ACCESS:
         instance = new DirectAccessIndexDataProvider.Builder()
             .documentFields(fields)
@@ -185,8 +171,6 @@ public class MultiIndexDataProviderTestCase
    */
   protected final String getDataProviderName() {
     switch (this.dpType) {
-//      case DIRECT:
-//        return DirectIndexDataProvider.class.getCanonicalName();
       case DIRECT_ACCESS:
         return DirectAccessIndexDataProvider.class.getCanonicalName();
       default:
@@ -243,10 +227,6 @@ public class MultiIndexDataProviderTestCase
      * {@link TestIndexDataProvider}
      */
     TEST,
-    /**
-     * {@link DirectIndexDataProvider}
-     */
-    DIRECT,
     /**
      * {@link DirectAccessIndexDataProvider}
      */
