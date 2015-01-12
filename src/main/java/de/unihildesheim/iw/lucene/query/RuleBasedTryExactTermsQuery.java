@@ -147,6 +147,7 @@ public final class RuleBasedTryExactTermsQuery
         final ByteArray termBa =
             new ByteArray(term.getBytes(StandardCharsets.UTF_8));
         if (RelaxRule.HIGHEST_TERMFREQ == rule) {
+          // TODO may be null!
           this.termFreqCache.put(termBa, metrics.collection().tf(termBa));
         } else {
           this.termFreqCache
