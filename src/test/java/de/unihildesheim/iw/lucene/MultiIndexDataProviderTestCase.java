@@ -185,8 +185,8 @@ public class MultiIndexDataProviderTestCase
    */
   protected final String getDataProviderName() {
     switch (this.dpType) {
-      case DIRECT:
-        return DirectIndexDataProvider.class.getCanonicalName();
+//      case DIRECT:
+//        return DirectIndexDataProvider.class.getCanonicalName();
       case DIRECT_ACCESS:
         return DirectAccessIndexDataProvider.class.getCanonicalName();
       default:
