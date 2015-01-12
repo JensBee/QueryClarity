@@ -50,6 +50,15 @@ public final class BytesRefUtils {
   }
 
   /**
+   * Return a copy of the bytes.
+   * @param br {@link BytesRef} to copy bytes from
+   * @return Copy of bytes from {@link BytesRef}
+   */
+  public static byte[] copyBytes(final BytesRef br) {
+    return Arrays.copyOfRange(br.bytes, br.offset, br.length);
+  }
+
+  /**
    * Creates a new {@link BytesRef} instance by cloning the bytes from the given
    * {@link BytesRef}.
    *
