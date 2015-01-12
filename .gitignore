@@ -12,5 +12,6 @@
 /results.txt
 /contrib/*_output.xml
 /contrib/clef-solr/
-src//test/resources/_*.txt
+src/test/resources/_*.txt
+src/test/resources/_fixedTestIndexContent_*
 .idea/
