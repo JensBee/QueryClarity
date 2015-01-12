@@ -140,7 +140,10 @@ public final class Tuple {
           !(this.b == null ? tuple2.b != null : !this.b.equals(tuple2.b));
     }
 
-
+    @Override
+    public String toString() {
+      return "Tuple2(a=" + this.a + " b=" + this.b + ")";
+    }
   }
 
   /**
@@ -211,6 +214,11 @@ public final class Tuple {
       hash = 79 * hash + Objects.hashCode(this.b);
       hash = 79 * hash + Objects.hashCode(this.c);
       return hash;
+    }
+
+    @Override
+    public String toString() {
+      return "Tuple3(a=" + this.a + " b=" + this.b + " c=" + this.c + ")";
     }
   }
 
@@ -292,6 +300,12 @@ public final class Tuple {
       hash = 79 * hash + Objects.hashCode(this.c);
       hash = 79 * hash + Objects.hashCode(this.d);
       return hash;
+    }
+
+    @Override
+    public String toString() {
+      return "Tuple4(a=" + this.a + " b=" + this.b + " c=" + this.c + " d=" +
+          this.d + ")";
     }
   }
 }
