@@ -147,7 +147,7 @@ public final class QueryUtils {
     boolean removed = false;
     while (termsIt.hasNext()) {
       final ByteArray term = termsIt.next();
-      if (cMetrics.tf(term) <= 0L) {
+      if (cMetrics.tf(term) != null && cMetrics.tf(term) <= 0L) {
         sb.append(ByteArrayUtils.utf8ToString(term)).append(' ');
         termsIt.remove();
         removed = true;
