@@ -74,15 +74,39 @@ public abstract class ScoringResult {
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class ScoringResultXml {
+
+    public enum Keys {
+      /**
+       * Number of feedback documents an list of feedback documents.
+       */
+      FEEDBACK_DOCUMENTS("feedbackDocuments"),
+      /**
+       * Key for listing feedback documents.
+       */
+      FEEDBACK_DOCUMENT_KEY("id");
+
+      final String name;
+      Keys(final String newName) {
+        this.name = newName;
+      }
+      public String toString() {
+        return this.name;
+      }
+    }
+
     /**
      * XML items.
      */
     @SuppressWarnings("CollectionWithoutInitialCapacity")
+    @XmlElement
+    @XmlJavaTypeAdapter(MapAdapter.StringValue.class)
     private final Map<String, String> items = new HashMap<>();
     /**
      * XML list items.
      */
     @SuppressWarnings("CollectionWithoutInitialCapacity")
+    @XmlElement
+    @XmlJavaTypeAdapter(MapAdapter.Tuple2ListValue.class)
     private final Map<String, List<Tuple.Tuple2<String, String>>> lists = new
         HashMap<>();
 
@@ -92,8 +116,6 @@ public abstract class ScoringResult {
      * @return List of key, value pairs
      */
     @SuppressWarnings("ReturnOfCollectionOrArrayField")
-    @XmlElement
-    @XmlJavaTypeAdapter(MapAdapter.StringValue.class)
     public Map<String, String> getItems() {
       return this.items;
     }
@@ -104,8 +126,6 @@ public abstract class ScoringResult {
      * @return Map of key, value pairs grouped by key
      */
     @SuppressWarnings("ReturnOfCollectionOrArrayField")
-    @XmlElement
-    @XmlJavaTypeAdapter(MapAdapter.Tuple2ListValue.class)
     public Map<String, List<Tuple.Tuple2<String, String>>> getLists() {
       return this.lists;
     }
