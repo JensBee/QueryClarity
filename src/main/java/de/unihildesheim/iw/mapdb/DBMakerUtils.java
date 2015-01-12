@@ -17,6 +17,7 @@
 
 package de.unihildesheim.iw.mapdb;
 
+import de.unihildesheim.iw.Persistence;
 import org.mapdb.DBMaker;
 import org.mapdb.HTreeMap;
 
@@ -43,11 +44,14 @@ public final class DBMakerUtils {
    * @return pre-configured DBMaker instance
    */
   public static DBMaker newTempFileDB() {
-    return DBMaker.newTempFileDB()
+    final DBMaker dbMkr = DBMaker.newTempFileDB()
         .closeOnJvmShutdown()
         .deleteFilesAfterClose()
-        .mmapFileEnableIfSupported()
         .transactionDisable();
+    if (Persistence.USE_MMAP_FILES) {
+      return dbMkr.mmapFileEnableIfSupported();
+    }
+    return dbMkr;
   }
 
   public static DBMaker newCompressedMemoryDirectDB() {
@@ -67,7 +71,6 @@ public final class DBMakerUtils {
         .make()
         .createHashMap("cache")
         .expireStoreSize(size)
-//        .counterEnable()
         .make();
   }
 }
