@@ -86,6 +86,11 @@ public final class Persistence {
    * Commit generation of the Lucene index.
    */
   private final Long indexCommitGen;
+  /**
+   * Flag indicating, if memory mapped files should be used by db instances.
+   */
+  public static final boolean USE_MMAP_FILES = GlobalConfiguration.conf()
+      .getAndAddBoolean(CONF_PREFIX + "_useMMapFiles", true);
 
   /**
    * Constructor using builder object.
@@ -100,6 +105,7 @@ public final class Persistence {
 
     this.dbFileName = builder.dbMkr.getDbFileName();
     LOG.info("Opening database '{}'.", this.dbFileName);
+    LOG.debug("Use MMapFiles: {}", USE_MMAP_FILES);
 
     this.dbFilePath = builder.dbMkr.getDbFile().toPath();
     if (builder.dbMkr.getDbFile().exists()) {
@@ -483,6 +489,7 @@ public final class Persistence {
     public static final int DB_ASYNC_WRITEFLUSH_DELAY = GlobalConfiguration
         .conf()
         .getAndAddInteger(CONF_PREFIX + "db-async-writeflush-delay", 100);
+
     /**
      * Initializes the builder with default values.
      */
@@ -490,15 +497,13 @@ public final class Persistence {
       this.dbMkr = new ExtDBMaker();
       this.dbMkr
           .transactionDisable()
-          .mmapFileEnableIfSupported()
           .compressionEnable()
           .strictDBGet()
-//          .cacheLRUEnable()
-//          .cacheWeakRefEnable()
-//          .asyncWriteEnable()
           .checksumEnable()
-//          .asyncWriteFlushDelay(DB_ASYNC_WRITEFLUSH_DELAY)
           .closeOnJvmShutdown();
+      if (USE_MMAP_FILES) {
+        this.dbMkr.mmapFileEnableIfSupported();
+      }
       this.cacheInstruction = LoadInstruction.MAKE_OR_GET;
       this.stopwords = Collections.emptySet();
       this.documentFields = Collections.emptySet();
@@ -822,6 +827,11 @@ public final class Persistence {
         return this;
       }
 
+      public ExtDBMaker transactionEnable() {
+        this.props.remove(Keys.transactionDisable);
+        return this;
+      }
+
       public ExtDBMaker noChecksum() {
         this.props.remove(Keys.checksum);
         return this;
@@ -867,9 +877,5 @@ public final class Persistence {
         return this.props.getProperty(Keys.file);
       }
     }
-
-
-
-
   }
 }
