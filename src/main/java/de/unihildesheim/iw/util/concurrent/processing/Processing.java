@@ -92,6 +92,11 @@ public final class Processing {
    * Number of items in source, if set manually.
    */
   private long souceDataCount = 0;
+  /**
+   * Timeout for a finished source to wait for retrieving the final results
+   * count.
+   */
+  private static final long SOURCE_RESULT_TIMEOUT = 60L;
 
   /**
    * Creates a new processing pipe, deriving the {@link Source} from the {@link
@@ -278,10 +283,10 @@ public final class Processing {
     Long processedItems = 0L;
     try {
       // retrieve result from source
-      processedItems = sourceThread.get(3L, TimeUnit.SECONDS);
+      processedItems = sourceThread.get(SOURCE_RESULT_TIMEOUT, TimeUnit.SECONDS);
       LOG.debug("Source finished with {} items after {}.",
           processedItems,
-          TimeMeasure.getTimeString(sourceTime.get(1L, TimeUnit.SECONDS))
+          TimeMeasure.getTimeString(sourceTime.get(10L, TimeUnit.SECONDS))
       );
     } catch (final TimeoutException ex) {
       sourceThread.cancel(true);
