@@ -33,7 +33,7 @@ import org.slf4j.LoggerFactory;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
@@ -111,28 +111,25 @@ public final class SimplifiedClarityScore
     for (final Integer count : queryTerms.values()) {
       queryLength += count;
     }
-    // number of terms in collection
-    final long collTermCount = this.metrics.collection().tf();
 
     // calculate max likelihood of the query model for each term in the
     // query
     // iterate over all unique query terms
-    final List<Fun.Tuple2<BigDecimal, BigDecimal>> dataSet =
-        new ArrayList<>(queryTerms.size());
+    final Collection<Fun.Tuple2<BigDecimal, BigDecimal>> dataSet = new ArrayList
+        (queryTerms.size());
     for (final Map.Entry<ByteArray, Integer> qTermEntry :
         queryTerms.entrySet()) {
       final BigDecimal pMl =
           BigDecimalCache.get(qTermEntry.getValue())
-              .divide(BigDecimalCache.get(queryLength), MATH_CONTEXT);
-//          qTermEntry.getValue().doubleValue() / (double) queryLength;
+              .divide(BigDecimalCache.get((long) queryLength), MATH_CONTEXT);
       dataSet.add(
           Fun.t2(pMl, this.metrics.collection().relTf(qTermEntry.getKey())));
     }
 
     final double score;
     try {
-      score = MathUtils.KlDivergence.calcBig(
-          dataSet, MathUtils.KlDivergence.sumBigValues(dataSet)
+      score = MathUtils.KlDivergence.calc(
+          dataSet, MathUtils.KlDivergence.sumValues(dataSet)
       ).doubleValue();
     } catch (final ProcessingException e) {
       final String msg = "Caught exception while calculating score.";
