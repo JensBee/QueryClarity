@@ -101,8 +101,7 @@ public final class DocumentModel
    * @return True if it's known
    */
   public boolean contains(final ByteArray term) {
-    return this.termFreqMap.containsKey(Objects.requireNonNull(term,
-        "Term was null."));
+    return this.termFreqMap.containsKey(term);
   }
 
   /**
