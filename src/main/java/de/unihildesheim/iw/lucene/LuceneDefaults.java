@@ -26,7 +26,7 @@ public final class LuceneDefaults {
   /**
    * Lucene version the packages are designed for.
    */
-  public static final Version VERSION = Version.LUCENE_47;
+  public static final Version VERSION = Version.LUCENE_4_9;
 
   /**
    * Private constructor for utility class.

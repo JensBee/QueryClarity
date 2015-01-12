@@ -92,7 +92,7 @@ public final class ByteArrayUtils {
     String str = INTERN8.get(Objects.requireNonNull(bytes, "Bytes were null."));
     if (str == null) {
       final CharsRef ref = new CharsRef(bytes.length);
-      UnicodeUtil.UTF8toUTF16(bytes, 0, bytes.length, ref.chars);
+      UnicodeUtil.UTF8toUTF16(bytes, 0, bytes.length, ref);
       str = ref.toString();
       INTERN8.put(Arrays.copyOf(bytes, bytes.length), str);
     }
