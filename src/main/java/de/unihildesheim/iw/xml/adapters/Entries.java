@@ -45,7 +45,9 @@ final class Entries {
      * Tuple2 entries.
      */
     @SuppressWarnings("PackageVisibleField")
-    List<Tuple.Tuple2<String, String>> t2List = new ArrayList<>();
+    @XmlElement
+    @XmlJavaTypeAdapter(ListAdapter.Tuple2ListValue.class)
+    List<Tuple.Tuple2<String, String>> entries = new ArrayList<>();
 
     /**
      * Default constructor used for JAXB (un)marshalling.
@@ -63,14 +65,23 @@ final class Entries {
     Tuple2ListEntry(final String newKey, final List<Tuple.Tuple2<String,
         String>> newT2List) {
       this.key = newKey;
-      this.t2List = newT2List;
+      this.entries = newT2List;
     }
 
     @SuppressWarnings("ReturnOfCollectionOrArrayField")
-    @XmlElement(name = "entries")
-    @XmlJavaTypeAdapter(ListAdapter.Tuple2ListValue.class)
-    List<Tuple.Tuple2<String, String>> getList() {
-      return this.t2List;
+    List<Tuple.Tuple2<String, String>> getEntries() {
+      return this.entries;
+    }
+
+    @Override
+    public String toString() {
+      final StringBuilder sb = new StringBuilder(this.entries.size() * 100);
+      sb.append("Tuple2ListEntry(").append(this.key).append("){")
+          .append(this.entries.size()).append(':');
+      for (final Tuple.Tuple2<String, String> t2 : this.entries) {
+        sb.append("[a=").append(t2.a).append(" b=").append(t2.b).append(']');
+      }
+      return sb.append('}').toString();
     }
   }
 
@@ -104,6 +115,11 @@ final class Entries {
     StringValueEntry(final String newKey, final String newValue) {
       this.key = newKey;
       this.value = newValue;
+    }
+
+    @Override
+    public String toString() {
+      return "StringValueEntry{k=" + this.key + " v=" + this.value + "}";
     }
   }
 }
