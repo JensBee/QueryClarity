@@ -22,15 +22,18 @@ import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.lucene.index.FixedTestIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.IndexTestUtils;
 import de.unihildesheim.iw.lucene.index.Metrics;
+import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.util.BigDecimalCache;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.StringUtils;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Query;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mapdb.Fun;
-import org.nevec.rjm.BigDecimalMath;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
@@ -39,7 +42,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -60,7 +62,7 @@ public final class ImprovedClarityScoreTest
   /**
    * Allowed delta in query model calculation.
    */
-  private static final double DELTA_Q_MOD = Double.valueOf("9E-40");
+  private static final double DELTA_Q_MOD = Double.valueOf("9E-16");
   /**
    * Allowed delta in clarity score calculation.
    */
@@ -109,20 +111,21 @@ public final class ImprovedClarityScoreTest
   @Test
   public void testGetQueryModel_singleTerm()
       throws Exception {
+    final Set<Integer> fbDocIds = Collections.singleton(0);
 
-    try (ImprovedClarityScore instance = (ImprovedClarityScore)
-        getInstanceBuilder().configuration(ICC_CONF).build()) {
+    ImprovedClarityScore.Builder iBuilder = (ImprovedClarityScore.Builder)
+        getInstanceBuilder()
+            .feedbackProvider(getFbProvider(fbDocIds))
+            .configuration(ICC_CONF);
+
+    try (ImprovedClarityScore instance = iBuilder.build()) {
       final String term = FixedTestIndexDataProvider.KnownData
           .TF_DOC_0.entrySet().iterator().next().getKey();
       final ByteArray termBa =
           new ByteArray(term.getBytes(StandardCharsets.UTF_8));
-      final List<ByteArray> qTermsBa = Collections.singletonList(termBa);
       final Set<String> qTerms = Collections.singleton(term);
-      final Set<Integer> fbDocIds = Collections.singleton(0);
 
-      final Map<ByteArray, Integer> qTermsMap = Collections.singletonMap(
-          termBa, 1);
-      instance.testSetValues(fbDocIds, qTermsMap);
+      instance.calculateClarity(StringUtils.join(qTerms, " "));
 
       final BigDecimal result = instance.getQueryModel(termBa);
       final BigDecimal expected = calculateQueryModel(term, qTerms, fbDocIds);
@@ -237,24 +240,22 @@ public final class ImprovedClarityScoreTest
   @Test
   public void testGetQueryModel_random()
       throws Exception {
+    // use all documents for feedback
+    final Set<Integer> fbDocIds = FixedTestIndexDataProvider
+        .getDocumentIdsSet();
 
-    try (ImprovedClarityScore instance = (ImprovedClarityScore)
-        getInstanceBuilder().configuration(ICC_CONF).build()) {
-      // use all documents for feedback
-      final Set<Integer> fbDocIds =
-          FixedTestIndexDataProvider.getDocumentIdsSet();
+    ImprovedClarityScore.Builder iBuilder = (ImprovedClarityScore.Builder)
+        getInstanceBuilder()
+            .feedbackProvider(getFbProvider(fbDocIds))
+            .configuration(ICC_CONF);
 
+    try (ImprovedClarityScore instance = iBuilder.build()) {
       // some random terms from the index will make up a query
       final Tuple.Tuple2<List<String>, List<ByteArray>> randQTerms =
           FixedTestIndexDataProvider.getRandomIndexTerms();
-      final List<ByteArray> qTerms = randQTerms.b;
       final List<String> qTermsStr = randQTerms.a;
 
-      final Map<ByteArray, Integer> qTermsMap = new HashMap<>(qTerms.size());
-      for (final ByteArray qTerm : qTerms) {
-        qTermsMap.put(qTerm, 1);
-      }
-      instance.testSetValues(fbDocIds, qTermsMap);
+      instance.calculateClarity(StringUtils.join(qTermsStr, " "));
 
       // compare calculations for all terms in index
       final Iterator<ByteArray> termsIt = FIXED_INDEX.getTermsIterator();
@@ -286,28 +287,28 @@ public final class ImprovedClarityScoreTest
   public void testGetQueryModel_fixed()
       throws Exception {
 
-    try (ImprovedClarityScore instance = (ImprovedClarityScore)
-        getInstanceBuilder().configuration(ICC_CONF).build()) {
-      // use all documents for feedback
-      final Set<Integer> fbDocIds = FixedTestIndexDataProvider
-          .getDocumentIdsSet();
+    // use all documents for feedback
+    final Set<Integer> fbDocIds = FixedTestIndexDataProvider
+        .getDocumentIdsSet();
 
+    ImprovedClarityScore.Builder iBuilder = (ImprovedClarityScore.Builder)
+        getInstanceBuilder()
+            .feedbackProvider(getFbProvider(fbDocIds))
+            .configuration(ICC_CONF);
+
+    try (ImprovedClarityScore instance = iBuilder.build()) {
       // fixed terms from the index will make up a query
       final List<String> sortedIdxTerms = FIXED_INDEX.getSortedTermList();
       final int termCount = 3;
-      final Collection<ByteArray> qTerms = new ArrayList<>(termCount);
       final Collection<String> qTermsStr = new ArrayList<>(termCount);
+      final Collection<ByteArray> qTerms = new ArrayList<>(termCount);
       for (int i = 0; i < termCount; i++) {
         qTerms.add(new ByteArray(
             sortedIdxTerms.get(i).getBytes(StandardCharsets.UTF_8)));
         qTermsStr.add(sortedIdxTerms.get(i));
       }
 
-      final Map<ByteArray, Integer> qTermsMap = new HashMap<>(qTerms.size());
-      for (final ByteArray qTerm : qTerms) {
-        qTermsMap.put(qTerm, 1);
-      }
-      instance.testSetValues(fbDocIds, qTermsMap);
+      instance.calculateClarity(StringUtils.join(qTermsStr, " "));
 
       // compare calculations for all terms in index
       final Iterator<ByteArray> termsIt = FIXED_INDEX.getTermsIterator();
@@ -358,22 +359,24 @@ public final class ImprovedClarityScoreTest
   @Test
   public void testCalculateClarity_singleTerm()
       throws Exception {
-    try (ImprovedClarityScore instance = (ImprovedClarityScore)
-        getInstanceBuilder().configuration(ICC_CONF).build()) {
-      final String term = FixedTestIndexDataProvider.KnownData
-          .TF_DOC_0.entrySet().iterator().next().getKey();
-      System.out.println("Term=" + term);
+    // use all documents for feedback
+    final Set<Integer> fbDocIds = FixedTestIndexDataProvider
+        .getDocumentIdsSet();
 
-      // use all documents for feedback
-      final Set<Integer> fbDocIds = FixedTestIndexDataProvider
-          .getDocumentIdsSet();
-      final Map<ByteArray, Integer> qTermsMap = Collections.singletonMap(new
-          ByteArray(term.getBytes(StandardCharsets.UTF_8)), 1);
-      instance.testSetValues(fbDocIds, qTermsMap);
+    ImprovedClarityScore.Builder iBuilder = (ImprovedClarityScore.Builder)
+        getInstanceBuilder()
+            .feedbackProvider(getFbProvider(fbDocIds))
+            .configuration(ICC_CONF);
+
+    try (ImprovedClarityScore instance = iBuilder.build()) {
+      final List<String> qTerm =
+          Collections.singletonList(FixedTestIndexDataProvider.KnownData
+              .TF_DOC_0.entrySet().iterator().next().getKey());
 
       final ImprovedClarityScore.Result result =
-          instance.calculateClarity(term);
-      final BigDecimal expected = calculateScore(instance, result);
+          instance.calculateClarity(qTerm.get(0));
+      final BigDecimal expected = calculateScore(
+          qTerm, fbDocIds, instance, result);
 
       Assert.assertEquals("Single term score value differs.",
           expected.doubleValue(), result.getScore(), DELTA_SCORE_SINGLE);
@@ -389,14 +392,13 @@ public final class ImprovedClarityScoreTest
    * @throws Exception Any exception thrown indicates an error
    */
   private static BigDecimal calculateScore(
+      final Collection<String> qTermsStr,
+      final Collection<Integer> fbDocs,
       final ImprovedClarityScore instance,
       final ImprovedClarityScore.Result result)
       throws Exception {
-    final Collection<String> qTermsStr =
-        new ArrayList<>(result.getQueryTerms().size());
-    for (final ByteArray qTerm : result.getQueryTerms()) {
-      qTermsStr.add(ByteArrayUtils.utf8ToString(qTerm));
-    }
+//    final Set<String> qTerms = new HashSet<>(qTermsStr);
+    final Collection<String> qTerms = qTermsStr;
 
     final Iterator<ByteArray> fbTermsIt =
         instance.testGetVocabularyProvider().get();
@@ -415,58 +417,62 @@ public final class ImprovedClarityScoreTest
       if (tfc.compareTo(minFreq) >= 0
           && tfc.compareTo(maxFreq) <= 0) {
         final String termStr = ByteArrayUtils.utf8ToString(term);
-        final BigDecimal pq = calculateQueryModel(termStr, qTermsStr,
-            result.getFeedbackDocuments());
+        final BigDecimal pq = calculateQueryModel(termStr, qTerms,
+            fbDocs);
 
         dataSet.add(Fun.t2(pq, FIXED_INDEX.getRelativeTermFrequency(term)));
       }
     }
 
-    // normalization of calculation values
-    BigDecimal pqSum = BigDecimal.ZERO;
-    BigDecimal pcSum = BigDecimal.ZERO;
-    for (final Fun.Tuple2<BigDecimal, BigDecimal> ds : dataSet) {
-      pqSum = pqSum.add(ds.a);
-      pcSum = pcSum.add(ds.b);
-    }
+    return MathUtils.KlDivergence.calc(
+        dataSet,
+        MathUtils.KlDivergence.sumValues(dataSet)
+    );
+  }
 
-    // scoring
-//    Double score = 0d;
-    BigDecimal score = BigDecimal.ZERO;
-    BigDecimal pq;
-    BigDecimal pc;
-    for (final Fun.Tuple2<BigDecimal, BigDecimal> ds : dataSet) {
-      if (ds.a.compareTo(BigDecimal.ZERO) == 0 ||
-          ds.b.compareTo(BigDecimal.ZERO)
-              == 0) { // ds.b == 0
-        // implies ds.a == 0
-        continue;
+  private FeedbackProvider getFbProvider(final Set<Integer> docIds) {
+    return new FeedbackProvider() {
+      @Override
+      public Set<Integer> get()
+          throws Exception {
+        return docIds;
       }
-      pq = ds.a.divide(pqSum, MathUtils.MATH_CONTEXT);
-      pc = ds.b.divide(pcSum, MathUtils.MATH_CONTEXT);
 
-      score = score.add(
-          pq.multiply(BigDecimalMath.log(pq).subtract(BigDecimalMath.log(pc)))
-      );
+      @Override
+      public FeedbackProvider query(final String query) {
+        return this;
+      }
 
-//      score += (pq.doubleValue() *
-//          (Math.log(pq.doubleValue()) - Math.log(pc.doubleValue())));
-    }
-    return score.divide(MathUtils.BD_LOG2, MathUtils.MATH_CONTEXT);
-//    return score / MathUtils.LOG2;
-//    for (final Fun.Tuple2<BigDecimal, BigDecimal> ds : dataSet) {
-//      if (ds.a.compareTo(BigDecimal.ZERO) == 0 ||
-//          ds.b.compareTo(BigDecimal.ZERO) == 0) { // ds.b == 0
-//        // implies ds.a == 0
-//        continue;
-//      }
-//      pq = ds.a.divide(pqSum, MathUtils.MATH_CONTEXT);
-//      pc = ds.b.divide(pcSum, MathUtils.MATH_CONTEXT);
-//
-//      score += (pq.doubleValue() * (Math.log(pq.doubleValue()) -
-//          Math.log(pc.doubleValue())));
-//    }
-//    return score / MathUtils.LOG2;
+      @Override
+      public FeedbackProvider query(final Query query) {
+        return this;
+      }
+
+      @Override
+      public FeedbackProvider amount(final int min, final int max) {
+        return this;
+      }
+
+      @Override
+      public FeedbackProvider amount(final int fixed) {
+        return this;
+      }
+
+      @Override
+      public FeedbackProvider indexReader(final IndexReader indexReader) {
+        return this;
+      }
+
+      @Override
+      public FeedbackProvider analyzer(final Analyzer analyzer) {
+        return this;
+      }
+
+      @Override
+      public FeedbackProvider fields(final Set<String> fields) {
+        return this;
+      }
+    };
   }
 
   /**
@@ -478,30 +484,26 @@ public final class ImprovedClarityScoreTest
   @Test
   public void testCalculateClarity()
       throws Exception {
+    // some random terms from the index will make up a query
+    final List<String> qTermsStr =
+        FixedTestIndexDataProvider.getRandomIndexTerms().a;
 
-    try (ImprovedClarityScore instance = (ImprovedClarityScore)
-        getInstanceBuilder().configuration(ICC_CONF).build()) {
-      // some random terms from the index will make up a query
-      final Tuple.Tuple2<List<String>, List<ByteArray>> randQTerms =
-          FixedTestIndexDataProvider.getRandomIndexTerms();
-      final List<String> qTermsStr = randQTerms.a;
+    // create a query string from the list of terms
+    final String queryStr = StringUtils.join(qTermsStr, " ");
+    // use all documents for feedback
+    final Set<Integer> fbDocIds = FixedTestIndexDataProvider
+        .getDocumentIdsSet();
 
-      // create a query string from the list of terms
-      final String queryStr = StringUtils.join(qTermsStr, " ");
-      // use all documents for feedback
-      final Set<Integer> fbDocIds = FixedTestIndexDataProvider
-          .getDocumentIdsSet();
+    ImprovedClarityScore.Builder iBuilder = (ImprovedClarityScore.Builder)
+        getInstanceBuilder()
+            .feedbackProvider(getFbProvider(fbDocIds))
+            .configuration(ICC_CONF);
 
-      final Map<ByteArray, Integer> qTermsMap = new HashMap<>(
-          randQTerms.b.size());
-      for (final ByteArray qTerm : randQTerms.b) {
-        qTermsMap.put(qTerm, 1);
-      }
-      instance.testSetValues(fbDocIds, qTermsMap);
-
+    try (ImprovedClarityScore instance = iBuilder.build()) {
       final ImprovedClarityScore.Result result = instance.calculateClarity
           (queryStr);
-      final BigDecimal score = calculateScore(instance, result);
+      final BigDecimal score = calculateScore(
+          qTermsStr, fbDocIds, instance, result);
 
       Assert.assertEquals("Clarity score mismatch.", score.doubleValue(),
           result.getScore(),

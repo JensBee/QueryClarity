@@ -20,11 +20,14 @@ import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.util.RandomValue;
 import org.junit.Assert;
 import org.junit.Test;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -34,6 +37,9 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class ProcessingTest
     extends TestCase {
+
+  static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
+      ProcessingTest.class);
 
   /**
    * Test of setSource method, of class Processing.
@@ -127,13 +133,8 @@ public final class ProcessingTest
     }
   }
 
-  /**
-   * Test of debugTestSource method, of class Processing.
-   *
-   * @throws Exception Any exception thrown indicates an error
-   */
   @Test
-  public void testDebugTestSource()
+  public void testCollectionSource()
       throws Exception {
     final int collSize = RandomValue.getInteger(100, 10000);
     final Collection<String> coll = new ArrayList<>(collSize);
@@ -149,6 +150,52 @@ public final class ProcessingTest
             new TestTargets.FuncCall<String>(counter)
         )
     ).process(coll.size());
+
+    Assert.assertEquals("Not all items provided by source.", (long) collSize,
+        counter.longValue());
+  }
+
+  @Test
+  public void testQueueSource()
+      throws Exception {
+    final int collSize = RandomValue.getInteger(100, 10000);
+    final Queue<String> coll = new LinkedBlockingQueue<>();
+    for (int i = 0; i < collSize; i++) {
+      coll.add(RandomValue.getString(1, 10));
+    }
+    LOG.debug("SIZE {}", coll.size());
+    final Source<String> newSource = new QueueSource<>(coll);
+
+    final AtomicLong counter = new AtomicLong(0L);
+    new Processing(
+        new TargetFuncCall<>(
+            newSource,
+            new TestTargets.FuncCall<String>(counter)
+        )
+    ).process(coll.size());
+
+    Assert.assertEquals("Not all items provided by source.", (long) collSize,
+        counter.longValue());
+  }
+
+  @Test
+  public void testQueueSource_overSize()
+      throws Exception {
+    final int collSize = RandomValue.getInteger(100, 10000);
+    final Queue<String> coll = new LinkedBlockingQueue<>();
+    for (int i = 0; i < collSize; i++) {
+      coll.add(RandomValue.getString(1, 10));
+    }
+    LOG.debug("SIZE {}", coll.size());
+    final Source<String> newSource = new QueueSource<>(coll);
+
+    final AtomicLong counter = new AtomicLong(0L);
+    new Processing(
+        new TargetFuncCall<>(
+            newSource,
+            new TestTargets.FuncCall<String>(counter)
+        )
+    ).process(coll.size() * 2);
 
     Assert.assertEquals("Not all items provided by source.", (long) collSize,
         counter.longValue());
