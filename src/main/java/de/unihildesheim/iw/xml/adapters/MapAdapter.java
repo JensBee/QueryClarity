@@ -18,6 +18,8 @@
 package de.unihildesheim.iw.xml.adapters;
 
 import de.unihildesheim.iw.Tuple;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.xml.bind.annotation.adapters.XmlAdapter;
 import java.util.HashMap;
@@ -28,6 +30,11 @@ import java.util.Map;
  * @author Jens Bertram
  */
 public final class MapAdapter {
+
+  /**
+   * Logger instance for this class.
+   */
+  static final Logger LOG = LoggerFactory.getLogger(MapAdapter.class);
 
   /**
    * XML processing of mapping from key to Tuple2.
@@ -45,10 +52,11 @@ public final class MapAdapter {
       if (null == value) {
         return null;
       }
+      LOG.debug("Tuple2ListValue unmarshal {} entries.", value.length);
       final Map<String, List<Tuple.Tuple2<String, String>>> retMap =
           new HashMap<>(value.length);
       for (final Entries.Tuple2ListEntry t2Val : value) {
-        retMap.put(t2Val.key, t2Val.t2List);
+        retMap.put(t2Val.key, t2Val.getEntries());
       }
       return retMap;
     }
@@ -86,6 +94,7 @@ public final class MapAdapter {
       if (null == value) {
         return null;
       }
+      LOG.debug("StringValue unmarshal {} entries.", value.length);
       final Map<String, String> retMap = new HashMap<>(value.length);
       for (final Entries.StringValueEntry sVal : value) {
         retMap.put(sVal.key, sVal.value);

@@ -18,6 +18,8 @@
 package de.unihildesheim.iw.xml.adapters;
 
 import de.unihildesheim.iw.Tuple;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.xml.bind.annotation.adapters.XmlAdapter;
 import java.util.ArrayList;
@@ -27,6 +29,10 @@ import java.util.List;
  * @author Jens Bertram
  */
 final class ListAdapter {
+  /**
+   * Logger instance for this class.
+   */
+  static final Logger LOG = LoggerFactory.getLogger(ListAdapter.class);
   /**
    * XML processing of Tuple2 objects.
    */
@@ -44,6 +50,8 @@ final class ListAdapter {
       if (null == value) {
         return null;
       }
+      LOG.debug("Tuple2ListValue unmarshal {} entries.",
+          value.length);
       final List<Tuple.Tuple2<String, String>> retList =
           new ArrayList<>(value.length);
       for (final Entries.StringValueEntry sVal : value) {
