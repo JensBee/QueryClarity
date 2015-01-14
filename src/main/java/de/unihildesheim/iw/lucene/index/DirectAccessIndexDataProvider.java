@@ -25,6 +25,7 @@ import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.mapdb.DBMakerUtils;
 import de.unihildesheim.iw.util.BigDecimalCache;
+import de.unihildesheim.iw.util.Progress;
 import de.unihildesheim.iw.util.TimeMeasure;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
@@ -75,6 +76,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 /**
@@ -574,6 +576,17 @@ public class DirectAccessIndexDataProvider
   }
 
   @Override
+  public void cacheDocumentModels(final Collection<Integer> docIds) {
+    try {
+      LOG.info("Caching {} document models. This may take some time.", docIds
+          .size());
+      getDocumentsTermsMap(docIds);
+    } catch (final DataProviderException e) {
+      LOG.warn("Caching failed: {}", e);
+    }
+  }
+
+  @Override
   public long getTermFrequency()
       throws DataProviderException {
     return this.idxTermFrequency;
@@ -755,7 +768,7 @@ public class DirectAccessIndexDataProvider
     }
     return new DocumentModel.Builder(docId)
         .setTermFrequency(
-            getDocumentsTermsMap(Collections.singleton(docId))
+            getMergedDocumentsTermsMap(Collections.singleton(docId))
         ).getModel();
   }
 
@@ -770,14 +783,14 @@ public class DirectAccessIndexDataProvider
     if (!hasDocument(docId)) {
       return Collections.emptyMap();
     }
-    return getDocumentsTermsMap(Collections.singleton(docId));
+    return getMergedDocumentsTermsMap(Collections.singleton(docId));
   }
 
   @Override
   public Iterator<Map.Entry<ByteArray, Long>> getDocumentsTerms(
       final Collection<Integer> docIds)
       throws DataProviderException {
-    return getDocumentsTermsMap(docIds).entrySet().iterator();
+    return getMergedDocumentsTermsMap(docIds).entrySet().iterator();
   }
 
   @Override
@@ -786,14 +799,14 @@ public class DirectAccessIndexDataProvider
     if (!hasDocument(docId)) {
       return Collections.emptySet();
     }
-    return getDocumentsTermsMap(Collections.singleton(docId)).keySet();
+    return getMergedDocumentsTermsMap(Collections.singleton(docId)).keySet();
   }
 
   @Override
   public Iterator<ByteArray> getDocumentsTermsSet(
       final Collection<Integer> docIds)
       throws DataProviderException {
-    return getDocumentsTermsMap(docIds).keySet().iterator();
+    return getMergedDocumentsTermsMap(docIds).keySet().iterator();
   }
 
   @Override
@@ -862,43 +875,13 @@ public class DirectAccessIndexDataProvider
     return this.isClosed;
   }
 
-  /**
-   * Get a mapping of term->frequency for a set of documents
-   *
-   * @param docIds Document id's to extract the terms from
-   * @return Mapping of term->frequency for all specified documents
-   * @throws DataProviderException Wrapped {@link IOException} which gets thrown
-   * on low-level I/O errors
-   */
-  @SuppressWarnings("ObjectAllocationInLoop")
-  private Map<ByteArray, Long> getDocumentsTermsMap(
-      final Collection<Integer> docIds)
+  private Map<Integer, Map<ByteArray, Long>>getDocumentsTermsMap
+      (final Collection<Integer> docIds)
       throws DataProviderException {
 
-    // construct the cache key
-    final List<Integer> docIdList = new ArrayList<>(docIds);
-    Collections.sort(docIdList);
-    final int[] termsMapKey = new int[docIdList.size()];
-    for (int i = 0; i < docIdList.size(); i++) {
-      termsMapKey[i] = docIdList.get(i);
-    }
-
-    final Map<ByteArray, Long> termsMap;
-
-    // try to get a cached map
-    final long[] termIds = this.c_termSets.get(termsMapKey);
-    if (termIds != null) {
-      termsMap = new HashMap<>((int) Math.ceil(
-          (double) (termIds.length / 2) / 0.75));
-      for (int i = 0; i < termIds.length; i += 2) {
-        termsMap.put(
-            new ByteArray(this.c_termIdsInv.get(termIds[i])),
-            termIds[i + 1]);
-      }
-      return termsMap;
-    }
-
-    termsMap = new HashMap<>(500 * docIds.size()); // rough size guess
+    // pre-fill map with maps
+    final Map<Integer, Map<ByteArray, Long>> mapMap =
+        new HashMap<>((int) (docIds.size() * 0.5));
 
     boolean hasTermVectors = true;
     // see, if we can use termVectors - it's usually faster
@@ -930,6 +913,231 @@ public class DirectAccessIndexDataProvider
       }
     }
 
+    Map<ByteArray, Long> termsMap;
+
+    if (hasTermVectors) {
+      // clean start term maps
+      for (final Integer docId : docIds) {
+        mapMap.put(docId, new HashMap<ByteArray, Long>());
+      }
+
+      try {
+        final DocFieldsTermsEnum dftEnum =
+            new DocFieldsTermsEnum(this.idxReader, this.fields);
+        BytesRef term;
+        // step through all fields of each document
+        for (final int docId : docIds) {
+          dftEnum.setDocument(docId);
+          term = dftEnum.next();
+          termsMap = mapMap.get(docId);
+
+          // collect terms from document fields
+          while (term != null) {
+            final ByteArray termBytes = BytesRefUtils.toByteArray(term);
+            // skip, if stopword
+            if (!this.stopwords.contains(termBytes.bytes)) {
+              if (termsMap.containsKey(termBytes)) {
+                termsMap.put(termBytes, termsMap.get(termBytes)
+                    + dftEnum.getTotalTermFreq());
+              } else {
+                termsMap.put(termBytes, dftEnum.getTotalTermFreq());
+              }
+            }
+            term = dftEnum.next();
+          }
+        }
+      } catch (final IOException e) {
+        // fail silently - maybe we succeed using no term vectors
+        hasTermVectors = false;
+      }
+    }
+
+    // re-check again, if termVectors are there, but collecting terms has failed
+    if (!hasTermVectors) {
+      LOG.info("Term vectors not present. Scanning all index terms for {} " +
+          "documents.", docIds.size());
+      // clean start term maps
+      for (final Integer docId : docIds) {
+        mapMap.put(docId, new HashMap<ByteArray, Long>());
+      }
+
+      // provide status messages
+      final Progress progress = new Progress().start();
+
+      Terms terms;
+      TermsEnum termsEnum = TermsEnum.EMPTY;
+      BytesRef term;
+      DocsEnum docsEnum;
+      for (final String field : this.fields) {
+        progress.reset(); // reset item count
+        LOG.info("Scanning index terms of field {}", field);
+        try {
+          terms = getMultiTermsInstance(field);
+          if (terms != null) {
+            termsEnum = terms.iterator(termsEnum);
+            term = termsEnum.next();
+
+            while (term != null) {
+              progress.inc(); // status
+              final ByteArray termBytes = BytesRefUtils.toByteArray(term);
+              // skip stopwords and check, if term is there
+              if (!this.stopwords.contains(termBytes.bytes) &&
+                  termsEnum.seekExact(term)) {
+                docsEnum = getTermDocsEnum(field, term);
+                int docId = docsEnum.nextDoc();
+
+                final Collection<Integer> docIdsToCheck =
+                    new ArrayList<>(docIds);
+                while (docId != DocIdSetIterator.NO_MORE_DOCS) {
+                  if (docIdsToCheck.contains(docId)) {
+                    termsMap = mapMap.get(docId);
+
+                    if (termsMap.containsKey(termBytes)) {
+                      termsMap.put(termBytes, termsMap.get(termBytes)
+                          + (long) docsEnum.freq());
+                    } else {
+                      termsMap.put(termBytes, (long) docsEnum.freq());
+                    }
+                    docIdsToCheck.remove(docId);
+                    // test if there's something to check
+                    if (docIdsToCheck.isEmpty()) {
+                      break;
+                    }
+                  }
+                  docId = docsEnum.nextDoc();
+                }
+              }
+
+              term = termsEnum.next();
+            }
+            progress.finished(); // status
+          }
+        } catch (final IOException e) {
+          throw new DataProviderException(
+              "Caught exception trying to get terms from field '"
+                  + field + "'.", e);
+        }
+      }
+    }
+
+    // create values for caching
+    for (final Integer docId : docIds) {
+      termsMap = mapMap.get(docId);
+
+      final long[] termsMapValue = new long[termsMap.size() * 2];
+      int termsMapEntryCount = 0;
+      for (final Entry<ByteArray, Long> tmE : termsMap.entrySet()) {
+        termsMapValue[termsMapEntryCount] = getTermId(tmE.getKey());
+        termsMapValue[termsMapEntryCount + 1] = tmE.getValue();
+        termsMapEntryCount += 2;
+      }
+      this.c_termSets.put(createTermSetCacheKey(Collections.singleton(docId)),
+          termsMapValue);
+    }
+
+    return mapMap;
+  }
+
+  private static int[] createTermSetCacheKey(final Collection<Integer> docIds) {
+    final List<Integer> docIdList = new ArrayList<>(docIds);
+    Collections.sort(docIdList);
+    final int[] termsMapKey = new int[docIdList.size()];
+    for (int i = 0; i < docIdList.size(); i++) {
+      termsMapKey[i] = docIdList.get(i);
+    }
+    return termsMapKey;
+  }
+
+  /**
+   * Get a mapping of term->frequency for a set of documents
+   *
+   * @param docIds Document id's to extract the terms from
+   * @return Mapping of term->frequency for all specified documents
+   * @throws DataProviderException Wrapped {@link IOException} which gets thrown
+   * on low-level I/O errors
+   */
+  @SuppressWarnings("ObjectAllocationInLoop")
+  private Map<ByteArray, Long> getMergedDocumentsTermsMap(
+      final Collection<Integer> docIds)
+      throws DataProviderException {
+
+    // construct the cache key
+    /*
+    final List<Integer> docIdList = new ArrayList<>(docIds);
+    Collections.sort(docIdList);
+    final int[] termsMapKey = new int[docIdList.size()];
+    for (int i = 0; i < docIdList.size(); i++) {
+      termsMapKey[i] = docIdList.get(i);
+    }*/
+    final int[] termsMapKey = createTermSetCacheKey(docIds);
+
+    final Map<ByteArray, Long> termsMap;
+
+    // try to get a cached map
+    final long[] termIds = this.c_termSets.get(termsMapKey);
+    if (termIds != null) {
+      termsMap = new HashMap<>((int) Math.ceil(
+          (double) (termIds.length / 2) / 0.75));
+      for (int i = 0; i < termIds.length; i += 2) {
+        termsMap.put(
+            new ByteArray(this.c_termIdsInv.get(termIds[i])),
+            termIds[i + 1]);
+      }
+      return termsMap;
+    }
+
+    // create terms map
+    final Map<Integer, Map<ByteArray, Long>> mapMap =
+        getDocumentsTermsMap(docIds);
+
+    termsMap = new HashMap<>(500 * docIds.size()); // rough size guess
+
+    for (final Integer docId : docIds) {
+      final Map<ByteArray, Long> docTermsMap = mapMap.get(docId);
+
+      for (final Entry<ByteArray, Long> tmE : docTermsMap.entrySet()) {
+        if (termsMap.containsKey(tmE.getKey())) {
+          termsMap.put(tmE.getKey(),
+              termsMap.get(tmE.getKey()) + tmE.getValue());
+        } else {
+          termsMap.put(tmE.getKey(), tmE.getValue());
+        }
+      }
+    }
+
+    /*
+    boolean hasTermVectors = true;
+    // see, if we can use termVectors - it's usually faster
+    for (final int docId : docIds) {
+      if (!hasDocument(docId)) {
+        continue;
+      }
+      try {
+        final Fields fields = this.idxReader.getTermVectors(docId);
+        if (fields == null) {
+          hasTermVectors = false;
+          break;
+        } else {
+          for (final String field : this.fields) {
+            if (fields.terms(field) == null) {
+              hasTermVectors = false;
+              break;
+            }
+          }
+        }
+        if (!hasTermVectors) {
+          // do not check further if we failed already
+          break;
+        }
+      } catch (final IOException e) {
+        // fail silently - maybe we succeed using no term vectors
+        hasTermVectors = false;
+        break;
+      }
+    }
+    */
+
+    /*
     if (hasTermVectors) {
       try {
         final DocFieldsTermsEnum dftEnum =
@@ -962,7 +1170,9 @@ public class DirectAccessIndexDataProvider
         termsMap.clear();
       }
     }
+    */
 
+    /*
     // re-check again, if termVectors are there, but collecting terms has failed
     if (!hasTermVectors) {
       Terms terms;
@@ -975,24 +1185,35 @@ public class DirectAccessIndexDataProvider
           if (terms != null) {
             termsEnum = terms.iterator(termsEnum);
             term = termsEnum.next();
+
             while (term != null) {
               final ByteArray termBytes = BytesRefUtils.toByteArray(term);
               // skip stopwords and check, if term is there
               if (!this.stopwords.contains(termBytes.bytes) &&
                   termsEnum.seekExact(term)) {
                 docsEnum = getTermDocsEnum(field, term);
-                final int docId = docsEnum.nextDoc();
+                int docId = docsEnum.nextDoc();
+
+                final Collection<Integer> docIdsToCheck = new ArrayList(docIds);
                 while (docId != DocIdSetIterator.NO_MORE_DOCS) {
-                  if (docIds.contains(docId)) {
+                  if (docIdsToCheck.contains(docId)) {
                     if (termsMap.containsKey(termBytes)) {
                       termsMap.put(termBytes, termsMap.get(termBytes)
                           + (long) docsEnum.freq());
                     } else {
                       termsMap.put(termBytes, (long) docsEnum.freq());
                     }
+                    docIdsToCheck.remove(docId);
+                    // test if there's something to check
+                    if (docIdsToCheck.isEmpty()) {
+                      break;
+                    }
                   }
+                  docId = docsEnum.nextDoc();
                 }
               }
+
+              term = termsEnum.next();
             }
           }
         } catch (final IOException e) {
@@ -1002,11 +1223,12 @@ public class DirectAccessIndexDataProvider
         }
       }
     }
+    */
 
     // create values for caching
     final long[] termsMapValue = new long[termsMap.size() * 2];
     int termsMapEntryCount = 0;
-    for (final Map.Entry<ByteArray, Long> tmE : termsMap.entrySet()) {
+    for (final Entry<ByteArray, Long> tmE : termsMap.entrySet()) {
       termsMapValue[termsMapEntryCount] = getTermId(tmE.getKey());
       termsMapValue[termsMapEntryCount + 1] = tmE.getValue();
       termsMapEntryCount += 2;

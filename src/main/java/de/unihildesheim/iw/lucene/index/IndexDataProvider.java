@@ -38,6 +38,13 @@ public interface IndexDataProvider
     extends AutoCloseable {
 
   /**
+   * Cache a set of document models. This may be used to speed up further
+   * queries of those models.
+   * @param docIds Collection of document ids to cache
+   */
+  void cacheDocumentModels(final Collection<Integer> docIds);
+
+  /**
    * Get the frequency of all terms in the index.
    *
    * @return The frequency of all terms in the index

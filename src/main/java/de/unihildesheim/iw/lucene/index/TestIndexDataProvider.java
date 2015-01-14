@@ -1014,6 +1014,11 @@ public final class TestIndexDataProvider
 
 
   @Override
+  public void cacheDocumentModels(final Collection<Integer> docIds) {
+    // NOP
+  }
+
+  @Override
   public long getTermFrequency() {
     Long frequency = 0L;
 
