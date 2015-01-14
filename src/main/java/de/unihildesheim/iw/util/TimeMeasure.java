@@ -187,4 +187,13 @@ public final class TimeMeasure {
     final double nanos = getElapsedNanos();
     return nanos > 0d ? nanos / 1000000000.0 : 0d;
   }
+
+  /**
+   * Get the full (rounded) elapsed seconds of the current measurement.
+   *
+   * @return elapsed seconds, or {@code 0} if no time was recorded
+   */
+  public double getElapsedFullSeconds() {
+    return Math.round(getElapsedSeconds());
+  }
 }

@@ -214,16 +214,16 @@ public final class SourceObserver<T>
     final long count = this.source.getSourcedItemCount();
     final String text;
     if (count <= 1L) {
-      LOG.info("Processed {} item after {}s, running since {}.",
+      LOG.info("Processed {} item after {}s, running since ~{}.",
           this.source.getSourcedItemCount(),
-          this.runTime.getElapsedSeconds(),
+          this.runTime.getElapsedFullSeconds(),
           this.overallTime.getTimeString());
     } else {
       final long progress = status - lastStatus;
-      LOG.info("Processed {} items (+{}) after {}s, running since {}.",
+      LOG.info("Processed {} items (+{}) after ~{}s, running since {}.",
           status,
           progress,
-          this.runTime.getElapsedSeconds(),
+          this.runTime.getElapsedFullSeconds(),
           this.overallTime.getTimeString());
     }
   }
@@ -245,11 +245,11 @@ public final class SourceObserver<T>
       // multi process info
       final long progress = status - lastStatus;
       LOG.info("Processing {} of {} items ({} {}%). "
-              + "{}s since last status. Running for {}. Time left: {}.",
+              + "~{}s since last status. Running for {}. Time left: {}.",
           status, itemCount,
           "+" + progress,
           (status * 100L) / itemCount,
-          this.runTime.getElapsedSeconds(),
+          this.runTime.getElapsedFullSeconds(),
           this.overallTime.getTimeString(),
           TimeMeasure.getTimeString(estimate)
       );
