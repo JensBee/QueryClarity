@@ -26,6 +26,7 @@ import de.unihildesheim.iw.fiz.Defaults.SRC_LANGUAGE;
 import de.unihildesheim.iw.fiz.lucene.LanguageBasedAnalyzers;
 import de.unihildesheim.iw.fiz.models.Patent;
 import de.unihildesheim.iw.lucene.LuceneDefaults;
+import de.unihildesheim.iw.lucene.VecTextField;
 import de.unihildesheim.iw.util.StopwordsFileReader;
 import de.unihildesheim.iw.util.StopwordsFileReader.Format;
 import de.unihildesheim.iw.util.StringUtils;
@@ -300,7 +301,7 @@ public class BuildIndex
    * @throws IOException Thrown, if writing the Lucene index fails
    */
   @SuppressWarnings("ObjectAllocationInLoop")
-  private static void indexResults(final IndexWriter writer, final SRC_LANGUAGE
+  private void indexResults(final IndexWriter writer, final SRC_LANGUAGE
       lang, final JsonArray hits)
       throws IOException {
     if (hits.size() <= 0) {
@@ -319,13 +320,23 @@ public class BuildIndex
 
       // test, if we have claim data
       if (p.hasClaims(lang)) {
-        patDoc.add(new TextField("claims", p.getClaimsAsString(lang), Store.NO));
+        if (this.cliParams.useTermVectors) {
+          patDoc.add(new VecTextField("claims", p.getClaimsAsString(lang),
+              Store.NO));
+        } else {
+          patDoc.add(new TextField("claims", p.getClaimsAsString(lang),
+              Store.NO));
+        }
         hasData = true;
       }
 
       // test, if we have detailed description data
       if (p.hasDetd(lang)) {
-        patDoc.add(new TextField("detd", p.getDetd(lang), Store.NO));
+        if (this.cliParams.useTermVectors) {
+          patDoc.add(new VecTextField("detd", p.getDetd(lang), Store.NO));
+        } else {
+          patDoc.add(new TextField("detd", p.getDetd(lang), Store.NO));
+        }
         hasData = true;
       }
 
@@ -496,6 +507,14 @@ public class BuildIndex
     @Option(name = "-only-lang", metaVar = "language", required = false,
         usage = "Process only the defined language. Overrides -skip-lang'.")
     String onlyLang;
+
+    /**
+     * Single languages.
+     */
+    @SuppressWarnings("PackageVisibleField")
+    @Option(name = "-term-vectors", required = false,
+        usage = "If provided term vectors will be stored for text fields.")
+    boolean useTermVectors = false;
 
     /**
      * Skip languages.
