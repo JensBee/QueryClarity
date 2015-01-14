@@ -34,6 +34,7 @@ import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
 import de.unihildesheim.iw.mapdb.DBMakerUtils;
 import de.unihildesheim.iw.util.BigDecimalCache;
+import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
@@ -44,6 +45,7 @@ import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.iw.util.concurrent.processing.Source;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
 import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
+import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall.TargetFunc;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.mapdb.Atomic;
@@ -51,6 +53,7 @@ import org.mapdb.BTreeKeySerializer;
 import org.mapdb.BTreeMap;
 import org.mapdb.DB;
 import org.mapdb.Fun;
+import org.mapdb.Fun.Tuple2;
 import org.mapdb.Serializer;
 import org.slf4j.LoggerFactory;
 
@@ -934,9 +937,12 @@ public final class DefaultClarityScore
       LOG.info("Calculating document models for feedback documents.");
     }
 
+    // try to speed-up calculation by pre-caching models
+    this.dataProv.cacheDocumentModels(this.feedbackDocIds);
+
     p.setSourceAndTarget(new TargetFuncCall<>(
         new CollectionSource<>(this.feedbackDocIds),
-        new TargetFuncCall.TargetFunc<Integer>() {
+        new TargetFunc<Integer>() {
 
           @SuppressWarnings("ReuseOfLocalVariable")
           @Override
@@ -954,8 +960,11 @@ public final class DefaultClarityScore
             if (terms.size() > docModel.getTermFreqMap().size()) {
               for (final ByteArray docTerm :
                   docModel.getTermFreqMap().keySet()) {
+                LOG.debug("Processing docId={} term={}/{}", docId,
+                    ByteArrayUtils
+                    .utf8ToString(docTerm));
                 final Long termId = getTermId(docTerm);
-                final Fun.Tuple2<Integer, Long> mapKey =
+                final Tuple2<Integer, Long> mapKey =
                     Fun.t2(docId, termId);
                 if (terms.contains(docTerm)
                     && !DefaultClarityScore.this
@@ -974,7 +983,7 @@ public final class DefaultClarityScore
                 if (DefaultClarityScore.this
                     .metrics.collection().tf(term) > 0L) {
                   final Long termId = getTermId(term);
-                  final Fun.Tuple2<Integer, Long> mapKey =
+                  final Tuple2<Integer, Long> mapKey =
                       Fun.t2(docId, termId);
                   if (docModel.contains(term)
                       && !DefaultClarityScore.this
