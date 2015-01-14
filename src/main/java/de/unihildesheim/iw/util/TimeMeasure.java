@@ -16,6 +16,8 @@
  */
 package de.unihildesheim.iw.util;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -72,17 +74,34 @@ public final class TimeMeasure {
     final long seconds = TimeUnit.SECONDS.toSeconds(elapsedTime)
         - (TimeUnit.SECONDS.toMinutes(elapsedTime) * 60L);
 
-    if (day > 0) {
-      timeStr.append(day).append("d ").append(hours).append("h ").append(
-          minutes).append("m ").append(seconds).append('s');
-    } else if (hours > 0L) {
-      timeStr.append(hours).append("h ").append(minutes).append("m ").append(
-          seconds).append('s');
-    } else if (minutes > 0L) {
-      timeStr.append(minutes).append("m ").append(seconds).append('s');
-    } else {
-      timeStr.append(seconds).append('s');
+    final List<String> strParts = new ArrayList<>(4);
+
+    if (day > 0L) {
+      strParts.add(day + "d");
     }
+    if (hours > 0L) {
+      strParts.add(hours + "h");
+    }
+    if (minutes > 0L) {
+      strParts.add(minutes + "m");
+    }
+    if (seconds > 0L) {
+      strParts.add(seconds + "s");
+    }
+
+    final int strPartsCount = strParts.size();
+
+    if (strPartsCount == 0) {
+      timeStr.append(0).append('s');
+    } else {
+      for (int i = 0; i < strPartsCount; i++) {
+        timeStr.append(strParts.get(i));
+        if (i + 1 < strPartsCount) {
+          timeStr.append(' ');
+        }
+      }
+    }
+
     return timeStr.toString();
   }
 
@@ -193,7 +212,7 @@ public final class TimeMeasure {
    *
    * @return elapsed seconds, or {@code 0} if no time was recorded
    */
-  public double getElapsedFullSeconds() {
+  public long getElapsedFullSeconds() {
     return Math.round(getElapsedSeconds());
   }
 }
