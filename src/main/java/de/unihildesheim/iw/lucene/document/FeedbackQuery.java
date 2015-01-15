@@ -298,7 +298,7 @@ public final class FeedbackQuery {
       }
     }
 
-    LOG.debug("Returning {} documents.", docIds.size());
+    LOG.info("Returning {} documents.", docIds.size());
     return docIds;
   }
 
