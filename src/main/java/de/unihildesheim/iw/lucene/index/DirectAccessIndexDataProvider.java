@@ -580,6 +580,8 @@ public class DirectAccessIndexDataProvider
     try {
       LOG.info("Caching {} document models. This may take some time.", docIds
           .size());
+      // Simply request all required document models. This will cache those
+      // results for faster access afterwards.
       getDocumentsTermsMap(docIds);
     } catch (final DataProviderException e) {
       LOG.warn("Caching failed: {}", e);
@@ -875,6 +877,14 @@ public class DirectAccessIndexDataProvider
     return this.isClosed;
   }
 
+  /**
+   * Get a counted list of terms for a bunch of documents. This will add
+   * those values to the cache for every document requested.
+   * @param docIds Document ids to gather
+   * @return Mapping of (document-id -> [term, count]) for each requested
+   * document
+   * @throws DataProviderException
+   */
   private Map<Integer, Map<ByteArray, Long>>getDocumentsTermsMap
       (final Collection<Integer> docIds)
       throws DataProviderException {
@@ -1038,6 +1048,12 @@ public class DirectAccessIndexDataProvider
     return mapMap;
   }
 
+  /**
+   * Create a key for a set of document ids usable as key to store in a
+   * caching map.
+   * @param docIds Document ids whose value will be stored.
+   * @return Cache map key for the given document ids.
+   */
   private static int[] createTermSetCacheKey(final Collection<Integer> docIds) {
     final List<Integer> docIdList = new ArrayList<>(docIds);
     Collections.sort(docIdList);
@@ -1049,7 +1065,8 @@ public class DirectAccessIndexDataProvider
   }
 
   /**
-   * Get a mapping of term->frequency for a set of documents
+   * Get a merged mapping of term->frequency for a set of documents. A merged
+   * mapping is all term values are summed up for all requested documents.
    *
    * @param docIds Document id's to extract the terms from
    * @return Mapping of term->frequency for all specified documents
@@ -1061,14 +1078,7 @@ public class DirectAccessIndexDataProvider
       final Collection<Integer> docIds)
       throws DataProviderException {
 
-    // construct the cache key
-    /*
-    final List<Integer> docIdList = new ArrayList<>(docIds);
-    Collections.sort(docIdList);
-    final int[] termsMapKey = new int[docIdList.size()];
-    for (int i = 0; i < docIdList.size(); i++) {
-      termsMapKey[i] = docIdList.get(i);
-    }*/
+    // construct the cache key to store results for later requests
     final int[] termsMapKey = createTermSetCacheKey(docIds);
 
     final Map<ByteArray, Long> termsMap;
