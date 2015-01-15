@@ -34,7 +34,6 @@ import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
 import de.unihildesheim.iw.mapdb.DBMakerUtils;
 import de.unihildesheim.iw.util.BigDecimalCache;
-import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
@@ -960,9 +959,6 @@ public final class DefaultClarityScore
             if (terms.size() > docModel.getTermFreqMap().size()) {
               for (final ByteArray docTerm :
                   docModel.getTermFreqMap().keySet()) {
-                LOG.debug("Processing docId={} term={}/{}", docId,
-                    ByteArrayUtils
-                    .utf8ToString(docTerm));
                 final Long termId = getTermId(docTerm);
                 final Tuple2<Integer, Long> mapKey =
                     Fun.t2(docId, termId);
