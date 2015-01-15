@@ -87,7 +87,7 @@ public interface FeedbackProvider {
   FeedbackProvider analyzer(final Analyzer analyzer);
 
   /**
-   * Set the document felds to query.
+   * Set the document fields to query.
    *
    * @param fields Set of document field names
    * @return Self reference
