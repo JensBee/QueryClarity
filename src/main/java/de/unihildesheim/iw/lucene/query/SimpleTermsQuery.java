@@ -18,6 +18,7 @@ package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.lucene.LuceneDefaults;
+import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
@@ -77,7 +78,7 @@ public final class SimpleTermsQuery
    * @see #SimpleTermsQuery(Analyzer, String, QueryParser.Operator, Set)
    */
   SimpleTermsQuery(final Builder builder)
-      throws ParseException {
+      throws ParseException, DataProviderException {
     this(
         Objects.requireNonNull(builder, "Builder was null").analyzer,
         builder.query, builder.getOperator(), builder.fields
@@ -96,7 +97,7 @@ public final class SimpleTermsQuery
    */
   public SimpleTermsQuery(final Analyzer analyzer, final String query,
       final QueryParser.Operator operator, final Set<String> fields)
-      throws ParseException {
+      throws ParseException, DataProviderException {
     Objects.requireNonNull(analyzer, "Analyzer was null.");
     Objects.requireNonNull(operator, "Operator was null.");
     if (Objects.requireNonNull(fields, "Fields were null.").isEmpty()) {
@@ -265,7 +266,7 @@ public final class SimpleTermsQuery
       validate();
       try {
         return new SimpleTermsQuery(this);
-      } catch (final ParseException e) {
+      } catch (final ParseException | DataProviderException e) {
         throw new BuildException(e);
       }
     }

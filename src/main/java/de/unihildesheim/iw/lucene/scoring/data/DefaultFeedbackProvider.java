@@ -18,6 +18,7 @@
 package de.unihildesheim.iw.lucene.scoring.data;
 
 import de.unihildesheim.iw.lucene.document.FeedbackQuery;
+import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import de.unihildesheim.iw.lucene.query.TryExactTermsQuery;
 import org.apache.lucene.analysis.Analyzer;
@@ -116,7 +117,7 @@ public class DefaultFeedbackProvider
 
   @Override
   public Set<Integer> get()
-      throws ParseException, IOException {
+      throws ParseException, IOException, DataProviderException {
     final RelaxableQuery qObj =
         new TryExactTermsQuery(
             Objects.requireNonNull(this.qAnalyzer, "Analyzer not set."),
