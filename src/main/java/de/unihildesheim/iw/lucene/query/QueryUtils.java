@@ -17,9 +17,13 @@
 package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.Buildable;
+import de.unihildesheim.iw.Buildable.BuildException;
+import de.unihildesheim.iw.Buildable.ConfigurationException;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.Metrics;
+import de.unihildesheim.iw.lucene.index.Metrics.CollectionMetrics;
+import de.unihildesheim.iw.lucene.query.SimpleTermsQuery.Builder;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
@@ -89,14 +93,16 @@ public final class QueryUtils {
    * stopwords from the query string.
    *
    * @param query Query string to tokenize
-   * @param analyzer Analyzer to use
+   * @param qAnalyzer Analyzer to use
    * @return Tokenized query string with stop-words removed
    * @see #tokenizeQuery(String, Analyzer, Metrics.CollectionMetrics)
+   * @throws DataProviderException Thrown, if accessing {@link
+   * CollectionMetrics} fails
    */
   public static List<ByteArray> tokenizeQuery(final String query,
-      final Analyzer analyzer)
+      final Analyzer qAnalyzer)
       throws DataProviderException {
-    return tokenizeQuery(query, analyzer, null);
+    return tokenizeQuery(query, qAnalyzer, null);
   }
 
   /**
@@ -105,18 +111,20 @@ public final class QueryUtils {
    * instance is used to skip terms no found in the collection.
    *
    * @param query Query string to tokenize
-   * @param analyzer Analyzer to use
+   * @param qAnalyzer Analyzer to use
    * @param cMetrics Collection metrics to skip terms not in the collection. If
    * null all terms wll be included.
-   * @return Tokenized query string with stop-words removed
+   * @return List of tokens from original query with stop-words removed
+   * @throws DataProviderException Thrown, if accessing {@link
+   * CollectionMetrics} fails
    */
   @SuppressWarnings("ObjectAllocationInLoop")
   public static List<ByteArray> tokenizeQuery(final String query,
-      final Analyzer analyzer, final Metrics.CollectionMetrics cMetrics)
+      final Analyzer qAnalyzer, final CollectionMetrics cMetrics)
       throws DataProviderException {
     @SuppressWarnings("CollectionWithoutInitialCapacity")
     final List<ByteArray> result = new ArrayList<>();
-    try (TokenStream stream = analyzer.tokenStream(null, query)) {
+    try (TokenStream stream = qAnalyzer.tokenStream(null, query)) {
       stream.reset();
       while (stream.incrementToken()) {
         result.add(new ByteArray(stream.getAttribute(CharTermAttribute.class)
@@ -137,8 +145,10 @@ public final class QueryUtils {
    *
    * @param cMetrics Metrics to access term frequency values
    * @param terms Collection of terms to check against the collection
+   * @throws DataProviderException Thrown, if accessing {@link
+   * CollectionMetrics} fails
    */
-  private static void removeUnknownTerms(final Metrics.CollectionMetrics
+  private static void removeUnknownTerms(final CollectionMetrics
       cMetrics, final Iterable<ByteArray> terms)
       throws DataProviderException {
     final Iterator<ByteArray> termsIt = terms.iterator();
@@ -163,13 +173,15 @@ public final class QueryUtils {
    * stopwords from the query string.
    *
    * @param query Query string to tokenize
-   * @param analyzer Analyzer to use
+   * @param qAnalyzer Analyzer to use
    * @return Tokenized query string with stop-words removed
-   * @deprecated
+   * @throws DataProviderException Thrown, if accessing {@link
+   * CollectionMetrics} fails
    */
   public static List<String> tokenizeQueryString(final String query,
-      final Analyzer analyzer) {
-    @SuppressWarnings("CollectionWithoutInitialCapacity")
+      final Analyzer qAnalyzer)
+      throws DataProviderException {
+    /*@SuppressWarnings("CollectionWithoutInitialCapacity")
     final List<String> result = new ArrayList<>();
     try (TokenStream stream = analyzer.tokenStream(null, query)) {
       stream.reset();
@@ -179,7 +191,35 @@ public final class QueryUtils {
     } catch (final IOException e) {
       // not thrown b/c we're using a string reader
     }
-    return result;
+    return result;*/
+    return tokenizeQueryString(query, qAnalyzer, null);
+  }
+
+  /**
+   * Tokenizes a query string using Lucenes analyzer. This also removes
+   * stopwords from the query string. The {@link Metrics.CollectionMetrics}
+   * instance is used to skip terms no found in the collection.
+   *
+   * @param query Query string to tokenize
+   * @param qAnalyzer Analyzer to use
+   * @param cMetrics Collection metrics to skip terms not in the collection. If
+   * null all terms wll be included.
+   * @return List of tokens from original query with stop-words removed
+   * @see #tokenizeQuery(String, Analyzer, CollectionMetrics)
+   * @throws DataProviderException Thrown, if accessing {@link
+   * CollectionMetrics} fails
+   */
+  @SuppressWarnings("ObjectAllocationInLoop")
+  public static List<String> tokenizeQueryString(final String query,
+      final Analyzer qAnalyzer, final CollectionMetrics cMetrics)
+      throws DataProviderException {
+    final List<ByteArray> tokenizedQuery = tokenizeQuery(query, qAnalyzer,
+        cMetrics);
+    final List<String> tokenizedQueryStr = new ArrayList<>(tokenizedQuery.size());
+    for (final ByteArray ba : tokenizedQuery) {
+      tokenizedQueryStr.add(ByteArrayUtils.utf8ToString(ba));
+    }
+    return tokenizedQueryStr;
   }
 
   /**
@@ -188,14 +228,16 @@ public final class QueryUtils {
    * in-query-frequency.
    *
    * @param query Query string
-   * @param analyzer Analyzer used to parse the query String
+   * @param qAnalyzer Analyzer used to parse the query String
    * @return mapping of query-term to in-query-frequency
    * @see #tokenizeAndMapQuery(String, Analyzer, Metrics.CollectionMetrics)
+   * @throws DataProviderException Thrown, if accessing {@link
+   * CollectionMetrics} fails
    */
   public static Map<ByteArray, Integer> tokenizeAndMapQuery(final
-  String query, final Analyzer analyzer)
+  String query, final Analyzer qAnalyzer)
       throws DataProviderException {
-    return tokenizeAndMapQuery(query, analyzer, null);
+    return tokenizeAndMapQuery(query, qAnalyzer, null);
   }
 
   /**
@@ -205,20 +247,22 @@ public final class QueryUtils {
    * to skip terms no found in the collection.
    *
    * @param query Query String
-   * @param analyzer Analyzer used to parse the query String
+   * @param qAnalyzer Analyzer used to parse the query String
    * @param cMetrics Collection metrics to skip terms not in the collection. If
    * null all terms wll be included.
    * @return mapping of query-term to in-query-frequency with optonally terms
    * not in the collection skipped
+   * @throws DataProviderException Thrown, if accessing {@link
+   * CollectionMetrics} fails
    */
   @SuppressWarnings("ObjectAllocationInLoop")
   public static Map<ByteArray, Integer> tokenizeAndMapQuery(final
-  String query, final Analyzer analyzer,
-      final Metrics.CollectionMetrics cMetrics)
+  String query, final Analyzer qAnalyzer,
+      final CollectionMetrics cMetrics)
       throws DataProviderException {
     @SuppressWarnings("CollectionWithoutInitialCapacity")
     final Map<ByteArray, Integer> result = new HashMap<>();
-    try (TokenStream stream = analyzer.tokenStream(null, query)) {
+    try (TokenStream stream = qAnalyzer.tokenStream(null, query)) {
       stream.reset();
       while (stream.incrementToken()) {
         final ByteArray term = new ByteArray(stream.getAttribute
@@ -251,13 +295,13 @@ public final class QueryUtils {
    * @deprecated
    */
   public Set<ByteArray> getUniqueQueryTerms(final String query)
-      throws Buildable.ConfigurationException, Buildable.BuildException {
+      throws ConfigurationException, BuildException {
     if (StringUtils.isStrippedEmpty(
         Objects.requireNonNull(query, "Query was null."))) {
       throw new IllegalArgumentException("Query was empty.");
     }
     return new HashSet<>(extractTerms(
-        new SimpleTermsQuery.Builder(this.reader, this.fields)
+        new Builder(this.reader, this.fields)
             .analyzer(this.analyzer).query(query).build()
     ));
   }
@@ -300,13 +344,13 @@ public final class QueryUtils {
    */
   @SuppressWarnings("TypeMayBeWeakened")
   public List<ByteArray> getAllQueryTerms(final String query)
-      throws Buildable.ConfigurationException, Buildable.BuildException {
+      throws ConfigurationException, BuildException {
     if (StringUtils.isStrippedEmpty(
         Objects.requireNonNull(query, "Query was null."))) {
       throw new IllegalArgumentException("Query was empty.");
     }
     return extractTerms(
-        new SimpleTermsQuery.Builder(this.reader, this.fields)
+        new Builder(this.reader, this.fields)
             .analyzer(this.analyzer).query(query).build()
     );
   }
