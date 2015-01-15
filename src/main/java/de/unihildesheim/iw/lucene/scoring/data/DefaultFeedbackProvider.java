@@ -18,6 +18,7 @@
 package de.unihildesheim.iw.lucene.scoring.data;
 
 import de.unihildesheim.iw.lucene.document.FeedbackQuery;
+import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import de.unihildesheim.iw.lucene.query.TryExactTermsQuery;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
@@ -116,7 +117,7 @@ public class DefaultFeedbackProvider
   @Override
   public Set<Integer> get()
       throws ParseException, IOException {
-    final TryExactTermsQuery qObj =
+    final RelaxableQuery qObj =
         new TryExactTermsQuery(
             Objects.requireNonNull(this.qAnalyzer, "Analyzer not set."),
             QueryParserBase.escape(Objects.requireNonNull(this.queryStr,
@@ -125,12 +126,10 @@ public class DefaultFeedbackProvider
     if (this.useFixedAmount) {
       return FeedbackQuery.getFixed(
           Objects.requireNonNull(this.idxReader, "IndexReader not set."),
-          qObj,
-          this.fixedAmount);
+          qObj, this.fixedAmount);
     }
     return FeedbackQuery.getMinMax(
         Objects.requireNonNull(this.idxReader, "IndexReader not set."),
-        qObj,
-        this.minAmount, this.maxAmount);
+        qObj, this.minAmount, this.maxAmount);
   }
 }

@@ -25,6 +25,7 @@ import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.slf4j.Logger;
@@ -101,7 +102,7 @@ public final class TryExactTermsQuery
     for (final String term : this.uniqueQueryTerms) {
       @SuppressWarnings("ObjectAllocationInLoop")
       final BooleanClause bc = new BooleanClause(qParser.parse(term),
-          BooleanClause.Occur.SHOULD);
+          Occur.SHOULD);
       this.query.add(bc);
     }
     this.query.setMinimumNumberShouldMatch(this.uniqueQueryTerms.size());
@@ -127,10 +128,8 @@ public final class TryExactTermsQuery
   public boolean relax() {
     final int matchCount = this.query.getMinimumNumberShouldMatch();
     if (matchCount > 1) {
-      //noinspection HardcodedFileSeparator
       LOG.debug("Relax to {}/{}", matchCount - 1, this.uniqueQueryTerms.size());
       this.query.setMinimumNumberShouldMatch(matchCount - 1);
-//      LOG.debug("TEQ {}", this.query);
       return true;
     }
     return false;
