@@ -568,7 +568,7 @@ public class DirectAccessIndexDataProvider
 
     this.idxTermFrequency = freq;
 
-    LOG.info("{} Calculating index term frequency value ({})"
+    LOG.info("{} Calculating index term frequency value ({}) "
             + "for fields {} took {}.", LOG_STARTINFO,
         this.idxTermFrequency, this.fields, tm.stop().getTimeString());
 
