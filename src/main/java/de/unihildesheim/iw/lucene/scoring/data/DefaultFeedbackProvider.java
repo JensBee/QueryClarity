@@ -36,13 +36,37 @@ import java.util.Set;
  */
 public class DefaultFeedbackProvider
     extends AbstractFeedbackProvider<DefaultFeedbackProvider> {
+  /**
+   * Reader to access the index.
+   */
   private IndexReader idxReader;
+  /**
+   * Query string.
+   */
   private String queryStr;
+  /**
+   * Query analyzer.
+   */
   private Analyzer qAnalyzer;
+  /**
+   * Document fields to query.
+   */
   private Set<String> docFields;
+  /**
+   * Number of documents to get, if a fixed amount is requested.
+   */
   private int fixedAmount;
+  /**
+   * Minimum number of documents to get.
+   */
   private int minAmount;
+  /**
+   * Maximum number of documents to get.
+   */
   private int maxAmount;
+  /**
+   * True, if a fixed amount of documents should be tried to retrieve.
+   */
   private boolean useFixedAmount = false;
 
   @Override
