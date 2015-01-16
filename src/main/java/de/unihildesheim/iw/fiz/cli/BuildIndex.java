@@ -22,6 +22,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import de.unihildesheim.iw.cli.CliBase;
 import de.unihildesheim.iw.cli.CliParams;
+import de.unihildesheim.iw.fiz.Defaults;
+import de.unihildesheim.iw.fiz.Defaults.ES_CONF;
 import de.unihildesheim.iw.fiz.Defaults.SRC_LANGUAGE;
 import de.unihildesheim.iw.fiz.lucene.LanguageBasedAnalyzers;
 import de.unihildesheim.iw.fiz.models.Patent;
@@ -89,34 +91,6 @@ public class BuildIndex
   /** Used to generate randomized delays for request throttling. */
   private final Random rand = new Random();
 
-  /** ES settings. (TODO: make these external) */
-  private static final class ES_CONF {
-    // basic settings
-    /** Name of the index to query. */
-    private static final String INDEX = "epfull_repo";
-    /** URL to reach the index. */
-    private static final String URL = "http://t4p.fiz-karlsruhe.de:80";
-    /** Type of document to query for. */
-    private static final String DOC_TYPE = "patent";
-    /** Number of results to get from each shard. */
-    private static final int PAGE_SIZE = 150;
-    /** How long to keep the scroll open. */
-    private static final String SCROLL_KEEP = "15m";
-
-    // document fields
-    /** Field name containing the document id. */
-    private static final String FLD_DOCID = "_id";
-    /** Prefix name of the claims field. */
-    private static final String FLD_CLAIM_PREFIX = "CLM";
-    /** Field name holding the description. */
-    private static final String FLD_DESC = "DETD";
-    /** Field name holding the description language used. */
-    private static final String FLD_DESC_LNG = "DETDL";
-
-    /** How many times to retry a connection. */
-    private static final int MAX_RETRY = 15;
-  }
-
   /**
    * Default private constructor passing a description to {@link CliBase}.
    */
@@ -127,7 +101,7 @@ public class BuildIndex
 
   /**
    * Runs a REST request against the ES instance. Optionally retrying the
-   * request {@link ES_CONF#MAX_RETRY} times, if a request has timed out.
+   * request {@link Defaults.ES_CONF#MAX_RETRY} times, if a request has timed out.
    * @param action Request action
    * @return Request result
    * @throws Exception Thrown on any error while performing the request
@@ -197,7 +171,7 @@ public class BuildIndex
     LOG.info("Creating index for: {}", lang);
 
     // claim by language
-    final String fld_claim = ES_CONF.FLD_CLAIM_PREFIX + lang;
+    final String fld_claim = Defaults.ES_CONF.FLD_CLAIM_PREFIX + lang;
 
     // get all claims from patents in the specific language including
     // detailed technical description, if available
@@ -218,6 +192,7 @@ public class BuildIndex
     searchSourceBuilder.field(ES_CONF.FLD_DESC); // detailed description
     // detailed description language
     searchSourceBuilder.field(ES_CONF.FLD_DESC_LNG);
+    searchSourceBuilder.field(ES_CONF.FLD_PATREF); // patent reference
 
     // setup the search using scan & scroll
     final Search search = new Search.Builder(searchSourceBuilder.toString())
@@ -235,7 +210,7 @@ public class BuildIndex
         .build();
 
     // initialize the scroll search
-    JestResult result = runRequest(search); //this.client.execute(search);
+    JestResult result = runRequest(search);
 
     if (!result.isSucceeded()) {
       LOG.error("Initial request failed. {}", result.getErrorMessage());
@@ -259,11 +234,9 @@ public class BuildIndex
     // scroll through pages to gather all results
     int pageNumber = 1; // number of pages requested
     long dataCount = (long) currentResultSize; // number of items retrieved
-    boolean retry = true; // retry poll request
     int delay; // throttle delay
     do {
       // retry a request if it has timed out
-      retry = true;
       delay = (1 + this.rand.nextInt(10)) * 100;
 
       Thread.sleep((long) delay);
@@ -317,6 +290,7 @@ public class BuildIndex
       final Document patDoc = new Document();
       boolean hasData = false;
       patDoc.add(new StringField("_id", p.getId(), Store.NO));
+      patDoc.add(new StringField("patid", p.getPatId(), Store.NO));
 
       // test, if we have claim data
       if (p.hasClaims(lang)) {
@@ -342,8 +316,8 @@ public class BuildIndex
 
       // check if there's something to index
       if (hasData) {
-        LOG.trace("Add doc {} [claims:{} detd:{}]",
-            p.getId(), p.hasClaims(lang), p.hasDetd(lang));
+        LOG.trace("Add doc:{} pat:{} [claims:{} detd:{}]",
+            p.getId(), p.getPatId(), p.hasClaims(lang), p.hasDetd(lang));
         writer.addDocument(patDoc);
       } else {
         LOG.warn("No data to write for docId:{}", p.getId());
@@ -372,7 +346,7 @@ public class BuildIndex
 
     // setup REST client
     final JestClientFactory factory = new JestClientFactory();
-    factory.setHttpClientConfig(new Builder(ES_CONF.URL)
+    factory.setHttpClientConfig(new Builder(Defaults.ES_CONF.URL)
         .multiThreaded(true).build());
     this.client = factory.getObject();
 
@@ -405,6 +379,10 @@ public class BuildIndex
           }
         }
       }
+    }
+
+    if (this.cliParams.useTermVectors) {
+      LOG.info("Indexing text fields using TermVectors.");
     }
 
     // run index for each specified language

@@ -20,11 +20,12 @@ package de.unihildesheim.iw.fiz.models;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import de.unihildesheim.iw.fiz.Defaults.ES_CONF;
 import de.unihildesheim.iw.fiz.Defaults.SRC_LANGUAGE;
 import org.slf4j.Logger;
 
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.Map;
 
 /**
@@ -37,32 +38,39 @@ public class Patent {
   static final Logger LOG = org.slf4j.LoggerFactory.getLogger(Patent.class);
   private static final String[] STRINGS = new String[]{};
 
+  /** Claims by language. */
   private final Map<SRC_LANGUAGE, JsonArray> claimsByLanguage;
+  /** Detailed descriptions by language. */
   private final Map<SRC_LANGUAGE, String> detdByLanguage;
+  /** ES internal Document identifier. */
   private final String docId;
+  /** Patent identifier. */
+  private final String patId;
 
   public static Patent fromJson(JsonObject json) {
     if (json.has("fields")) {
       final JsonObject hitFieldsJson = json.getAsJsonObject("fields");
 
       // collect claims
-      final Map<SRC_LANGUAGE, JsonArray> claimsByLanguage = new HashMap<>
-          (SRC_LANGUAGE.values().length);
-      for (SRC_LANGUAGE lng : SRC_LANGUAGE.values()) {
-        if (hitFieldsJson.has("CLM" + lng)) {
-          claimsByLanguage.put(lng, hitFieldsJson.getAsJsonArray("CLM" + lng));
+      final Map<SRC_LANGUAGE, JsonArray> claimsByLanguage =
+          new EnumMap(SRC_LANGUAGE.class);
+      for (final SRC_LANGUAGE lng : SRC_LANGUAGE.values()) {
+        if (hitFieldsJson.has(ES_CONF.FLD_CLAIM_PREFIX + lng)) {
+          claimsByLanguage.put(lng,
+              hitFieldsJson.getAsJsonArray(ES_CONF.FLD_CLAIM_PREFIX + lng));
         }
       }
 
       // collect detd
       Map<SRC_LANGUAGE, String> detdByLanguage = null;
-      if (hitFieldsJson.has("DETDL") && hitFieldsJson.has("DETD")) {
-        final String detdl = hitFieldsJson.getAsJsonArray("DETDL").get(0)
-            .getAsString();
-        for (SRC_LANGUAGE lng : SRC_LANGUAGE.values()) {
+      if (hitFieldsJson.has(ES_CONF.FLD_DESC_LNG) &&
+          hitFieldsJson.has(ES_CONF.FLD_DESC)) {
+        final String detdl = hitFieldsJson.getAsJsonArray(
+            ES_CONF.FLD_DESC_LNG).get(0).getAsString();
+        for (final SRC_LANGUAGE lng : SRC_LANGUAGE.values()) {
           if (lng.toString().equalsIgnoreCase(detdl)) {
             detdByLanguage = Collections.singletonMap(lng,
-                joinJsonArray(hitFieldsJson.getAsJsonArray("DETD")));
+                joinJsonArray(hitFieldsJson.getAsJsonArray(ES_CONF.FLD_DESC)));
             break;
           }
         }
@@ -72,22 +80,27 @@ public class Patent {
       }
 
       // construct model
-      return new Patent(json.get("_id").getAsString(), claimsByLanguage,
-          detdByLanguage);
+      return new Patent(json.get(ES_CONF.FLD_DOCID).getAsString(),
+          json.get(ES_CONF.FLD_PATREF).getAsString(),
+          claimsByLanguage, detdByLanguage);
     }
     // construct empty model
-    return new Patent(json.get("_id").getAsString());
+    return new Patent(json.get(ES_CONF.FLD_DOCID).getAsString(),
+        json.get(ES_CONF.FLD_PATREF).getAsString());
   }
 
-  private Patent(final String id) {
+  private Patent(final String id, final String patId) {
     this.docId = id;
+    this.patId = patId;
     this.claimsByLanguage = Collections.emptyMap();
     this.detdByLanguage = Collections.emptyMap();
   }
 
-  private Patent(final String id, final Map<SRC_LANGUAGE, JsonArray> claims,
+  private Patent(final String id, final String patId, final Map<SRC_LANGUAGE,
+      JsonArray> claims,
       final Map<SRC_LANGUAGE, String> detd) {
     this.docId = id;
+    this.patId = patId;
     this.claimsByLanguage = claims;
     this.detdByLanguage = detd;
   }
@@ -149,5 +162,13 @@ public class Patent {
    */
   public String getId() {
     return this.docId;
+  }
+
+  /**
+   * Get the patent id.
+   * @return Patent id
+   */
+  public String getPatId() {
+    return this.patId;
   }
 }
