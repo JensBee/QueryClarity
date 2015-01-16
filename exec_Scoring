@@ -1,0 +1,23 @@
+#!/bin/sh
+if [ $# -lt 1 ]; then
+	printf "<setup>:\n"
+	printf " - clefBaseline\n"
+	printf " - clefCommonTerms\n"
+	exit 1
+fi
+
+case "$1" in
+	"clefBaseline")
+		./exec_ClefScoring de test baseline -fields "detd" -prefix baseline > score-de-detd-baseline.log
+		./exec_ConvertScoreResults de data/clef-topics/topics-clef-baseline-de dcs
+		;;
+	"clefCommonTerms")
+		./exec_ClefScoring de test commonterms -fields "detd" -prefix commonterms -conf common-terms > score-de-detd-commonterms.log
+		./exec_ConvertScoreResults de data/clef-topics/topics-clef-commonterms-de dcs
+		;;
+	*)
+		printf "Unknown setup.\n"
+	;;
+esac
+
+

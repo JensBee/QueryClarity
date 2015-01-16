@@ -1,0 +1,20 @@
+#!/bin/bash
+. "$(dirname $0)/mvn.inc.sh"
+
+if [ $# -lt 3 ]; then
+	printf "<language> <score result basename> <scorer>\n"
+	exit 1
+fi
+
+SCORE_LNG=$1
+shift
+SCORE_FILE=$1
+shift
+SCORE_SCORER=$1
+shift
+
+
+CLASS=de.unihildesheim.iw.clef.cli.ConvertScoredTopics
+ARGS="-t csv -i ${SCORE_FILE}.xml -o ${SCORE_FILE}.csv -lang ${SCORE_LNG} -scorer ${SCORE_SCORER}"
+
+${MVN_CMD} -Dexec.mainClass="${CLASS}" -Dexec.args="${ARGS} $*"
