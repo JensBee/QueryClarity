@@ -21,8 +21,9 @@ else
 	printf "Unknown passage group '$1'.\n"
 fi
 
-mkdir -p data
-OUT=data/$OUT
+OUT_DIR=data/clef-topics
+mkdir -p $OUT_DIR
+OUT=$OUT_DIR/$OUT
 
 CLASS=de.unihildesheim.iw.clef.cli.ExtractTopicPassages
 ARGS="-data $DIR_DATA -topicfile $FILE_TOPICS -out $OUT"
