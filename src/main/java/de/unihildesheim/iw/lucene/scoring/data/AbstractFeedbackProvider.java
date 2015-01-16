@@ -19,8 +19,8 @@ package de.unihildesheim.iw.lucene.scoring.data;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Query;
 
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -33,38 +33,77 @@ import java.util.Set;
 public abstract class AbstractFeedbackProvider<T extends FeedbackProvider>
     implements FeedbackProvider {
 
-  @Override
-  public T query(final String query) {
-    return getThis();
-  }
+  /**
+   * Number of documents to get, if a fixed amount is requested.
+   */
+  protected int fixedAmount;
+  /**
+   * Minimum number of documents to get.
+   */
+  protected int minAmount;
+  /**
+   * Maximum number of documents to get.
+   */
+  protected int maxAmount;
+  /**
+   * True, if a fixed amount of documents should be tried to retrieve.
+   */
+  protected boolean useFixedAmount = false;
+
+  /**
+   * Reader to access the index.
+   */
+  protected IndexReader idxReader;
+
+  /**
+   * Query analyzer.
+   */
+  protected Analyzer qAnalyzer;
+  /**
+   * Query string.
+   */
+  protected String queryStr;
+  /**
+   * Document fields to query.
+   */
+  protected Set<String> docFields;
 
   @Override
-  public T query(final Query query) {
+  public T query(final String query) {
+    this.queryStr = Objects.requireNonNull(query);
     return getThis();
   }
 
   @Override
   public T amount(final int min, final int max) {
+    this.minAmount = min;
+    this.maxAmount = max;
+    this.useFixedAmount = false;
     return getThis();
   }
 
   @Override
   public T amount(final int fixed) {
+    this.fixedAmount = fixed;
+    this.useFixedAmount = true;
     return getThis();
   }
 
   @Override
   public T indexReader(final IndexReader indexReader) {
+    this.idxReader = Objects.requireNonNull(indexReader);
     return getThis();
   }
 
   @Override
   public T analyzer(final Analyzer analyzer) {
+    this.qAnalyzer = Objects.requireNonNull(analyzer);
     return getThis();
   }
 
   @Override
   public T fields(final Set<String> fields) {
+    this.docFields = Objects.requireNonNull(fields);
     return getThis();
   }
 

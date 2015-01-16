@@ -19,7 +19,6 @@ package de.unihildesheim.iw.lucene.scoring.data;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Query;
 
 import java.util.Set;
 
@@ -43,14 +42,6 @@ public interface FeedbackProvider {
    * @return Self reference
    */
   FeedbackProvider query(final String query);
-
-  /**
-   * Set the query object to use for getting feedback documents.
-   *
-   * @param query Query object
-   * @return Self reference
-   */
-  FeedbackProvider query(final Query query);
 
   /**
    * Set the number of feedback documents to get.

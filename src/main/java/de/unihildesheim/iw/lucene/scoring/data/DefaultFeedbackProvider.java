@@ -21,8 +21,6 @@ import de.unihildesheim.iw.lucene.document.FeedbackQuery;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import de.unihildesheim.iw.lucene.query.TryExactTermsQuery;
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 
@@ -38,77 +36,6 @@ import java.util.Set;
  */
 public class DefaultFeedbackProvider
     extends AbstractFeedbackProvider<DefaultFeedbackProvider> {
-  /**
-   * Reader to access the index.
-   */
-  private IndexReader idxReader;
-  /**
-   * Query string.
-   */
-  private String queryStr;
-  /**
-   * Query analyzer.
-   */
-  private Analyzer qAnalyzer;
-  /**
-   * Document fields to query.
-   */
-  private Set<String> docFields;
-  /**
-   * Number of documents to get, if a fixed amount is requested.
-   */
-  private int fixedAmount;
-  /**
-   * Minimum number of documents to get.
-   */
-  private int minAmount;
-  /**
-   * Maximum number of documents to get.
-   */
-  private int maxAmount;
-  /**
-   * True, if a fixed amount of documents should be tried to retrieve.
-   */
-  private boolean useFixedAmount = false;
-
-  @Override
-  public DefaultFeedbackProvider query(final String query) {
-    this.queryStr = Objects.requireNonNull(query);
-    return this;
-  }
-
-  @Override
-  public DefaultFeedbackProvider amount(final int min, final int max) {
-    this.minAmount = min;
-    this.maxAmount = max;
-    this.useFixedAmount = false;
-    return this;
-  }
-
-  @Override
-  public DefaultFeedbackProvider amount(final int fixed) {
-    this.fixedAmount = fixed;
-    this.useFixedAmount = true;
-    return this;
-  }
-
-  @Override
-  public DefaultFeedbackProvider indexReader(final IndexReader indexReader) {
-    this.idxReader = Objects.requireNonNull(indexReader);
-    return this;
-  }
-
-  @Override
-  public DefaultFeedbackProvider analyzer(final Analyzer analyzer) {
-    this.qAnalyzer = Objects.requireNonNull(analyzer);
-    return this;
-  }
-
-  @Override
-  public DefaultFeedbackProvider fields(final Set<String> fields) {
-    this.docFields = Objects.requireNonNull(fields);
-    return this;
-  }
 
   @Override
   public DefaultFeedbackProvider getThis() {

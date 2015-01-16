@@ -37,33 +37,16 @@ import java.util.Set;
  * @author Jens Bertram
  */
 public class DefaultVocabularyProvider
-    implements VocabularyProvider {
+    extends AbstractVocabularyProvider<DefaultVocabularyProvider> {
 
   /**
    * Logger instance for this class.
    */
   static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       DefaultVocabularyProvider.class);
-  private IndexDataProvider dataProv;
-  private Set<Integer> docIds;
-  private Filter filter;
 
   @Override
-  public VocabularyProvider indexDataProvider(
-      final IndexDataProvider indexDataProvider) {
-    this.dataProv = Objects.requireNonNull(indexDataProvider);
-    return this;
-  }
-
-  @Override
-  public VocabularyProvider filter(final Filter filter) {
-    this.filter = Objects.requireNonNull(filter);
-    return this;
-  }
-
-  @Override
-  public VocabularyProvider documentIds(final Set<Integer> documentIds) {
-    this.docIds = Objects.requireNonNull(documentIds);
+  public DefaultVocabularyProvider getThis() {
     return this;
   }
 

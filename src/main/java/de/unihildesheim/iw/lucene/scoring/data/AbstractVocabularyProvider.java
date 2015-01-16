@@ -19,6 +19,7 @@ package de.unihildesheim.iw.lucene.scoring.data;
 
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -30,9 +31,28 @@ import java.util.Set;
  */
 public abstract class AbstractVocabularyProvider<T extends VocabularyProvider>
     implements VocabularyProvider {
+  /**
+   * Data provider for index data.
+   */
+  protected IndexDataProvider dataProv;
+  /**
+   * Filter object to filter the returned vocabulary.
+   */
+  protected Filter filter;
+  /**
+   * Document id's whose terms should be used as vocabulary.
+   */
+  protected Set<Integer> docIds;
 
   @Override
   public T indexDataProvider(final IndexDataProvider indexDataProvider) {
+    this.dataProv = Objects.requireNonNull(indexDataProvider);
+    return getThis();
+  }
+
+  @Override
+  public T filter(final Filter filter) {
+    this.filter = Objects.requireNonNull(filter);
     return getThis();
   }
 
@@ -45,6 +65,7 @@ public abstract class AbstractVocabularyProvider<T extends VocabularyProvider>
 
   @Override
   public T documentIds(final Set<Integer> documentIds) {
+    this.docIds = Objects.requireNonNull(documentIds);
     return getThis();
   }
 }
