@@ -65,4 +65,7 @@ hs_err_pid*
 # target
 target/
 
+# r
+*/.Rhistory
+*/.RData
 
