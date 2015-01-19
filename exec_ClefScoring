@@ -30,10 +30,13 @@ else
 	printf "Unknown passage group '$1'.\n"
 fi
 
+OUT_DIR=$DIR_DATA/scoring-$(date +%Y-%m-%d+%H:%M:%S)
+mkdir -p $OUT_DIR
+
 IN=$DIR_DATA/$IN
-OUT=$DIR_DATA/$OUT
+OUT=$OUT_DIR/$OUT
 
 CLASS=de.unihildesheim.iw.clef.cli.ScoreTopicPassages
 ARGS="-i ${IN} -o ${OUT} -idx ${IDX} -stop ${STOP_PAT} -stop-format ${STOP_FORMAT} -data ${DIR_DATA} -only-lang ${SCORE_LANG} -fields-no-suffix"
 
-${MVN_CMD} -Dexec.mainClass="${CLASS}" -Dexec.args="${ARGS} $*"
+${MVN_CMD} -Dexec.mainClass="${CLASS}" -Dexec.args="${ARGS} $*" > ${OUT_DIR}/log-${SCORE_LANG}-${SCORE_TYPE}-${SCORE_SUFFIX}

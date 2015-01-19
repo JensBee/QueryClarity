@@ -8,12 +8,18 @@ fi
 
 case "$1" in
 	"clefBaseline")
-		./exec_ClefScoring de test baseline -fields "detd" -prefix baseline > score-de-detd-baseline.log
+		./exec_ClefScoring de test baseline -fields "detd" -prefix baseline -scorer dcs > score-de-detd-baseline.log
 		./exec_ConvertScoreResults de data/clef-topics/topics-clef-baseline-de dcs
 		;;
 	"clefCommonTerms")
-		./exec_ClefScoring de test commonterms -fields "detd" -prefix commonterms -conf common-terms > score-de-detd-commonterms.log
-		./exec_ConvertScoreResults de data/clef-topics/topics-clef-commonterms-de dcs
+		./exec_ClefScoring de test commonterms-dcs -fields "detd" -prefix commonterms -conf common-terms -scorer dcs > score-de-detd-commonterms-dcs.log
+		./exec_ConvertScoreResults de data/clef-topics/topics-clef-commonterms-dcs-de dcs
+
+		#./exec_ClefScoring de test commonterms-ics -fields "detd" -prefix commonterms -conf common-terms -scorer ics
+		#./exec_ConvertScoreResults de data/clef-topics/topics-clef-commonterms-ics-de ics
+
+		#./exec_ClefScoring de test commonterms-scs -fields "detd" -prefix commonterms -conf common-terms -scorer scs
+		#./exec_ConvertScoreResults de data/clef-topics/topics-clef-commonterms-scs-de scs
 		;;
 	*)
 		printf "Unknown setup.\n"
