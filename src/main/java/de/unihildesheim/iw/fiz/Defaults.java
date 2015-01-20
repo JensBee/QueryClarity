@@ -38,6 +38,7 @@ public class Defaults {
   }
 
   /** ES settings. (TODO: make these external) */
+  @SuppressWarnings("PublicInnerClass")
   public static final class ES_CONF {
     // basic settings
     /** Name of the index to query. */
@@ -47,7 +48,7 @@ public class Defaults {
     /** Type of document to query for. */
     public static final String DOC_TYPE = "patent";
     /** Number of results to get from each shard. */
-    public static final int PAGE_SIZE = 300;
+    public static final int PAGE_SIZE = 500;
     /** How long to keep the scroll open. */
     public static final String SCROLL_KEEP = "15m";
 
