@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
@@ -48,6 +49,9 @@ public class Patent {
   private final String patId;
 
   public static Patent fromJson(JsonObject json) {
+    Objects.requireNonNull(json);
+    final Patent p;
+
     if (json.has("fields")) {
       final JsonObject hitFieldsJson = json.getAsJsonObject("fields");
 
@@ -80,13 +84,14 @@ public class Patent {
       }
 
       // construct model
-      return new Patent(json.get(ES_CONF.FLD_DOCID).getAsString(),
-          json.get(ES_CONF.FLD_PATREF).getAsString(),
+      p = new Patent(json.get(ES_CONF.FLD_DOCID).getAsString(),
+          hitFieldsJson.get(ES_CONF.FLD_PATREF).getAsString(),
           claimsByLanguage, detdByLanguage);
+    } else {
+      // construct empty model
+      p = new Patent(json.get(ES_CONF.FLD_DOCID).getAsString(), "");
     }
-    // construct empty model
-    return new Patent(json.get(ES_CONF.FLD_DOCID).getAsString(),
-        json.get(ES_CONF.FLD_PATREF).getAsString());
+    return p;
   }
 
   private Patent(final String id, final String patId) {
