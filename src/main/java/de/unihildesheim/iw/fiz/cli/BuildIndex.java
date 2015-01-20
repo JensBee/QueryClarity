@@ -21,6 +21,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import de.unihildesheim.iw.cli.CliBase;
+import de.unihildesheim.iw.cli.CliCommon;
 import de.unihildesheim.iw.cli.CliParams;
 import de.unihildesheim.iw.fiz.Defaults;
 import de.unihildesheim.iw.fiz.Defaults.ES_CONF;
@@ -30,8 +31,6 @@ import de.unihildesheim.iw.fiz.models.Patent;
 import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.lucene.VecTextField;
 import de.unihildesheim.iw.util.StopwordsFileReader;
-import de.unihildesheim.iw.util.StopwordsFileReader.Format;
-import de.unihildesheim.iw.util.StringUtils;
 import io.searchbox.action.Action;
 import io.searchbox.client.JestClient;
 import io.searchbox.client.JestClientFactory;
@@ -61,7 +60,6 @@ import org.slf4j.Logger;
 import java.io.File;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collection;
@@ -142,7 +140,8 @@ public class BuildIndex
     }
 
     // get an analyzer for the target language
-    final Set<String> sWords = getStopwords(lang.toString());
+    final Set<String> sWords = CliCommon.getStopwords(lang.toString(),
+        this.cliParams.stopFileFormat, this.cliParams.stopFilePattern);
     final Analyzer analyzer = LanguageBasedAnalyzers.createInstance
         (LanguageBasedAnalyzers.getLanguage(lang.toString()),
             LuceneDefaults.VERSION, new CharArraySet(LuceneDefaults.VERSION,
@@ -214,7 +213,6 @@ public class BuildIndex
 
     if (!result.isSucceeded()) {
       LOG.error("Initial request failed. {}", result.getErrorMessage());
-
     }
 
     JsonObject resultJson = result.getJsonObject();
@@ -252,8 +250,8 @@ public class BuildIndex
 
         // index results
         indexResults(writer, lang, hits);
-
         dataCount += (long) currentResultSize;
+
         LOG.info("{} - hits:{}/{}/{} page:{} scroll-id:{} ~{}",
             lang, currentResultSize, dataCount, hitsTotal, pageNumber++,
             scrollId, delay);
@@ -279,18 +277,23 @@ public class BuildIndex
       throws IOException {
     if (hits.size() <= 0) {
       LOG.warn("No hits! ({})", hits.size());
+      return;
     }
 
     // go through all hits
     for (final JsonElement hit : hits) {
       // parse JSON data to model
       final Patent p = Patent.fromJson(hit.getAsJsonObject());
-
       // create Lucene document from model
       final Document patDoc = new Document();
       boolean hasData = false;
+
       patDoc.add(new StringField("_id", p.getId(), Store.NO));
       patDoc.add(new StringField("patid", p.getPatId(), Store.NO));
+
+      if (p.getPatId().isEmpty()) {
+        LOG.warn("Patent reference was empty! id:{}", p.getId());
+      }
 
       // test, if we have claim data
       if (p.hasClaims(lang)) {
@@ -396,42 +399,6 @@ public class BuildIndex
 
     // close connection
     this.client.shutdownClient();
-  }
-
-  /**
-   * Try to load a list of stopwords from a local file.
-   * @param lang Language to load the stopwords for
-   * @return Set of stopwords
-   * @throws IOException Thrown, if reading the source file fails
-   */
-  private Set<String> getStopwords(final String lang)
-      throws IOException {
-    Set<String> sWords = Collections.emptySet();
-    if (this.cliParams.stopFilePattern != null) {
-      // read stopwords
-      final Format stopFileFormat = StopwordsFileReader.getFormatFromString(this
-          .cliParams.stopFileFormat);
-      if (stopFileFormat != null) {
-        final File stopFile = new File(this.cliParams.stopFilePattern + "_" +
-            StringUtils.lowerCase(lang) + ".txt");
-        if (stopFile.exists() && stopFile.isFile()) {
-          final Set<String> newWords = StopwordsFileReader.readWords
-              (stopFileFormat, stopFile.getCanonicalPath(),
-                  StandardCharsets.UTF_8);
-          if (newWords != null) {
-            LOG.info("Loaded {} stopwords. file={} lang={}", newWords.size(),
-                stopFile, lang);
-            sWords = newWords;
-          }
-        } else {
-          LOG.error("Stopwords file '{}' not found. lang={}", stopFile, lang);
-          System.exit(1);
-        }
-      }
-    } else {
-      LOG.info("No stopwords provided. lang={}", lang);
-    }
-    return sWords;
   }
 
   /**
