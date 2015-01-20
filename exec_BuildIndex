@@ -9,7 +9,7 @@ STOP_PAT=$(pwd)/stop/stop
 STOP_FORMAT=snowball
 
 CLASS=de.unihildesheim.iw.fiz.cli.BuildIndex
-ARGS="-data $TARGET -stop $STOP_PAT -stop-format $STOP_FORMAT"
+ARGS="-data $TARGET -stop $STOP_PAT -stop-format $STOP_FORMAT -term-vectors"
 
 ${MVN_CMD} -Dexec.mainClass="${CLASS}" -Dexec.args="${ARGS} $*"
 
