@@ -249,7 +249,7 @@ public final class ImprovedClarityScoreConfiguration
      * Hauff, Murdock & Baeza-Yates evaluated with 10, 50, 100. 250, 500, 700,
      * 1000 documents.
      */
-    DEFAULTS.put(Keys.FB_DOCS_MAX.name(), "1000");
+    DEFAULTS.put(Keys.FB_DOCS_MAX.name(), "500");
     /**
      * Threshold to select terms from feedback documents. A term from a
      * feedback document must occur in min n% of the documents
