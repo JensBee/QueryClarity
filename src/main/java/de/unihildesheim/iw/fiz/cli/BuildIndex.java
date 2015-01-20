@@ -26,7 +26,7 @@ import de.unihildesheim.iw.cli.CliParams;
 import de.unihildesheim.iw.fiz.Defaults;
 import de.unihildesheim.iw.fiz.Defaults.ES_CONF;
 import de.unihildesheim.iw.fiz.Defaults.SRC_LANGUAGE;
-import de.unihildesheim.iw.fiz.lucene.LanguageBasedAnalyzers;
+import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers;
 import de.unihildesheim.iw.fiz.models.Patent;
 import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.lucene.VecTextField;
