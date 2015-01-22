@@ -58,6 +58,29 @@ public class Defaults {
   }
 
   /**
+   * Lucene settings. (TODO: make these external)
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public static final class LUCENE_CONF {
+    /**
+     * Field containing a unique document identifier.
+     */
+    public static final String FLD_DOC_ID = "_id";
+    /**
+     * Field containing a unique patent identifier.
+     */
+    public static final String FLD_PAT_ID = "pat_id";
+    /**
+     * Field containing claims.
+     */
+    public static final String FLD_CLAIMS = "claims";
+    /**
+     * Field containing detailed description.
+     */
+    public static final String FLD_DETD = "detd";
+  }
+
+  /**
    * ES settings. (TODO: make these external)
    */
   @SuppressWarnings("PublicInnerClass")
@@ -78,7 +101,7 @@ public class Defaults {
     /**
      * Number of results to get from each shard.
      */
-    public static final int PAGE_SIZE = 500;
+    public static final int PAGE_SIZE = 1200;
     /**
      * How long to keep the scroll open.
      */

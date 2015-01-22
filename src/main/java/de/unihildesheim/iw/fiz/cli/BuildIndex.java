@@ -25,6 +25,7 @@ import de.unihildesheim.iw.cli.CliCommon;
 import de.unihildesheim.iw.cli.CliParams;
 import de.unihildesheim.iw.fiz.Defaults;
 import de.unihildesheim.iw.fiz.Defaults.ES_CONF;
+import de.unihildesheim.iw.fiz.Defaults.LUCENE_CONF;
 import de.unihildesheim.iw.fiz.Defaults.SRC_LANGUAGE;
 import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers;
 import de.unihildesheim.iw.fiz.models.Patent;
@@ -112,7 +113,7 @@ public class BuildIndex
         return this.client.execute(action);
       } catch (final SocketTimeoutException ex) {
         // connection timed out - retry after a short delay
-        final int delay = (1 + this.rand.nextInt(10)) * 1000;
+        final int delay = (1 + this.rand.nextInt(10)) * 100;
         LOG.warn("Timeout - retry ~{}..", delay);
         Thread.sleep((long) delay);
         tries++;
@@ -288,8 +289,10 @@ public class BuildIndex
       final Document patDoc = new Document();
       boolean hasData = false;
 
-      patDoc.add(new StringField("_id", p.getId(), Store.NO));
-      patDoc.add(new StringField("patid", p.getPatId(), Store.NO));
+      patDoc.add(new StringField(LUCENE_CONF.FLD_DOC_ID,
+          p.getId(), Store.YES));
+      patDoc.add(new StringField(LUCENE_CONF.FLD_PAT_ID,
+          p.getPatId(), Store.YES));
 
       if (p.getPatId().isEmpty()) {
         LOG.warn("Patent reference was empty! id:{}", p.getId());
@@ -298,11 +301,11 @@ public class BuildIndex
       // test, if we have claim data
       if (p.hasClaims(lang)) {
         if (this.cliParams.useTermVectors) {
-          patDoc.add(new VecTextField("claims", p.getClaimsAsString(lang),
-              Store.NO));
+          patDoc.add(new VecTextField(LUCENE_CONF.FLD_CLAIMS,
+              p.getClaimsAsString(lang), Store.NO));
         } else {
-          patDoc.add(new TextField("claims", p.getClaimsAsString(lang),
-              Store.NO));
+          patDoc.add(new TextField(LUCENE_CONF.FLD_CLAIMS,
+              p.getClaimsAsString(lang), Store.NO));
         }
         hasData = true;
       }
@@ -310,9 +313,11 @@ public class BuildIndex
       // test, if we have detailed description data
       if (p.hasDetd(lang)) {
         if (this.cliParams.useTermVectors) {
-          patDoc.add(new VecTextField("detd", p.getDetd(lang), Store.NO));
+          patDoc.add(new VecTextField(LUCENE_CONF.FLD_DETD,
+              p.getDetd(lang), Store.NO));
         } else {
-          patDoc.add(new TextField("detd", p.getDetd(lang), Store.NO));
+          patDoc.add(new TextField(LUCENE_CONF.FLD_DETD,
+              p.getDetd(lang), Store.NO));
         }
         hasData = true;
       }
