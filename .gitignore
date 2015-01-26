@@ -64,6 +64,9 @@ hs_err_pid*
 
 # target
 target/
+data/
+stop/
+doc/
 
 # r
 */.Rhistory
