@@ -21,6 +21,6 @@ IDX=/data/clef/Clarity/work/fiz/index/$(echo $SCORE_LANG | tr '[:lower:]' '[:upp
 OUT=$DIR_DATA/common-terms-${SCORE_LANG}-${SUFFIX}.csv
 
 CLASS=de.unihildesheim.iw.cli.DumpCommonTerms
-ARGS="-o ${OUT} -idx ${IDX} -stop ${STOP_PAT} -stop-format ${STOP_FORMAT} -data ${DIR_DATA} -lang ${SCORE_LANG} -fields-no-suffix -prefix ${SUFFIX}"
+ARGS="-o ${OUT} -idx ${IDX} -stop ${STOP_PAT} -stop-format ${STOP_FORMAT} -data ${DIR_DATA} -lang ${SCORE_LANG} -prefix ${SUFFIX}"
 
 ${MVN_CMD} -Dexec.mainClass="${CLASS}" -Dexec.args="${ARGS} $*"
