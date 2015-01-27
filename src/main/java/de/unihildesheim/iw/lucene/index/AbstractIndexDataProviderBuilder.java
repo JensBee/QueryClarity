@@ -26,11 +26,15 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -42,6 +46,39 @@ import java.util.Set;
 public abstract class AbstractIndexDataProviderBuilder<T extends
     AbstractIndexDataProviderBuilder<T>>
     implements Buildable {
+
+  /**
+   * Logger instance for this class.
+   */
+  private static final Logger LOG =
+      LoggerFactory.getLogger(AbstractIndexDataProviderBuilder.class);
+
+  public enum Feature {
+    /**
+     * Relative document frequency threshold for classifying common terms.
+     * When exceeded for a term it will be skipped.
+     */
+    COMMON_TERM_THRESHOLD
+  }
+  protected Map<Feature, String> supportedFeatures = Collections.EMPTY_MAP;
+
+  protected final void setSupportedFeatures(
+      final Feature[] features) {
+    this.supportedFeatures = new HashMap<>(features.length);
+    for (final Feature f : features) {
+      this.supportedFeatures.put(f, null);
+    }
+  }
+
+  public final T setFeature(final Feature f, final String value) {
+    if (this.supportedFeatures.containsKey(f)) {
+      this.supportedFeatures.put(f, value);
+    } else {
+      LOG.warn("Feature not supported by current implementation. ({})",
+          getThis().getClass().getCanonicalName());
+    }
+    return getThis();
+  }
 
   /**
    * Builder used to create a proper caching backend.
