@@ -24,10 +24,12 @@ import de.unihildesheim.iw.cli.CliBase;
 import de.unihildesheim.iw.cli.CliCommon;
 import de.unihildesheim.iw.cli.CliParams;
 import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers;
+import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderBuilder.Feature;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.IndexUtils;
 import de.unihildesheim.iw.lucene.index.LuceneIndexDataProvider;
+import de.unihildesheim.iw.lucene.index.LuceneIndexDataProvider.Builder;
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation;
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation.ClarityScoreCalculationException;
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculationBuilder;
@@ -60,7 +62,6 @@ import javax.xml.bind.JAXBException;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -163,8 +164,8 @@ public final class ScoreTopicPassages
 
   /**
    * Scores a list of passages sorted by language. The languages to score are
-   * set by commandline parameters {@link Params#onlyLang} and {@link
-   * Params#skipLang}. <br> Calls {@link #scoreByLanguage(String)} for each
+   * set by commandline parameters {@link Params#lang}. <br> Calls {@link
+   * #scoreByLanguage(String)} for each
    * language.
    * @return True, if scoring was successfull
    */
@@ -173,32 +174,14 @@ public final class ScoreTopicPassages
     // error flag
     boolean succeeded = true;
     // check for single language
-    if (this.cliParams.onlyLang != null) {
-      LOG.info("Processing language '{}' only as requested by user.",
-          this.cliParams.onlyLang);
+      LOG.info("Processing language '{}'.",
+          this.cliParams.lang);
       try {
-        succeeded = scoreByLanguage(this.cliParams.onlyLang);
+        succeeded = scoreByLanguage(this.cliParams.lang);
       } catch (IOException | BuildableException e) {
-        LOG.error("Failed to score language '{}'.", this.cliParams.onlyLang, e);
+        LOG.error("Failed to score language '{}'.", this.cliParams.lang, e);
         succeeded = false;
       }
-    } else {
-      final Collection<String> runLanguages =
-          new HashSet<>(this.topicsXML.getLanguages());
-      if (this.cliParams.skipLang.length > 0) {
-        LOG.info("Skipping languages {} as requested by user.",
-            this.cliParams.skipLang);
-        runLanguages.removeAll(Arrays.asList(this.cliParams.skipLang));
-      }
-      for (final String lang : runLanguages) {
-        try {
-          succeeded = scoreByLanguage(lang);
-        } catch (IOException | BuildableException e) {
-          LOG.error("Failed to score language '{}'.", lang, e);
-          succeeded = false;
-        }
-      }
-    }
     try {
       this.topicsXML.writeResults(this.cliParams.targetFile, true);
     } catch (final JAXBException e) {
@@ -235,27 +218,19 @@ public final class ScoreTopicPassages
     final Set<String> langFields =
         new HashSet<>(this.cliParams.fields.length);
     for (final String field : this.cliParams.fields) {
-      if (this.cliParams.fieldsNoSuffix) {
         langFields.add(field);
-      } else {
-        langFields.add(field + "_" + lang);
-      }
     }
 
     // create the IndexDataProvider
     LOG.info("Initializing IndexDataProvider. lang={} fields={}", lang,
         langFields);
 
-    try (final LuceneIndexDataProvider dataProv = new LuceneIndexDataProvider
-        .Builder()
-    //try (final DirectAccessIndexDataProvider dataProv = new Builder()
-//        .loadOrCreateCache(this.cliParams.prefix + "_" + lang)
+    try (final LuceneIndexDataProvider dataProv = new Builder()
         .documentFields(langFields)
-//        .dataPath(this.cliParams.dataDir.getCanonicalPath())
         .indexPath(this.cliParams.idxDir.getCanonicalPath())
         .stopwords(sWords)
-//        .termFilter(new AsciiFoldingFilter())
-//        .warmUp()
+        .setFeature(Feature.COMMON_TERM_THRESHOLD,
+            Double.toString(this.cliParams.ctTreshold))
         .build()) {
 
       analyzer = LanguageBasedAnalyzers.createInstance(LanguageBasedAnalyzers
@@ -408,11 +383,9 @@ public final class ScoreTopicPassages
     }
 
     // check for custom configuration case
-    if ("common-terms".equalsIgnoreCase(this.cliParams.configuration)) {
       LOG.info("Using configuration: common-terms");
       resTuple.a.feedbackProvider(new CommonTermsFeedbackProvider());
-      resTuple.a.vocabularyProvider(new CommonTermsVocabularyProvider());
-    }
+      //resTuple.a.vocabularyProvider(new CommonTermsVocabularyProvider());
 
     return resTuple;
   }
@@ -533,15 +506,6 @@ public final class ScoreTopicPassages
             "comments starting with '|'. Defaults to 'plain'.")
     String stopFileFormat = "plain";
     /**
-     * Skip languages.
-     */
-    @SuppressWarnings({"PackageVisibleField", "ZeroLengthArrayAllocation"})
-    @Option(name = "-skip-lang", metaVar = "<languages>", required = false,
-        handler = StringArrayOptionHandler.class,
-        usage = "Skip the listed languages while processing. Separate each " +
-            "language by a space.")
-    String[] skipLang = {};
-    /**
      * Source file containing extracted claims.
      */
     @SuppressWarnings("PackageVisibleField")
@@ -575,17 +539,9 @@ public final class ScoreTopicPassages
     @SuppressWarnings("PackageVisibleField")
     @Option(name = "-fields", metaVar = "list", required = true,
         handler = StringArrayOptionHandler.class,
-        usage = "List of document fields separated by spaces to query. " +
-            "These will be suffixed by '_<lang>'. Use '-field-no-suffix to " +
-            "avoid suffixation.'")
+        usage = "List of document fields separated by spaces to query. ")
     String[] fields;
-    /**
-     * Stop field name suffixation.
-     */
-    @SuppressWarnings("PackageVisibleField")
-    @Option(name = "-fields-no-suffix", required = false, usage = "Do not " +
-        "suffixate field names by '_<lang>'.")
-    boolean fieldsNoSuffix = false;
+
     /**
      * Prefix for cache data.
      */
@@ -606,9 +562,9 @@ public final class ScoreTopicPassages
      * Single languages.
      */
     @SuppressWarnings("PackageVisibleField")
-    @Option(name = "-only-lang", metaVar = "language", required = false,
-        usage = "Process only the defined language. Overrides -skip-lang'.")
-    String onlyLang;
+    @Option(name = "-lang", metaVar = "language", required = true,
+        usage = "Process only the defined language.")
+    String lang;
     /**
      * Single languages.
      */
@@ -633,11 +589,10 @@ public final class ScoreTopicPassages
      * Pre-defined configuration to use.
      */
     @SuppressWarnings("PackageVisibleField")
-    @Option(name = "-conf",
-        required = false,
-        usage = "Configuration to use. If not specified the default setup is " +
-            "used. Possible values: common-terms")
-    String configuration;
+    @Option(name = "-ct-threshold",
+        required = true,
+        usage = "Common-terms threshold value")
+    double ctTreshold;
 
     /**
      * Accessor for parent class.
