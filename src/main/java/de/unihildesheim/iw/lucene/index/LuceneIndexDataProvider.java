@@ -83,7 +83,9 @@ public class LuceneIndexDataProvider
   /**
    * Context for high precision math calculations.
    */
-  static final MathContext MATH_CONTEXT = MathContext.DECIMAL128;
+  static final MathContext MATH_CONTEXT = new MathContext(
+      GlobalConfiguration.conf().getString(
+          GlobalConfiguration.DefaultKeys.MATH_CONTEXT.toString()));
 
   /**
    * Information about the provided Lucene index.
@@ -222,7 +224,7 @@ public class LuceneIndexDataProvider
      */
     void setTtf(final long newTtf) {
       this.ttf = newTtf;
-      this.ttf_bd = new BigDecimal(this.ttf);
+      this.ttf_bd = BigDecimal.valueOf(this.ttf);
     }
   }
 
@@ -468,7 +470,7 @@ public class LuceneIndexDataProvider
     if (tf == null) {
       return BigDecimal.ZERO;
     }
-    return new BigDecimal(tf).divide(this.index.ttf_bd, MATH_CONTEXT);
+    return BigDecimal.valueOf(tf).divide(this.index.ttf_bd, MATH_CONTEXT);
   }
 
   @Override // NOP
