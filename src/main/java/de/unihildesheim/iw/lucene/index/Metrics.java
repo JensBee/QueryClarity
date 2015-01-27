@@ -19,13 +19,11 @@ package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.GlobalConfiguration;
+import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
-import de.unihildesheim.iw.mapdb.DBMakerUtils;
 import de.unihildesheim.iw.util.BigDecimalCache;
 import de.unihildesheim.iw.util.MathUtils;
-import org.mapdb.BTreeKeySerializer;
-import org.mapdb.DB;
-import org.mapdb.Fun;
+import org.mapdb.DBMaker;
 import org.mapdb.Serializer;
 import org.nevec.rjm.BigDecimalMath;
 
@@ -46,7 +44,7 @@ import java.util.Objects;
 public final class Metrics {
   private static final MathContext MATH_CONTEXT = new MathContext(
       GlobalConfiguration.conf().getString(
-          GlobalConfiguration.DefaultKeys.MATH_CONTEXT.toString()));
+          DefaultKeys.MATH_CONTEXT.toString()));
   /**
    * Collection related metrics are gathered in this object.
    */
@@ -56,29 +54,17 @@ public final class Metrics {
    */
   private final IndexDataProvider dataProv;
   /**
-   * Disk-backed cache.
-   */
-  private final DB cache = DBMakerUtils.newTempFileDB().make();
-  /**
    * Cache for created {@link DocumentModel}s.
    */
-  private final Map<Integer, DocumentModel> c_docModel = DBMakerUtils
-      .newCompressedCache(1000d);
-  /*
-  private final Map<Integer, DocumentModel> c_docModel =
-      this.cache
-          .createTreeMap("docModelCache")
-          .keySerializer(BTreeKeySerializer.ZERO_OR_POSITIVE_INT)
-          .valueSerializer(Serializer.JAVA)
-          .make();
-          */
-  private static final Map<Fun.Tuple2<Long, Long>, BigDecimal> C_RELTF =
-      DBMakerUtils.newTempFileDB().make()
-          .createTreeMap("relTfCache")
-          .keySerializer(new BTreeKeySerializer.Tuple2KeySerializer<>(
-              null, Serializer.LONG, Serializer.LONG))
-          .valueSerializer(Serializer.BASIC)
-          .make();
+  private final Map<Integer, DocumentModel> c_docModel = DBMaker
+      .newMemoryDirectDB()
+      .transactionDisable()
+      .make()
+      .createHashMap("cache")
+      .keySerializer(Serializer.INTEGER)
+      .valueSerializer(Serializer.JAVA)
+      .expireStoreSize(1000d)
+      .make();
 
   /**
    * Creates a new instance using the provided DataProvider for statistical
@@ -147,7 +133,6 @@ public final class Metrics {
    * @return Collection metrics
    */
   public CollectionMetrics collection() {
-    assert this.collection != null;
     return this.collection;
   }
 
@@ -157,7 +142,6 @@ public final class Metrics {
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class DocumentMetrics {
-
     /**
      * Model to retrieve data from.
      */
@@ -181,8 +165,6 @@ public final class Metrics {
      * @return Frequency value
      */
     public BigDecimal wdf(final ByteArray term) {
-      Objects.requireNonNull(term, "Term was null.");
-
       return BigDecimalMath.log(
           BigDecimal.ONE.add(BigDecimalCache.get(tf(term)), MATH_CONTEXT))
           .divide(MathUtils.BD_LOG2, MATH_CONTEXT)
@@ -198,7 +180,6 @@ public final class Metrics {
      * @return Frequency of the given term in the given document
      */
     public Long tf(final ByteArray term) {
-      Objects.requireNonNull(term, "Term was null.");
       final Long freq = this.docModel.getTermFreqMap().get(term);
       if (freq == null) {
         return 0L;
@@ -231,8 +212,7 @@ public final class Metrics {
      * @return True, if term is in document
      */
     public boolean contains(final ByteArray term) {
-      return this.docModel.contains(Objects.requireNonNull(term,
-          "Term was null."));
+      return this.docModel.contains(term);
     }
 
     /**
@@ -244,18 +224,12 @@ public final class Metrics {
      * @return Relative frequency. Zero if term is not in document.
      */
     public BigDecimal relTf(final ByteArray term) {
-      Objects.requireNonNull(term, "Term was null.");
       final Long tf = this.docModel.tf(term);
       if (tf == 0L) {
         return BigDecimal.ZERO;
       }
-      BigDecimal value = C_RELTF.get(Fun.t2(tf, this.docModel.termFrequency));
-      if (value == null) {
-        value = BigDecimalCache.get(tf).divide(
-            BigDecimalCache.get(this.docModel.termFrequency), MATH_CONTEXT);
-        C_RELTF.put(Fun.t2(tf, this.docModel.termFrequency), value);
-      }
-      return value;
+      return BigDecimalCache.get(tf).divide(
+          BigDecimalCache.get(this.docModel.termFrequency), MATH_CONTEXT);
     }
   }
 
@@ -265,6 +239,25 @@ public final class Metrics {
    */
   @SuppressWarnings("PublicInnerClass")
   public final class CollectionMetrics {
+    private final Map<ByteArray, Long> c_tf = DBMaker
+        .newMemoryDirectDB()
+        .transactionDisable()
+        .make()
+        .createHashMap("cache")
+        .keySerializer(ByteArray.SERIALIZER)
+        .valueSerializer(Serializer.LONG)
+        .expireStoreSize(1500d)
+        .make();
+    private final Map<ByteArray, BigDecimal> c_rtf = DBMaker
+        .newMemoryDirectDB()
+        .transactionDisable()
+        .make()
+        .createHashMap("cache")
+        .keySerializer(ByteArray.SERIALIZER)
+        .valueSerializer(Serializer.BASIC)
+        .expireStoreSize(1500d)
+        .make();
+
     /**
      * Get the number of unique terms in the index.
      *
@@ -285,11 +278,14 @@ public final class Metrics {
      */
     public Long tf(final ByteArray term)
         throws DataProviderException {
-      // may return null, if term is not known
-      final Long result = getDataProvider()
-          .getTermFrequency(Objects.requireNonNull(term, "Term was null."));
+      Long result = this.c_tf.get(term);
       if (result == null) {
-        return 0L;
+        // may return null, if term is not known
+        result = getDataProvider().getTermFrequency(term);
+        if (result == null) {
+          return 0L;
+        }
+        this.c_tf.put(term, result);
       }
       return result;
     }
@@ -314,9 +310,12 @@ public final class Metrics {
      */
     public BigDecimal relTf(final ByteArray term)
         throws DataProviderException {
-      return getDataProvider()
-          .getRelativeTermFrequency(Objects.requireNonNull(term,
-              "Term was null."));
+      BigDecimal result = this.c_rtf.get(term);
+      if (result == null) {
+        result = getDataProvider().getRelativeTermFrequency(term);
+        this.c_rtf.put(term, result);
+      }
+      return result;
     }
 
     /**
@@ -341,8 +340,6 @@ public final class Metrics {
      */
     public BigDecimal idf(final ByteArray term, final double logBase)
         throws DataProviderException {
-      Objects.requireNonNull(term, "Term was null.");
-
       return
           BigDecimalMath.log(BigDecimalCache.get(numberOfDocuments())
               .divide(BigDecimalCache.get(df(term)), MATH_CONTEXT)
@@ -369,8 +366,7 @@ public final class Metrics {
      */
     public Integer df(final ByteArray term)
         throws DataProviderException {
-      return getDataProvider().getDocumentFrequency(Objects.requireNonNull(term,
-          "Term was null."));
+      return getDataProvider().getDocumentFrequency(term);
     }
 
     /**
@@ -382,10 +378,8 @@ public final class Metrics {
     public BigDecimal relDf(final ByteArray term)
         throws DataProviderException {
       return BigDecimalCache.get(
-          getDataProvider().getDocumentFrequency(
-              Objects.requireNonNull(term, "Term was null.")))
-          .divide(
-              BigDecimalCache.get(getDataProvider().getDocumentCount()),
+          getDataProvider().getDocumentFrequency(term))
+          .divide(BigDecimalCache.get(getDataProvider().getDocumentCount()),
               MATH_CONTEXT
           );
     }
@@ -412,8 +406,7 @@ public final class Metrics {
      */
     public BigDecimal idfBM25(final ByteArray term, final double logBase)
         throws DataProviderException {
-      final int docFreq = df(Objects.requireNonNull(term,
-          "Term was null."));
+      final int docFreq = df(term);
 
       return
           BigDecimalMath.log(
