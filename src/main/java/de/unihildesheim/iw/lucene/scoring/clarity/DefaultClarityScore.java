@@ -16,7 +16,6 @@
  */
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
-import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.Closable;
 import de.unihildesheim.iw.GlobalConfiguration;
@@ -30,7 +29,6 @@ import de.unihildesheim.iw.lucene.scoring.data.DefaultFeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.DefaultVocabularyProvider;
 import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
-import de.unihildesheim.iw.mapdb.DBMakerUtils;
 import de.unihildesheim.iw.util.BigDecimalCache;
 import de.unihildesheim.iw.util.MathUtils.KlDivergence;
 import de.unihildesheim.iw.util.StringUtils;
@@ -44,11 +42,8 @@ import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall.TargetFunc;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
-import org.mapdb.BTreeKeySerializer;
-import org.mapdb.DB;
 import org.mapdb.Fun;
 import org.mapdb.Fun.Tuple2;
-import org.mapdb.Serializer;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
@@ -91,18 +86,6 @@ public final class DefaultClarityScore
   @SuppressWarnings("PackageVisibleField")
   final Metrics metrics;
   /**
-   * Caches values of document and query models. Those need to be normalized
-   * before calculating the score.
-   */
-  // accessed from multiple threads
-  // accessed from inner class
-  @SuppressWarnings("PackageVisibleField")
-  Map<Long, Tuple2<BigDecimal, BigDecimal>> c_dataSet;
-  /**
-   * Counter for entries in {@link #c_dataSet}. Gets used as map key.
-   */
-  private AtomicLong dataSetCounter;
-  /**
    * {@link IndexDataProvider} to use.
    */
   @SuppressWarnings("PackageVisibleField")
@@ -115,10 +98,6 @@ public final class DefaultClarityScore
    * Analyzer for parsing queries.
    */
   private final Analyzer analyzer;
-  /**
-   * On disk database for creating temporary caches.
-   */
-  private final DB cache;
   /**
    * Provider for feedback vocabulary.
    */
@@ -165,7 +144,7 @@ public final class DefaultClarityScore
     /**
      * Temporary cache for the current query.
      */
-    private final DB cache;
+    //private final DB cache;
     /**
      * Store the static part of the query model calculation.
      */
@@ -174,19 +153,40 @@ public final class DefaultClarityScore
      * Cache of document models for all used feedback documents.
      */
     private final Map<Integer, DocumentModel> fbDocModels;
-
+    /**
+     * Caches values of document and query models. Those need to be normalized
+     * before calculating the score.
+     */
+    @SuppressWarnings("ProtectedField")
+    protected Map<Long, Tuple2<BigDecimal, BigDecimal>> dataSets;
+    /**
+     * Counter for entries in {@link #dataSets}. Gets used as map key.
+     */
+    private final AtomicLong dataSetCounter;
 
     public Model(final Collection<ByteArray> qt, final Collection<Integer> fb) {
       LOG.debug("Create runtime cache.");
-      this.cache = DBMakerUtils.newTempFileDB().make();
       this.queryTerms = new ArrayList<>(qt.size());
       this.queryTerms.addAll(qt);
       this.feedbackDocs = new ArrayList<>(fb.size());
       this.feedbackDocs.addAll(fb);
+
+      // TODO: check if we can operate without using mapDB backend
+      //this.cache = DBMakerUtils.newTempFileDB().make();
       this.staticQueryModelParts = new ConcurrentHashMap<>(
           DefaultClarityScore.this.conf.getFeedbackDocCount());
       this.fbDocModels = new ConcurrentHashMap<>(
           DefaultClarityScore.this.conf.getFeedbackDocCount());
+
+      this.dataSets = new ConcurrentHashMap<>(2000);
+      /*
+      this.dataSets = this.cache
+          .createTreeMap("dataSet")
+          .keySerializer(BTreeKeySerializer.ZERO_OR_POSITIVE_LONG)
+          .valueSerializer(Serializer.BASIC)
+          .make();
+       */
+      this.dataSetCounter = new AtomicLong(0L);
     }
 
     /**
@@ -262,7 +262,8 @@ public final class DefaultClarityScore
       for (final Integer docId : this.feedbackDocs) {
         DocumentModel docMod = this.fbDocModels.get(docId);
         if (docMod == null) {
-          docMod = DefaultClarityScore.this.dataProv.getDocumentModel(docId);
+          //docMod = DefaultClarityScore.this.dataProv.getDocumentModel(docId);
+          docMod = DefaultClarityScore.this.metrics.getDocumentModel(docId);
           this.fbDocModels.put(docId, docMod);
         }
         result = result.add(query(docMod, term));
@@ -273,7 +274,7 @@ public final class DefaultClarityScore
     @Override
     public void close() {
       LOG.debug("Close runtime cache.");
-      this.cache.close();
+      //this.cache.close();
     }
   }
 
@@ -281,8 +282,6 @@ public final class DefaultClarityScore
    * Create a new instance using a builder.
    *
    * @param builder Builder to use for constructing the instance
-   * @throws Buildable.BuildableException Thrown, if building the persistent
-   * cache failed
    */
   private DefaultClarityScore(final Builder builder) {
     Objects.requireNonNull(builder, "Builder was null.");
@@ -312,25 +311,14 @@ public final class DefaultClarityScore
     } else {
       this.fbProvider = new DefaultFeedbackProvider();
     }
-
-    this.cache = DBMakerUtils.newTempFileDB().make();
-    this.c_dataSet = this.cache
-        .createTreeMap("dataSet")
-        .keySerializer(BTreeKeySerializer.ZERO_OR_POSITIVE_LONG)
-        .valueSerializer(Serializer.BASIC)
-        .make();
   }
 
   /**
-   * Close this instance and release any resources (mainly the database
-   * backend).
+   * Close this instance and release any resources.
    */
   @Override
   public void close() {
-    if (!this.cache.isClosed()) {
-      LOG.info("Shutdown: closing cache");
-      this.cache.close();
-    }
+    // NOP
   }
 
   /**
@@ -432,8 +420,8 @@ public final class DefaultClarityScore
         .get();
 
     // clear any leftover values
-    this.c_dataSet.clear();
-    this.dataSetCounter = new AtomicLong(0L);
+    //this.model.dataSets.clear();
+    //this.model.dataSetCounter = new AtomicLong(0L);
 
     LOG.info("Calculating score values.");
     new Processing().setSourceAndTarget(
@@ -446,8 +434,8 @@ public final class DefaultClarityScore
     LOG.info("Calculating final score.");
     result.setScore(
         KlDivergence.calc(
-            this.c_dataSet.values(),
-            KlDivergence.sumValues(this.c_dataSet.values())
+            this.model.dataSets.values(),
+            KlDivergence.sumValues(this.model.dataSets.values())
         ).doubleValue());
 
     this.model.close();
@@ -621,8 +609,8 @@ public final class DefaultClarityScore
     public void call(final ByteArray term)
         throws DataProviderException {
       if (term != null) {
-        DefaultClarityScore.this.c_dataSet.put(
-            DefaultClarityScore.this.dataSetCounter.incrementAndGet(),
+        DefaultClarityScore.this.model.dataSets.put(
+            DefaultClarityScore.this.model.dataSetCounter.incrementAndGet(),
             Fun.t2(DefaultClarityScore.this.model.query(term),
                 DefaultClarityScore.this
                     .dataProv.getRelativeTermFrequency(term)));
