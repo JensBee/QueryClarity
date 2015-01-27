@@ -16,6 +16,8 @@
  */
 package de.unihildesheim.iw.util;
 
+import de.unihildesheim.iw.GlobalConfiguration;
+import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.mapdb.DBMakerUtils;
 import de.unihildesheim.iw.util.concurrent.AtomicBigDecimal;
 import de.unihildesheim.iw.util.concurrent.processing.IterableSource;
@@ -42,7 +44,9 @@ public final class MathUtils {
    */
   public static final double LOG2 = Math.log(2d);
   public static final BigDecimal BD_LOG2 = BigDecimal.valueOf(Math.log(2d));
-  public static final MathContext MATH_CONTEXT = MathContext.DECIMAL128;
+  public static final MathContext MATH_CONTEXT = new MathContext(
+      GlobalConfiguration.conf().getString(
+          DefaultKeys.MATH_CONTEXT.toString()));
   /**
    * Logger instance for this class.
    */
@@ -119,8 +123,8 @@ public final class MathUtils {
                 return;
               }
 
-              sumA.addAndGet(data.a);
-              sumB.addAndGet(data.b);
+              sumA.addAndGet(data.a, MATH_CONTEXT);
+              sumB.addAndGet(data.b, MATH_CONTEXT);
             }
           }
       )).process();
@@ -174,7 +178,7 @@ public final class MathUtils {
                       BigDecimalMath.log(
                           aScaled.divide(
                               data.b.divide(sums.b, MATH_CONTEXT),
-                              MATH_CONTEXT))));
+                              MATH_CONTEXT)), MATH_CONTEXT));
             }
           }
       )).process();
@@ -183,7 +187,7 @@ public final class MathUtils {
       BigDecimal result = BigDecimal.ZERO;
       BigDecimal value = (BigDecimal) rQueue.poll();
       while (value != null) {
-        result = result.add(value);
+        result = result.add(value, MATH_CONTEXT);
         value = (BigDecimal) rQueue.poll();
       }
       // remove temp db from disk

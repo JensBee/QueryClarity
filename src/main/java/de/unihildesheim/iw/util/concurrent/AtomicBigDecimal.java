@@ -18,6 +18,7 @@
 package de.unihildesheim.iw.util.concurrent;
 
 import java.math.BigDecimal;
+import java.math.MathContext;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -134,9 +135,18 @@ public class AtomicBigDecimal
    * @return the previous value
    */
   public BigDecimal getAndAdd(final BigDecimal delta) {
+    return getAndAdd(delta, null);
+  }
+
+  public BigDecimal getAndAdd(final BigDecimal delta, final MathContext mc) {
     while (true) {
       final BigDecimal origVal = get();
-      final BigDecimal newVal = origVal.add(delta);
+      final BigDecimal newVal;
+      if (mc == null) {
+        newVal = origVal.add(delta);
+      } else {
+        newVal = origVal.add(delta, mc);
+      }
       if (compareAndSet(origVal, newVal)) {
         return origVal;
       }
@@ -150,9 +160,18 @@ public class AtomicBigDecimal
    * @return the updated value
    */
   public BigDecimal addAndGet(final BigDecimal delta) {
+    return addAndGet(delta, null);
+  }
+
+  public BigDecimal addAndGet(final BigDecimal delta, MathContext mc) {
     while (true) {
       final BigDecimal origVal = get();
-      final BigDecimal newVal = origVal.add(delta);
+      final BigDecimal newVal;
+      if (mc == null) {
+        newVal = origVal.add(delta);
+      } else {
+        newVal = origVal.add(delta, mc);
+      }
       if (compareAndSet(origVal, newVal)) {
         return newVal;
       }

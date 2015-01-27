@@ -18,6 +18,7 @@
 package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.ByteArray;
+import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.mapdb.DBMakerUtils;
 import de.unihildesheim.iw.util.BigDecimalCache;
@@ -43,7 +44,9 @@ import java.util.Objects;
  * @author Jens Bertram
  */
 public final class Metrics {
-  private static final MathContext MATH_CONTEXT = MathContext.DECIMAL128;
+  private static final MathContext MATH_CONTEXT = new MathContext(
+      GlobalConfiguration.conf().getString(
+          GlobalConfiguration.DefaultKeys.MATH_CONTEXT.toString()));
   /**
    * Collection related metrics are gathered in this object.
    */
@@ -59,12 +62,16 @@ public final class Metrics {
   /**
    * Cache for created {@link DocumentModel}s.
    */
+  private final Map<Integer, DocumentModel> c_docModel = DBMakerUtils
+      .newCompressedCache(1000d);
+  /*
   private final Map<Integer, DocumentModel> c_docModel =
       this.cache
           .createTreeMap("docModelCache")
           .keySerializer(BTreeKeySerializer.ZERO_OR_POSITIVE_INT)
           .valueSerializer(Serializer.JAVA)
           .make();
+          */
   private static final Map<Fun.Tuple2<Long, Long>, BigDecimal> C_RELTF =
       DBMakerUtils.newTempFileDB().make()
           .createTreeMap("relTfCache")
@@ -177,12 +184,11 @@ public final class Metrics {
       Objects.requireNonNull(term, "Term was null.");
 
       return BigDecimalMath.log(
-          BigDecimal.ONE.add(BigDecimalCache.get(tf(term))))
+          BigDecimal.ONE.add(BigDecimalCache.get(tf(term)), MATH_CONTEXT))
           .divide(MathUtils.BD_LOG2, MATH_CONTEXT)
           .divide(
               BigDecimalMath.log(BigDecimalCache.get(tf()))
-                  .divide(MathUtils.BD_LOG2, MATH_CONTEXT)
-          );
+                  .divide(MathUtils.BD_LOG2, MATH_CONTEXT), MATH_CONTEXT);
     }
 
     /**
@@ -339,9 +345,10 @@ public final class Metrics {
 
       return
           BigDecimalMath.log(BigDecimalCache.get(numberOfDocuments())
-              .divide(BigDecimalCache.get(df(term)))
-              .add(BigDecimal.ONE))
-              .divide(BigDecimalMath.log(BigDecimalCache.get(logBase)));
+              .divide(BigDecimalCache.get(df(term)), MATH_CONTEXT)
+              .add(BigDecimal.ONE, MATH_CONTEXT))
+              .divide(BigDecimalMath.log(BigDecimalCache.get(logBase)),
+                  MATH_CONTEXT);
     }
 
     /**
@@ -411,8 +418,9 @@ public final class Metrics {
       return
           BigDecimalMath.log(
               BigDecimalCache.get(numberOfDocuments() - docFreq + 0.5)
-                  .divide(BigDecimalCache.get(docFreq + 0.5))
-          ).divide(BigDecimalMath.log(BigDecimalCache.get(logBase)));
+                  .divide(BigDecimalCache.get(docFreq + 0.5), MATH_CONTEXT)
+          ).divide(BigDecimalMath.log(BigDecimalCache.get(logBase)),
+              MATH_CONTEXT);
     }
   }
 }
