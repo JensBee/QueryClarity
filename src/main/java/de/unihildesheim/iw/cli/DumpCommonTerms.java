@@ -21,14 +21,16 @@ import au.com.bytecode.opencsv.CSVWriter;
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.Buildable.BuildException;
 import de.unihildesheim.iw.Buildable.ConfigurationException;
-import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
-import de.unihildesheim.iw.lucene.index.DirectAccessIndexDataProvider;
-import de.unihildesheim.iw.lucene.index.DirectAccessIndexDataProvider.Builder;
-import de.unihildesheim.iw.lucene.index.Metrics;
-import de.unihildesheim.iw.lucene.index.Metrics.CollectionMetrics;
-import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.StopwordsFileReader;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.BytesRef;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 import org.kohsuke.args4j.spi.StringArrayOptionHandler;
@@ -38,17 +40,17 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Set;
 
 /**
  * Dump terms that will be skipped when using a CommonTerms feedback provider
- * oder query class. This will not exactly list those terms, but still gives
- * an impression on what may get excluded.
+ * oder query class. This will not exactly list those terms, but still gives an
+ * impression on what may get excluded.
+ *
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class DumpCommonTerms extends CliBase {
+public class DumpCommonTerms
+    extends CliBase {
   /**
    * Logger instance for this class.
    */
@@ -102,19 +104,62 @@ public class DumpCommonTerms extends CliBase {
     this.cliParams.check();
 
     LOG.info("Writing terms to '{}'.", this.cliParams.targetFile);
+
+    final Set<String> sWords = CliCommon.getStopwords(this.cliParams.lang,
+        this.cliParams.stopFileFormat, this.cliParams.stopFilePattern);
+
+    final int maxDoc = this.cliParams.idxReader.maxDoc();
+    if (maxDoc == 0) {
+      LOG.error("Empty index.");
+      return;
+    }
+
+    final Terms terms = MultiFields.getTerms(this.cliParams.idxReader,
+        this.cliParams.field);
+    TermsEnum termsEnum = TermsEnum.EMPTY;
+    BytesRef term;
+
+    if (terms != null) {
+      termsEnum = terms.iterator(termsEnum);
+      term = termsEnum.next();
+
+      try {
+        // target file
+        this.csvWriter =
+            new CSVWriter(new FileWriter(this.cliParams.targetFile));
+        // write header line
+        this.csvWriter.writeNext(new String[]{"term", "relDF"});
+
+        while (term != null) {
+          final String termStr = term.utf8ToString();
+          if (!sWords.contains(termStr.toLowerCase())) {
+            final double docFreq = (double) termsEnum.docFreq();
+            if (docFreq > 0) {
+              final double relDocFreq = docFreq / (double) maxDoc;
+
+              if (relDocFreq > this.cliParams.threshold) {
+                // log term
+                this.csvWriter.writeNext(new String[]{
+                    termStr,
+                    // make exponential string R compatible
+                    Double.toString(relDocFreq).toLowerCase()
+                });
+              }
+            }
+          }
+          term = termsEnum.next();
+        }
+      } finally {
+        this.csvWriter.close();
+      }
+    }
+
+    /*
     final Set<String> sWords = CliCommon.getStopwords(this.cliParams.lang,
         this.cliParams.stopFileFormat, this.cliParams.stopFilePattern);
 
     // suffix all fields by language
-    final Set<String> langFields =
-        new HashSet<>(this.cliParams.fields.length);
-    for (final String field : this.cliParams.fields) {
-      if (this.cliParams.fieldsNoSuffix) {
-        langFields.add(field);
-      } else {
-        langFields.add(field + "_" + this.cliParams.lang);
-      }
-    }
+    final Set<String> langFields = Collections.singleton(this.cliParams.field);
 
     // create the IndexDataProvider
     LOG.info("Initializing IndexDataProvider. lang={} fields={}",
@@ -142,13 +187,15 @@ public class DumpCommonTerms extends CliBase {
           // log term
           this.csvWriter.writeNext(new String[]{
               ByteArrayUtils.utf8ToString(termBa),
-              Float.toString(relDf)
+              // make exponential string R compatible
+              Float.toString(relDf).toLowerCase()
           });
         }
       }
     } finally {
       this.csvWriter.close();
     }
+    */
   }
 
   /**
@@ -165,6 +212,7 @@ public class DumpCommonTerms extends CliBase {
             "each stopword per line. 'snowball' for a list of words and " +
             "comments starting with '|'. Defaults to 'plain'.")
     String stopFileFormat = "plain";
+
     /**
      * Target file file for writing scored claims.
      */
@@ -172,6 +220,7 @@ public class DumpCommonTerms extends CliBase {
     @Option(name = "-o", metaVar = "FILE", required = true,
         usage = "Output file for writing scored passages")
     File targetFile;
+
     /**
      * Directory containing the target Lucene index.
      */
@@ -179,6 +228,16 @@ public class DumpCommonTerms extends CliBase {
     @Option(name = CliParams.INDEX_DIR_P, metaVar = CliParams.INDEX_DIR_M,
         required = true, usage = CliParams.INDEX_DIR_U)
     File idxDir;
+    /**
+     * {@link Directory} instance pointing at the Lucene index.
+     */
+    private Directory luceneDir;
+    /**
+     * {@link IndexReader} to use for accessing the Lucene index.
+     */
+    @SuppressWarnings("PackageVisibleField")
+    IndexReader idxReader;
+
     /**
      * Directory for storing working data.
      */
@@ -190,19 +249,11 @@ public class DumpCommonTerms extends CliBase {
      * Document-fields to query.
      */
     @SuppressWarnings("PackageVisibleField")
-    @Option(name = "-fields", metaVar = "list", required = true,
+    @Option(name = "-field", metaVar = "field name", required = true,
         handler = StringArrayOptionHandler.class,
-        usage = "List of document fields separated by spaces to query. " +
-            "These will be suffixed by '_<lang>'. Use '-field-no-suffix to " +
-            "avoid suffixation.'")
-    String[] fields;
-    /**
-     * Stop field name suffixation.
-     */
-    @SuppressWarnings("PackageVisibleField")
-    @Option(name = "-fields-no-suffix", required = false, usage = "Do not " +
-        "suffixate field names by '_<lang>'.")
-    boolean fieldsNoSuffix = false;
+        usage = "Document field to query.")
+    String field;
+
     /**
      * Prefix for cache data.
      */
@@ -210,6 +261,7 @@ public class DumpCommonTerms extends CliBase {
     @Option(name = "-prefix", metaVar = "name", required = true,
         usage = "Naming prefix for cached data files to load or create.")
     String prefix;
+
     /**
      * Pattern for stopwords files.
      */
@@ -219,6 +271,7 @@ public class DumpCommonTerms extends CliBase {
             "The pattern will be suffixed by '_<lang>.txt'. Stopword files " +
             "are expected to be UTF-8 encoded.")
     String stopFilePattern;
+
     /**
      * Single language.
      */
@@ -231,7 +284,7 @@ public class DumpCommonTerms extends CliBase {
     @Option(name = "-threshold", metaVar = "float", required = true,
         usage = "Document frequency threshold. If this is exceeded a term " +
             "will be treated as being too common (means gets skipped).")
-    float threshold;
+    double threshold;
 
     /**
      * Accessor for parent class.
@@ -242,12 +295,26 @@ public class DumpCommonTerms extends CliBase {
     /**
      * Check, if the defined files and directories are available.
      */
-    void check() {
+    void check()
+        throws IOException {
       if (this.targetFile.exists()) {
         LOG.error("Target file '" + this.targetFile + "' already exist.");
         System.exit(-1);
       }
-      if (!this.idxDir.exists()) {
+      if (this.idxDir.exists()) {
+        // check, if path is a directory
+        if (!this.idxDir.isDirectory()) {
+          throw new IOException("Index path '" + this.idxDir
+              + "' exists, but is not a directory.");
+        }
+        // check, if there's a Lucene index in the path
+        this.luceneDir = FSDirectory.open(this.idxDir);
+        if (!DirectoryReader.indexExists(this.luceneDir)) {
+          throw new IOException("No index found at index path '" +
+              this.idxDir.getCanonicalPath() + "'.");
+        }
+        this.idxReader = DirectoryReader.open(this.luceneDir);
+      } else {
         LOG.error("Index directory'" + this.idxDir + "' does not exist.");
         System.exit(-1);
       }

@@ -691,7 +691,6 @@ public final class ImprovedClarityScore
     LOG.info("Caching {} document models.", this.feedbackDocIds.size());
     final TimeMeasure tm = new TimeMeasure().start();
     try {
-//      cacheDocumentModels(this.queryTerms, true);
       this.calculation.cacheDocModels(this.queryTerms, true);
     } catch (final ProcessingException e) {
       final String msg = "Caught exception while caching models.";
@@ -758,7 +757,6 @@ public final class ImprovedClarityScore
         this.feedbackDocIds.size());
     try {
       if (!this.hasAllPrecalculatedModels) {
-//        cacheDocumentModels(fbTerms, false);
         this.calculation.cacheDocModels(fbTerms, false);
       }
     } catch (final ProcessingException e) {

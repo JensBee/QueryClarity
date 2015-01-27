@@ -18,7 +18,7 @@
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.Buildable;
-import de.unihildesheim.iw.lucene.scoring.ScoringBuilder;
+import de.unihildesheim.iw.lucene.scoring.ScoringBuilder.ScoringBuilderBase;
 import de.unihildesheim.iw.util.Configuration;
 
 /**
@@ -28,8 +28,7 @@ import de.unihildesheim.iw.util.Configuration;
  */
 public abstract class ClarityScoreCalculationBuilder<S extends
     ClarityScoreCalculation, C extends Configuration>
-    extends
-    ScoringBuilder.ScoringBuilderBase<ClarityScoreCalculationBuilder, C>
+    extends ScoringBuilderBase<ClarityScoreCalculationBuilder, C>
     implements Buildable<ClarityScoreCalculation> {
 
   /**

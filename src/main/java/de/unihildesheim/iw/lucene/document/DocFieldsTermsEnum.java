@@ -25,8 +25,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Enumerator iterating terms of multiple document fields in a Lucene index. The
@@ -89,9 +90,9 @@ public final class DocFieldsTermsEnum {
    * @throws java.io.IOException Thrown on low-level I/O errors
    */
   public DocFieldsTermsEnum(final IndexReader indexReader,
-      final Set<String> targetFields)
+      final Collection<String> targetFields)
       throws IOException {
-    this(indexReader, targetFields, null);
+    this(indexReader, new HashSet<>(targetFields), null);
   }
 
   /**
@@ -103,14 +104,15 @@ public final class DocFieldsTermsEnum {
    * @throws java.io.IOException Thrown on low-level I/O errors
    */
   private DocFieldsTermsEnum(final IndexReader indexReader,
-      final Set<String> targetFields, final Integer documentId)
+      final Collection<String> targetFields, final Integer documentId)
       throws IOException {
     Objects.requireNonNull(indexReader, "IndexReader was null.");
     if (Objects.requireNonNull(targetFields, "TargetFields were null").isEmpty
         ()) {
       throw new IllegalArgumentException("No target fields were specified.");
     }
-    this.fields = targetFields.toArray(new String[targetFields.size()]);
+    this.fields = new HashSet<>(targetFields).toArray(
+        new String[targetFields.size()]);
     this.reader = indexReader;
     if (documentId != null) {
       setDocument(documentId);
