@@ -19,6 +19,7 @@ package de.unihildesheim.iw.lucene.scoring.clarity;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.Closable;
 import de.unihildesheim.iw.GlobalConfiguration;
+import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
@@ -29,7 +30,6 @@ import de.unihildesheim.iw.lucene.scoring.data.DefaultFeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.DefaultVocabularyProvider;
 import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
-import de.unihildesheim.iw.util.BigDecimalCache;
 import de.unihildesheim.iw.util.MathUtils.KlDivergence;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
@@ -47,6 +47,7 @@ import org.mapdb.Fun.Tuple2;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
+import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -79,6 +80,12 @@ public final class DefaultClarityScore
    */
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       DefaultClarityScore.class);
+  /**
+   * Context for high precision math calculations.
+   */
+  static final MathContext MATH_CONTEXT = new MathContext(
+      GlobalConfiguration.conf().getString(
+          DefaultKeys.MATH_CONTEXT.toString()));
   /**
    * Provider for general index metrics.
    */
@@ -150,10 +157,6 @@ public final class DefaultClarityScore
      */
     private final Map<Integer, BigDecimal> staticQueryModelParts;
     /**
-     * Cache of document models for all used feedback documents.
-     */
-    private final Map<Integer, DocumentModel> fbDocModels;
-    /**
      * Caches values of document and query models. Those need to be normalized
      * before calculating the score.
      */
@@ -164,18 +167,24 @@ public final class DefaultClarityScore
      */
     private final AtomicLong dataSetCounter;
 
-    public Model(final Collection<ByteArray> qt, final Collection<Integer> fb) {
+    public Model(final Collection<ByteArray> qt, final Collection<Integer> fb)
+        throws DataProviderException {
       LOG.debug("Create runtime cache.");
+
+      // add query terms, skip those not in index
       this.queryTerms = new ArrayList<>(qt.size());
-      this.queryTerms.addAll(qt);
+      for (final ByteArray queryTerm : qt) {
+        if (DefaultClarityScore.this.metrics.collection().tf(queryTerm) > 0L) {
+          this.queryTerms.add(queryTerm);
+        }
+      }
+
       this.feedbackDocs = new ArrayList<>(fb.size());
       this.feedbackDocs.addAll(fb);
 
       // TODO: check if we can operate without using mapDB backend
       //this.cache = DBMakerUtils.newTempFileDB().make();
       this.staticQueryModelParts = new ConcurrentHashMap<>(
-          DefaultClarityScore.this.conf.getFeedbackDocCount());
-      this.fbDocModels = new ConcurrentHashMap<>(
           DefaultClarityScore.this.conf.getFeedbackDocCount());
 
       this.dataSets = new ConcurrentHashMap<>(2000);
@@ -199,7 +208,8 @@ public final class DefaultClarityScore
     BigDecimal collection(final ByteArray term)
         throws DataProviderException {
       return DefaultClarityScore.this.metrics.collection().relTf(term)
-          .multiply(DefaultClarityScore.this.docLangModelWeight1Sub);
+          .multiply(DefaultClarityScore.this.docLangModelWeight1Sub,
+              MATH_CONTEXT);
     }
 
     /**
@@ -212,15 +222,10 @@ public final class DefaultClarityScore
      */
     BigDecimal document(final DocumentModel docModel, final ByteArray term)
         throws DataProviderException {
-      // short circuit for unknown terms
-      if (DefaultClarityScore.this.metrics.collection().tf(term) <= 0L) {
-        return BigDecimal.ZERO;
-      }
-
       return DefaultClarityScore.this.docLangModelWeight.multiply(
-          docModel.metrics().relTf(term))
+          docModel.metrics().relTf(term), MATH_CONTEXT)
           .add(DefaultClarityScore.this.docLangModelWeight1Sub
-              .multiply(collection(term)));
+              .multiply(collection(term), MATH_CONTEXT), MATH_CONTEXT);
     }
 
     /**
@@ -233,20 +238,19 @@ public final class DefaultClarityScore
      */
     BigDecimal query(final DocumentModel docModel, final ByteArray term)
         throws DataProviderException {
-      BigDecimal result = document(docModel, term);
+      final BigDecimal result = document(docModel, term);
 
-      if (this.staticQueryModelParts.containsKey(docModel.id)) {
-        result = result.multiply(
-            this.staticQueryModelParts.get(docModel.id));
-      } else {
-        BigDecimal staticPart = BigDecimal.ONE;
+      BigDecimal staticPart = this.staticQueryModelParts.get(docModel.id);
+      if (staticPart == null) {
+        staticPart = BigDecimal.ONE;
         for (final ByteArray queryTerm : this.queryTerms) {
-          staticPart = staticPart.multiply(document(docModel, queryTerm));
+          staticPart = staticPart.multiply(
+              document(docModel, queryTerm), MATH_CONTEXT);
         }
         this.staticQueryModelParts.put(docModel.id, staticPart);
-        result = result.multiply(staticPart);
       }
-      return result;
+
+      return result.multiply(staticPart, MATH_CONTEXT);
     }
 
     /**
@@ -260,13 +264,9 @@ public final class DefaultClarityScore
       BigDecimal result = BigDecimal.ZERO;
 
       for (final Integer docId : this.feedbackDocs) {
-        DocumentModel docMod = this.fbDocModels.get(docId);
-        if (docMod == null) {
-          //docMod = DefaultClarityScore.this.dataProv.getDocumentModel(docId);
-          docMod = DefaultClarityScore.this.metrics.getDocumentModel(docId);
-          this.fbDocModels.put(docId, docMod);
-        }
-        result = result.add(query(docMod, term));
+        result = result.add(query(
+                DefaultClarityScore.this.metrics.getDocumentModel(docId), term),
+            MATH_CONTEXT);
       }
       return result;
     }
@@ -289,10 +289,10 @@ public final class DefaultClarityScore
     // set configuration
     this.conf = builder.getConfiguration();
     // localize some values for time critical calculations
-    this.docLangModelWeight = BigDecimalCache.get(this.conf
-        .getLangModelWeight());
-    this.docLangModelWeight1Sub = BigDecimalCache.get(1d - this.conf
-        .getLangModelWeight());
+    this.docLangModelWeight = BigDecimal.valueOf(
+        this.conf.getLangModelWeight());
+    this.docLangModelWeight1Sub = BigDecimal.valueOf(
+        1d - this.conf.getLangModelWeight());
     this.conf.debugDump();
 
     this.dataProv = builder.getIndexDataProvider();
@@ -418,10 +418,6 @@ public final class DefaultClarityScore
         .indexDataProvider(this.dataProv)
         .documentIds(this.feedbackDocIds)
         .get();
-
-    // clear any leftover values
-    //this.model.dataSets.clear();
-    //this.model.dataSetCounter = new AtomicLong(0L);
 
     LOG.info("Calculating score values.");
     new Processing().setSourceAndTarget(
