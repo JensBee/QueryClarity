@@ -65,41 +65,5 @@ public class DefaultVocabularyProvider
     }
     LOG.debug("Using filter");
     return new FilteredTermsIterator(termsIt, this.filter);
-
-    /*
-    LOG.debug("Using filter");
-    final DB termsCache = DBMakerUtils.newCompressedTempFileDB().make();
-    final Set<ByteArray> terms = termsCache.createTreeSet("termsCache")
-        .serializer(ByteArray.SERIALIZER_BTREE)
-        .make();
-    while (termsIt.hasNext()) {
-      final ByteArray term = this.filter.filter(termsIt.next());
-      if (term != null) {
-        terms.add(term);
-      }
-    }
-
-    return new Iterator<ByteArray>() {
-      private final Iterator<ByteArray> termsIt = terms.iterator();
-
-      @Override
-      public boolean hasNext() {
-        final boolean state = this.termsIt.hasNext();
-        if (!state) {
-          termsCache.close();
-        }
-        return state;
-      }
-
-      @Override
-      public ByteArray next() {
-        return this.termsIt.next();
-      }
-
-      @Override
-      public void remove() {
-        throw new UnsupportedOperationException();
-      }
-    };*/
   }
 }
