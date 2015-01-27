@@ -73,4 +73,13 @@ public final class DBMakerUtils {
         .expireStoreSize(size)
         .make();
   }
+
+  public static <K, V> HTreeMap<K, V> newCache(final double size) {
+    return DBMaker.newMemoryDirectDB()
+        .transactionDisable()
+        .make()
+        .createHashMap("cache")
+        .expireStoreSize(size)
+        .make();
+  }
 }
