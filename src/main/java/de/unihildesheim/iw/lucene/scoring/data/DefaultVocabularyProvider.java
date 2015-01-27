@@ -20,19 +20,20 @@ package de.unihildesheim.iw.lucene.scoring.data;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
-import de.unihildesheim.iw.mapdb.DBMakerUtils;
-import org.mapdb.DB;
 import org.slf4j.LoggerFactory;
 
 import java.util.Iterator;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Default {@link VocabularyProvider} implementation that uses an {@link
  * IndexDataProvider} and a set of document-ids to create a vocabulary. The
  * vocabulary is equal to all unique terms from all documents described by their
  * id.
+ *
+ * This simply passes on the original iterator, if no filter is set. If a
+ * filter is supplied the original iteratr is wrapped by {@link
+ * FilteredTermsIterator}.
  *
  * @author Jens Bertram
  */
@@ -62,7 +63,10 @@ public class DefaultVocabularyProvider
       // forward the plain iterator
       return termsIt;
     }
+    LOG.debug("Using filter");
+    return new FilteredTermsIterator(termsIt, this.filter);
 
+    /*
     LOG.debug("Using filter");
     final DB termsCache = DBMakerUtils.newCompressedTempFileDB().make();
     final Set<ByteArray> terms = termsCache.createTreeSet("termsCache")
@@ -96,6 +100,6 @@ public class DefaultVocabularyProvider
       public void remove() {
         throw new UnsupportedOperationException();
       }
-    };
+    };*/
   }
 }
