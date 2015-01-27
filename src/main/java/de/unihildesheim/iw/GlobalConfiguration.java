@@ -20,6 +20,7 @@ package de.unihildesheim.iw;
 import de.unihildesheim.iw.util.ConfigurationFile;
 
 import java.io.IOException;
+import java.math.MathContext;
 
 /**
  * Global file based configuration.
@@ -56,8 +57,18 @@ public final class GlobalConfiguration
   private GlobalConfiguration(final String newFileName)
       throws IOException {
     super(newFileName);
+    setDefaults();
     // activate storing to disk upon exit
     saveOnExit();
+  }
+
+  public enum DefaultKeys {
+    MATH_CONTEXT
+  }
+
+  private void setDefaults() {
+    this.getAndAddString(DefaultKeys.MATH_CONTEXT.toString(),
+        MathContext.DECIMAL64.toString());
   }
 
   /**
