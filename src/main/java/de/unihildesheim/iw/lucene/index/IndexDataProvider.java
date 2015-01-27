@@ -57,6 +57,7 @@ public interface IndexDataProvider
    *
    * @throws DataProviderException Thrown in case of errors
    */
+  @Deprecated
   void warmUp()
       throws DataProviderException;
 
@@ -147,6 +148,7 @@ public interface IndexDataProvider
    * @return List of terms from documents
    * @throws IOException Thrown on low-level I/O errors
    */
+  @Deprecated
   Map<ByteArray, Long> getDocumentTerms(int docId)
       throws DataProviderException;
 
@@ -158,6 +160,7 @@ public interface IndexDataProvider
    * @return List of terms from all documents
    * @throws IOException Thrown on low-level I/O errors
    */
+  @Deprecated
   Iterator<Map.Entry<ByteArray, Long>> getDocumentsTerms(final
   Collection<Integer> docIds)
       throws DataProviderException;
@@ -169,6 +172,7 @@ public interface IndexDataProvider
    * @return Set of terms from documents
    * @throws IOException Thrown on low-level I/O errors
    */
+  @Deprecated
   Set<ByteArray> getDocumentTermsSet(final int docId)
       throws DataProviderException;
 
@@ -197,6 +201,7 @@ public interface IndexDataProvider
    * @param term Term to lookup
    * @return True, if it contains the term, false otherwise
    */
+  @Deprecated
   @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
   boolean documentContains(final int documentId, final ByteArray term)
       throws DataProviderException;
@@ -208,6 +213,7 @@ public interface IndexDataProvider
    *
    * @return Commit generation id
    */
+  @Deprecated
   Long getLastIndexCommitGeneration()
       throws DataProviderException;
 
@@ -232,6 +238,7 @@ public interface IndexDataProvider
    *
    * @return List of words to exclude
    */
+  @Deprecated
   Set<ByteArray> getStopwordsBytes()
       throws DataProviderException;
 
@@ -240,6 +247,7 @@ public interface IndexDataProvider
    *
    * @return True, if instance was disposed
    */
+  @Deprecated
   boolean isClosed()
       throws DataProviderException;
 }
