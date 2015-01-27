@@ -32,7 +32,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -64,7 +64,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
 
   protected final void setSupportedFeatures(
       final Feature[] features) {
-    this.supportedFeatures = new HashMap<>(features.length);
+    this.supportedFeatures = new EnumMap(Feature.class);
     for (final Feature f : features) {
       this.supportedFeatures.put(f, null);
     }

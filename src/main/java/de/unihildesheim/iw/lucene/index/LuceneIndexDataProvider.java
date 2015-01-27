@@ -22,7 +22,8 @@ import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.Tuple.Tuple3;
 import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
-import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderBuilder.Feature;
+import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderBuilder
+    .Feature;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.StringUtils;
@@ -56,6 +57,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -101,6 +103,9 @@ public class LuceneIndexDataProvider
      * Cached leaves of the current IndexReader.
      */
     private final List<AtomicReaderContext> leaves;
+    /**
+     * Number of all documents in lucene index.
+     */
     private final int maxDocs;
     /**
      * Active document fields.
@@ -123,7 +128,13 @@ public class LuceneIndexDataProvider
      * List of stopwords. Initially empty.
      */
     private Set<String> stopwords = Collections.EMPTY_SET;
+    /**
+     * Number of documents visible (documents having the required fields).
+     */
     private int docCount = -1;
+    /**
+     * List of document-id of visible documents.
+     */
     private Collection<Integer> docIds = Collections.EMPTY_LIST;
 
     /**
@@ -162,10 +173,20 @@ public class LuceneIndexDataProvider
       return !(this.docCount <= -1);
     }
 
+    /**
+     * Check if a term is flagged as stopword.
+     * @param br Term
+     * @return True, if stopword
+     */
     boolean isStopword(final BytesRef br) {
       return this.stopwords.contains(StringUtils.lowerCase(br.utf8ToString()));
     }
 
+    /**
+     * Check if a term is flagged as stopword.
+     * @param ba Term
+     * @return True, if stopword
+     */
     boolean isStopword(final ByteArray ba) {
       return this.stopwords.contains(StringUtils.lowerCase(
           ByteArrayUtils.utf8ToString(ba)));
@@ -188,6 +209,11 @@ public class LuceneIndexDataProvider
       }
     }
 
+    /**
+     * Extend the list of words to exclude
+     *
+     * @param brStopwords Stopwords list
+     */
     void addStopwords(final Collection<BytesRef> brStopwords) {
       LOG.debug("Adding {} stopwords", brStopwords.size());
       for (final BytesRef br : brStopwords) {
@@ -211,7 +237,7 @@ public class LuceneIndexDataProvider
    */
   private final LuceneIndex index;
   private final Map<Feature, Object> options =
-      new HashMap<>(Builder.features.length);
+      new EnumMap(Feature.class);
 
   public LuceneIndexDataProvider(final Builder builder)
       throws DataProviderException {
@@ -776,6 +802,7 @@ public class LuceneIndexDataProvider
     Collection<Integer> documentIds)
         throws IOException {
       super(field);
+      // TODO: init cache here
       this.docIds = new ArrayList<>(documentIds);
       Collections.sort(this.docIds);
       setNext();
@@ -790,6 +817,7 @@ public class LuceneIndexDataProvider
       super.setNext();
       boolean haveNext = false;
       while (this.nextTerm != null && !haveNext) {
+        // TODO: check cache here
         this.docsEnum = this.termsEnum.docs(
             LuceneIndexDataProvider.this.index.liveDocs,
             this.docsEnum, DocsEnum.FLAG_NONE);
@@ -800,6 +828,8 @@ public class LuceneIndexDataProvider
             break;
           }
           if (this.docIds.contains(doc)) {
+            // TODO: add to cache here
+            // this.docIds.indexOf(doc)
             haveNext = true;
             break;
           }
