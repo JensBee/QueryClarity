@@ -22,11 +22,9 @@ import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.Tuple.Tuple3;
 import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
-import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderBuilder
-    .Feature;
+import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderBuilder.Feature;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.util.ByteArrayUtils;
-import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
@@ -127,7 +125,7 @@ public class LuceneIndexDataProvider
     /**
      * List of stopwords. Initially empty.
      */
-    private Set<String> stopwords = Collections.EMPTY_SET;
+    private Set<ByteArray> stopwords = Collections.EMPTY_SET;
     /**
      * Number of documents visible (documents having the required fields).
      */
@@ -179,7 +177,7 @@ public class LuceneIndexDataProvider
      * @return True, if stopword
      */
     boolean isStopword(final BytesRef br) {
-      return this.stopwords.contains(StringUtils.lowerCase(br.utf8ToString()));
+      return this.stopwords.contains(BytesRefUtils.toByteArray(br));
     }
 
     /**
@@ -188,8 +186,7 @@ public class LuceneIndexDataProvider
      * @return True, if stopword
      */
     boolean isStopword(final ByteArray ba) {
-      return this.stopwords.contains(StringUtils.lowerCase(
-          ByteArrayUtils.utf8ToString(ba)));
+      return this.stopwords.contains(ba);
     }
 
     /**
@@ -199,13 +196,10 @@ public class LuceneIndexDataProvider
      */
     void setStopwords(final Collection<String> sWords) {
       LOG.debug("Adding {} stopwords", sWords.size());
-      final int sWordCount = sWords.size();
-      if (sWordCount == 1) {
-        this.stopwords = Collections.singleton(
-            StringUtils.lowerCase(sWords.toArray(new String[1])[0]));
-      } else {
-        this.stopwords = new HashSet<>(sWordCount);
-        this.stopwords.addAll(sWords);
+      this.stopwords = new HashSet<>(sWords.size());
+
+      for (final String s : sWords) {
+        this.stopwords.add(new ByteArray(s.getBytes(StandardCharsets.UTF_8)));
       }
     }
 
@@ -217,7 +211,7 @@ public class LuceneIndexDataProvider
     void addStopwords(final Collection<BytesRef> brStopwords) {
       LOG.debug("Adding {} stopwords", brStopwords.size());
       for (final BytesRef br : brStopwords) {
-        this.stopwords.add(StringUtils.lowerCase(br.utf8ToString()));
+        this.stopwords.add(BytesRefUtils.toByteArray(br));
       }
     }
 
@@ -252,7 +246,7 @@ public class LuceneIndexDataProvider
       if (f.getValue() != null) {
         switch (f.getKey()) {
           case COMMON_TERM_THRESHOLD:
-            LOG.debug("CommonTerms threshold {}",
+            LOG.info("CommonTerms threshold {}",
                 Double.parseDouble(f.getValue()));
             this.options.put(f.getKey(), Double.parseDouble(f.getValue()));
             break;
@@ -540,7 +534,7 @@ public class LuceneIndexDataProvider
     return this.index.uniqueTerms;
   }
 
-  @Override // TODO
+  @Override
   public DocumentModel getDocumentModel(final int docId)
       throws DataProviderException {
     checkForTermVectors(Collections.singleton(docId));
@@ -661,7 +655,11 @@ public class LuceneIndexDataProvider
   @Override
   public Set<String> getStopwords()
       throws DataProviderException {
-    return this.index.stopwords;
+    final Set<String> words = new HashSet<>(this.index.stopwords.size());
+    for (final ByteArray ba : this.index.stopwords) {
+      words.add(ByteArrayUtils.utf8ToString(ba));
+    }
+    return words;
   }
 
   @Override
@@ -697,6 +695,7 @@ public class LuceneIndexDataProvider
      * Next term in the list of provided terms.
      */
     protected BytesRef nextTerm;
+    private final boolean useStopwords;
 
     /**
      * Default constructor setting up the required {@link TermsEnum}.
@@ -710,6 +709,8 @@ public class LuceneIndexDataProvider
           .this.index.reader, field);
       this.termsEnum = TermsEnum.EMPTY;
       this.termsEnum = this.terms.iterator(this.termsEnum);
+      this.useStopwords = !LuceneIndexDataProvider.this
+          .index.stopwords.isEmpty();
     }
 
     /**
@@ -719,13 +720,13 @@ public class LuceneIndexDataProvider
      */
     protected void setNext()
         throws IOException {
-      if (LuceneIndexDataProvider.this.index.stopwords.isEmpty()) {
-        this.nextTerm = this.termsEnum.next();
-      } else {
+      if (this.useStopwords) {
         do {
           this.nextTerm = this.termsEnum.next();
         } while (this.nextTerm != null &&
             LuceneIndexDataProvider.this.index.isStopword(this.nextTerm));
+      } else {
+        this.nextTerm = this.termsEnum.next();
       }
     }
 
@@ -802,7 +803,6 @@ public class LuceneIndexDataProvider
     Collection<Integer> documentIds)
         throws IOException {
       super(field);
-      // TODO: init cache here
       this.docIds = new ArrayList<>(documentIds);
       Collections.sort(this.docIds);
       setNext();
@@ -817,26 +817,24 @@ public class LuceneIndexDataProvider
       super.setNext();
       boolean haveNext = false;
       while (this.nextTerm != null && !haveNext) {
-        // TODO: check cache here
-        this.docsEnum = this.termsEnum.docs(
-            LuceneIndexDataProvider.this.index.liveDocs,
-            this.docsEnum, DocsEnum.FLAG_NONE);
+          this.docsEnum = this.termsEnum.docs(
+              LuceneIndexDataProvider.this.index.liveDocs,
+              this.docsEnum, DocsEnum.FLAG_NONE);
 
-        for (final int docId : this.docIds) {
-          int doc = this.docsEnum.advance(docId);
-          if (doc == DocsEnum.NO_MORE_DOCS) {
-            break;
+          for (final int docId : this.docIds) {
+            int doc = this.docsEnum.advance(docId);
+            if (doc == DocsEnum.NO_MORE_DOCS) {
+              break;
+            }
+            if (doc == docId || this.docIds.contains(doc)) {
+              // store term in cache
+              haveNext = true;
+              break;
+            }
           }
-          if (this.docIds.contains(doc)) {
-            // TODO: add to cache here
-            // this.docIds.indexOf(doc)
-            haveNext = true;
-            break;
+          if (!haveNext) {
+            super.setNext();
           }
-        }
-        if (!haveNext) {
-          super.setNext();
-        }
       }
     }
 
