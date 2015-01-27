@@ -36,7 +36,8 @@ public final class CommonTermsDefaults {
   public static final Occur HFOP_DEFAULT = Occur.SHOULD;
   /**
    * Default maximum threshold value. Maximum threshold [0..1] of a terms
-   * document frequency to be considered a low frequency term.
+   * document frequency to be considered a low frequency term. Default:
+   * {@code 0.01f} (10%).
    */
   public static final float MTF_DEFAULT = 0.01f;
 }
