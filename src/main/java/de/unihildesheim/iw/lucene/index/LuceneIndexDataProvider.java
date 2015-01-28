@@ -458,21 +458,6 @@ public class LuceneIndexDataProvider
     return 0;
   }
 
-  @Override
-  public BigDecimal getRelativeTermFrequency(final ByteArray term)
-      throws DataProviderException {
-    // short circuit for stopwords
-    if (this.index.isStopword(term)) {
-      return BigDecimal.ZERO;
-    }
-
-    final Long tf = getTermFrequency(term);
-    if (tf == null) {
-      return BigDecimal.ZERO;
-    }
-    return BigDecimal.valueOf(tf).divide(this.index.ttf_bd, MATH_CONTEXT);
-  }
-
   @Override // NOP
   public void close() {
     // NOP

@@ -20,7 +20,6 @@ import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
@@ -78,15 +77,6 @@ public interface IndexDataProvider
    * @return The frequency of the term in the index
    */
   int getDocumentFrequency(final ByteArray term)
-      throws DataProviderException;
-
-  /**
-   * Get the relative term frequency for a term in the index.
-   *
-   * @param term Term to lookup
-   * @return Relative term frequency for the given term
-   */
-  BigDecimal getRelativeTermFrequency(final ByteArray term)
       throws DataProviderException;
 
   /**
