@@ -222,9 +222,7 @@ public final class DefaultClarityScore
      */
     BigDecimal collection(final ByteArray term)
         throws DataProviderException {
-      return DefaultClarityScore.this.metrics.collection().relTf(term)
-          .multiply(DefaultClarityScore.this.docLangModelWeight1Sub,
-              MATH_CONTEXT);
+      return DefaultClarityScore.this.metrics.collection().relTf(term);
     }
 
     /**
