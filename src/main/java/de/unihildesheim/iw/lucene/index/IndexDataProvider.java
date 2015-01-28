@@ -22,7 +22,6 @@ import de.unihildesheim.iw.lucene.document.DocumentModel;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -49,15 +48,6 @@ public interface IndexDataProvider
    * @return The frequency of all terms in the index
    */
   long getTermFrequency()
-      throws DataProviderException;
-
-  /**
-   * Instructs the data provider to pre-fill caches, etc.
-   *
-   * @throws DataProviderException Thrown in case of errors
-   */
-  @Deprecated
-  void warmUp()
       throws DataProviderException;
 
   /**
@@ -131,42 +121,6 @@ public interface IndexDataProvider
       throws DataProviderException;
 
   /**
-   * Get a map of terms for a document identified by it's id. The mapping is
-   * {@code term -> term-count}.
-   *
-   * @param docId Document id to extract terms from
-   * @return List of terms from documents
-   * @throws IOException Thrown on low-level I/O errors
-   */
-  @Deprecated
-  Map<ByteArray, Long> getDocumentTerms(int docId)
-      throws DataProviderException;
-
-  /**
-   * Get a map of terms for all documents identified by their id. The mapping is
-   * {@code term -> term-count}.
-   *
-   * @param docIds List of document ids to extract terms from
-   * @return List of terms from all documents
-   * @throws IOException Thrown on low-level I/O errors
-   */
-  @Deprecated
-  Iterator<Map.Entry<ByteArray, Long>> getDocumentsTerms(final
-  Collection<Integer> docIds)
-      throws DataProviderException;
-
-  /**
-   * Get a set of all terms from the document identified by it's id.
-   *
-   * @param docId Document id to extract terms from
-   * @return Set of terms from documents
-   * @throws IOException Thrown on low-level I/O errors
-   */
-  @Deprecated
-  Set<ByteArray> getDocumentTermsSet(final int docId)
-      throws DataProviderException;
-
-  /**
    * Get a set of terms for all documents identified by their id.
    *
    * @param docIds List of document ids to extract terms from
@@ -185,29 +139,6 @@ public interface IndexDataProvider
       throws DataProviderException;
 
   /**
-   * Check if a document contains the given term.
-   *
-   * @param documentId Id of the document to check
-   * @param term Term to lookup
-   * @return True, if it contains the term, false otherwise
-   */
-  @Deprecated
-  @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
-  boolean documentContains(final int documentId, final ByteArray term)
-      throws DataProviderException;
-
-  /**
-   * Get the last commit generation id of the Lucene index. Only available, if
-   * the index resides in a {@link org.apache.lucene.store.Directory}. May be
-   * {@code null}.
-   *
-   * @return Commit generation id
-   */
-  @Deprecated
-  Long getLastIndexCommitGeneration()
-      throws DataProviderException;
-
-  /**
    * Get the list of currently visible document fields.
    *
    * @return List of document field names
@@ -221,23 +152,5 @@ public interface IndexDataProvider
    * @return List of words to exclude
    */
   Set<String> getStopwords()
-      throws DataProviderException;
-
-  /**
-   * Get the list of stopwords currently in use.
-   *
-   * @return List of words to exclude
-   */
-  @Deprecated
-  Set<ByteArray> getStopwordsBytes()
-      throws DataProviderException;
-
-  /**
-   * Flag indicating, if this instance is closed.
-   *
-   * @return True, if instance was disposed
-   */
-  @Deprecated
-  boolean isClosed()
       throws DataProviderException;
 }

@@ -403,18 +403,11 @@ public class LuceneIndexDataProvider
     return this.index.ttf;
   }
 
-  @Override // NOP
-  @Deprecated
-  public void warmUp()
-      throws DataProviderException {
-    // NOP
-  }
-
   @Override
   public final Long getTermFrequency(final ByteArray term)
       throws DataProviderException {
     // short circuit for stopwords
-    if (index.isStopword(term)) {
+    if (this.index.isStopword(term)) {
       return 0L;
     }
 
@@ -422,7 +415,7 @@ public class LuceneIndexDataProvider
     try {
       final Terms terms = MultiFields.getTerms(
           this.index.reader, this.index.fields.get(0));
-      TermsEnum termsEnum = terms.iterator(TermsEnum.EMPTY);
+      final TermsEnum termsEnum = terms.iterator(TermsEnum.EMPTY);
       if (termsEnum.seekExact(new BytesRef(term.bytes))) {
         return termsEnum.totalTermFreq();
       } else {
@@ -525,10 +518,14 @@ public class LuceneIndexDataProvider
   public DocumentModel getDocumentModel(final int docId)
       throws DataProviderException {
     checkForTermVectors(Collections.singleton(docId));
-    return new DocumentModel.Builder(docId)
-        .setTermFrequency(
-            getDocumentTerms(docId)
-        ).getModel();
+    try {
+      return new DocumentModel.Builder(docId)
+          .setTermFrequency(
+              getDocumentTerms(docId, false)
+          ).getModel();
+    } catch (IOException e) {
+      throw new DataProviderException("Failed to retrieve terms.", e);
+    }
   }
 
   @Override
@@ -574,32 +571,6 @@ public class LuceneIndexDataProvider
   }
 
   @Override
-  @Deprecated
-  public Map<ByteArray, Long> getDocumentTerms(final int docId)
-      throws DataProviderException {
-    try {
-      return getDocumentTerms(docId, false);
-    } catch (final IOException e) {
-      throw new DataProviderException("Error gathering terms.", e);
-    }
-  }
-
-  @Override
-  @Deprecated
-  public Iterator<Entry<ByteArray, Long>> getDocumentsTerms(
-      final Collection<Integer> docIds)
-      throws DataProviderException {
-    throw new UnsupportedOperationException("Not implemented.");
-  }
-
-  @Override
-  @Deprecated
-  public Set<ByteArray> getDocumentTermsSet(final int docId)
-      throws DataProviderException {
-    throw new UnsupportedOperationException("Not implemented.");
-  }
-
-  @Override
   public Iterator<ByteArray> getDocumentsTermsSet(
       final Collection<Integer> docIds)
       throws DataProviderException {
@@ -620,20 +591,6 @@ public class LuceneIndexDataProvider
   }
 
   @Override
-  @Deprecated
-  public boolean documentContains(final int documentId, final ByteArray term)
-      throws DataProviderException {
-    throw new UnsupportedOperationException("Not implemented.");
-  }
-
-  @Override
-  @Deprecated
-  public Long getLastIndexCommitGeneration()
-      throws DataProviderException {
-    return null;
-  }
-
-  @Override
   public Set<String> getDocumentFields()
       throws DataProviderException {
     return new HashSet<>(this.index.fields);
@@ -647,20 +604,6 @@ public class LuceneIndexDataProvider
       words.add(ByteArrayUtils.utf8ToString(ba));
     }
     return words;
-  }
-
-  @Override
-  @Deprecated
-  public Set<ByteArray> getStopwordsBytes()
-      throws DataProviderException {
-    throw new UnsupportedOperationException("Not implemented.");
-  }
-
-  @Override
-  @Deprecated
-  public boolean isClosed()
-      throws DataProviderException {
-    return false;
   }
 
   /**
