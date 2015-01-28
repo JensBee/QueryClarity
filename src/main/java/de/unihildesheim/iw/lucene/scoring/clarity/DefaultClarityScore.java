@@ -26,6 +26,7 @@ import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
+import de.unihildesheim.iw.lucene.scoring.ScoringResult.ScoringResultXml.Keys;
 import de.unihildesheim.iw.lucene.scoring.data.DefaultFeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.DefaultVocabularyProvider;
 import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
@@ -136,8 +137,15 @@ public final class DefaultClarityScore
    */
   private Set<Integer> feedbackDocIds;
 
+  /**
+   * Object containing methods for model calculations.
+   */
   private Model model;
 
+  /**
+   * Class wrapping all methods needed for calculation needed models. Also
+   * holds results of the calculations.
+   */
   private class Model
       implements Closable {
     /**
@@ -167,7 +175,14 @@ public final class DefaultClarityScore
      */
     private final AtomicLong dataSetCounter;
 
-    public Model(final Collection<ByteArray> qt, final Collection<Integer> fb)
+    /**
+     * Initialize the model calculation object.
+     * @param qt Query terms. Query terms not found in the collection (TF=0)
+     * will be skipped.
+     * @param fb Feedback documents
+     * @throws DataProviderException Forwarded from lower-level
+     */
+    private Model(final Collection<ByteArray> qt, final Collection<Integer> fb)
         throws DataProviderException {
       LOG.debug("Create runtime cache.");
 
@@ -201,9 +216,9 @@ public final class DefaultClarityScore
     /**
      * Collection model.
      *
-     * @param term
-     * @return
-     * @throws DataProviderException
+     * @param term Term to calculate the collection model value for
+     * @return Collection model value
+     * @throws DataProviderException Forwarded from lower-level
      */
     BigDecimal collection(final ByteArray term)
         throws DataProviderException {
@@ -215,10 +230,10 @@ public final class DefaultClarityScore
     /**
      * Document model.
      *
-     * @param docModel
-     * @param term
-     * @return
-     * @throws DataProviderException
+     * @param docModel Document data model
+     * @param term Term to calculate the document model value for
+     * @return Document model value
+     * @throws DataProviderException Forwarded from lower-level
      */
     BigDecimal document(final DocumentModel docModel, final ByteArray term)
         throws DataProviderException {
@@ -231,10 +246,10 @@ public final class DefaultClarityScore
     /**
      * Query model for a single document.
      *
-     * @param docModel
-     * @param term
-     * @return
-     * @throws DataProviderException
+     * @param docModel Document data model
+     * @param term Term to calculate the query model value for
+     * @return Query model value
+     * @throws DataProviderException Forwarded from lower-level
      */
     BigDecimal query(final DocumentModel docModel, final ByteArray term)
         throws DataProviderException {
@@ -256,8 +271,9 @@ public final class DefaultClarityScore
     /**
      * Query model for all feedback documents.
      *
-     * @param term
-     * @return
+     * @param term Term to calculate the query model value for
+     * @return Query model value for all feedback documents
+     * @throws DataProviderException Forwarded from lower-level
      */
     BigDecimal query(final ByteArray term)
         throws DataProviderException {
@@ -394,8 +410,6 @@ public final class DefaultClarityScore
    * @throws ProcessingException Thrown if any of the threaded calculations
    * encountered an error
    * @throws DataProviderException Thrown on low-level errors
-   * @throws ClarityScoreCalculationException Thrown on model calculation
-   * errors
    */
   Result calculateClarity()
       throws ProcessingException, DataProviderException {
@@ -525,7 +539,7 @@ public final class DefaultClarityScore
       getXml(xml);
       // number of feedback documents
       xml.getItems().put(
-          ScoringResultXml.Keys.FEEDBACK_DOCUMENTS.toString(),
+          Keys.FEEDBACK_DOCUMENTS.toString(),
           Integer.toString(this.feedbackDocIds.size()));
 
       // feedback documents
@@ -536,11 +550,11 @@ public final class DefaultClarityScore
             (this.feedbackDocIds.size());
         for (final Integer docId : this.feedbackDocIds) {
           fbDocsList.add(Tuple.tuple2(
-              ScoringResultXml.Keys.FEEDBACK_DOCUMENT_KEY.toString(),
+              Keys.FEEDBACK_DOCUMENT_KEY.toString(),
               docId.toString()));
         }
         xml.getLists().put(
-            ScoringResultXml.Keys.FEEDBACK_DOCUMENTS.toString(), fbDocsList);
+            Keys.FEEDBACK_DOCUMENTS.toString(), fbDocsList);
       }
 
       return xml;
