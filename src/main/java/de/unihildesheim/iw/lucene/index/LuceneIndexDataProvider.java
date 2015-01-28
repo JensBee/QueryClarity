@@ -975,7 +975,7 @@ public class LuceneIndexDataProvider
   }
 
   /**
-   * Builder for creating a new {@link DirectAccessIndexDataProvider}.
+   * Builder for creating a new {@link LuceneIndexDataProvider}.
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class Builder
