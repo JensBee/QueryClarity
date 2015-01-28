@@ -18,7 +18,6 @@ package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.Closable;
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.Persistence;
 import de.unihildesheim.iw.Tuple;
@@ -79,7 +78,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * @author Jens Bertram
  */
 public final class ImprovedClarityScore
-    implements ClarityScoreCalculation, Closable {
+    implements ClarityScoreCalculation {
 
   /**
    * Prefix to use to store calculated term-data values in cache and access

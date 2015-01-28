@@ -69,7 +69,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * @author Jens Bertram
  */
 public final class DefaultClarityScore
-    implements ClarityScoreCalculation, Closable {
+    implements ClarityScoreCalculation {
 
   /**
    * Prefix used to identify externally stored data.
