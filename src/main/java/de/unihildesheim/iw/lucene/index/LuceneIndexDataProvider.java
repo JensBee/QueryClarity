@@ -432,22 +432,16 @@ public class LuceneIndexDataProvider
 
     // TODO: add multiple fields support
     try {
-      final LuceneTermsIterator dfIt = new LuceneTermsIterator(
-          this.index.fields.get(0),
-          new LuceneTermsIteratorRetrieveFlags[]{
-              LuceneTermsIteratorRetrieveFlags.DF});
-
-      final BytesRef termBr = BytesRefUtils.fromByteArray(term);
-
-      while (dfIt.hasNext()) {
-        final BytesRef currentTermBr = dfIt.next();
-        if (termBr.bytesEquals(currentTermBr)) {
-          return dfIt.df();
-        }
+      final Terms terms = MultiFields.getTerms(
+          this.index.reader, this.index.fields.get(0));
+      final TermsEnum termsEnum = terms.iterator(TermsEnum.EMPTY);
+      if (termsEnum.seekExact(BytesRefUtils.fromByteArray(term))) {
+        return termsEnum.docFreq();
       }
     } catch (final IOException e) {
       throw new DataProviderException("Failed to collect terms", e);
     }
+    
     return 0;
   }
 
