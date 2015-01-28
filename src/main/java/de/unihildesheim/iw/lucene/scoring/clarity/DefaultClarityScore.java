@@ -157,11 +157,7 @@ public final class DefaultClarityScore
      */
     private final Collection<Integer> feedbackDocs;
     /**
-     * Temporary cache for the current query.
-     */
-    //private final DB cache;
-    /**
-     * Store the static part of the query model calculation.
+     * Stores the static part of the query model calculation.
      */
     private final Map<Integer, BigDecimal> staticQueryModelParts;
     /**
@@ -169,7 +165,7 @@ public final class DefaultClarityScore
      * before calculating the score.
      */
     @SuppressWarnings("ProtectedField")
-    protected Map<Long, Tuple2<BigDecimal, BigDecimal>> dataSets;
+    protected final Map<Long, Tuple2<BigDecimal, BigDecimal>> dataSets;
     /**
      * Counter for entries in {@link #dataSets}. Gets used as map key.
      */
@@ -194,22 +190,14 @@ public final class DefaultClarityScore
         }
       }
 
+      // add feedback documents
       this.feedbackDocs = new ArrayList<>(fb.size());
       this.feedbackDocs.addAll(fb);
 
-      // TODO: check if we can operate without using mapDB backend
-      //this.cache = DBMakerUtils.newTempFileDB().make();
+      // initialize other properties
       this.staticQueryModelParts = new ConcurrentHashMap<>(
           DefaultClarityScore.this.conf.getFeedbackDocCount());
-
       this.dataSets = new ConcurrentHashMap<>(2000);
-      /*
-      this.dataSets = this.cache
-          .createTreeMap("dataSet")
-          .keySerializer(BTreeKeySerializer.ZERO_OR_POSITIVE_LONG)
-          .valueSerializer(Serializer.BASIC)
-          .make();
-       */
       this.dataSetCounter = new AtomicLong(0L);
     }
 
