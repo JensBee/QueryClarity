@@ -24,7 +24,6 @@ import de.unihildesheim.iw.lucene.document.DocFieldsTermsEnum;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.mapdb.DBMakerUtils;
-import de.unihildesheim.iw.util.BigDecimalCache;
 import de.unihildesheim.iw.util.Progress;
 import de.unihildesheim.iw.util.TimeMeasure;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
@@ -82,6 +81,7 @@ import java.util.Set;
 /**
  * @author Jens Bertram
  */
+@Deprecated
 public class DirectAccessIndexDataProvider
     implements IndexDataProvider {
   /**
@@ -691,9 +691,8 @@ public class DirectAccessIndexDataProvider
    * @param term Term to lookup
    * @return Relative frequency of the given term in the collection
    * @throws DataProviderException
-   */
+   *//*
   @SuppressWarnings("ReuseOfLocalVariable")
-  @Override
   public BigDecimal getRelativeTermFrequency(final ByteArray term)
       throws DataProviderException {
     // try get cached value
@@ -712,8 +711,7 @@ public class DirectAccessIndexDataProvider
     this.c_relTermFreqs.put(term.bytes, rTf);
 
     return rTf;
-  }
-
+  }*/
   @Override
   public void close() {
     LOG.info("Closing IndexDataProvider.");
@@ -878,15 +876,16 @@ public class DirectAccessIndexDataProvider
   }
 
   /**
-   * Get a counted list of terms for a bunch of documents. This will add
-   * those values to the cache for every document requested.
+   * Get a counted list of terms for a bunch of documents. This will add those
+   * values to the cache for every document requested.
+   *
    * @param docIds Document ids to gather
    * @return Mapping of (document-id -> [term, count]) for each requested
    * document
    * @throws DataProviderException
    */
-  private Map<Integer, Map<ByteArray, Long>>getDocumentsTermsMap
-      (final Collection<Integer> docIds)
+  private Map<Integer, Map<ByteArray, Long>> getDocumentsTermsMap
+  (final Collection<Integer> docIds)
       throws DataProviderException {
 
     // pre-fill map with maps
@@ -1049,8 +1048,9 @@ public class DirectAccessIndexDataProvider
   }
 
   /**
-   * Create a key for a set of document ids usable as key to store in a
-   * caching map.
+   * Create a key for a set of document ids usable as key to store in a caching
+   * map.
+   *
    * @param docIds Document ids whose value will be stored.
    * @return Cache map key for the given document ids.
    */
