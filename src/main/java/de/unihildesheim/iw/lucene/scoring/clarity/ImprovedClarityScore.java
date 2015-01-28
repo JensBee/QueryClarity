@@ -18,6 +18,7 @@ package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.ByteArray;
+import de.unihildesheim.iw.Closable;
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.Persistence;
 import de.unihildesheim.iw.Tuple;
@@ -33,16 +34,17 @@ import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
 import de.unihildesheim.iw.mapdb.DBMakerUtils;
 import de.unihildesheim.iw.util.BigDecimalCache;
-import de.unihildesheim.iw.util.ByteArrayUtils;
-import de.unihildesheim.iw.util.MathUtils;
+import de.unihildesheim.iw.util.MathUtils.KlDivergence;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import de.unihildesheim.iw.util.concurrent.processing.CollectionSource;
 import de.unihildesheim.iw.util.concurrent.processing.IteratorSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
+import de.unihildesheim.iw.util.concurrent.processing.Source;
 import de.unihildesheim.iw.util.concurrent.processing.Target;
 import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
+import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall.TargetFunc;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.mapdb.Atomic;
@@ -50,6 +52,7 @@ import org.mapdb.BTreeKeySerializer;
 import org.mapdb.BTreeMap;
 import org.mapdb.DB;
 import org.mapdb.Fun;
+import org.mapdb.Fun.Tuple2;
 import org.mapdb.Serializer;
 import org.slf4j.LoggerFactory;
 
@@ -58,12 +61,12 @@ import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -94,7 +97,9 @@ public final class ImprovedClarityScore
   /**
    * Default math context for model calculations.
    */
-  private static final MathContext MATH_CONTEXT = MathContext.DECIMAL128;
+  private static final MathContext MATH_CONTEXT = new MathContext(
+      GlobalConfiguration.conf().getString(GlobalConfiguration
+          .DefaultKeys.MATH_CONTEXT.toString()));
   /**
    * Provider for general index metrics.
    */
@@ -205,6 +210,185 @@ public final class ImprovedClarityScore
   private volatile boolean isClosed;
 
   /**
+   * Object containing methods for model calculations.
+   */
+  private Model model;
+
+  /**
+   * Class wrapping all methods needed for calculation needed models. Also holds
+   * results of the calculations.
+   */
+  private class Model
+      implements Closable {
+    /**
+     * List of query terms issued.
+     */
+    private final Collection<ByteArray> queryTerms;
+    /**
+     * List of feedback documents to use.
+     */
+    private final Collection<Integer> feedbackDocs;
+    /**
+     * Stores the static part of the query model calculation.
+     */
+    private final Map<Integer, BigDecimal> staticQueryModelParts;
+    /**
+     * Document model calculation parameters: [0] Smoothing (mu), [1] Beta, [2]
+     * Lambda, [3] 1 - Beta, [4] 1 - Lambda
+     */
+    private final BigDecimal[] dmParams;
+    /**
+     * Caches values of document and query models. Those need to be normalized
+     * before calculating the score.
+     */
+    @SuppressWarnings("ProtectedField")
+    protected Map<Long, Tuple2<BigDecimal, BigDecimal>> dataSets;
+    /**
+     * Counter for entries in {@link #dataSets}. Gets used as map key.
+     */
+    private final AtomicLong dataSetCounter;
+
+    /**
+     * Initialize the model calculation object.
+     * @param qt Query terms. Query terms not found in the collection (TF=0)
+     * will be skipped.
+     * @param fb Feedback documents
+     * @param dmSmoothing Document model: Smoothing parameter value
+     * @param dmBeta Document model: Beta parameter value
+     * @param dmLambda Document model: Lambda parameter value
+     * @throws DataProviderException Forwarded from lower-level
+     */
+    public Model(final Collection<ByteArray> qt,
+        final Collection<Integer> fb,
+        final double dmSmoothing, final double dmBeta, final double dmLambda)
+        throws DataProviderException {
+      LOG.debug("Create runtime cache.");
+
+      this.dmParams = new BigDecimal[]{
+          BigDecimal.valueOf(dmSmoothing),
+          BigDecimal.valueOf(dmBeta),
+          BigDecimal.valueOf(dmLambda),
+          null, null // added afterwards
+      };
+      this.dmParams[3] = BigDecimal.ONE.subtract(
+          this.dmParams[1], MATH_CONTEXT);
+      this.dmParams[4] = BigDecimal.ONE.subtract(
+          this.dmParams[2], MATH_CONTEXT);
+
+      // add query terms, skip those not in index
+      this.queryTerms = new ArrayList<>(qt.size());
+      for (final ByteArray queryTerm : qt) {
+        if (ImprovedClarityScore.this.metrics.collection().tf(queryTerm) > 0L) {
+          this.queryTerms.add(queryTerm);
+        }
+      }
+
+      // add feedback documents
+      this.feedbackDocs = new ArrayList<>(fb.size());
+      this.feedbackDocs.addAll(fb);
+
+      // initialize other properties
+      this.staticQueryModelParts = new ConcurrentHashMap<>(
+          ImprovedClarityScore.this.conf.getMaxFeedbackDocumentsCount());
+      this.dataSets = new ConcurrentHashMap<>(2000);
+      this.dataSetCounter = new AtomicLong(0L);
+    }
+
+    /**
+     * Collection model.
+     *
+     * @param term Term to calculate the collection model value for
+     * @return Collection model value
+     * @throws DataProviderException Forwarded from lower-level
+     */
+    BigDecimal collection(final ByteArray term)
+        throws DataProviderException {
+      return ImprovedClarityScore.this.metrics.collection().relTf(term);
+    }
+
+    /**
+     * Document model.
+     *
+     * @param docModel Document data model
+     * @param term Term to calculate the document model value for
+     * @return Document model value
+     * @throws DataProviderException Forwarded from lower-level
+     */
+    BigDecimal document(final DocumentModel docModel, final ByteArray term)
+        throws DataProviderException {
+      // collection model of current term
+      final BigDecimal cModel = collection(term);
+
+      // smoothed document-term model
+      final BigDecimal smoothing = BigDecimal.valueOf(
+          docModel.metrics().tf(term))
+          .add(this.dmParams[0].multiply(cModel), MATH_CONTEXT)
+          .divide(BigDecimal.valueOf(docModel.metrics().tf())
+              .add(this.dmParams[0]
+                  .multiply(BigDecimal.valueOf(
+                          docModel.metrics().uniqueTermCount()),
+                      MATH_CONTEXT), MATH_CONTEXT), MATH_CONTEXT);
+
+      // final model calculation
+      return this.dmParams[2]
+          .multiply(this.dmParams[1].multiply(smoothing, MATH_CONTEXT)
+              .add(this.dmParams[3].multiply(cModel,
+                  MATH_CONTEXT), MATH_CONTEXT), MATH_CONTEXT)
+          .add(this.dmParams[4].multiply(cModel,
+              MATH_CONTEXT), MATH_CONTEXT);
+    }
+
+    /**
+     * Query model for a single document.
+     *
+     * @param docModel Document data model
+     * @param term Term to calculate the query model value for
+     * @return Query model value
+     * @throws DataProviderException Forwarded from lower-level
+     */
+    BigDecimal query(final DocumentModel docModel, final ByteArray term)
+        throws DataProviderException {
+      final BigDecimal result = document(docModel, term);
+
+      BigDecimal staticPart = this.staticQueryModelParts.get(docModel.id);
+      if (staticPart == null) {
+        staticPart = BigDecimal.ONE;
+        for (final ByteArray queryTerm : this.queryTerms) {
+          staticPart = staticPart.multiply(
+              document(docModel, queryTerm), MATH_CONTEXT);
+        }
+        this.staticQueryModelParts.put(docModel.id, staticPart);
+      }
+
+      return result.multiply(staticPart, MATH_CONTEXT);
+    }
+
+    /**
+     * Query model for all feedback documents.
+     *
+     * @param term Term to calculate the query model value for
+     * @return Query model value for all feedback documents
+     * @throws DataProviderException Forwarded from lower-level
+     */
+    BigDecimal query(final ByteArray term)
+        throws DataProviderException {
+      BigDecimal result = BigDecimal.ZERO;
+
+      for (final Integer docId : this.feedbackDocs) {
+        result = result.add(query(
+                ImprovedClarityScore.this.metrics
+                    .getDocumentModel(docId), term), MATH_CONTEXT);
+      }
+      return result;
+    }
+
+    @Override
+    public void close() {
+      LOG.debug("Close runtime cache.");
+    }
+  }
+
+  /**
    * Create a new instance using a builder.
    *
    * @param builder Builder to use for constructing the instance
@@ -225,12 +409,12 @@ public final class ImprovedClarityScore
     // check config
     try {
       if (this.conf.getMinFeedbackDocumentsCount() >
-          this.metrics.collection().numberOfDocuments()) {
+          this.dataProv.getDocumentCount()) {
         throw new IllegalStateException(
             "Required minimum number of feedback documents ("
                 + this.conf.getMinFeedbackDocumentsCount() + ") is larger "
                 + "or equal compared to the total amount of indexed documents "
-                + "(" + this.metrics.collection().numberOfDocuments()
+                + "(" + this.dataProv.getDocumentCount()
                 + "). Unable to provide feedback."
         );
       }
@@ -652,6 +836,7 @@ public final class ImprovedClarityScore
     }
     result.setFeedbackDocIds(this.feedbackDocIds);
 
+    /*
     if (LOG.isDebugEnabled()) {
       final Set<ByteArray> matchingQTerms = new HashSet<>(
           this.queryTerms.size());
@@ -677,6 +862,7 @@ public final class ImprovedClarityScore
           matchingQTerms.size(), this.queryTerms.size(), query,
           matchingQTermsStr);
     }
+    */
 
     // get document frequency threshold - allowed terms must be in bounds
     final BigDecimal minFreq = BigDecimal.valueOf(this.conf
@@ -685,7 +871,7 @@ public final class ImprovedClarityScore
         .getMaxFeedbackTermSelectionThreshold());
     LOG.debug("Feedback term Document frequency threshold: {}%-{}%",
         minFreq.doubleValue() * 100d, maxFreq.doubleValue() * 100d);
-
+/*
     // cache document models
     LOG.info("Caching {} document models.", this.feedbackDocIds.size());
     final TimeMeasure tm = new TimeMeasure().start();
@@ -697,7 +883,7 @@ public final class ImprovedClarityScore
       throw new ClarityScoreCalculationException(msg, e);
     }
     LOG.debug("Caching document models took {}.", tm.stop().getTimeString());
-
+*/
     // do the final calculation for all feedback terms
     if (LOG.isTraceEnabled()) {
       LOG.trace("Using {} feedback documents for calculation. {}",
@@ -707,14 +893,18 @@ public final class ImprovedClarityScore
           this.feedbackDocIds.size());
     }
 
-    LOG.info("Collecting feedback vocabulary.");
-    final DB fbTermsDb = DBMakerUtils.newTempFileDB().make();
+    this.model = new Model(this.queryTerms, this.feedbackDocIds,
+        this.conf.getDocumentModelSmoothingParameter(), this.conf
+        .getDocumentModelParamBeta(), this.conf.getDocumentModelParamLambda());
+
+    LOG.info("Requesting feedback vocabulary.");
+/*    final DB fbTermsDb = DBMakerUtils.newTempFileDB().make();
     final Set<ByteArray> fbTerms = fbTermsDb.createTreeSet("fbTerms")
         .counterEnable()
         .serializer(ByteArray.SERIALIZER_BTREE)
-        .make();
+        .make();*/
     final Iterator<ByteArray> fbTermsIt;
-    final AtomicLong dbg_filteredTerms = new AtomicLong(0L);
+//    final AtomicLong dbg_filteredTerms = new AtomicLong(0L);
     fbTermsIt = this.vocProvider
         .indexDataProvider(this.dataProv)
         .documentIds(this.feedbackDocIds)
@@ -730,17 +920,17 @@ public final class ImprovedClarityScore
                 && relDf.compareTo(maxFreq) <= 0) {
               return term;
             }
-            if (LOG.isDebugEnabled()) {
+            /*if (LOG.isDebugEnabled()) {
               dbg_filteredTerms.incrementAndGet();
-            }
+            }*/
             return null;
           }
         })
         .get();
-    if (LOG.isDebugEnabled() && dbg_filteredTerms.get() > 0) {
+    /*if (LOG.isDebugEnabled() && dbg_filteredTerms.get() > 0) {
       LOG.debug("Filtered terms: {}", dbg_filteredTerms.get());
-    }
-
+    }*/
+/*
     while (fbTermsIt.hasNext()) {
       final ByteArray fbTerm = fbTermsIt.next();
       if (fbTerm == null) {
@@ -763,14 +953,14 @@ public final class ImprovedClarityScore
       LOG.error(msg, e);
       throw new ClarityScoreCalculationException(msg, e);
     }
-
+*/
     // clear any leftover values
-    this.c_dataSet.clear();
-    this.dataSetCounter = new AtomicLong(0L);
+//    this.c_dataSet.clear();
+//    this.dataSetCounter = new AtomicLong(0L);
 
-    LOG.info("Calculating {} language models using feedback vocabulary.",
-        fbTerms.size());
-    try {
+//    LOG.info("Calculating {} language models using feedback vocabulary.",
+//        fbTerms.size());
+    /*try {
       new Processing(
           new TargetFuncCall<>(
               new CollectionSource<>(fbTerms),
@@ -780,16 +970,32 @@ public final class ImprovedClarityScore
       final String msg = "Caught exception while calculating score.";
       LOG.error(msg, e);
       throw new ClarityScoreCalculationException(msg, e);
+    }*/
+
+    LOG.info("Calculating score values.");
+    try {
+      new Processing().setSourceAndTarget(
+          new TargetFuncCall<>(
+              new IteratorSource<>(fbTermsIt),
+              new ScoreCalculatorTarget()
+          )
+      ).process();
+    } catch (final ProcessingException e) {
+      final String msg = "Caught exception while calculating score.";
+      LOG.error(msg, e);
+      throw new ClarityScoreCalculationException(msg, e);
     }
 
-    fbTermsDb.close(); // delete
+    //fbTermsDb.close(); // delete
 
     LOG.info("Calculating final score.");
     try {
       result.setScore(
-          MathUtils.KlDivergence.calc(
-              this.c_dataSet.values(),
-              MathUtils.KlDivergence.sumValues(this.c_dataSet.values())
+          KlDivergence.calc(
+              //this.c_dataSet.values(),
+              this.model.dataSets.values(),
+              //KlDivergence.sumValues(this.c_dataSet.values())
+              KlDivergence.sumValues(this.model.dataSets.values())
           ).doubleValue());
     } catch (final ProcessingException e) {
       final String msg = "Caught exception while calculating score.";
@@ -805,6 +1011,7 @@ public final class ImprovedClarityScore
         timeMeasure.getTimeString(), result.getScore()
     );
 
+    this.model.close();
     return result;
   }
 
@@ -901,6 +1108,7 @@ public final class ImprovedClarityScore
      * Target Database.
      */
     private final DB db;
+
     /**
      * Counts values stored to the database.
      *
@@ -1007,7 +1215,9 @@ public final class ImprovedClarityScore
      */
     public ImprovedClarityScoreConfiguration getConfiguration() {
       return this.conf;
-    }    /**
+    }
+
+    /**
      * Configuration prefix.
      */
     private static final String CONF_PREFIX = IDENTIFIER + "-result";
@@ -1048,8 +1258,6 @@ public final class ImprovedClarityScore
 
       return xml;
     }
-
-
 
 
   }
@@ -1358,7 +1566,7 @@ public final class ImprovedClarityScore
    * {@link Processing} {@link Target} to calculate document models.
    */
   private final class ModelCalculatorTarget
-      extends TargetFuncCall.TargetFunc<ByteArray> {
+      extends TargetFunc<ByteArray> {
 
     @Override
     public void call(final ByteArray term)
@@ -1368,6 +1576,30 @@ public final class ImprovedClarityScore
             ImprovedClarityScore.this.dataSetCounter.incrementAndGet(),
             Fun.t2(getQueryModel(term), ImprovedClarityScore.this
                 .dataProv.getRelativeTermFrequency(term)));
+      }
+    }
+  }
+
+  /**
+   * {@link Processing} {@link Target} calculating a portion of the final
+   * clarity score. The current term is passed in from a {@link Source}.
+   */
+  private final class ScoreCalculatorTarget
+      extends TargetFunc<ByteArray> {
+
+    /**
+     * Calculate the score portion for a given term using already calculated
+     * query models.
+     */
+    @Override
+    public void call(final ByteArray term)
+        throws DataProviderException {
+      if (term != null) {
+        ImprovedClarityScore.this.model.dataSets.put(
+            ImprovedClarityScore.this.model.dataSetCounter.incrementAndGet(),
+            Fun.t2(ImprovedClarityScore.this.model.query(term),
+                ImprovedClarityScore.this
+                    .dataProv.getRelativeTermFrequency(term)));
       }
     }
   }
