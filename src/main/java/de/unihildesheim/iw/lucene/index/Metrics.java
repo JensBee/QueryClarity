@@ -22,10 +22,8 @@ import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.util.BigDecimalCache;
-import de.unihildesheim.iw.util.MathUtils;
 import org.mapdb.DBMaker;
 import org.mapdb.Serializer;
-import org.nevec.rjm.BigDecimalMath;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
@@ -42,6 +40,9 @@ import java.util.Objects;
  * @author Jens Bertram
  */
 public final class Metrics {
+  /**
+   * Default math context for model calculations.
+   */
   private static final MathContext MATH_CONTEXT = new MathContext(
       GlobalConfiguration.conf().getString(
           DefaultKeys.MATH_CONTEXT.toString()));
@@ -75,7 +76,12 @@ public final class Metrics {
   public Metrics(final IndexDataProvider dataProvider) {
     this.dataProv = Objects.requireNonNull(dataProvider,
         "IndexDataProvider was null.");
-    this.collection = new CollectionMetrics();
+    try {
+      this.collection = new CollectionMetrics();
+    } catch (final DataProviderException e) {
+      throw new IllegalStateException(
+          "Error initializing collection metrics.", e);
+    }
   }
 
   /**
@@ -93,6 +99,7 @@ public final class Metrics {
    *
    * @param docId Lucene document-id of the target document
    * @return Metrics instance for the specific document
+   * @throws DataProviderException Forwarded from lower-level
    */
   public DocumentMetrics document(final int docId)
       throws DataProviderException {
@@ -116,6 +123,7 @@ public final class Metrics {
    *
    * @param documentId Id of the document whose model to get
    * @return Document-model for the given document id
+   * @throws DataProviderException Forwarded from lower-level
    */
   public DocumentModel getDocumentModel(final int documentId)
       throws DataProviderException {
@@ -164,14 +172,14 @@ public final class Metrics {
      * @param term Term whose frequency to get
      * @return Frequency value
      */
-    public BigDecimal wdf(final ByteArray term) {
+    /*public BigDecimal wdf(final ByteArray term) {
       return BigDecimalMath.log(
           BigDecimal.ONE.add(BigDecimalCache.get(tf(term)), MATH_CONTEXT))
           .divide(MathUtils.BD_LOG2, MATH_CONTEXT)
           .divide(
               BigDecimalMath.log(BigDecimalCache.get(tf()))
                   .divide(MathUtils.BD_LOG2, MATH_CONTEXT), MATH_CONTEXT);
-    }
+    }*/
 
     /**
      * Get the frequency of the given term in the specific document.
@@ -239,24 +247,55 @@ public final class Metrics {
    */
   @SuppressWarnings("PublicInnerClass")
   public final class CollectionMetrics {
-    private final Map<ByteArray, Long> c_tf = DBMaker
-        .newMemoryDirectDB()
-        .transactionDisable()
-        .make()
-        .createHashMap("cache")
-        .keySerializer(ByteArray.SERIALIZER)
-        .valueSerializer(Serializer.LONG)
-        .expireStoreSize(1500d)
-        .make();
-    private final Map<ByteArray, BigDecimal> c_rtf = DBMaker
-        .newMemoryDirectDB()
-        .transactionDisable()
-        .make()
-        .createHashMap("cache")
-        .keySerializer(ByteArray.SERIALIZER)
-        .valueSerializer(Serializer.BASIC)
-        .expireStoreSize(1500d)
-        .make();
+    /**
+     * Index total term frequency value.
+     */
+    private final BigDecimal tf;
+    /**
+     * Number of documents in index.
+     */
+    private final BigDecimal docCount;
+    /**
+     * Cache term frequency values.
+     */
+    private final Map<ByteArray, Long> c_tf;
+    /**
+     * Cache relative term frequency values.
+     */
+    private final Map<ByteArray, BigDecimal> c_rtf;
+
+    /**
+     * Initialize the collection data provider - caching some basic index
+     * information.
+     *
+     * @throws DataProviderException Forwarded from lower-level
+     */
+    public CollectionMetrics()
+        throws DataProviderException {
+      this.tf = BigDecimal.valueOf(Metrics.this.dataProv
+          .getTermFrequency());
+      this.docCount = BigDecimal.valueOf(Metrics.this.dataProv
+          .getDocumentCount());
+
+      this.c_rtf = DBMaker
+          .newMemoryDirectDB()
+          .transactionDisable()
+          .make()
+          .createHashMap("cache")
+          .keySerializer(ByteArray.SERIALIZER)
+          .valueSerializer(Serializer.BASIC)
+          .expireStoreSize(1500d)
+          .make();
+      this.c_tf = DBMaker
+          .newMemoryDirectDB()
+          .transactionDisable()
+          .make()
+          .createHashMap("cache")
+          .keySerializer(ByteArray.SERIALIZER)
+          .valueSerializer(Serializer.LONG)
+          .expireStoreSize(1500d)
+          .make();
+    }
 
     /**
      * Get the number of unique terms in the index.
@@ -265,23 +304,24 @@ public final class Metrics {
      * @throws DataProviderException Thrown on errors retrieving values from the
      * DataProvider
      */
-    public Long numberOfUniqueTerms()
+    /*public Long numberOfUniqueTerms()
         throws DataProviderException {
-      return getDataProvider().getUniqueTermsCount();
-    }
+      return Metrics.this.dataProv.getUniqueTermsCount();
+    }*/
 
     /**
      * Get the raw frequency of a given term in the collection.
      *
      * @param term Term to lookup
      * @return Collection frequency of the given term
+     * @throws DataProviderException Forwarded from lower-level
      */
     public Long tf(final ByteArray term)
         throws DataProviderException {
       Long result = this.c_tf.get(term);
       if (result == null) {
         // may return null, if term is not known
-        result = getDataProvider().getTermFrequency(term);
+        result = Metrics.this.dataProv.getTermFrequency(term);
         if (result == null) {
           return 0L;
         }
@@ -295,10 +335,10 @@ public final class Metrics {
      *
      * @return Collection term frequency
      */
-    public Long tf()
+    /*public Long tf()
         throws DataProviderException {
-      return getDataProvider().getTermFrequency();
-    }
+      return Metrics.this.dataProv.getTermFrequency();
+    }*/
 
     /**
      * Get the relative frequency of a term. The relative frequency is the
@@ -307,12 +347,18 @@ public final class Metrics {
      *
      * @param term Term to lookup
      * @return Relative collection frequency of the given term
+     * @throws DataProviderException Forwarded from lower-level
      */
     public BigDecimal relTf(final ByteArray term)
         throws DataProviderException {
       BigDecimal result = this.c_rtf.get(term);
       if (result == null) {
-        result = getDataProvider().getRelativeTermFrequency(term);
+        final long tf = tf(term);
+        if (tf == 0L) {
+          result = BigDecimal.ZERO;
+        } else {
+          result = BigDecimal.valueOf(tf).divide(this.tf, MATH_CONTEXT);
+        }
         this.c_rtf.put(term, result);
       }
       return result;
@@ -325,10 +371,10 @@ public final class Metrics {
      * @param term Term to calculate
      * @return Inverse document frequency (log10)
      */
-    public BigDecimal idf(final ByteArray term)
+    /*public BigDecimal idf(final ByteArray term)
         throws DataProviderException {
       return idf(term, 10d);
-    }
+    }*/
 
     /**
      * Calculate the inverse document frequency (IDF) using a custom logarithmic
@@ -338,7 +384,7 @@ public final class Metrics {
      * @param logBase Logarithmic base
      * @return Inverse document frequency (logN)
      */
-    public BigDecimal idf(final ByteArray term, final double logBase)
+    /*public BigDecimal idf(final ByteArray term, final double logBase)
         throws DataProviderException {
       return
           BigDecimalMath.log(BigDecimalCache.get(numberOfDocuments())
@@ -346,27 +392,18 @@ public final class Metrics {
               .add(BigDecimal.ONE, MATH_CONTEXT))
               .divide(BigDecimalMath.log(BigDecimalCache.get(logBase)),
                   MATH_CONTEXT);
-    }
-
-    /**
-     * Get the number of documents in the index.
-     *
-     * @return Number of documents in index
-     */
-    public Long numberOfDocuments()
-        throws DataProviderException {
-      return getDataProvider().getDocumentCount();
-    }
+    }*/
 
     /**
      * Get the document frequency of a term.
      *
      * @param term Term to lookup.
      * @return Document frequency of the given term
+     * @throws DataProviderException Forwarded from lower-level
      */
     public Integer df(final ByteArray term)
         throws DataProviderException {
-      return getDataProvider().getDocumentFrequency(term);
+      return Metrics.this.dataProv.getDocumentFrequency(term);
     }
 
     /**
@@ -374,14 +411,13 @@ public final class Metrics {
      *
      * @param term Term to lookup.
      * @return Document frequency of the given term
+     * @throws DataProviderException Forwarded from lower-level
      */
     public BigDecimal relDf(final ByteArray term)
         throws DataProviderException {
-      return BigDecimalCache.get(
-          getDataProvider().getDocumentFrequency(term))
-          .divide(BigDecimalCache.get(getDataProvider().getDocumentCount()),
-              MATH_CONTEXT
-          );
+      return BigDecimal.valueOf((long) Metrics.this.dataProv
+          .getDocumentFrequency(term))
+          .divide(this.docCount, MATH_CONTEXT);
     }
 
     /**
@@ -391,10 +427,10 @@ public final class Metrics {
      * @param term Term to calculate
      * @return Inverse document frequency BM25 (logN)
      */
-    public BigDecimal idfBM25(final ByteArray term)
+    /*public BigDecimal idfBM25(final ByteArray term)
         throws DataProviderException {
       return idfBM25(term, 10d);
-    }
+    }*/
 
     /**
      * Calculate the Okapi BM25 derivation of the inverse document frequency
@@ -404,7 +440,7 @@ public final class Metrics {
      * @param logBase Logarithmic base
      * @return Inverse document frequency BM25 (logN)
      */
-    public BigDecimal idfBM25(final ByteArray term, final double logBase)
+    /*public BigDecimal idfBM25(final ByteArray term, final double logBase)
         throws DataProviderException {
       final int docFreq = df(term);
 
@@ -414,6 +450,6 @@ public final class Metrics {
                   .divide(BigDecimalCache.get(docFreq + 0.5), MATH_CONTEXT)
           ).divide(BigDecimalMath.log(BigDecimalCache.get(logBase)),
               MATH_CONTEXT);
-    }
+    }*/
   }
 }
