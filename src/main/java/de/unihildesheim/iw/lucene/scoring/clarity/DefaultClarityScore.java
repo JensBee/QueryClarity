@@ -608,8 +608,7 @@ public final class DefaultClarityScore
         DefaultClarityScore.this.model.dataSets.put(
             DefaultClarityScore.this.model.dataSetCounter.incrementAndGet(),
             Fun.t2(DefaultClarityScore.this.model.query(term),
-                DefaultClarityScore.this
-                    .dataProv.getRelativeTermFrequency(term)));
+                DefaultClarityScore.this.metrics.collection().relTf(term)));
       }
     }
   }
