@@ -37,8 +37,6 @@ import de.unihildesheim.iw.util.TimeMeasure;
 import de.unihildesheim.iw.util.concurrent.processing.IteratorSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
-import de.unihildesheim.iw.util.concurrent.processing.Source;
-import de.unihildesheim.iw.util.concurrent.processing.Target;
 import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall.TargetFunc;
 import org.apache.lucene.analysis.Analyzer;
@@ -69,7 +67,6 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class DefaultClarityScore
     implements ClarityScoreCalculation {
-
   /**
    * Prefix used to identify externally stored data.
    */
@@ -118,27 +115,13 @@ public final class DefaultClarityScore
    * Language model weighting parameter value remainder of 1d- value.
    */
   private final BigDecimal docLangModelWeight1Sub; // 1d - docLangModelWeight
-  /**
-   * List of query terms provided.
-   */
-  // accessed from inner classes
-  @SuppressWarnings("PackageVisibleField")
-  Collection<ByteArray> queryTerms;
-  /**
-   * Set of feedback documents to use for calculation.
-   */
-  private Set<Integer> feedbackDocIds;
-
-  /**
-   * Object containing methods for model calculations.
-   */
-  private Model model;
 
   /**
    * Class wrapping all methods needed for calculation needed models. Also holds
    * results of the calculations.
    */
   private class Model
+      extends TargetFunc<ByteArray>
       implements Closable {
     /**
      * List of query terms issued.
@@ -259,7 +242,21 @@ public final class DefaultClarityScore
     @Override
     public void close() {
       LOG.debug("Close runtime cache.");
-      //this.cache.close();
+    }
+
+    /**
+     * {@link Processing} callback function to calculate the score portion
+     * for a given term using already calculated query models.
+     */
+    @Override
+    public void call(final ByteArray term)
+        throws DataProviderException {
+      if (term != null) {
+        this.dataSets.put(
+            this.dataSetCounter.incrementAndGet(),
+            Tuple.tuple2(query(term),
+                DefaultClarityScore.this.dataProv.metrics().relTf(term)));
+      }
     }
   }
 
@@ -307,7 +304,7 @@ public final class DefaultClarityScore
 
   /**
    * Calculate the clarity score. This method does only pre-checks. The real
-   * calculation is done in {@link #calculateClarity()}.
+   * calculation is done in {@link #calculateClarity(Collection, Set)}.
    *
    * @param query Query used for term extraction
    * @return Clarity score result
@@ -324,8 +321,9 @@ public final class DefaultClarityScore
     LOG.info("Calculating clarity score. query={}", query);
     final TimeMeasure timeMeasure = new TimeMeasure().start();
 
+    final Set<Integer> feedbackDocIds;
     try {
-      this.feedbackDocIds = this.fbProvider
+      feedbackDocIds = this.fbProvider
           .indexReader(this.idxReader)
           .analyzer(this.analyzer)
           .query(query)
@@ -338,27 +336,27 @@ public final class DefaultClarityScore
       throw new ClarityScoreCalculationException(msg, e);
     }
 
-    if (this.feedbackDocIds.isEmpty()) {
+    if (feedbackDocIds.isEmpty()) {
       final Result result = new Result();
       result.setEmpty("No feedback documents.");
       return result;
     }
 
-    this.queryTerms = QueryUtils.tokenizeQuery(query,
+    final Collection<ByteArray> queryTerms = QueryUtils.tokenizeQuery(query,
         this.analyzer, this.dataProv.metrics());
 
     // check query term extraction result
-    if (this.queryTerms == null || this.queryTerms.isEmpty()) {
+    if (queryTerms == null || queryTerms.isEmpty()) {
       final Result result = new Result();
       result.setEmpty("No query terms.");
       return result;
     }
 
     try {
-      final Result r = calculateClarity();
+      final Result r = calculateClarity(queryTerms, feedbackDocIds);
       LOG.debug("Calculating default clarity score for query '{}' "
               + "with {} document models took {}. {}", query,
-          this.feedbackDocIds.size(), timeMeasure.stop().getTimeString(),
+          feedbackDocIds.size(), timeMeasure.stop().getTimeString(),
           r.getScore()
       );
       return r;
@@ -374,49 +372,49 @@ public final class DefaultClarityScore
    * Calculate the clarity score. Calculation is based on a set of feedback
    * documents and a list of query terms.
    *
+   * @param queryTerms Query terms
+   * @param feedbackDocIds Feedback document ids to use
    * @return Result of the calculation
    * @throws ProcessingException Thrown if any of the threaded calculations
    * encountered an error
    * @throws DataProviderException Thrown on low-level errors
    */
-  Result calculateClarity()
+  private Result calculateClarity(
+      final Collection<ByteArray> queryTerms,
+      final Set<Integer> feedbackDocIds)
       throws ProcessingException, DataProviderException {
     final Result result = new Result();
     result.setConf(this.conf);
-    result.setFeedbackDocIds(this.feedbackDocIds);
+    result.setFeedbackDocIds(feedbackDocIds);
+    result.setQueryTerms(queryTerms);
 
-    // short circuit, if no terms are left. The score will be zero.
-    if (this.queryTerms.isEmpty()) {
-      result.setEmpty("No query term matched in index. Result is 0.");
-      return result;
-    }
-    result.setQueryTerms(this.queryTerms);
-
-    this.model = new Model(this.queryTerms, this.feedbackDocIds);
+    // object containing all methods for model calculations
+    final Model model = new Model(queryTerms, feedbackDocIds);
 
     LOG.info("Requesting feedback vocabulary.");
     final Iterator<ByteArray> fbTermsIt;
     fbTermsIt = this.vocProvider
         .indexDataProvider(this.dataProv)
-        .documentIds(this.feedbackDocIds)
+        .documentIds(feedbackDocIds)
         .get();
 
     LOG.info("Calculating score values.");
     new Processing().setSourceAndTarget(
         new TargetFuncCall<>(
             new IteratorSource<>(fbTermsIt),
-            new ScoreCalculatorTarget()
+            //new ScoreCalculatorTarget()
+            model
         )
     ).process();
 
     LOG.info("Calculating final score.");
     result.setScore(
         KlDivergence.calc(
-            this.model.dataSets.values(),
-            KlDivergence.sumValues(this.model.dataSets.values())
+            model.dataSets.values(),
+            KlDivergence.sumValues(model.dataSets.values())
         ).doubleValue());
 
-    this.model.close();
+    model.close();
     return result;
   }
 
@@ -514,7 +512,7 @@ public final class DefaultClarityScore
       if (GlobalConfiguration.conf()
           .getAndAddBoolean(CONF_PREFIX + "ListFeedbackDocuments",
               Boolean.TRUE)) {
-        final List<Tuple.Tuple2<String, String>> fbDocsList = new ArrayList<>
+        final List<Tuple2<String, String>> fbDocsList = new ArrayList<>
             (this.feedbackDocIds.size());
         for (final Integer docId : this.feedbackDocIds) {
           fbDocsList.add(Tuple.tuple2(
@@ -527,8 +525,6 @@ public final class DefaultClarityScore
 
       return xml;
     }
-
-
   }
 
   /**
@@ -572,26 +568,26 @@ public final class DefaultClarityScore
     }
   }
 
-  /**
-   * {@link Processing} {@link Target} calculating a portion of the final
-   * clarity score. The current term is passed in from a {@link Source}.
-   */
-  private final class ScoreCalculatorTarget
-      extends TargetFunc<ByteArray> {
-
-    /**
-     * Calculate the score portion for a given term using already calculated
-     * query models.
-     */
-    @Override
-    public void call(final ByteArray term)
-        throws DataProviderException {
-      if (term != null) {
-        DefaultClarityScore.this.model.dataSets.put(
-            DefaultClarityScore.this.model.dataSetCounter.incrementAndGet(),
-            Tuple.tuple2(DefaultClarityScore.this.model.query(term),
-                DefaultClarityScore.this.dataProv.metrics().relTf(term)));
-      }
-    }
-  }
+//  /**
+//   * {@link Processing} {@link Target} calculating a portion of the final
+//   * clarity score. The current term is passed in from a {@link Source}.
+//   */
+//  private final class ScoreCalculatorTarget
+//      extends TargetFunc<ByteArray> {
+//
+//    /**
+//     * Calculate the score portion for a given term using already calculated
+//     * query models.
+//     */
+//    @Override
+//    public void call(final ByteArray term)
+//        throws DataProviderException {
+//      if (term != null) {
+//        DefaultClarityScore.this.model.dataSets.put(
+//            DefaultClarityScore.this.model.dataSetCounter.incrementAndGet(),
+//            Tuple.tuple2(DefaultClarityScore.this.model.query(term),
+//                DefaultClarityScore.this.dataProv.metrics().relTf(term)));
+//      }
+//    }
+//  }
 }
