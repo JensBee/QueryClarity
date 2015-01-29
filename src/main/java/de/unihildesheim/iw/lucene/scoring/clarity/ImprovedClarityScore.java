@@ -26,7 +26,6 @@ import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
-import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.lucene.scoring.ScoringResult.ScoringResultXml.Keys;
 import de.unihildesheim.iw.lucene.scoring.data.DefaultFeedbackProvider;
@@ -93,11 +92,6 @@ public final class ImprovedClarityScore
   private static final MathContext MATH_CONTEXT = new MathContext(
       GlobalConfiguration.conf().getString(
           DefaultKeys.MATH_CONTEXT.toString()));
-  /**
-   * Provider for general index metrics.
-   */
-  @SuppressWarnings("PackageVisibleField")
-  final Metrics metrics; // accessed from inner class
   /**
    * {@link IndexDataProvider} to use.
    */
@@ -254,17 +248,15 @@ public final class ImprovedClarityScore
 
       // calculate static smoothing part
       if (sSmooth == null) {
-        sSmooth = BigDecimal.valueOf(docModel.metrics().tf())
+        sSmooth = BigDecimal.valueOf(docModel.tf())
             .add(this.dmParams[0]
-                .multiply(BigDecimal.valueOf(
-                        docModel.metrics().uniqueTermCount()),
+                .multiply(BigDecimal.valueOf(docModel.termCount()),
                     MATH_CONTEXT), MATH_CONTEXT);
         this.staticSmoothingParts.put(docModel.id, sSmooth);
       }
 
       // smoothed document-term model
-      final BigDecimal smoothing = BigDecimal.valueOf(
-          docModel.metrics().tf(term))
+      final BigDecimal smoothing = BigDecimal.valueOf(docModel.tf(term))
           .add(this.dmParams[0].multiply(cModel), MATH_CONTEXT)
           .divide(sSmooth, MATH_CONTEXT);
 
@@ -315,8 +307,8 @@ public final class ImprovedClarityScore
 
       for (final Integer docId : this.feedbackDocs) {
         result = result.add(query(
-            ImprovedClarityScore.this.metrics
-                .getDocumentModel(docId), term), MATH_CONTEXT);
+            ImprovedClarityScore.this.dataProv.metrics()
+                .docData(docId), term), MATH_CONTEXT);
       }
       return result;
     }
@@ -340,8 +332,6 @@ public final class ImprovedClarityScore
     // set configuration
     this.dataProv = builder.getIndexDataProvider();
     this.idxReader = builder.getIndexReader();
-    this.metrics = new Metrics(builder.getIndexDataProvider());
-
     this.conf = builder.getConfiguration();
 
     // check config

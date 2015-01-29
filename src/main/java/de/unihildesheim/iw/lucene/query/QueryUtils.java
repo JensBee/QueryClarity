@@ -21,7 +21,6 @@ import de.unihildesheim.iw.Buildable.BuildException;
 import de.unihildesheim.iw.Buildable.ConfigurationException;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
-import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.lucene.index.CollectionMetrics;
 import de.unihildesheim.iw.lucene.query.SimpleTermsQuery.Builder;
 import de.unihildesheim.iw.util.ByteArrayUtils;
@@ -95,7 +94,7 @@ public final class QueryUtils {
    * @param query Query string to tokenize
    * @param qAnalyzer Analyzer to use
    * @return Tokenized query string with stop-words removed
-   * @see #tokenizeQuery(String, Analyzer, Metrics.CollectionMetrics)
+   * @see #tokenizeQuery(String, Analyzer, CollectionMetrics)
    * @throws DataProviderException Thrown, if accessing {@link
    * CollectionMetrics} fails
    */
@@ -107,7 +106,7 @@ public final class QueryUtils {
 
   /**
    * Tokenizes a query string using Lucenes analyzer. This also removes
-   * stopwords from the query string. The {@link Metrics.CollectionMetrics}
+   * stopwords from the query string. The {@link CollectionMetrics}
    * instance is used to skip terms no found in the collection.
    *
    * @param query Query string to tokenize
@@ -197,7 +196,7 @@ public final class QueryUtils {
 
   /**
    * Tokenizes a query string using Lucenes analyzer. This also removes
-   * stopwords from the query string. The {@link Metrics.CollectionMetrics}
+   * stopwords from the query string. The {@link CollectionMetrics}
    * instance is used to skip terms no found in the collection.
    *
    * @param query Query string to tokenize
@@ -230,7 +229,7 @@ public final class QueryUtils {
    * @param query Query string
    * @param qAnalyzer Analyzer used to parse the query String
    * @return mapping of query-term to in-query-frequency
-   * @see #tokenizeAndMapQuery(String, Analyzer, Metrics.CollectionMetrics)
+   * @see #tokenizeAndMapQuery(String, Analyzer, CollectionMetrics)
    * @throws DataProviderException Thrown, if accessing {@link
    * CollectionMetrics} fails
    */
@@ -243,7 +242,7 @@ public final class QueryUtils {
   /**
    * Tokenizes a query string using Lucenes analyzer. This also removes
    * stopwords from the query string. Returns a mapping of query-term to
-   * in-query-frequency. The {@link Metrics.CollectionMetrics} instance is used
+   * in-query-frequency. The {@link CollectionMetrics} instance is used
    * to skip terms no found in the collection.
    *
    * @param query Query String

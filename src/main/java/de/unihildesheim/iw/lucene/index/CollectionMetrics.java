@@ -20,6 +20,7 @@ package de.unihildesheim.iw.lucene.index;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
+import de.unihildesheim.iw.lucene.document.DocumentModel;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.mapdb.DBMaker;
@@ -61,6 +62,10 @@ public class CollectionMetrics {
    */
   private final Map<ByteArray, BigDecimal> c_rtf;
   /**
+   * Cache for created {@link DocumentModel}s.
+   */
+  private final Map<Integer, DocumentModel> c_docModel;
+  /**
    * Data provider to access index data.
    */
   private final IndexDataProvider dataProv;
@@ -83,14 +88,35 @@ public class CollectionMetrics {
      * Should term frequency values be cached?
      */
     private boolean cacheTf = true;
+    /**
+     * Should document models be cached?
+     */
+    private boolean cacheDocModels = true;
 
+    /**
+     * Disable caching of document frequency values.
+     * @return Self reference
+     */
     public CollectionMetricsConfiguration noCacheDf() {
       this.cacheDf = false;
       return this;
     }
 
+    /**
+     * Disable caching of term frequency values.
+     * @return Self reference
+     */
     public CollectionMetricsConfiguration noCacheTf() {
       this.cacheTf = false;
+      return this;
+    }
+
+    /**
+     * Disable caching of document models.
+     * @return Self reference
+     */
+    public CollectionMetricsConfiguration noCacheDocModels() {
+      this.cacheDocModels = false;
       return this;
     }
   }
@@ -139,6 +165,20 @@ public class CollectionMetrics {
         .valueSerializer(Serializer.BASIC)
         .expireStoreSize(1500d)
         .make();
+
+    if (this.conf.cacheDocModels) {
+      this.c_docModel = DBMaker
+          .newMemoryDirectDB()
+          .transactionDisable()
+          .make()
+          .createHashMap("cache")
+          .keySerializer(Serializer.INTEGER)
+          .valueSerializer(Serializer.JAVA)
+          .expireStoreSize(1000d)
+          .make();
+    } else {
+      this.c_docModel = Collections.EMPTY_MAP;
+    }
 
     if (this.conf.cacheDf) {
       this.c_df = DBMaker
@@ -302,6 +342,27 @@ public class CollectionMetrics {
       throws DataProviderException {
     return BigDecimal.valueOf((long) df(term)).divide(
         this.docCount, MATH_CONTEXT);
+  }
+
+  /**
+   * Get a document data model from the {@link IndexDataProvider}.
+   *
+   * @param documentId Id of the document whose model to get
+   * @return Document-model for the given document id
+   * @throws DataProviderException Forwarded from lower-level
+   */
+  public DocumentModel docData(final int documentId)
+      throws DataProviderException {
+    if (this.conf.cacheDocModels) {
+      DocumentModel d = this.c_docModel.get(documentId);
+      if (d == null) {
+        d = this.dataProv.getDocumentModel(documentId);
+        this.c_docModel.put(documentId, d);
+      }
+      return d;
+    } else {
+      return this.dataProv.getDocumentModel(documentId);
+    }
   }
 
   /**

@@ -21,7 +21,6 @@ import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
-import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.StringUtils;
@@ -140,7 +139,6 @@ public final class RuleBasedTryExactTermsQuery
     if (RelaxRule.HIGHEST_TERMFREQ == rule ||
         RelaxRule.HIGHEST_DOCFREQ == rule) {
       this.termFreqCache = new HashMap<>(this.uniqueQueryTerms.size());
-      final Metrics metrics = new Metrics(dataProv);
 
       for (final String term : this.uniqueQueryTerms) {
         @SuppressWarnings("ObjectAllocationInLoop")

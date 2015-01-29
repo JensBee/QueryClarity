@@ -24,7 +24,6 @@ import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
-import de.unihildesheim.iw.lucene.index.Metrics;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.lucene.scoring.ScoringResult.ScoringResultXml.Keys;
 import de.unihildesheim.iw.lucene.scoring.data.DefaultFeedbackProvider;
@@ -88,12 +87,6 @@ public final class DefaultClarityScore
       GlobalConfiguration.conf().getString(
           DefaultKeys.MATH_CONTEXT.toString()));
   /**
-   * Provider for general index metrics.
-   */
-  // accessed from inner class
-  @SuppressWarnings("PackageVisibleField")
-  final Metrics metrics;
-  /**
    * {@link IndexDataProvider} to use.
    */
   @SuppressWarnings("PackageVisibleField")
@@ -143,8 +136,8 @@ public final class DefaultClarityScore
   private Model model;
 
   /**
-   * Class wrapping all methods needed for calculation needed models. Also
-   * holds results of the calculations.
+   * Class wrapping all methods needed for calculation needed models. Also holds
+   * results of the calculations.
    */
   private class Model
       implements Closable {
@@ -173,6 +166,7 @@ public final class DefaultClarityScore
 
     /**
      * Initialize the model calculation object.
+     *
      * @param qt Query terms. Query terms not found in the collection (TF=0)
      * will be skipped.
      * @param fb Feedback documents
@@ -224,7 +218,7 @@ public final class DefaultClarityScore
     BigDecimal document(final DocumentModel docModel, final ByteArray term)
         throws DataProviderException {
       return DefaultClarityScore.this.docLangModelWeight.multiply(
-          docModel.metrics().relTf(term), MATH_CONTEXT)
+          BigDecimal.valueOf(docModel.relTf(term)), MATH_CONTEXT)
           .add(DefaultClarityScore.this.docLangModelWeight1Sub
               .multiply(collection(term), MATH_CONTEXT), MATH_CONTEXT);
     }
@@ -267,7 +261,8 @@ public final class DefaultClarityScore
 
       for (final Integer docId : this.feedbackDocs) {
         result = result.add(query(
-                DefaultClarityScore.this.metrics.getDocumentModel(docId), term),
+                DefaultClarityScore.this.dataProv.metrics().docData(docId),
+                term),
             MATH_CONTEXT);
       }
       return result;
@@ -299,7 +294,6 @@ public final class DefaultClarityScore
 
     this.dataProv = builder.getIndexDataProvider();
     this.idxReader = builder.getIndexReader();
-    this.metrics = new Metrics(builder.getIndexDataProvider());
     this.analyzer = builder.getAnalyzer();
 
     if (builder.getVocabularyProvider() != null) {

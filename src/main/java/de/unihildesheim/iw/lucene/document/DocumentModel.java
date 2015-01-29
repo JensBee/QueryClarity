@@ -17,7 +17,6 @@
 package de.unihildesheim.iw.lucene.document;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.lucene.index.Metrics;
 
 import java.io.Serializable;
 import java.util.Collections;
@@ -57,11 +56,6 @@ public final class DocumentModel
    * Pre-calculated hash code for this object.
    */
   private int hashCode;
-
-  /**
-   * {@link Metrics.DocumentMetrics} instance for this model.
-   */
-  private transient volatile Metrics.DocumentMetrics metrics;
 
   /**
    * Create a new model with data from the provided builder.
@@ -108,15 +102,23 @@ public final class DocumentModel
    * Get the relative frequency for a specific term in the document.
    *
    * @param term Term to lookup
-   * @return Frequency in the associated document or <tt>0</tt>, if unknown
+   * @return Frequency in the associated document or {@code 0}, if unknown
    */
   public double relTf(final ByteArray term) {
-    final Long tFreq = this.termFreqMap.get(Objects.requireNonNull(term,
-        "Term was null."));
+    final Long tFreq = this.termFreqMap.get(term);
     if (tFreq == null) {
       return 0d;
     }
     return tFreq.doubleValue() / (double) this.termFrequency;
+  }
+
+  /**
+   * Get the frequency of all terms in the document.
+   *
+   * @return Summed frequency of all terms in document
+   */
+  public Long tf() {
+    return this.termFrequency;
   }
 
   /**
@@ -126,8 +128,7 @@ public final class DocumentModel
    * @return Frequency in the associated document or <tt>0</tt>, if unknown
    */
   public Long tf(final ByteArray term) {
-    final Long tFreq = this.termFreqMap.get(Objects.requireNonNull(term,
-        "Term was null."));
+    final Long tFreq = this.termFreqMap.get(term);
     if (tFreq == null) {
       return 0L;
     }
@@ -150,19 +151,6 @@ public final class DocumentModel
       return manualCount;
     }
     return (long) count;
-  }
-
-  /**
-   * Get a {@link Metrics.DocumentMetrics} instance for this model.
-   *
-   * @return {@link Metrics.DocumentMetrics} instance initialized with this
-   * model
-   */
-  public Metrics.DocumentMetrics metrics() {
-    if (this.metrics == null) {
-      this.metrics = new Metrics.DocumentMetrics(this);
-    }
-    return this.metrics;
   }
 
   @Override
