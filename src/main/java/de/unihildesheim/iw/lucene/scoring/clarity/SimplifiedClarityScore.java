@@ -17,17 +17,18 @@
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.ByteArray;
+import de.unihildesheim.iw.Tuple;
+import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.util.BigDecimalCache;
 import de.unihildesheim.iw.util.Configuration;
-import de.unihildesheim.iw.util.MathUtils;
+import de.unihildesheim.iw.util.MathUtils.KlDivergence;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
 import org.apache.lucene.analysis.Analyzer;
-import org.mapdb.Fun;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
@@ -35,6 +36,7 @@ import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 
 /**
@@ -115,21 +117,23 @@ public final class SimplifiedClarityScore
     // calculate max likelihood of the query model for each term in the
     // query
     // iterate over all unique query terms
-    final Collection<Fun.Tuple2<BigDecimal, BigDecimal>> dataSet = new ArrayList
+    final Collection<Tuple2<BigDecimal, BigDecimal>> dataSet = new
+        ArrayList
         (queryTerms.size());
-    for (final Map.Entry<ByteArray, Integer> qTermEntry :
+    for (final Entry<ByteArray, Integer> qTermEntry :
         queryTerms.entrySet()) {
       final BigDecimal pMl =
           BigDecimalCache.get(qTermEntry.getValue())
               .divide(BigDecimalCache.get((long) queryLength), MATH_CONTEXT);
       dataSet.add(
-          Fun.t2(pMl, this.dataProv.metrics().relTf(qTermEntry.getKey())));
+          Tuple.tuple2(pMl, this.dataProv.metrics().relTf(qTermEntry.getKey()
+          )));
     }
 
     final double score;
     try {
-      score = MathUtils.KlDivergence.calc(
-          dataSet, MathUtils.KlDivergence.sumValues(dataSet)
+      score = KlDivergence.calc(
+          dataSet, KlDivergence.sumValues(dataSet)
       ).doubleValue();
     } catch (final ProcessingException e) {
       final String msg = "Caught exception while calculating score.";

@@ -23,6 +23,7 @@ import de.unihildesheim.iw.Closable;
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.Tuple;
+import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
@@ -45,8 +46,6 @@ import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall.TargetFunc;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
-import org.mapdb.Fun;
-import org.mapdb.Fun.Tuple2;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
@@ -681,7 +680,7 @@ public final class ImprovedClarityScore
       if (term != null) {
         ImprovedClarityScore.this.model.dataSets.put(
             ImprovedClarityScore.this.model.dataSetCounter.incrementAndGet(),
-            Fun.t2(ImprovedClarityScore.this.model.query(term),
+            Tuple.tuple2(ImprovedClarityScore.this.model.query(term),
                 ImprovedClarityScore.this.dataProv.metrics().relTf(term)));
       }
     }

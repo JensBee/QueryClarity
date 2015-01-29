@@ -18,6 +18,8 @@ package de.unihildesheim.iw.util;
 
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
+import de.unihildesheim.iw.Tuple;
+import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.mapdb.DBMakerUtils;
 import de.unihildesheim.iw.util.concurrent.AtomicBigDecimal;
 import de.unihildesheim.iw.util.concurrent.processing.IterableSource;
@@ -25,8 +27,8 @@ import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
 import de.unihildesheim.iw.util.concurrent.processing.Source;
 import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
+import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall.TargetFunc;
 import org.mapdb.DB;
-import org.mapdb.Fun;
 import org.mapdb.Serializer;
 import org.nevec.rjm.BigDecimalMath;
 import org.slf4j.LoggerFactory;
@@ -94,18 +96,18 @@ public final class MathUtils {
   @SuppressWarnings("PublicInnerClass")
   public static final class KlDivergence {
 
-    public static Fun.Tuple2<BigDecimal, BigDecimal> sumValues(
-        final Iterable<Fun.Tuple2<BigDecimal, BigDecimal>> dataSet)
+    public static Tuple2<BigDecimal, BigDecimal> sumValues(
+        final Iterable<Tuple2<BigDecimal, BigDecimal>> dataSet)
         throws ProcessingException {
       final AtomicBigDecimal sumA = new AtomicBigDecimal();
       final AtomicBigDecimal sumB = new AtomicBigDecimal();
 
       new Processing().setSourceAndTarget(new TargetFuncCall<>(
           new IterableSource<>(dataSet),
-          new TargetFuncCall.TargetFunc<Fun.Tuple2<BigDecimal, BigDecimal>>() {
+          new TargetFunc<Tuple2<BigDecimal, BigDecimal>>() {
 
             @Override
-            public void call(final Fun.Tuple2<BigDecimal, BigDecimal> data)
+            public void call(final Tuple2<BigDecimal, BigDecimal> data)
                 throws Exception {
               if (data == null) {
                 return;
@@ -131,12 +133,12 @@ public final class MathUtils {
 
       LOG.debug("pcSum={} pqSum={}",
           sumA.doubleValue(), sumB.doubleValue());
-      return Fun.t2(sumA.get(), sumB.get());
+      return Tuple.tuple2(sumA.get(), sumB.get());
     }
 
     public static BigDecimal calc(
-        final Iterable<Fun.Tuple2<BigDecimal, BigDecimal>> values,
-        final Fun.Tuple2<BigDecimal, BigDecimal> sums)
+        final Iterable<Tuple2<BigDecimal, BigDecimal>> values,
+        final Tuple2<BigDecimal, BigDecimal> sums)
         throws ProcessingException {
 
       // cache values in a temporary db - holds all partial results
@@ -145,14 +147,14 @@ public final class MathUtils {
       final Queue<Object> rQueue = CACHE_DB
           .createQueue("resultCache", Serializer.BASIC, true);
 
-      final Source<Fun.Tuple2<BigDecimal, BigDecimal>> source =
+      final Source<Tuple2<BigDecimal, BigDecimal>> source =
           new IterableSource<>(values);
       new Processing().setSourceAndTarget(new TargetFuncCall<>(
           source,
-          new TargetFuncCall.TargetFunc<Fun.Tuple2<BigDecimal, BigDecimal>>() {
+          new TargetFunc<Tuple2<BigDecimal, BigDecimal>>() {
 
             @Override
-            public void call(final Fun.Tuple2<BigDecimal, BigDecimal> data)
+            public void call(final Tuple2<BigDecimal, BigDecimal> data)
                 throws Exception {
               if (data == null
                   || data.a == null || data.b == null
