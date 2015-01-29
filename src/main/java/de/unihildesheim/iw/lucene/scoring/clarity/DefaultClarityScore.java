@@ -21,6 +21,7 @@ import de.unihildesheim.iw.Closable;
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.Tuple;
+import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
@@ -42,8 +43,6 @@ import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall.TargetFunc;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
-import org.mapdb.Fun;
-import org.mapdb.Fun.Tuple2;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
@@ -190,9 +189,22 @@ public final class DefaultClarityScore
 
       // initialize other properties
       this.staticQueryModelParts = new ConcurrentHashMap<>(
-          DefaultClarityScore.this.conf.getFeedbackDocCount());
+          (int) (DefaultClarityScore.this.conf.getFeedbackDocCount() * 1.8));
       this.dataSets = new ConcurrentHashMap<>(2000);
       this.dataSetCounter = new AtomicLong(0L);
+
+      LOG.info("Pre-calculating static query model values");
+      // pre-calculate query term document models
+      for (final Integer docId : this.feedbackDocs) {
+        final DocumentModel docModel = DefaultClarityScore.this.dataProv
+            .metrics().docData(docId);
+        BigDecimal staticPart = BigDecimal.ONE;
+        for (final ByteArray queryTerm : this.queryTerms) {
+          staticPart = staticPart.multiply(
+              document(docModel, queryTerm), MATH_CONTEXT);
+        }
+        this.staticQueryModelParts.put(docModel.id, staticPart);
+      }
     }
 
     /**
@@ -233,19 +245,23 @@ public final class DefaultClarityScore
      */
     BigDecimal query(final DocumentModel docModel, final ByteArray term)
         throws DataProviderException {
+      return document(docModel, term).multiply(
+          this.staticQueryModelParts.get(docModel.id), MATH_CONTEXT);
+      /*
       final BigDecimal result = document(docModel, term);
 
       BigDecimal staticPart = this.staticQueryModelParts.get(docModel.id);
       if (staticPart == null) {
         staticPart = BigDecimal.ONE;
         for (final ByteArray queryTerm : this.queryTerms) {
-          staticPart = staticPart.multiply(
-              document(docModel, queryTerm), MATH_CONTEXT);
+          staticPart = staticPart.multiply(document(docModel, queryTerm),
+              MATH_CONTEXT);
         }
         this.staticQueryModelParts.put(docModel.id, staticPart);
       }
 
       return result.multiply(staticPart, MATH_CONTEXT);
+      */
     }
 
     /**
@@ -260,10 +276,8 @@ public final class DefaultClarityScore
       BigDecimal result = BigDecimal.ZERO;
 
       for (final Integer docId : this.feedbackDocs) {
-        result = result.add(query(
-                DefaultClarityScore.this.dataProv.metrics().docData(docId),
-                term),
-            MATH_CONTEXT);
+        result = result.add(query(DefaultClarityScore.this.dataProv
+            .metrics().docData(docId), term), MATH_CONTEXT);
       }
       return result;
     }
@@ -601,7 +615,7 @@ public final class DefaultClarityScore
       if (term != null) {
         DefaultClarityScore.this.model.dataSets.put(
             DefaultClarityScore.this.model.dataSetCounter.incrementAndGet(),
-            Fun.t2(DefaultClarityScore.this.model.query(term),
+            Tuple.tuple2(DefaultClarityScore.this.model.query(term),
                 DefaultClarityScore.this.dataProv.metrics().relTf(term)));
       }
     }
