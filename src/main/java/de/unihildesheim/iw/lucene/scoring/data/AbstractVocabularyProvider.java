@@ -20,6 +20,7 @@ package de.unihildesheim.iw.lucene.scoring.data;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,6 +45,7 @@ public abstract class AbstractVocabularyProvider<T extends VocabularyProvider>
   /**
    * Filter object to filter the returned vocabulary.
    */
+  @Nullable
   protected Filter filter;
   /**
    * Document id's whose terms should be used as vocabulary.
@@ -57,8 +59,8 @@ public abstract class AbstractVocabularyProvider<T extends VocabularyProvider>
   }
 
   @Override
-  public T filter(final Filter filter) {
-    this.filter = Objects.requireNonNull(filter);
+  public T filter(final Filter f) {
+    this.filter = Objects.requireNonNull(f);
     return getThis();
   }
 
@@ -78,6 +80,7 @@ public abstract class AbstractVocabularyProvider<T extends VocabularyProvider>
   /**
    * Iterator wrapping another terms iterator and provides basic term filtering.
    */
+  @SuppressWarnings("PublicInnerClass")
   public static class FilteredTermsIterator
       implements Iterator<ByteArray> {
     /**
@@ -96,6 +99,7 @@ public abstract class AbstractVocabularyProvider<T extends VocabularyProvider>
     /**
      * Next term in iteration.
      */
+    @Nullable
     private ByteArray nextTerm;
     /**
      * Current iteration term.
@@ -144,7 +148,7 @@ public abstract class AbstractVocabularyProvider<T extends VocabularyProvider>
       } catch (DataProviderException e) {
         LOG.error("Failed to get next term.", e);
       }
-      return term;
+      return this.term;
     }
   }
 }

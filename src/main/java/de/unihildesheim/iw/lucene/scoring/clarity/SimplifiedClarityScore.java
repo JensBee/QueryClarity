@@ -18,7 +18,7 @@ package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
-import de.unihildesheim.iw.lucene.index.Metrics;
+import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.util.BigDecimalCache;
 import de.unihildesheim.iw.util.Configuration;
@@ -61,10 +61,10 @@ public final class SimplifiedClarityScore
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       SimplifiedClarityScore.class);
   /**
-   * Provider for general index metrics.
+   * Provider for general index data.
    */
   @SuppressWarnings("PackageVisibleField")
-  final Metrics metrics;
+  final IndexDataProvider dataProv;
   /**
    * Lucene query analyzer.
    */
@@ -79,7 +79,7 @@ public final class SimplifiedClarityScore
     Objects.requireNonNull(builder, "Builder was null.");
 
     // set configuration
-    this.metrics = new Metrics(builder.getIndexDataProvider());
+    this.dataProv = builder.getIndexDataProvider();
     this.analyzer = builder.getAnalyzer();
   }
 
@@ -123,7 +123,7 @@ public final class SimplifiedClarityScore
           BigDecimalCache.get(qTermEntry.getValue())
               .divide(BigDecimalCache.get((long) queryLength), MATH_CONTEXT);
       dataSet.add(
-          Fun.t2(pMl, this.metrics.collection().relTf(qTermEntry.getKey())));
+          Fun.t2(pMl, this.dataProv.metrics().relTf(qTermEntry.getKey())));
     }
 
     final double score;

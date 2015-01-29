@@ -21,8 +21,6 @@ import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.CommonTermsDefaults;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
-import de.unihildesheim.iw.lucene.index.Metrics;
-import de.unihildesheim.iw.lucene.index.Metrics.CollectionMetrics;
 import de.unihildesheim.iw.mapdb.DBMakerUtils;
 import org.mapdb.DB;
 import org.slf4j.LoggerFactory;
@@ -43,15 +41,6 @@ public class CommonTermsVocabularyProvider
   static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       CommonTermsVocabularyProvider.class);
 
-  /**
-   * Collection metrics for accessing statistical collection data.
-   */
-  private CollectionMetrics cMetrics;
-  /**
-   * Terms exceeding this threshold (relative document frequency) are skipped.
-   */
-  private float threshold = CommonTermsDefaults.MTF_DEFAULT;
-
   @Override
   public CommonTermsVocabularyProvider getThis() {
     return this;
@@ -61,7 +50,6 @@ public class CommonTermsVocabularyProvider
   public CommonTermsVocabularyProvider indexDataProvider(
       final IndexDataProvider indexDataProvider) {
     super.indexDataProvider(indexDataProvider);
-    this.cMetrics = new Metrics(this.dataProv).collection();
     return this;
   }
 
@@ -73,7 +61,7 @@ public class CommonTermsVocabularyProvider
         this.dataProv, "Data provider not set.").getDocumentsTermsSet(
         Objects.requireNonNull(this.docIds, "Document ids not set."));
 
-    if (this.filter != null) {
+    if (LOG.isDebugEnabled() && this.filter != null) {
       LOG.debug("Using filter");
     }
 
@@ -85,7 +73,11 @@ public class CommonTermsVocabularyProvider
     while (termsIt.hasNext()) {
       ByteArray term = termsIt.next();
       // skip high frequent terms
-      if (this.cMetrics.relDf(term).floatValue() <= this.threshold) {
+
+      // terms exceeding this threshold (relative document frequency) are skipped.
+      final float threshold = CommonTermsDefaults.MTF_DEFAULT;
+
+      if (this.dataProv.metrics().relDf(term).floatValue() <= threshold) {
         if (this.filter != null) {
           // filter term
           term = this.filter.filter(term);

@@ -19,6 +19,7 @@ package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.GlobalConfiguration;
+import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.Tuple.Tuple3;
 import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
@@ -79,13 +80,16 @@ public class LuceneIndexDataProvider
    * Prefix used to store {@link GlobalConfiguration configuration} data.
    */
   private static final String IDENTIFIER = "LuceneIDP";
-
   /**
    * Context for high precision math calculations.
    */
   static final MathContext MATH_CONTEXT = new MathContext(
       GlobalConfiguration.conf().getString(
-          GlobalConfiguration.DefaultKeys.MATH_CONTEXT.toString()));
+          DefaultKeys.MATH_CONTEXT.toString()));
+  /**
+   * Collection metrics instance for this DataProvider.
+   */
+  private final CollectionMetrics metrics;
 
   /**
    * Information about the provided Lucene index.
@@ -282,6 +286,9 @@ public class LuceneIndexDataProvider
     this.index.uniqueTerms = termCounts.b;
     this.index.addStopwords(termCounts.c);
 
+    // all data gathered, initialize metrics instance
+    this.metrics = new CollectionMetrics(this);
+
     LOG.debug("index.TTF {} index.UT {}", this.index.ttf,
         this.index.uniqueTerms);
     LOG.debug("TTF (abwasserreinigungsstuf): {}", getTermFrequency(new
@@ -332,11 +339,6 @@ public class LuceneIndexDataProvider
       LOG.error("Document ids: {}", docIds);
       throw new DataProviderException("TermVectors missing.");
     }
-  }
-
-  @Override // NOP
-  public void cacheDocumentModels(final Collection<Integer> docIds) {
-    // NOP
   }
 
   /**
@@ -441,7 +443,7 @@ public class LuceneIndexDataProvider
     } catch (final IOException e) {
       throw new DataProviderException("Failed to collect terms", e);
     }
-    
+
     return 0;
   }
 
@@ -598,6 +600,11 @@ public class LuceneIndexDataProvider
       words.add(ByteArrayUtils.utf8ToString(ba));
     }
     return words;
+  }
+
+  @Override
+  public CollectionMetrics metrics() {
+    return this.metrics;
   }
 
   /**
@@ -929,7 +936,7 @@ public class LuceneIndexDataProvider
      * Constructor setting the implementation identifier for the cache.
      */
     public Builder() {
-      super(IDENTIFIER);
+      super();
       setSupportedFeatures(features);
     }
 

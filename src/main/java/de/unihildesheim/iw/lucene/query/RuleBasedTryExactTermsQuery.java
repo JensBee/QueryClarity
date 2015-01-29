@@ -148,10 +148,10 @@ public final class RuleBasedTryExactTermsQuery
             new ByteArray(term.getBytes(StandardCharsets.UTF_8));
         if (RelaxRule.HIGHEST_TERMFREQ == rule) {
           // TODO may be null!
-          this.termFreqCache.put(termBa, metrics.collection().tf(termBa));
+          this.termFreqCache.put(termBa, dataProv.metrics().tf(termBa));
         } else {
           this.termFreqCache
-              .put(termBa, metrics.collection().df(termBa).longValue());
+              .put(termBa, dataProv.metrics().df(termBa).longValue());
         }
       }
     } else {

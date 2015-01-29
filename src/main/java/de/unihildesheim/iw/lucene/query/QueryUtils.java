@@ -22,7 +22,7 @@ import de.unihildesheim.iw.Buildable.ConfigurationException;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.Metrics;
-import de.unihildesheim.iw.lucene.index.Metrics.CollectionMetrics;
+import de.unihildesheim.iw.lucene.index.CollectionMetrics;
 import de.unihildesheim.iw.lucene.query.SimpleTermsQuery.Builder;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.StringUtils;

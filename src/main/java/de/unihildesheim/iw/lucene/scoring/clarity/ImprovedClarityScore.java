@@ -205,7 +205,7 @@ public final class ImprovedClarityScore
       // add query terms, skip those not in index
       this.queryTerms = new ArrayList<>(qt.size());
       for (final ByteArray queryTerm : qt) {
-        if (ImprovedClarityScore.this.metrics.collection().tf(queryTerm) > 0L) {
+        if (ImprovedClarityScore.this.dataProv.metrics().tf(queryTerm) > 0L) {
           this.queryTerms.add(queryTerm);
         }
       }
@@ -234,7 +234,7 @@ public final class ImprovedClarityScore
      */
     BigDecimal collection(final ByteArray term)
         throws DataProviderException {
-      return ImprovedClarityScore.this.metrics.collection().relTf(term);
+      return ImprovedClarityScore.this.dataProv.metrics().relTf(term);
     }
 
     /**
@@ -405,7 +405,7 @@ public final class ImprovedClarityScore
     // get a normalized unique list of query terms
     // skips stopwords and removes unknown terms
     this.queryTerms = QueryUtils.tokenizeQuery(query,
-        this.analyzer, this.metrics.collection());
+        this.analyzer, this.dataProv.metrics());
 
     // check query term extraction result
     if (this.queryTerms.isEmpty()) {
@@ -482,7 +482,7 @@ public final class ImprovedClarityScore
           public ByteArray filter(final ByteArray term)
               throws DataProviderException {
             final BigDecimal relDf = ImprovedClarityScore.this
-                .metrics.collection().relDf(term);
+                .dataProv.metrics().relDf(term);
             if (relDf.compareTo(minFreq) >= 0
                 && relDf.compareTo(maxFreq) <= 0) {
               return term;
@@ -692,7 +692,7 @@ public final class ImprovedClarityScore
         ImprovedClarityScore.this.model.dataSets.put(
             ImprovedClarityScore.this.model.dataSetCounter.incrementAndGet(),
             Fun.t2(ImprovedClarityScore.this.model.query(term),
-                ImprovedClarityScore.this.metrics.collection().relTf(term)));
+                ImprovedClarityScore.this.dataProv.metrics().relTf(term)));
       }
     }
   }

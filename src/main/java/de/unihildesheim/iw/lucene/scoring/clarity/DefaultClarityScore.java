@@ -185,7 +185,7 @@ public final class DefaultClarityScore
       // add query terms, skip those not in index
       this.queryTerms = new ArrayList<>(qt.size());
       for (final ByteArray queryTerm : qt) {
-        if (DefaultClarityScore.this.metrics.collection().tf(queryTerm) > 0L) {
+        if (DefaultClarityScore.this.dataProv.metrics().tf(queryTerm) > 0L) {
           this.queryTerms.add(queryTerm);
         }
       }
@@ -210,7 +210,7 @@ public final class DefaultClarityScore
      */
     BigDecimal collection(final ByteArray term)
         throws DataProviderException {
-      return DefaultClarityScore.this.metrics.collection().relTf(term);
+      return DefaultClarityScore.this.dataProv.metrics().relTf(term);
     }
 
     /**
@@ -363,7 +363,7 @@ public final class DefaultClarityScore
     }
 
     this.queryTerms = QueryUtils.tokenizeQuery(query,
-        this.analyzer, this.metrics.collection());
+        this.analyzer, this.dataProv.metrics());
 
     // check query term extraction result
     if (this.queryTerms == null || this.queryTerms.isEmpty()) {
@@ -608,7 +608,7 @@ public final class DefaultClarityScore
         DefaultClarityScore.this.model.dataSets.put(
             DefaultClarityScore.this.model.dataSetCounter.incrementAndGet(),
             Fun.t2(DefaultClarityScore.this.model.query(term),
-                DefaultClarityScore.this.metrics.collection().relTf(term)));
+                DefaultClarityScore.this.dataProv.metrics().relTf(term)));
       }
     }
   }
