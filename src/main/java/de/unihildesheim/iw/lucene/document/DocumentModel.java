@@ -261,41 +261,6 @@ public final class DocumentModel
     }
 
     /**
-     * Set the document frequency for a specific term.
-     *
-     * @param term Term
-     * @param freq Document frequency of the term
-     * @return Self reference
-     */
-    public Builder setTermFrequency(final ByteArray term,
-        final long freq) {
-      this.termFreqMap.put(Objects.requireNonNull(term, "Term was null."),
-          freq);
-      return this;
-    }
-
-    /**
-     * Set or add the document frequency for a specific term. Sets the
-     * frequency, if no value is currently stored or adds the new value to the
-     * existing value. Thread safe, as the new value is being verified.
-     *
-     * @param term Term
-     * @param freq Document frequency of the term
-     * @return Self reference
-     */
-    public Builder setOrAddTermFrequency(final ByteArray term,
-        final long freq) {
-      Long oldValue = this.termFreqMap.putIfAbsent(
-          Objects.requireNonNull(term, "Term was null."), freq);
-      if (oldValue != null && freq > 0) {
-        while (!this.termFreqMap.replace(term, oldValue, oldValue + freq)) {
-          oldValue = this.termFreqMap.get(term);
-        }
-      }
-      return this;
-    }
-
-    /**
      * Set the document frequency for a list of terms. This operation is not
      * thread safe as only {@link ConcurrentMap#put(Object, Object)} is called
      * for each entry..
