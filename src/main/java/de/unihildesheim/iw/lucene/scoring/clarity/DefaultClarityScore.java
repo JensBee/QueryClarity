@@ -153,6 +153,10 @@ public final class DefaultClarityScore
      */
     private final Map<Integer, BigDecimal> staticQueryModelParts;
     /**
+     * Stores the feedback document models.
+     */
+    private final Map<Integer, DocumentModel> docModels;
+    /**
      * Caches values of document and query models. Those need to be normalized
      * before calculating the score.
      */
@@ -188,8 +192,10 @@ public final class DefaultClarityScore
       this.feedbackDocs.addAll(fb);
 
       // initialize other properties
-      this.staticQueryModelParts = new ConcurrentHashMap<>(
-          (int) (DefaultClarityScore.this.conf.getFeedbackDocCount() * 1.8));
+      this.staticQueryModelParts = new ConcurrentHashMap<>((int) (
+          (double) this.feedbackDocs.size() * 1.8));
+      this.docModels = new ConcurrentHashMap<>((int) (
+          (double) this.feedbackDocs.size() * 1.8));
       this.dataSets = new ConcurrentHashMap<>(2000);
       this.dataSetCounter = new AtomicLong(0L);
 
@@ -205,18 +211,12 @@ public final class DefaultClarityScore
         }
         this.staticQueryModelParts.put(docModel.id, staticPart);
       }
-    }
 
-    /**
-     * Collection model.
-     *
-     * @param term Term to calculate the collection model value for
-     * @return Collection model value
-     * @throws DataProviderException Forwarded from lower-level
-     */
-    BigDecimal collection(final ByteArray term)
-        throws DataProviderException {
-      return DefaultClarityScore.this.dataProv.metrics().relTf(term);
+      LOG.info("Caching document models");
+      for (final Integer docId : this.feedbackDocs) {
+        this.docModels.put(docId,
+            DefaultClarityScore.this.dataProv.metrics().docData(docId));
+      }
     }
 
     /**
@@ -227,41 +227,14 @@ public final class DefaultClarityScore
      * @return Document model value
      * @throws DataProviderException Forwarded from lower-level
      */
-    BigDecimal document(final DocumentModel docModel, final ByteArray term)
+    final BigDecimal document(
+        final DocumentModel docModel, final ByteArray term)
         throws DataProviderException {
       return DefaultClarityScore.this.docLangModelWeight.multiply(
           BigDecimal.valueOf(docModel.relTf(term)), MATH_CONTEXT)
           .add(DefaultClarityScore.this.docLangModelWeight1Sub
-              .multiply(collection(term), MATH_CONTEXT), MATH_CONTEXT);
-    }
-
-    /**
-     * Query model for a single document.
-     *
-     * @param docModel Document data model
-     * @param term Term to calculate the query model value for
-     * @return Query model value
-     * @throws DataProviderException Forwarded from lower-level
-     */
-    BigDecimal query(final DocumentModel docModel, final ByteArray term)
-        throws DataProviderException {
-      return document(docModel, term).multiply(
-          this.staticQueryModelParts.get(docModel.id), MATH_CONTEXT);
-      /*
-      final BigDecimal result = document(docModel, term);
-
-      BigDecimal staticPart = this.staticQueryModelParts.get(docModel.id);
-      if (staticPart == null) {
-        staticPart = BigDecimal.ONE;
-        for (final ByteArray queryTerm : this.queryTerms) {
-          staticPart = staticPart.multiply(document(docModel, queryTerm),
-              MATH_CONTEXT);
-        }
-        this.staticQueryModelParts.put(docModel.id, staticPart);
-      }
-
-      return result.multiply(staticPart, MATH_CONTEXT);
-      */
+              .multiply(DefaultClarityScore.this.dataProv.metrics().relTf(term),
+                  MATH_CONTEXT), MATH_CONTEXT);
     }
 
     /**
@@ -271,13 +244,14 @@ public final class DefaultClarityScore
      * @return Query model value for all feedback documents
      * @throws DataProviderException Forwarded from lower-level
      */
-    BigDecimal query(final ByteArray term)
+    final BigDecimal query(final ByteArray term)
         throws DataProviderException {
       BigDecimal result = BigDecimal.ZERO;
 
       for (final Integer docId : this.feedbackDocs) {
-        result = result.add(query(DefaultClarityScore.this.dataProv
-            .metrics().docData(docId), term), MATH_CONTEXT);
+        result = result.add(document(this.docModels.get(docId), term)
+            .multiply(this.staticQueryModelParts.get(docId),
+                MATH_CONTEXT), MATH_CONTEXT);
       }
       return result;
     }
