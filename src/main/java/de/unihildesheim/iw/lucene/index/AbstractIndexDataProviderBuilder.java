@@ -18,12 +18,9 @@
 package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.Buildable;
-import de.unihildesheim.iw.Persistence;
-import de.unihildesheim.iw.util.FileUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.slf4j.Logger;
@@ -53,6 +50,9 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
   private static final Logger LOG =
       LoggerFactory.getLogger(AbstractIndexDataProviderBuilder.class);
 
+  /**
+   * Features known.
+   */
   public enum Feature {
     /**
      * Relative document frequency threshold for classifying common terms.
@@ -60,8 +60,16 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
      */
     COMMON_TERM_THRESHOLD
   }
+
+  /**
+   * Values for features supported by the current instance.
+   */
   protected Map<Feature, String> supportedFeatures = Collections.EMPTY_MAP;
 
+  /**
+   * Set a list of supported features.
+   * @param features Features supported by this instance
+   */
   protected final void setSupportedFeatures(
       final Feature[] features) {
     this.supportedFeatures = new EnumMap(Feature.class);
@@ -70,6 +78,12 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
     }
   }
 
+  /**
+   * Set a value for a feature.
+   * @param f Feature
+   * @param value Feature setting value
+   * @return Self reference
+   */
   public final T setFeature(final Feature f, final String value) {
     if (this.supportedFeatures.containsKey(f)) {
       this.supportedFeatures.put(f, value);
@@ -81,15 +95,6 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
   }
 
   /**
-   * Builder used to create a proper caching backend.
-   */
-  @SuppressWarnings("PackageVisibleField")
-  final Persistence.Builder persistenceBuilder = new Persistence.Builder();
-  /**
-   * Implementation identifier used for proper cache naming.
-   */
-  private final String identifier;
-  /**
    * List of stopwords to use.
    */
   @SuppressWarnings("PackageVisibleField")
@@ -100,82 +105,14 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
   @SuppressWarnings("PackageVisibleField")
   Set<String> documentFields = Collections.emptySet();
   /**
-   * Flag indicating, if the new instance will be temporary. How to handle this
-   * state is up to the specific implementation.
-   */
-  @SuppressWarnings("PackageVisibleField")
-  boolean isTemporary;
-  /**
    * {@link IndexReader} to use for accessing the Lucene index.
    */
   @SuppressWarnings("PackageVisibleField")
   IndexReader idxReader;
   /**
-   * Warm-up the instance right after building it?
-   */
-  @SuppressWarnings("PackageVisibleField")
-  boolean doWarmUp;
-
-  /**
-   * Last commit generation of the Lucene index (if it's a {@link Directory}
-   * index). May be {@code null}.
-   */
-  @SuppressWarnings("PackageVisibleField")
-  Long lastCommitGeneration;
-
-  /**
-   * File path where the working data will be stored.
-   */
-  @SuppressWarnings("PackageVisibleField")
-  File dataPath;
-
-  /**
-   * (File-)Name of the cache to create.
-   */
-  @SuppressWarnings("PackageVisibleField")
-  String cacheName;
-
-  /**
    * {@link Directory} instance pointing at the Lucene index.
    */
   private Directory luceneDir;
-
-  /**
-   * Constructor setting the implementation identifier for the cache.
-   *
-   * @param newIdentifier Implementation identifier for the cache
-   */
-  AbstractIndexDataProviderBuilder(final String newIdentifier) {
-    if (Objects.requireNonNull(newIdentifier, "Identifier was null.").isEmpty
-        ()) {
-      throw new IllegalArgumentException("Empty identifier name.");
-    }
-    this.identifier = newIdentifier;
-  }
-
-  /**
-   * Instruction to load the named cache.
-   *
-   * @param name Cache name
-   * @return Self reference
-   */
-  public final T loadCache(final String name) {
-    this.cacheName = name;
-    this.persistenceBuilder.name(createCacheName(name));
-    this.persistenceBuilder.get();
-    return getThis();
-  }
-
-  /**
-   * Create a cache name prefixed with the identifier of the implementing
-   * class.
-   *
-   * @param name Cache name
-   * @return Cache name prefixed with current identifier
-   */
-  final String createCacheName(final String name) {
-    return createCacheName(this.identifier, name);
-  }
 
   /**
    * Get a self-reference of the implementing class.
@@ -183,45 +120,6 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * @return Self reference of implementing class instance
    */
   abstract T getThis();
-
-  public static final String createCacheName(final String identifier, final
-  String name) {
-    if (StringUtils.isStrippedEmpty(Objects.requireNonNull(name,
-        "Cache name was null."))) {
-      throw new IllegalArgumentException("Empty cache name.");
-    }
-    if (StringUtils.isStrippedEmpty(Objects.requireNonNull(identifier,
-        "Identifier was null."))) {
-      throw new IllegalArgumentException("Empty identifier name.");
-    }
-    return identifier + "_" + name;
-  }
-
-  /**
-   * Set the instruction to newly create the named cache.
-   *
-   * @param name Cache name
-   * @return Self reference
-   */
-  public final T createCache(final String name) {
-    this.cacheName = name;
-    this.persistenceBuilder.name(createCacheName(name));
-    this.persistenceBuilder.make();
-    return getThis();
-  }
-
-  /**
-   * Instruction to try load the named cache and create it, if not found.
-   *
-   * @param name Cache name
-   * @return Self reference
-   */
-  public final T loadOrCreateCache(final String name) {
-    this.cacheName = name;
-    this.persistenceBuilder.name(createCacheName(name));
-    this.persistenceBuilder.makeOrGet();
-    return getThis();
-  }
 
   /**
    * Set a list of stopwords to use by this instance.
@@ -231,7 +129,6 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    */
   public final T stopwords(final Set<String> words) {
     this.stopwords = Objects.requireNonNull(words);
-    this.persistenceBuilder.stopwords(this.stopwords);
     return getThis();
   }
 
@@ -245,17 +142,6 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
       final Set<String> fields) {
     Objects.requireNonNull(fields, "Field were null.");
     this.documentFields = new HashSet<>(fields);
-    this.persistenceBuilder.documentFields(this.documentFields);
-    return getThis();
-  }
-
-  /**
-   * Set the instance a being temporary.
-   *
-   * @return self reference
-   */
-  public final T temporary() {
-    this.isTemporary = true;
     return getThis();
   }
 
@@ -303,59 +189,6 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
     return getThis();
   }
 
-  /**
-   * Set and validate the working directory.
-   *
-   * @param filePath Path to store working data
-   * @return self reference
-   * @throws IOException Thrown, if the path is not a directory, if the path
-   * does not exist an could not be created or if reading/writing to this
-   * directory is not allowed.
-   * @see Persistence#tryCreateDataPath(String)
-   */
-  @SuppressWarnings("AssignmentToNull")
-  public final T dataPath(final String filePath)
-      throws IOException {
-    this.dataPath = null;
-    this.dataPath = Persistence.tryCreateDataPath(filePath);
-    this.persistenceBuilder.dataPath(FileUtils.getPath(this.dataPath));
-    return getThis();
-  }
-
-  /**
-   * Set the {@link IndexReader} to access the Lucene index.
-   *
-   * @param reader Reader to access the Lucene index
-   * @return Self reference
-   */
-  public final T indexReader(final IndexReader reader) {
-    this.idxReader = Objects.requireNonNull(reader, "IndexReader was null.");
-    return getThis();
-  }
-
-  /**
-   * Instruct the instance to pre-load (warmUp) caches after initialization.
-   *
-   * @return Self reference
-   */
-  public final T warmUp() {
-    this.doWarmUp = true;
-    return getThis();
-  }
-
-  /**
-   * Validates the settings for the {@link Persistence} storage.
-   *
-   * @throws ConfigurationException Thrown, if any mandatory configuration is
-   * not set
-   */
-  public final void validatePersistenceBuilder()
-      throws ConfigurationException {
-    if (this.dataPath == null) {
-      throw new ConfigurationException("No data-path set.");
-    }
-  }
-
   @Override
   public void validate()
       throws ConfigurationException {
@@ -376,14 +209,6 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
 
     if (this.idxReader instanceof DirectoryReader) {
       this.luceneDir = ((DirectoryReader) this.idxReader).directory();
-      try {
-        this.lastCommitGeneration = SegmentInfos.getLastCommitGeneration(this
-            .luceneDir);
-        this.persistenceBuilder.lastCommitGeneration(this.lastCommitGeneration);
-      } catch (final IOException e) {
-        throw new ConfigurationException("Filed to get Lucene segment " +
-            "information.", e);
-      }
     }
   }
 }
