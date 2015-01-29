@@ -53,6 +53,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
   /**
    * Features known.
    */
+  @SuppressWarnings("PublicInnerClass")
   public enum Feature {
     /**
      * Relative document frequency threshold for classifying common terms.

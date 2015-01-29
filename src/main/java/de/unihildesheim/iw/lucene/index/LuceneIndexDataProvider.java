@@ -29,7 +29,6 @@ import de.unihildesheim.iw.util.ByteArrayUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
-import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
@@ -45,11 +44,11 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.math.MathContext;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -104,10 +103,6 @@ public class LuceneIndexDataProvider
      */
     private final Bits liveDocs;
     /**
-     * Cached leaves of the current IndexReader.
-     */
-    private final List<AtomicReaderContext> leaves;
-    /**
      * Number of all documents in lucene index.
      */
     private final int maxDocs;
@@ -118,16 +113,13 @@ public class LuceneIndexDataProvider
     /**
      * Frequency of all terms in index (respects active fields).
      */
-    private long ttf = -1L;
+    @Nullable
+    private Long ttf;
     /**
      * Number of unique terms in index (respects active fields).
      */
-    private long uniqueTerms = -1L;
-    /**
-     * Frequency of all terms in index (respects active fields) as {@link
-     * BigDecimal value}.
-     */
-    private BigDecimal ttf_bd;
+    @Nullable
+    private Long uniqueTerms;
     /**
      * List of stopwords. Initially empty.
      */
@@ -135,7 +127,8 @@ public class LuceneIndexDataProvider
     /**
      * Number of documents visible (documents having the required fields).
      */
-    private int docCount = -1;
+    @Nullable
+    private Integer docCount;
     /**
      * List of document-id of visible documents.
      */
@@ -160,7 +153,6 @@ public class LuceneIndexDataProvider
 
       this.reader = r;
       this.liveDocs = MultiFields.getLiveDocs(this.reader);
-      this.leaves = this.reader.getContext().leaves();
       this.maxDocs = this.reader.maxDoc();
     }
 
@@ -170,11 +162,15 @@ public class LuceneIndexDataProvider
      * @return True, if value is available
      */
     boolean hasTtf() {
-      return !(this.ttf <= -1L);
+      return this.ttf != null;
     }
 
+    /**
+     * Check if document count is set.
+     * @return True, if set
+     */
     boolean hasDocCount() {
-      return !(this.docCount <= -1);
+      return this.docCount != null;
     }
 
     /**
@@ -200,6 +196,7 @@ public class LuceneIndexDataProvider
      *
      * @param sWords Stopwords list
      */
+    @SuppressWarnings("ObjectAllocationInLoop")
     void setStopwords(final Collection<String> sWords) {
       LOG.debug("Adding {} stopwords", sWords.size());
       this.stopwords = new HashSet<>(sWords.size());
@@ -228,7 +225,6 @@ public class LuceneIndexDataProvider
      */
     void setTtf(final long newTtf) {
       this.ttf = newTtf;
-      this.ttf_bd = BigDecimal.valueOf(this.ttf);
     }
   }
 
@@ -236,9 +232,16 @@ public class LuceneIndexDataProvider
    * Object wrapping Lucene index information.
    */
   private final LuceneIndex index;
-  private final Map<Feature, Object> options =
-      new EnumMap(Feature.class);
+  /**
+   * Feature configuration.
+   */
+  private final Map<Feature, Object> options = new EnumMap(Feature.class);
 
+  /**
+   * Create instance by using {@link Builder}.
+   * @param builder Builder
+   * @throws DataProviderException If multiple fields are requested
+   */
   public LuceneIndexDataProvider(final Builder builder)
       throws DataProviderException {
     if (builder.documentFields.size() > 1) {
@@ -300,7 +303,6 @@ public class LuceneIndexDataProvider
    * Check, if specific documents have TermVectors set for al  required fields.
    *
    * @param docIds Documents to check
-   * @return True, if TermVectors are provided, false otherwise
    * @throws DataProviderException Thrown on low-level I/O errors
    */
   private void checkForTermVectors(final Iterable<Integer> docIds)
@@ -356,7 +358,7 @@ public class LuceneIndexDataProvider
   private Tuple3<Long, Long, Set<BytesRef>> collectTermFrequencyValues()
       throws DataProviderException {
     long uniqueCount = 0L;
-    boolean skipCommonTerms = this.options.containsKey(
+    final boolean skipCommonTerms = this.options.containsKey(
         Feature.COMMON_TERM_THRESHOLD);
     double ctThreshold = 1d;
     final Set<BytesRef> newStopwords = new HashSet<>(1000);
@@ -381,6 +383,7 @@ public class LuceneIndexDataProvider
         if (skipCommonTerms) {
           // save term to add to stopwords list
           final BytesRef term = ttfIt.next();
+          // throws NPE, if docCount not set on initialization time (intended)
           if (((double) ttfIt.df() / (double) this.index.docCount) >
           ctThreshold) {
             newStopwords.add(term);
@@ -399,9 +402,8 @@ public class LuceneIndexDataProvider
   }
 
   @Override
-  public final long getTermFrequency()
-      throws DataProviderException {
-    // TODO: add multiple fields support
+  public final long getTermFrequency() {
+    // throws NPE, if not set on initialization time (intended)
     return this.index.ttf;
   }
 
@@ -463,6 +465,10 @@ public class LuceneIndexDataProvider
     }
   }
 
+  /**
+   * Get a collection of all documents (their ids) in the index.
+   * @return Collection of found documents (their ids)
+   */
   private Collection<Integer> getDocumentIdsCollection() {
     // TODO: maybe back by MapDB
     final Collection<Integer> docIds = new ArrayList(this.index.maxDocs);
@@ -470,7 +476,6 @@ public class LuceneIndexDataProvider
         this.index.fields);
 
     final IndexSearcher searcher = new IndexSearcher(this.index.reader);
-    QueryParser qp;
     final Analyzer analyzer = new StandardAnalyzer(LuceneDefaults.VERSION,
         CharArraySet.EMPTY_SET);
     Query query;
@@ -479,7 +484,9 @@ public class LuceneIndexDataProvider
     TopDocs matches;
 
     for (final String field : this.index.fields) {
-      qp = new QueryParser(LuceneDefaults.VERSION, field, analyzer);
+      @SuppressWarnings("ObjectAllocationInLoop")
+      final QueryParser qp = new QueryParser(
+          LuceneDefaults.VERSION, field, analyzer);
       qp.setAllowLeadingWildcard(true);
       try {
         query = qp.parse("*");
@@ -507,6 +514,7 @@ public class LuceneIndexDataProvider
   @Override
   public long getUniqueTermsCount()
       throws DataProviderException {
+    // // throws NPE, if not set on initialization time (intended)
     return this.index.uniqueTerms;
   }
 
@@ -519,7 +527,7 @@ public class LuceneIndexDataProvider
           .setTermFrequency(
               getDocumentTerms(docId, false)
           ).getModel();
-    } catch (IOException e) {
+    } catch (final IOException e) {
       throw new DataProviderException("Failed to retrieve terms.", e);
     }
   }
@@ -544,7 +552,7 @@ public class LuceneIndexDataProvider
     // TODO: add support for multiple fields
     final Terms terms = this.index.reader.getTermVector(
         docId, this.index.fields.get(0));
-    TermsEnum termsEnum = terms.iterator(TermsEnum.EMPTY);
+    final TermsEnum termsEnum = terms.iterator(TermsEnum.EMPTY);
     BytesRef term = termsEnum.next();
 
     while (term != null) {
@@ -583,6 +591,7 @@ public class LuceneIndexDataProvider
       throws DataProviderException {
     // FIXME: may be incorrect if there are more documents than max integer
     // value
+    // throws NPE, if not set on initialization time (intended)
     return (long) this.index.docCount;
   }
 
@@ -626,6 +635,9 @@ public class LuceneIndexDataProvider
      * Next term in the list of provided terms.
      */
     protected BytesRef nextTerm;
+    /**
+     * Indicate, if there are any stopwords to use.
+     */
     private final boolean useStopwords;
 
     /**
@@ -668,8 +680,8 @@ public class LuceneIndexDataProvider
   }
 
   /**
-   * Simple terms iterator converting {@BytesRef} objects to {@link ByteArray}
-   * on the fly.
+   * Simple terms iterator converting {@link BytesRef} objects to {@link
+   * ByteArray} on the fly.
    */
   @SuppressWarnings("PackageVisibleInnerClass")
   final class LuceneByteTermsIterator
@@ -743,6 +755,7 @@ public class LuceneIndexDataProvider
      * Get the next element in order.
      * @throws IOException Thrown on low-level I/O errors
      */
+    @Override
     protected void setNext()
         throws IOException {
       super.setNext();
@@ -753,7 +766,7 @@ public class LuceneIndexDataProvider
               this.docsEnum, DocsEnum.FLAG_NONE);
 
           for (final int docId : this.docIds) {
-            int doc = this.docsEnum.advance(docId);
+            final int doc = this.docsEnum.advance(docId);
             if (doc == DocsEnum.NO_MORE_DOCS) {
               break;
             }
@@ -771,7 +784,6 @@ public class LuceneIndexDataProvider
 
     @Override
     public ByteArray next() {
-      //this.term = this.nextTerm;
       if (this.nextTerm == null) {
         throw new NoSuchElementException();
       }
@@ -849,8 +861,8 @@ public class LuceneIndexDataProvider
      * @param flags Set optional values that should be retrieved for each term
      * @throws IOException Thrown on low-level I/O errors
      */
-    private LuceneTermsIterator(final String
-        field, final LuceneTermsIteratorRetrieveFlags[] flags)
+    private LuceneTermsIterator(final String field,
+        @Nullable final LuceneTermsIteratorRetrieveFlags[] flags)
         throws IOException {
       super(field);
 
@@ -863,17 +875,6 @@ public class LuceneIndexDataProvider
       }
 
       setNext();
-    }
-
-    /**
-     * Iterate through all terms of a given field.
-     *
-     * @param field Field to get terms from
-     * @throws IOException Thrown on low-level I/O errors
-     */
-    private LuceneTermsIterator(final String field)
-        throws IOException {
-      this(field, null);
     }
 
     /**
@@ -928,7 +929,7 @@ public class LuceneIndexDataProvider
     /**
      * Features supported by this {@link IndexDataProvider}.
      */
-    private static final Feature[] features = {
+    private static final Feature[] FEATURES = {
         Feature.COMMON_TERM_THRESHOLD
     };
 
@@ -936,8 +937,7 @@ public class LuceneIndexDataProvider
      * Constructor setting the implementation identifier for the cache.
      */
     public Builder() {
-      super();
-      setSupportedFeatures(features);
+      setSupportedFeatures(FEATURES);
     }
 
     @Override

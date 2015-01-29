@@ -79,6 +79,7 @@ public class CollectionMetrics {
    * Configuration object for metrics class. Defaults to cache most of the
    * values retrieved from the {@link IndexDataProvider}.
    */
+  @SuppressWarnings("PublicInnerClass")
   public static class CollectionMetricsConfiguration {
     /**
      * Should document frequency values be cached?
