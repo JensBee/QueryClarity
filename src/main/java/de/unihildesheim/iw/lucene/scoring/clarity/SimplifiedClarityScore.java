@@ -18,12 +18,12 @@ package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.GlobalConfiguration;
+import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
-import de.unihildesheim.iw.util.BigDecimalCache;
 import de.unihildesheim.iw.util.Configuration;
 import de.unihildesheim.iw.util.MathUtils.KlDivergence;
 import de.unihildesheim.iw.util.StringUtils;
@@ -61,7 +61,7 @@ public final class SimplifiedClarityScore
    */
   static final MathContext MATH_CONTEXT = new MathContext(
       GlobalConfiguration.conf().getString(
-          GlobalConfiguration.DefaultKeys.MATH_CONTEXT.toString()));
+          DefaultKeys.MATH_CONTEXT.toString()));
   /**
    * Logger instance for this class.
    */
@@ -113,7 +113,7 @@ public final class SimplifiedClarityScore
     final TimeMeasure timeMeasure = new TimeMeasure().start();
 
     // length of the query
-    int queryLength = 0;
+    long queryLength = 0L;
     for (final Integer count : queryTerms.values()) {
       queryLength += count;
     }
@@ -121,17 +121,13 @@ public final class SimplifiedClarityScore
     // calculate max likelihood of the query model for each term in the
     // query
     // iterate over all unique query terms
-    final Collection<Tuple2<BigDecimal, BigDecimal>> dataSet = new
-        ArrayList
-        (queryTerms.size());
-    for (final Entry<ByteArray, Integer> qTermEntry :
-        queryTerms.entrySet()) {
-      final BigDecimal pMl =
-          BigDecimalCache.get(qTermEntry.getValue())
-              .divide(BigDecimalCache.get((long) queryLength), MATH_CONTEXT);
-      dataSet.add(
-          Tuple.tuple2(pMl, this.dataProv.metrics().relTf(qTermEntry.getKey()
-          )));
+    final Collection<Tuple2<BigDecimal, BigDecimal>> dataSet =
+        new ArrayList(queryTerms.size());
+    for (final Entry<ByteArray, Integer> qTermEntry : queryTerms.entrySet()) {
+      dataSet.add(Tuple.tuple2(
+          BigDecimal.valueOf(qTermEntry.getValue())
+              .divide(BigDecimal.valueOf(queryLength), MATH_CONTEXT),
+          this.dataProv.metrics().relTf(qTermEntry.getKey())));
     }
 
     final double score;
