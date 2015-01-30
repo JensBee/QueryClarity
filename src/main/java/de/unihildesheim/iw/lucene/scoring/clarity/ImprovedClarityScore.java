@@ -16,7 +16,6 @@
  */
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
-import de.unihildesheim.iw.Buildable.BuildException;
 import de.unihildesheim.iw.Buildable.BuildableException;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.Closable;
@@ -334,19 +333,15 @@ public final class ImprovedClarityScore
     this.conf = builder.getConfiguration();
 
     // check config
-    try {
-      if (this.conf.getMinFeedbackDocumentsCount() >
-          this.dataProv.getDocumentCount()) {
-        throw new IllegalStateException(
-            "Required minimum number of feedback documents ("
-                + this.conf.getMinFeedbackDocumentsCount() + ") is larger "
-                + "or equal compared to the total amount of indexed documents "
-                + "(" + this.dataProv.getDocumentCount()
-                + "). Unable to provide feedback."
-        );
-      }
-    } catch (final DataProviderException e) {
-      throw new BuildException("Error while initializing.", e);
+    if (this.conf.getMinFeedbackDocumentsCount() >
+        this.dataProv.getDocumentCount()) {
+      throw new IllegalStateException(
+          "Required minimum number of feedback documents ("
+              + this.conf.getMinFeedbackDocumentsCount() + ") is larger "
+              + "or equal compared to the total amount of indexed documents "
+              + "(" + this.dataProv.getDocumentCount()
+              + "). Unable to provide feedback."
+      );
     }
     this.conf.debugDump();
 

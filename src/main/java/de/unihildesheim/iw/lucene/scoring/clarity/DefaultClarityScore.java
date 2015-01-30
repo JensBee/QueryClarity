@@ -31,16 +31,11 @@ import de.unihildesheim.iw.lucene.scoring.data.DefaultFeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.DefaultVocabularyProvider;
 import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
-import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.MathUtils.KlDivergence;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
-import de.unihildesheim.iw.util.concurrent.processing.Processing;
-import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
-import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall.TargetFunc;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
-import org.jetbrains.annotations.Nullable;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
@@ -119,7 +114,6 @@ public final class DefaultClarityScore
    * results of the calculations.
    */
   private final class Model
-      extends TargetFunc<ByteArray>
       implements Closable {
     /**
      * List of query terms issued.
@@ -207,15 +201,14 @@ public final class DefaultClarityScore
      * @param docModel Document data model
      * @param term Term to calculate the document model value for
      * @return Document model value
-     * @throws DataProviderException Forwarded from lower-level
      */
     final BigDecimal document(
-        final DocumentModel docModel, final ByteArray term)
-        throws DataProviderException {
+        final DocumentModel docModel, final ByteArray term) {
       return DefaultClarityScore.this.docLangModelWeight.multiply(
           BigDecimal.valueOf(docModel.relTf(term)), MATH_CONTEXT)
           .add(DefaultClarityScore.this.docLangModelWeight1Sub
-              .multiply(DefaultClarityScore.this.dataProv.metrics().relTf(term),
+              .multiply(
+                  DefaultClarityScore.this.dataProv.metrics().relTf(term),
                   MATH_CONTEXT), MATH_CONTEXT);
     }
 
@@ -224,12 +217,9 @@ public final class DefaultClarityScore
      *
      * @param term Term to calculate the query model value for
      * @return Query model value for all feedback documents
-     * @throws DataProviderException Forwarded from lower-level
      */
-    final BigDecimal query(final ByteArray term)
-        throws DataProviderException {
+    final BigDecimal query(final ByteArray term) {
       BigDecimal result = BigDecimal.ZERO;
-
       for (final Integer docId : this.feedbackDocs) {
         result = result.add(document(this.docModels.get(docId), term)
             .multiply(this.staticQueryModelParts.get(docId),
@@ -242,43 +232,6 @@ public final class DefaultClarityScore
     @Override
     public void close() {
       LOG.debug("Close runtime cache.");
-    }
-
-    Tuple2<BigDecimal, BigDecimal> calulateQModForFeedbackTerm(final
-        ByteArray term) {
-      try {
-        return Tuple.tuple2(query(term),
-                DefaultClarityScore.this.dataProv.metrics().relTf(term));
-      } catch (final DataProviderException e) {
-        LOG.error("Failed processing term. t={}",
-            ByteArrayUtils.utf8ToString(term));
-        throw new IllegalStateException("Error while processing term.");
-      }
-    }
-
-    void addDataSet(final Tuple2<BigDecimal, BigDecimal> t2) {
-      this.dataSets.put(
-          this.dataSetCounter.incrementAndGet(), t2);
-    }
-
-    /**
-     * {@link Processing} callback function to calculate the score portion
-     * for a given term using already calculated query models.
-     */
-    @Override
-    public void call(@Nullable final ByteArray term) {
-      if (term != null) {
-        try {
-          this.dataSets.put(
-              this.dataSetCounter.incrementAndGet(),
-              Tuple.tuple2(query(term),
-                  DefaultClarityScore.this.dataProv.metrics().relTf(term)));
-        } catch (final DataProviderException e) {
-          LOG.error("Failed processing term. t={}",
-              ByteArrayUtils.utf8ToString(term));
-          throw new IllegalStateException("Error while processing term.");
-        }
-      }
     }
   }
 
@@ -398,8 +351,6 @@ public final class DefaultClarityScore
    * @param queryTerms Query terms
    * @param feedbackDocIds Feedback document ids to use
    * @return Result of the calculation
-   * @throws ProcessingException Thrown if any of the threaded calculations
-   * encountered an error
    * @throws DataProviderException Thrown on low-level errors
    */
   private Result calculateClarity(
@@ -419,8 +370,11 @@ public final class DefaultClarityScore
     this.vocProvider
         .documentIds(feedbackDocIds)
         .getStream()
-        .map(model::calulateQModForFeedbackTerm)
-        .forEach(model::addDataSet);
+        .map(term ->
+            Tuple
+                .tuple2(model.query(term), this.dataProv.metrics().relTf(term)))
+        .forEach(t2 ->
+            model.dataSets.put(model.dataSetCounter.incrementAndGet(), t2));
 
     LOG.info("Calculating final score.");
     result.setScore(

@@ -128,7 +128,6 @@ public final class MathUtils {
             // scale value of t2.a & t2.b to [0,1]
             final BigDecimal aScaled = t2.a.divide(sums.a, MATH_CONTEXT);
             // r += (t2.a/sums.a) * log((t2.a/sums.a) / (t2.b/sums.b))
-
             return aScaled.multiply(
                 BigDecimalMath.log(
                     aScaled.divide(

@@ -311,8 +311,7 @@ public class LuceneIndexDataProvider
    * @param docIds Documents to check
    * @throws DataProviderException Thrown on low-level I/O errors
    */
-  private void checkForTermVectors(final Iterable<Integer> docIds)
-      throws DataProviderException {
+  private void checkForTermVectors(final Iterable<Integer> docIds) {
 
     boolean hasTermVectors = true;
 
@@ -345,7 +344,7 @@ public class LuceneIndexDataProvider
     }
     if (!hasTermVectors) {
       LOG.error("Document ids: {}", docIds);
-      throw new DataProviderException("TermVectors missing.");
+      throw new IllegalStateException("TermVectors missing.");
     }
   }
 
@@ -414,8 +413,7 @@ public class LuceneIndexDataProvider
   }
 
   @Override
-  public final Long getTermFrequency(final ByteArray term)
-      throws DataProviderException {
+  public final Long getTermFrequency(final ByteArray term) {
     // short circuit for stopwords
     if (this.index.isStopword(term)) {
       return 0L;
@@ -432,13 +430,12 @@ public class LuceneIndexDataProvider
         return 0L;
       }
     } catch (final IOException e) {
-      throw new DataProviderException("Failed to retrieve terms.", e);
+      throw new IllegalStateException("Error accessing Lucene index.", e);
     }
   }
 
   @Override
-  public int getDocumentFrequency(final ByteArray term)
-      throws DataProviderException {
+  public int getDocumentFrequency(final ByteArray term) {
 
     // TODO: add multiple fields support
     try {
@@ -449,7 +446,7 @@ public class LuceneIndexDataProvider
         return termsEnum.docFreq();
       }
     } catch (final IOException e) {
-      throw new DataProviderException("Failed to collect terms", e);
+      throw new IllegalStateException("Error accessing Lucene index.", e);
     }
 
     return 0;
@@ -461,13 +458,12 @@ public class LuceneIndexDataProvider
   }
 
   @Override
-  public Iterator<ByteArray> getTermsIterator()
-      throws DataProviderException {
+  public Iterator<ByteArray> getTermsIterator() {
     // TODO: add multiple fields support
     try {
       return new LuceneByteTermsIterator(this.index.fields.get(0));
     } catch (final IOException e) {
-      throw new DataProviderException("Failed to initialize Iterator.", e);
+      throw new IllegalStateException("Error accessing Lucene index.", e);
     }
   }
 
@@ -512,21 +508,18 @@ public class LuceneIndexDataProvider
   }
 
   @Override
-  public Iterator<Integer> getDocumentIds()
-      throws DataProviderException {
+  public Iterator<Integer> getDocumentIds() {
     return this.index.docIds.iterator();
   }
 
   @Override
-  public long getUniqueTermsCount()
-      throws DataProviderException {
+  public long getUniqueTermsCount() {
     // // throws NPE, if not set on initialization time (intended)
     return this.index.uniqueTerms;
   }
 
   @Override
-  public DocumentModel getDocumentModel(final int docId)
-      throws DataProviderException {
+  public DocumentModel getDocumentModel(final int docId) {
     checkForTermVectors(Collections.singleton(docId));
     try {
       return new DocumentModel.Builder(docId)
@@ -534,13 +527,12 @@ public class LuceneIndexDataProvider
               getDocumentTerms(docId, false)
           ).getModel();
     } catch (final IOException e) {
-      throw new DataProviderException("Failed to retrieve terms.", e);
+      throw new IllegalStateException("Error accessing Lucene index.", e);
     }
   }
 
   @Override
-  public boolean hasDocument(final int docId)
-      throws DataProviderException {
+  public boolean hasDocument(final int docId) {
     final Iterator<Integer> docIdIt = getDocumentIds();
     while (docIdIt.hasNext()) {
       if (docId == docIdIt.next()) {
@@ -683,32 +675,29 @@ public class LuceneIndexDataProvider
 
   @Override
   public Stream<ByteArray> getDocumentsTermsStream(
-      final Collection<Integer> docIds)
-      throws DataProviderException {
+      final Collection<Integer> docIds) {
     // TODO: add support for multiple fields
     try {
       return StreamSupport.stream(new LuceneDocTermsSpliterator(
           this.index.fields.get(0), docIds), true);
     } catch (final IOException e) {
-      throw new DataProviderException("Failed creating terms stream.", e);
+      throw new IllegalStateException("Error accessing Lucene index.", e);
     }
   }
 
   @Override
   public Iterator<ByteArray> getDocumentsTermsSet(
-      final Collection<Integer> docIds)
-      throws DataProviderException {
+      final Collection<Integer> docIds) {
     // TODO: add support for multiple fields
     try {
       return new LuceneDocTermsIterator(this.index.fields.get(0), docIds);
     } catch (final IOException e) {
-      throw new DataProviderException("Failed to collect terms.", e);
+      throw new IllegalStateException("Error accessing Lucene index.", e);
     }
   }
 
   @Override
-  public long getDocumentCount()
-      throws DataProviderException {
+  public long getDocumentCount() {
     // FIXME: may be incorrect if there are more documents than max integer
     // value
     // throws NPE, if not set on initialization time (intended)
@@ -716,14 +705,12 @@ public class LuceneIndexDataProvider
   }
 
   @Override
-  public Set<String> getDocumentFields()
-      throws DataProviderException {
+  public Set<String> getDocumentFields() {
     return new HashSet<>(this.index.fields);
   }
 
   @Override
-  public Set<String> getStopwords()
-      throws DataProviderException {
+  public Set<String> getStopwords() {
     final Set<String> words = new HashSet<>(this.index.stopwords.size());
     for (final ByteArray ba : this.index.stopwords) {
       words.add(ByteArrayUtils.utf8ToString(ba));

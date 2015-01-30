@@ -41,8 +41,7 @@ public interface IndexDataProvider
    *
    * @return The frequency of all terms in the index
    */
-  long getTermFrequency()
-      throws DataProviderException;
+  long getTermFrequency();
 
   /**
    * Get the term frequency of a single term in the index.
@@ -51,8 +50,7 @@ public interface IndexDataProvider
    * @return The frequency of the term in the index, or <tt>null</tt> if none
    * was stored
    */
-  Long getTermFrequency(final ByteArray term)
-      throws DataProviderException;
+  Long getTermFrequency(final ByteArray term);
 
   /**
    * Get the document frequency of a single term in the index.
@@ -60,8 +58,7 @@ public interface IndexDataProvider
    * @param term Term to lookup
    * @return The frequency of the term in the index
    */
-  int getDocumentFrequency(final ByteArray term)
-      throws DataProviderException;
+  int getDocumentFrequency(final ByteArray term);
 
   /**
    * Close this instance. This is meant for handling cleanups after using this
@@ -76,16 +73,14 @@ public interface IndexDataProvider
    * @return Unique terms iterator
    * @throws DataProviderException Thrown in case of errors
    */
-  Iterator<ByteArray> getTermsIterator()
-      throws DataProviderException;
+  Iterator<ByteArray> getTermsIterator();
 
   /**
    * Get an iterator over all known document-ids.
    *
    * @return Iterator over document-ids
    */
-  Iterator<Integer> getDocumentIds()
-      throws DataProviderException;
+  Iterator<Integer> getDocumentIds();
 
   /**
    * Get the number of unique terms in the index.
@@ -93,8 +88,7 @@ public interface IndexDataProvider
    * @return Number of unique terms in the index
    * @throws DataProviderException Thrown in case of errors
    */
-  long getUniqueTermsCount()
-      throws DataProviderException;
+  long getUniqueTermsCount();
 
   /**
    * Get a {@link DocumentModel} instance for the document with the given id.
@@ -102,8 +96,7 @@ public interface IndexDataProvider
    * @param docId Lucene document-id
    * @return Document-model associated with the given Lucene document-id
    */
-  DocumentModel getDocumentModel(final int docId)
-      throws DataProviderException;
+  DocumentModel getDocumentModel(final int docId);
 
   /**
    * Test if a document (model) for the specific document-id is known.
@@ -111,8 +104,7 @@ public interface IndexDataProvider
    * @param docId Document-id to lookup
    * @return True if a model is known, false otherwise
    */
-  boolean hasDocument(final int docId)
-      throws DataProviderException;
+  boolean hasDocument(final int docId);
 
   /**
    * Get a set of terms for all documents identified by their id.
@@ -121,35 +113,30 @@ public interface IndexDataProvider
    * @return Set of terms from all documents
    * @throws IOException Thrown on low-level I/O errors
    */
-  Iterator<ByteArray> getDocumentsTermsSet(final Collection<Integer> docIds)
-      throws DataProviderException;
+  Iterator<ByteArray> getDocumentsTermsSet(final Collection<Integer> docIds);
 
-  Stream<ByteArray> getDocumentsTermsStream(final Collection<Integer> docIds)
-      throws DataProviderException;
+  Stream<ByteArray> getDocumentsTermsStream(final Collection<Integer> docIds);
 
   /**
    * Get the number of all Documents (models) known to this instance.
    *
    * @return Number of Documents known
    */
-  long getDocumentCount()
-      throws DataProviderException;
+  long getDocumentCount();
 
   /**
    * Get the list of currently visible document fields.
    *
    * @return List of document field names
    */
-  Set<String> getDocumentFields()
-      throws DataProviderException;
+  Set<String> getDocumentFields();
 
   /**
    * Get the list of stopwords currently in use.
    *
    * @return List of words to exclude
    */
-  Set<String> getStopwords()
-      throws DataProviderException;
+  Set<String> getStopwords();
 
   /**
    * Get a collection metrics instance providing derived index information.

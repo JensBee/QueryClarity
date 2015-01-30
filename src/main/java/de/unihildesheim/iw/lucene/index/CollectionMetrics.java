@@ -229,8 +229,7 @@ public class CollectionMetrics {
    * @return Collection frequency of the given term
    * @throws DataProviderException Forwarded from lower-level
    */
-  public Long tf(final ByteArray term)
-      throws DataProviderException {
+  public Long tf(final ByteArray term) {
     if (this.conf.cacheTf) {
       Long result = this.c_tf.get(term);
       if (result == null) {
@@ -266,8 +265,7 @@ public class CollectionMetrics {
    * @return Relative collection frequency of the given term
    * @throws DataProviderException Forwarded from lower-level
    */
-  public BigDecimal relTf(final ByteArray term)
-      throws DataProviderException {
+  public BigDecimal relTf(final ByteArray term) {
     BigDecimal result = this.c_rtf.get(term);
     if (result == null) {
       final long tf = tf(term);
