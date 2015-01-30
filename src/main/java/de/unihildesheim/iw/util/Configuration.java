@@ -17,7 +17,8 @@
 package de.unihildesheim.iw.util;
 
 import de.unihildesheim.iw.Tuple;
-import org.mapdb.Fun;
+import de.unihildesheim.iw.Tuple.Tuple2;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -142,7 +143,7 @@ public class Configuration {
    * was none
    */
   public final String getString(final String key,
-      final String defaultValue) {
+      @Nullable final String defaultValue) {
     if (StringUtils.isStrippedEmpty(
         Objects.requireNonNull(key, "Key was null."))) {
       throw new IllegalArgumentException("Key was empty.");
@@ -255,7 +256,7 @@ public class Configuration {
    * was none or there was an error interpreting the value as integer
    */
   public final Integer getInteger(final String key,
-      final Integer defaultValue) {
+      @Nullable final Integer defaultValue) {
     final String value = getString(key);
     if (value == null) {
       return defaultValue;
@@ -322,7 +323,7 @@ public class Configuration {
    * was none or there was an error interpreting the value as double
    */
   public final Double getDouble(final String key,
-      final Double defaultValue) {
+      @Nullable final Double defaultValue) {
     final String value = getString(key);
     if (value == null) {
       return defaultValue;
@@ -392,11 +393,11 @@ public class Configuration {
   /**
    * Creates a list of the current configuration.
    *
-   * @return Configuration values list as key, value {@link Fun.Tuple2 tuple}
+   * @return Configuration values list as key, value {@link Tuple2 tuple}
    * pairs
    */
-  public final List<Tuple.Tuple2<String, String>> entryList() {
-    final List<Tuple.Tuple2<String, String>> entries = new ArrayList<>(
+  public final List<Tuple2<String, String>> entryList() {
+    final List<Tuple2<String, String>> entries = new ArrayList<>(
         this.data.size());
     for (final Entry<Object, Object> e : this.data.entrySet()) {
       entries.add(Tuple.tuple2(e.getKey().toString(), e.getValue().toString()));

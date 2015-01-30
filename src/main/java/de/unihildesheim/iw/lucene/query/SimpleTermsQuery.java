@@ -26,6 +26,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.queryparser.classic.QueryParser.Operator;
 import org.apache.lucene.queryparser.flexible.standard.QueryParserUtil;
 import org.apache.lucene.search.Query;
 import org.slf4j.Logger;
@@ -50,8 +51,8 @@ public final class SimpleTermsQuery
   /**
    * Default boolean operator to use for concatenating terms.
    */
-  public static final QueryParser.Operator DEFAULT_OPERATOR
-      = QueryParser.Operator.OR;
+  public static final Operator DEFAULT_OPERATOR
+      = Operator.OR;
 
   /**
    * Logger instance for this class.
@@ -75,7 +76,7 @@ public final class SimpleTermsQuery
    * @param builder Builder
    * @throws ParseException Thrown if there were errors parsing the query
    * string
-   * @see #SimpleTermsQuery(Analyzer, String, QueryParser.Operator, Set)
+   * @see #SimpleTermsQuery(Analyzer, String, Operator, Set)
    */
   SimpleTermsQuery(final Builder builder)
       throws ParseException, DataProviderException {
@@ -96,7 +97,7 @@ public final class SimpleTermsQuery
    * string
    */
   public SimpleTermsQuery(final Analyzer analyzer, final String query,
-      final QueryParser.Operator operator, final Set<String> fields)
+      final Operator operator, final Set<String> fields)
       throws ParseException, DataProviderException {
     Objects.requireNonNull(analyzer, "Analyzer was null.");
     Objects.requireNonNull(operator, "Operator was null.");
@@ -223,7 +224,7 @@ public final class SimpleTermsQuery
     /**
      * Boolean operator to use for joining query terms.
      */
-    private QueryParser.Operator operator = DEFAULT_OPERATOR;
+    private Operator operator = DEFAULT_OPERATOR;
 
     /**
      * Set the boolean operator to combine single terms.
@@ -232,7 +233,7 @@ public final class SimpleTermsQuery
      * @return Self reference
      */
     public Builder boolOperator(
-        final QueryParser.Operator newOperator) {
+        final Operator newOperator) {
       this.operator = Objects.requireNonNull(newOperator, "Operator was null.");
       return this;
     }
@@ -290,7 +291,7 @@ public final class SimpleTermsQuery
      *
      * @return Boolean operator
      */
-    public QueryParser.Operator getOperator() {
+    public Operator getOperator() {
       return this.operator;
     }
 

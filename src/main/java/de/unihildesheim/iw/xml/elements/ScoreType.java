@@ -18,6 +18,7 @@
 package de.unihildesheim.iw.xml.elements;
 
 import de.unihildesheim.iw.xml.adapters.MapAdapter;
+import de.unihildesheim.iw.xml.adapters.MapAdapter.StringValue;
 
 import javax.xml.bind.annotation.XmlAttribute;
 import javax.xml.bind.annotation.XmlElement;
@@ -49,7 +50,7 @@ public final class ScoreType {
    */
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
   @XmlElement(name = "conf")
-  @XmlJavaTypeAdapter(MapAdapter.StringValue.class)
+  @XmlJavaTypeAdapter(StringValue.class)
   public Map<String, String> getConfiguration() {
     return this.confMap;
   }

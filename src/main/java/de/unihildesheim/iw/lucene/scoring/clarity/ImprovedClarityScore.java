@@ -47,6 +47,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 /**
  * Improved Clarity Score implementation as described by Hauff, Murdock,
@@ -167,11 +168,9 @@ public final class ImprovedClarityScore
 
       // add query terms, skip those not in index
       this.queryTerms = new ArrayList<>(qt.size());
-      for (final ByteArray queryTerm : qt) {
-        if (ImprovedClarityScore.this.dataProv.metrics().tf(queryTerm) > 0L) {
-          this.queryTerms.add(queryTerm);
-        }
-      }
+      this.queryTerms.addAll(qt.stream().filter(queryTerm ->
+          ImprovedClarityScore.this.dataProv.metrics().tf(queryTerm) > 0L)
+          .collect(Collectors.toList()));
 
       // add feedback documents
       this.feedbackDocs = new ArrayList<>(fb.size());

@@ -17,7 +17,10 @@
 
 package de.unihildesheim.iw.xml.adapters;
 
-import de.unihildesheim.iw.Tuple;
+import de.unihildesheim.iw.Tuple.Tuple2;
+import de.unihildesheim.iw.xml.adapters.Entries.StringValueEntry;
+import de.unihildesheim.iw.xml.adapters.Entries.Tuple2ListEntry;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,6 +28,7 @@ import javax.xml.bind.annotation.adapters.XmlAdapter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 /**
  * @author Jens Bertram
@@ -41,21 +45,22 @@ public final class MapAdapter {
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class Tuple2ListValue
-      extends XmlAdapter<Entries.Tuple2ListEntry[], Map<String,
-      List<Tuple.Tuple2<String, String>>>> {
+      extends XmlAdapter<Tuple2ListEntry[], Map<String,
+      List<Tuple2<String, String>>>> {
 
+    @Nullable
     @SuppressWarnings("ReturnOfNull")
     @Override
-    public final Map<String, List<Tuple.Tuple2<String, String>>> unmarshal(
-        final Entries.Tuple2ListEntry[] value)
+    public final Map<String, List<Tuple2<String, String>>> unmarshal(
+        final Tuple2ListEntry[] value)
         throws Exception {
       if (null == value) {
         return null;
       }
       LOG.debug("Tuple2ListValue unmarshal {} entries.", value.length);
-      final Map<String, List<Tuple.Tuple2<String, String>>> retMap =
+      final Map<String, List<Tuple2<String, String>>> retMap =
           new HashMap<>(value.length);
-      for (final Entries.Tuple2ListEntry t2Val : value) {
+      for (final Tuple2ListEntry t2Val : value) {
         retMap.put(t2Val.key, t2Val.getEntries());
       }
       return retMap;
@@ -63,17 +68,17 @@ public final class MapAdapter {
 
     @SuppressWarnings("ObjectAllocationInLoop")
     @Override
-    public final Entries.Tuple2ListEntry[] marshal(
-        final Map<String, List<Tuple.Tuple2<String, String>>> value)
+    public final Tuple2ListEntry[] marshal(
+        final Map<String, List<Tuple2<String, String>>> value)
         throws Exception {
-      final Entries.Tuple2ListEntry[] mapElements =
-          new Entries.Tuple2ListEntry[value.size()];
+      final Tuple2ListEntry[] mapElements =
+          new Tuple2ListEntry[value.size()];
 
       int i = 0;
-      for (final Map.Entry<String, List<Tuple.Tuple2<String,
+      for (final Entry<String, List<Tuple2<String,
           String>>> t2Val : value.entrySet()) {
         mapElements[i++] =
-            new Entries.Tuple2ListEntry(t2Val.getKey(), t2Val.getValue());
+            new Tuple2ListEntry(t2Val.getKey(), t2Val.getValue());
       }
       return mapElements;
     }
@@ -84,19 +89,20 @@ public final class MapAdapter {
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class StringValue
-      extends XmlAdapter<Entries.StringValueEntry[], Map<String, String>> {
+      extends XmlAdapter<StringValueEntry[], Map<String, String>> {
 
+    @Nullable
     @SuppressWarnings("ReturnOfNull")
     @Override
     public final Map<String, String> unmarshal(
-        final Entries.StringValueEntry[] value)
+        final StringValueEntry[] value)
         throws Exception {
       if (null == value) {
         return null;
       }
       LOG.debug("StringValue unmarshal {} entries.", value.length);
       final Map<String, String> retMap = new HashMap<>(value.length);
-      for (final Entries.StringValueEntry sVal : value) {
+      for (final StringValueEntry sVal : value) {
         retMap.put(sVal.key, sVal.value);
       }
       return retMap;
@@ -104,16 +110,16 @@ public final class MapAdapter {
 
     @SuppressWarnings("ObjectAllocationInLoop")
     @Override
-    public final Entries.StringValueEntry[] marshal(
+    public final StringValueEntry[] marshal(
         final Map<String, String> value)
         throws Exception {
-      final Entries.StringValueEntry[] mapElements =
-          new Entries.StringValueEntry[value.size()];
+      final StringValueEntry[] mapElements =
+          new StringValueEntry[value.size()];
 
       int i = 0;
-      for (final Map.Entry<String, String> sVal : value.entrySet()) {
+      for (final Entry<String, String> sVal : value.entrySet()) {
         mapElements[i++] =
-            new Entries.StringValueEntry(sVal.getKey(), sVal.getValue());
+            new StringValueEntry(sVal.getKey(), sVal.getValue());
       }
       return mapElements;
     }

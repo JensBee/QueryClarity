@@ -17,6 +17,8 @@
 
 package de.unihildesheim.iw.util.concurrent;
 
+import org.jetbrains.annotations.Nullable;
+
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.util.concurrent.atomic.AtomicReference;
@@ -138,7 +140,8 @@ public class AtomicBigDecimal
     return getAndAdd(delta, null);
   }
 
-  public BigDecimal getAndAdd(final BigDecimal delta, final MathContext mc) {
+  public BigDecimal getAndAdd(
+      final BigDecimal delta, @Nullable final MathContext mc) {
     while (true) {
       final BigDecimal origVal = get();
       final BigDecimal newVal;
@@ -163,7 +166,8 @@ public class AtomicBigDecimal
     return addAndGet(delta, null);
   }
 
-  public BigDecimal addAndGet(final BigDecimal delta, MathContext mc) {
+  public BigDecimal addAndGet(
+      final BigDecimal delta, @Nullable final MathContext mc) {
     while (true) {
       final BigDecimal origVal = get();
       final BigDecimal newVal;

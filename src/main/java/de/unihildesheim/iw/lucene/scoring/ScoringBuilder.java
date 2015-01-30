@@ -18,7 +18,9 @@
 package de.unihildesheim.iw.lucene.scoring;
 
 import de.unihildesheim.iw.Buildable;
+import de.unihildesheim.iw.Buildable.ConfigurationException;
 import de.unihildesheim.iw.Persistence;
+import de.unihildesheim.iw.Persistence.Builder;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
@@ -194,7 +196,7 @@ public interface ScoringBuilder<T extends ScoringBuilder,
    *
    * @return Cache builder instance
    */
-  Persistence.Builder getCache();
+  Builder getCache();
 
   /**
    * Set the provider for feedback documents.
@@ -321,7 +323,7 @@ public interface ScoringBuilder<T extends ScoringBuilder,
     /**
      * Builder for persistent caches.
      */
-    private volatile Persistence.Builder persistenceBuilder;
+    private volatile Builder persistenceBuilder;
     /**
      * Name of the cache to create.
      */
@@ -426,9 +428,9 @@ public interface ScoringBuilder<T extends ScoringBuilder,
      *
      * @return Bulder interface for persistent storage provider
      */
-    private Persistence.Builder getPBuilder() {
+    private Builder getPBuilder() {
       if (this.persistenceBuilder == null) {
-        this.persistenceBuilder = new Persistence.Builder();
+        this.persistenceBuilder = new Builder();
       }
       return this.persistenceBuilder;
     }
@@ -446,6 +448,7 @@ public interface ScoringBuilder<T extends ScoringBuilder,
       return this.cacheName;
     }
 
+    @Nullable
     @Override
     public CacheInstruction getCacheInstruction() {
       if (this.persistenceBuilder == null) {
@@ -507,7 +510,7 @@ public interface ScoringBuilder<T extends ScoringBuilder,
     }
 
     @Override
-    public Persistence.Builder getCache() {
+    public Builder getCache() {
       return this.persistenceBuilder;
     }
 
@@ -551,71 +554,71 @@ public interface ScoringBuilder<T extends ScoringBuilder,
      *
      * @param sb ScoringBuilder implementation instance
      * @param features Features to check
-     * @throws Buildable.ConfigurationException Thrown, if any value of the
+     * @throws ConfigurationException Thrown, if any value of the
      * provided {@link Feature}s evaluates to {@code null}.
      */
     public Validator(final ScoringBuilder sb,
         final Feature[] features)
-        throws Buildable.ConfigurationException {
+        throws ConfigurationException {
 
       if (sb.getIdentifier() == null) {
-        throw new Buildable.ConfigurationException("No identifier set.");
+        throw new ConfigurationException("No identifier set.");
       }
 
       for (final Feature f : features) {
         switch (f) {
           case ANALYZER:
             if (sb.getAnalyzer() == null) {
-              throw new Buildable.ConfigurationException("No analyzer set.");
+              throw new ConfigurationException("No analyzer set.");
             }
             break;
           case CACHE:
             if (sb.getCacheName() == null) {
-              throw new Buildable.ConfigurationException(
+              throw new ConfigurationException(
                   "No cache name set.");
             }
             if (sb.getCacheInstruction() == null) {
-              throw new Buildable.ConfigurationException(
+              throw new ConfigurationException(
                   "No cache instruction set.");
             }
             if (sb.getCache() == null) {
-              throw new Buildable.ConfigurationException(
+              throw new ConfigurationException(
                   "No cache builder set.");
             }
             break;
           case CONFIGURATION:
             if (sb.getConfiguration() == null) {
-              throw new Buildable.ConfigurationException(
+              throw new ConfigurationException(
                   "No configuration set.");
             }
             break;
           case DATA_PATH:
             if (sb.getDataPath() == null) {
-              throw new Buildable.ConfigurationException(
+              throw new ConfigurationException(
                   "No data path set.");
             }
             break;
           case DATA_PROVIDER:
             if (sb.getIndexDataProvider() == null) {
-              throw new Buildable.ConfigurationException(
+              throw new ConfigurationException(
                   "No indexDataProvider set.");
             }
             break;
           case FB_PROVIDER:
             if (sb.getFeedbackProvider() == null) {
-              throw new Buildable.ConfigurationException(
+              throw new ConfigurationException(
                   "No feedbackProvider set.");
             }
             break;
           case INDEX_READER:
             if (sb.getIndexReader() == null) {
-              throw new Buildable.ConfigurationException(
+              throw new ConfigurationException(
                   "No indexReader set.");
             }
             break;
           case VOC_PROVIDER:
             if (sb.getVocabularyProvider() == null) {
-              throw new Buildable.ConfigurationException(
+              throw new ConfigurationException(
                   "No vocabularyProvider set.");
             }
             break;

@@ -48,7 +48,7 @@ public abstract class AbstractFeedbackProvider<T extends FeedbackProvider>
   /**
    * True, if a fixed amount of documents should be tried to retrieve.
    */
-  protected boolean useFixedAmount = false;
+  protected boolean useFixedAmount;
 
   /**
    * Reader to access the index.

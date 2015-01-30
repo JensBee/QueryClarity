@@ -23,6 +23,7 @@ import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.util.Version;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -57,7 +58,7 @@ public final class LanguageBasedAnalyzers {
    * @param lang Language code (two-char)
    * @return Language instance
    */
-  @SuppressWarnings("ReturnOfNull")
+  @Nullable
   public static LanguageAnalyzers getLanguage(final String lang) {
     if (hasAnalyzer(lang)) {
       return LanguageAnalyzers.valueOf(StringUtils.upperCase(lang));
@@ -112,13 +113,13 @@ public final class LanguageBasedAnalyzers {
    * @param lang Language code (two-char)
    * @param dataProv Provider with stopwords
    * @return New Analyzer instance
+   * @throws DataProviderException
    */
-  @SuppressWarnings("AssignmentToNull")
   public static Analyzer createInstance(
       final LanguageAnalyzers lang,
       final IndexDataProvider dataProv)
       throws DataProviderException {
-    final Analyzer analyzer;
+    @Nullable final Analyzer analyzer;
     switch (Objects.requireNonNull(lang, "Language was null.")) {
       case DE:
         analyzer = new GermanAnalyzer(dataProv);

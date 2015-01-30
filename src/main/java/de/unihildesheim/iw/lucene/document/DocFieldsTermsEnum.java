@@ -21,6 +21,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -104,7 +105,8 @@ public final class DocFieldsTermsEnum {
    * @throws java.io.IOException Thrown on low-level I/O errors
    */
   private DocFieldsTermsEnum(final IndexReader indexReader,
-      final Collection<String> targetFields, final Integer documentId)
+      final Collection<String> targetFields,
+      @Nullable final Integer documentId)
       throws IOException {
     Objects.requireNonNull(indexReader, "IndexReader was null.");
     if (Objects.requireNonNull(targetFields, "TargetFields were null").isEmpty
@@ -156,6 +158,7 @@ public final class DocFieldsTermsEnum {
    * the all field iterators is reached
    * @throws IOException If there is a low-level I/O error
    */
+  @Nullable
   public BytesRef next()
       throws IOException {
     Objects.requireNonNull(this.docId, "No document-id was specified.");
@@ -202,11 +205,11 @@ public final class DocFieldsTermsEnum {
    * values
    * @throws IOException If there is a low-level I/O error
    */
-  @SuppressWarnings("AssignmentToNull")
+  @Nullable
   private BytesRef getNextValue()
       throws IOException {
     // try to get an iterator which has a value
-    BytesRef nextValue;
+    @Nullable BytesRef nextValue;
     if (this.hasEnum) {
       nextValue = this.currentEnum.next();
     } else {

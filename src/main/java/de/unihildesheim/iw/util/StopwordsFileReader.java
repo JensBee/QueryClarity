@@ -17,6 +17,8 @@
 
 package de.unihildesheim.iw.util;
 
+import org.jetbrains.annotations.Nullable;
+
 import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -96,7 +98,7 @@ public final class StopwordsFileReader {
    * @param format String naming the format
    * @return Format or null, if none is matching
    */
-  @SuppressWarnings("ReturnOfNull")
+  @Nullable
   public static Format getFormatFromString(final String format) {
     if (StringUtils.isStrippedEmpty(
         Objects.requireNonNull(format, "Format was null."))) {

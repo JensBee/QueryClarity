@@ -18,6 +18,7 @@ package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.Tuple;
+import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.lucene.scoring.ScoringResult;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.StringUtils;
@@ -28,7 +29,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Wrapper class enclosing the results of a clarity score calculation.
@@ -49,7 +52,7 @@ public abstract class ClarityScoreResult
   /**
    * Collect messages to include in result XML.
    */
-  private final List<Tuple.Tuple2<String, String>> messages = new
+  private final List<Tuple2<String, String>> messages = new
       ArrayList<>(10);
   /**
    * Query terms used for calculation.
@@ -147,7 +150,7 @@ public abstract class ClarityScoreResult
   final void setQueryTerms(final Map<ByteArray, Integer> qTerms) {
     Objects.requireNonNull(qTerms);
     this.queryTerms = new ArrayList<>(qTerms.size());
-    for (final Map.Entry<ByteArray, Integer> te : qTerms.entrySet()) {
+    for (final Entry<ByteArray, Integer> te : qTerms.entrySet()) {
       for (int i = 1; i <= te.getValue(); i++) {
         this.queryTerms.add(te.getKey());
       }
@@ -190,9 +193,8 @@ public abstract class ClarityScoreResult
     if (!this.queryTerms.isEmpty()) {
       final Collection<String> termStr = new ArrayList<>(
           this.queryTerms.size());
-      for (final ByteArray term : this.queryTerms) {
-        termStr.add(ByteArrayUtils.utf8ToString(term));
-      }
+      termStr.addAll(this.queryTerms.stream().map(ByteArrayUtils::utf8ToString)
+          .collect(Collectors.toList()));
       xml.getItems().put("queryTerms", StringUtils.join(termStr, " "));
     }
 

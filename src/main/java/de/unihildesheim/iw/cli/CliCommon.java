@@ -42,8 +42,7 @@ public final class CliCommon {
   /**
    * Tries to load a list of stopwords.
    * @param lang Language to load stopwords for. Uses a two-char language code.
-   * @param format Stopword file format as specified in {@link
-   * StopwordsFileReader.Format}
+   * @param format Stopword file format as specified in {@link Format}
    * @param pattern File name pattern. Gets suffixated by '_[lang].txt'
    * @return Set of stopwords as strings
    * @throws IOException Thrown, if loading the file fails

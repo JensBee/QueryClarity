@@ -18,6 +18,9 @@
 package de.unihildesheim.iw.xml.adapters;
 
 import de.unihildesheim.iw.Tuple;
+import de.unihildesheim.iw.Tuple.Tuple2;
+import de.unihildesheim.iw.xml.adapters.Entries.StringValueEntry;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,22 +42,23 @@ final class ListAdapter {
   @SuppressWarnings("PublicInnerClass")
   public static final class Tuple2ListValue
       extends
-      XmlAdapter<Entries.StringValueEntry[], List<Tuple.Tuple2<String,
+      XmlAdapter<StringValueEntry[], List<Tuple2<String,
           String>>> {
 
+    @Nullable
     @SuppressWarnings("ReturnOfNull")
     @Override
-    public final List<Tuple.Tuple2<String, String>> unmarshal(
-        final Entries.StringValueEntry[] value)
+    public final List<Tuple2<String, String>> unmarshal(
+        final StringValueEntry[] value)
         throws Exception {
       if (null == value) {
         return null;
       }
       LOG.debug("Tuple2ListValue unmarshal {} entries.",
           value.length);
-      final List<Tuple.Tuple2<String, String>> retList =
+      final List<Tuple2<String, String>> retList =
           new ArrayList<>(value.length);
-      for (final Entries.StringValueEntry sVal : value) {
+      for (final StringValueEntry sVal : value) {
         retList.add(Tuple.tuple2(sVal.key, sVal.value));
       }
       return retList;
@@ -62,16 +66,16 @@ final class ListAdapter {
 
     @SuppressWarnings("ObjectAllocationInLoop")
     @Override
-    public final Entries.StringValueEntry[] marshal(
-        final List<Tuple.Tuple2<String, String>> value)
+    public final StringValueEntry[] marshal(
+        final List<Tuple2<String, String>> value)
         throws Exception {
-      final Entries.StringValueEntry[] listElements =
-          new Entries.StringValueEntry[value.size()];
+      final StringValueEntry[] listElements =
+          new StringValueEntry[value.size()];
 
       int i = 0;
-      for (final Tuple.Tuple2<String, String> t2Val : value) {
+      for (final Tuple2<String, String> t2Val : value) {
         listElements[i++] =
-            new Entries.StringValueEntry(t2Val.a, t2Val.b);
+            new StringValueEntry(t2Val.a, t2Val.b);
       }
       return listElements;
     }

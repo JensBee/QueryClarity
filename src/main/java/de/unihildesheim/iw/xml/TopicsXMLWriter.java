@@ -61,7 +61,7 @@ public class TopicsXMLWriter
   public void writeResults(final File out, final boolean strip)
       throws JAXBException {
     if (strip) {
-      Iterator<PassagesGroup> passageGroupIt = getTopicPassages()
+      final Iterator<PassagesGroup> passageGroupIt = getTopicPassages()
           .getPassageGroups().iterator();
       while (passageGroupIt.hasNext()) {
         final PassagesGroup pg = passageGroupIt.next();

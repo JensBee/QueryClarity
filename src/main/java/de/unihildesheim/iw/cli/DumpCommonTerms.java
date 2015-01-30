@@ -18,7 +18,6 @@
 package de.unihildesheim.iw.cli;
 
 import au.com.bytecode.opencsv.CSVWriter;
-import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.Buildable.BuildException;
 import de.unihildesheim.iw.Buildable.ConfigurationException;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
@@ -91,12 +90,9 @@ public class DumpCommonTerms
    *
    * @param args Commandline arguments.
    * @throws IOException
-   * @throws Buildable.BuildException
-   * @throws Buildable.ConfigurationException
    */
   private void runMain(final String[] args)
-      throws IOException, ConfigurationException, BuildException,
-             DataProviderException {
+      throws IOException {
     new CmdLineParser(this.cliParams);
     parseWithHelp(this.cliParams, args);
 
@@ -134,7 +130,7 @@ public class DumpCommonTerms
           final String termStr = term.utf8ToString();
           if (!sWords.contains(termStr.toLowerCase())) {
             final double docFreq = (double) termsEnum.docFreq();
-            if (docFreq > 0) {
+            if (docFreq > 0d) {
               final double relDocFreq = docFreq / (double) maxDoc;
 
               if (relDocFreq > this.cliParams.threshold) {
@@ -206,9 +202,9 @@ public class DumpCommonTerms
      * Stopwords file format.
      */
     @SuppressWarnings({"PackageVisibleField", "FieldMayBeStatic"})
-    @Option(name = "-stop-format", metaVar = "(plain|snowball)",
-        required = false, depends = {"-stop"},
-        usage = "Format of the stopwords file. 'plain' for a simple list of " +
+    @Option(name = "-stop-format", metaVar = "(plain|snowball)", required =
+        false, depends = "-stop", usage =
+        "Format of the stopwords file. 'plain' for a simple list of " +
             "each stopword per line. 'snowball' for a list of words and " +
             "comments starting with '|'. Defaults to 'plain'.")
     String stopFileFormat = "plain";
@@ -294,6 +290,7 @@ public class DumpCommonTerms
 
     /**
      * Check, if the defined files and directories are available.
+     * @throws IOException
      */
     void check()
         throws IOException {
