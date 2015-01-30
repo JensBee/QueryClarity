@@ -21,7 +21,6 @@ import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 
-import java.util.Iterator;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -46,30 +45,12 @@ public interface VocabularyProvider {
    */
   VocabularyProvider documentIds(final Set<Integer> documentIds);
 
-  /**
-   * Set a filter filtering out unwanted terms.
-   * @param filter Filter
-   * @return Self reference
-   */
-  VocabularyProvider filter(final Filter filter);
 
   /**
    * Get the vocabulary.
    *
    * @return Vocabulary
    */
-  Iterator<ByteArray> get()
+  Stream<ByteArray> get()
       throws DataProviderException;
-
-  Stream<ByteArray> getStream()
-      throws DataProviderException;
-
-  public interface Filter {
-    /**
-     * Filter a term.
-     * @param term Term to filter
-     * @return The term or {@code null}, if it should be filtered out.
-     */
-    public ByteArray filter(final ByteArray term) throws DataProviderException;
-  }
 }

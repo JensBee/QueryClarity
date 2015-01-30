@@ -21,13 +21,9 @@ import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.CommonTermsDefaults;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
-import de.unihildesheim.iw.mapdb.DBMakerUtils;
-import org.mapdb.DB;
 import org.slf4j.LoggerFactory;
 
-import java.util.Iterator;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -55,69 +51,14 @@ public class CommonTermsVocabularyProvider
   }
 
   @Override
-  public Iterator<ByteArray> get()
+  public Stream<ByteArray> get()
       throws DataProviderException {
-    LOG.debug("Generating vocabulary");
-    final Iterator<ByteArray> termsIt = Objects.requireNonNull(
-        this.dataProv, "Data provider not set.").getDocumentsTermsSet(
-        Objects.requireNonNull(this.docIds, "Document ids not set."));
-
-    if (LOG.isDebugEnabled() && this.filter != null) {
-      LOG.debug("Using filter");
-    }
-
-    final DB termsCache = DBMakerUtils.newCompressedTempFileDB().make();
-    final Set<ByteArray> terms = termsCache.createTreeSet("termsCache")
-        .serializer(ByteArray.SERIALIZER_BTREE)
-        .make();
-
-    while (termsIt.hasNext()) {
-      ByteArray term = termsIt.next();
-      // skip high frequent terms
-
-      // terms exceeding this threshold (relative document frequency) are skipped.
-      final float threshold = CommonTermsDefaults.MTF_DEFAULT;
-
-      if (this.dataProv.metrics().relDf(term).floatValue() <= threshold) {
-        if (this.filter != null) {
-          // filter term
-          term = this.filter.filter(term);
-          if (term != null) {
-            terms.add(term);
-          }
-        } else {
-          terms.add(term);
-        }
-      }
-    }
-
-    return new Iterator<ByteArray>() {
-      private final Iterator<ByteArray> termsIt = terms.iterator();
-
-      @Override
-      public boolean hasNext() {
-        final boolean state = this.termsIt.hasNext();
-        if (!state) {
-          termsCache.close();
-        }
-        return state;
-      }
-
-      @Override
-      public ByteArray next() {
-        return this.termsIt.next();
-      }
-
-      @Override
-      public void remove() {
-        throw new UnsupportedOperationException();
-      }
-    };
-  }
-
-  @Override
-  public Stream<ByteArray> getStream()
-      throws DataProviderException {
-    throw new UnsupportedOperationException("Not implemented yet.");
+    final float threshold = CommonTermsDefaults.MTF_DEFAULT;
+    return Objects.requireNonNull(this.dataProv,
+        "Data provider not set.")
+        .getDocumentsTerms(Objects.requireNonNull(
+            this.docIds, "Document ids not set."))
+        .filter(t ->
+            this.dataProv.metrics().relDf(t).floatValue() <= threshold);
   }
 }

@@ -22,7 +22,6 @@ import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import org.slf4j.LoggerFactory;
 
-import java.util.Iterator;
 import java.util.Objects;
 import java.util.stream.Stream;
 
@@ -30,9 +29,7 @@ import java.util.stream.Stream;
  * Default {@link VocabularyProvider} implementation that uses an {@link
  * IndexDataProvider} and a set of document-ids to create a vocabulary. The
  * vocabulary is equal to all unique terms from all documents described by their
- * id. This simply passes on the original iterator, if no filter is set. If a
- * filter is supplied the original iteratr is wrapped by {@link
- * FilteredTermsIterator}.
+ * id. This simply passes on the original iterator.
  *
  * @author Jens Bertram
  */
@@ -51,30 +48,12 @@ public class DefaultVocabularyProvider
   }
 
   @Override
-  public Iterator<ByteArray> get()
-      throws DataProviderException {
-    LOG.debug("Generating vocabulary");
-    final Iterator<ByteArray> termsIt =
-        Objects.requireNonNull(this.dataProv,
-            "Data provider not set.")
-            .getDocumentsTermsSet(Objects.requireNonNull(
-                this.docIds, "Document ids not set."));
-
-    if (this.filter == null) {
-      // forward the plain iterator
-      return termsIt;
-    }
-    LOG.debug("Using filter");
-    return new FilteredTermsIterator(termsIt, this.filter);
-  }
-
-  @Override
-  public Stream<ByteArray> getStream()
+  public Stream<ByteArray> get()
       throws DataProviderException {
     return
         Objects.requireNonNull(this.dataProv,
             "Data provider not set.")
-            .getDocumentsTermsStream(Objects.requireNonNull(
+            .getDocumentsTerms(Objects.requireNonNull(
                 this.docIds, "Document ids not set."));
   }
 }
