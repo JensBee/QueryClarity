@@ -20,14 +20,9 @@ import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.InternMap;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -37,12 +32,6 @@ import java.util.Objects;
  * @author Jens Bertram
  */
 public final class ByteArrayUtils {
-
-  /**
-   * Logger instance for this class.
-   */
-  private static final Logger LOG = LoggerFactory.getLogger(
-      ByteArrayUtils.class);
 
   /**
    * Internal {@link Map} to cache string representations of UTF8 bytes.
@@ -68,16 +57,6 @@ public final class ByteArrayUtils {
   public static String utf8ToString(final ByteArray bytes) {
     return utf8ToString(Objects.requireNonNull(bytes,
         "Bytes were null.").bytes);
-  }
-
-  public static Collection<String> utf8ToString(final Collection<ByteArray>
-      baSrc) {
-    final List<ByteArray> src = new ArrayList<>(baSrc);
-    final List<String> tgt= new ArrayList<>(baSrc.size());
-    for (final ByteArray ba: src) {
-      tgt.add(utf8ToString(ba));
-    }
-    return tgt;
   }
 
   /**
