@@ -81,7 +81,7 @@ public final class SimplifiedClarityScore
    *
    * @param builder Builder to use for constructing the instance
    */
-  SimplifiedClarityScore(final Builder builder) {
+  private SimplifiedClarityScore(final Builder builder) {
     Objects.requireNonNull(builder, "Builder was null.");
 
     // set configuration
