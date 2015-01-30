@@ -383,7 +383,7 @@ public final class DefaultClarityScore
           r.getScore()
       );
       return r;
-    } catch (final DataProviderException | ProcessingException e) {
+    } catch (final DataProviderException e) {
       timeMeasure.stop();
       final String msg = "Caught exception while calculating score.";
       LOG.error(msg, e);
@@ -405,7 +405,7 @@ public final class DefaultClarityScore
   private Result calculateClarity(
       final Collection<ByteArray> queryTerms,
       final Set<Integer> feedbackDocIds)
-      throws ProcessingException, DataProviderException {
+      throws DataProviderException {
     final Result result = new Result();
     result.setConf(this.conf);
     result.setFeedbackDocIds(feedbackDocIds);

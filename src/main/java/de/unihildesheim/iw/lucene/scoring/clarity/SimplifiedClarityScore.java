@@ -130,15 +130,9 @@ public final class SimplifiedClarityScore
     }
 
     final double score;
-    //try {
-      score = KlDivergence.calc(
-          dataSet, KlDivergence.sumValues(dataSet)
-      ).doubleValue();
-    /*} catch (final ProcessingException e) {
-      final String msg = "Caught exception while calculating score.";
-      LOG.error(msg, e);
-      throw new ClarityScoreCalculationException(msg, e);
-    }*/
+    score = KlDivergence.calc(
+        dataSet, KlDivergence.sumValues(dataSet)
+    ).doubleValue();
 
     LOG.debug("Calculation results: query={} score={}.", query, score);
 
