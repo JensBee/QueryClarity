@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * @author Jens Bertram
@@ -46,10 +47,6 @@ public class TopicsXMLReader {
    * XML context.
    */
   private final JAXBContext jaxbContext;
-  /**
-   * Unmarshaller for {@link #jaxbContext}.
-   */
-  private final Unmarshaller jaxbUnmarshaller;
   private final TopicPassages topicPassages;
   private final Set<String> languages;
 
@@ -62,8 +59,8 @@ public class TopicsXMLReader {
   public TopicsXMLReader(final File source)
       throws JAXBException {
     this.jaxbContext = JAXBContext.newInstance(TopicPassages.class);
-    this.jaxbUnmarshaller = this.jaxbContext.createUnmarshaller();
-    this.topicPassages = (TopicPassages) this.jaxbUnmarshaller.unmarshal
+    final Unmarshaller jaxbUnmarshaller = this.jaxbContext.createUnmarshaller();
+    this.topicPassages = (TopicPassages) jaxbUnmarshaller.unmarshal
         (source);
     this.languages = extractLanguages();
   }
@@ -76,15 +73,15 @@ public class TopicsXMLReader {
   private Set<String> extractLanguages() {
     final Set<String> lang = new HashSet<>(10);
     for (final PassagesGroup pg : this.topicPassages.getPassageGroups()) {
-      for (final Passage p : pg.getPassages()) {
-        lang.add(StringUtils.lowerCase(p.getLanguage()));
-      }
+      lang.addAll(pg.getPassages().stream()
+          .map(p -> StringUtils.lowerCase(p.getLanguage()))
+          .collect(Collectors.toList()));
     }
     return lang;
   }
 
   JAXBContext getJaxbContext() {
-    return jaxbContext;
+    return this.jaxbContext;
   }
 
   TopicPassages getTopicPassages() {
@@ -114,11 +111,9 @@ public class TopicsXMLReader {
         sources.size() * DEFAULT_PASSAGE_COUNT);
 
     for (final PassagesGroup pg : sources) {
-      for (final Passage p : pg.getPassages()) {
-        if (language.equals(StringUtils.lowerCase(p.getLanguage()))) {
-          pList.add(p);
-        }
-      }
+      pList.addAll(pg.getPassages().stream()
+          .filter(p -> language.equals(StringUtils.lowerCase(p.getLanguage())))
+          .collect(Collectors.toList()));
     }
 
     return pList;
