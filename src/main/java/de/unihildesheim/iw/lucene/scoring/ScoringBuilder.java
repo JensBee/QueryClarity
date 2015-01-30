@@ -27,6 +27,7 @@ import de.unihildesheim.iw.util.FileUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.IOException;
@@ -328,6 +329,7 @@ public interface ScoringBuilder<T extends ScoringBuilder,
     /**
      * Path to store working data.
      */
+    @Nullable
     private File dataPath;
     /**
      * If true, instance should provide a temporary state.
@@ -471,6 +473,7 @@ public interface ScoringBuilder<T extends ScoringBuilder,
       return getThis();
     }
 
+    @Nullable
     @Override
     public File getDataPath() {
       return this.dataPath;
