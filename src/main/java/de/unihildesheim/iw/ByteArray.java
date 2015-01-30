@@ -44,8 +44,8 @@ public final class ByteArray
   /**
    * MapDB {@link Serializer} for this class instances.
    */
-  public static final ByteArraySerializer SERIALIZER
-      = new ByteArraySerializer();
+  public static final Serializer<ByteArray> SERIALIZER = new
+      ByteArraySerializer();
   /**
    * MapDB {@link BTreeKeySerializer} for this class instances.
    */
@@ -54,7 +54,7 @@ public final class ByteArray
   /**
    * Comparator for this class instances.
    */
-  public static final ByteArrayComparator COMPARATOR = new
+  public static final Comparator<ByteArray> COMPARATOR = new
       ByteArrayComparator();
   /**
    * Serialization id.
