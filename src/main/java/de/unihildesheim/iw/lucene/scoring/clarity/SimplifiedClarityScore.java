@@ -131,7 +131,6 @@ public final class SimplifiedClarityScore
     }
 
     final double score = KlDivergence.sumAndCalc(dataSet).doubleValue();
-    //calc(dataSet, KlDivergence.sumValues(dataSet))
 
     LOG.debug("Calculation results: query={} score={}.", query, score);
 
