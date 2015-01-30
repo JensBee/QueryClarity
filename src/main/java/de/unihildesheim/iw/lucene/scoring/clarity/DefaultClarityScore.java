@@ -211,14 +211,11 @@ public final class DefaultClarityScore
      * @return Query model value for all feedback documents
      */
     final BigDecimal query(final ByteArray term) {
-      BigDecimal result = BigDecimal.ZERO;
-      for (final Integer docId : this.feedbackDocs) {
-        result = result.add(document(this.docModels.get(docId), term)
-            .multiply(this.staticQueryModelParts.get(docId),
-                MATH_CONTEXT), MATH_CONTEXT);
-      }
-
-      return result;
+      return this.feedbackDocs.stream()
+          .map(d -> document(this.docModels.get(d), term)
+              .multiply(this.staticQueryModelParts.get(d),
+                  MATH_CONTEXT))
+          .reduce((x, y) -> x.add(y, MATH_CONTEXT)).get();
     }
   }
 
@@ -366,10 +363,6 @@ public final class DefaultClarityScore
     LOG.info("Calculating final score.");
     result.setScore(
         KlDivergence.sumAndCalc(model.dataSets.values()).doubleValue());
-        /*KlDivergence.calc(
-            model.dataSets.values(),
-            KlDivergence.sumValues(model.dataSets.values())
-        )*/
 
     return result;
   }
