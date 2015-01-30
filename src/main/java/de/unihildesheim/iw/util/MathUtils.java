@@ -20,22 +20,13 @@ import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.Tuple.Tuple2;
-import de.unihildesheim.iw.mapdb.DBMakerUtils;
 import de.unihildesheim.iw.util.concurrent.AtomicBigDecimal;
-import de.unihildesheim.iw.util.concurrent.processing.IterableSource;
-import de.unihildesheim.iw.util.concurrent.processing.Processing;
-import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
-import de.unihildesheim.iw.util.concurrent.processing.Source;
-import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
-import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall.TargetFunc;
-import org.mapdb.DB;
-import org.mapdb.Serializer;
 import org.nevec.rjm.BigDecimalMath;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
-import java.util.Queue;
+import java.util.stream.StreamSupport;
 
 /**
  * Collection of simple calculation utilities.
@@ -95,8 +86,37 @@ public final class MathUtils {
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class KlDivergence {
+    /**
+     * Static tuple value for a zero value result.
+     */
+    private static final Tuple2<BigDecimal, BigDecimal> ZERO_TUPLE =
+        Tuple.tuple2(BigDecimal.ZERO, BigDecimal.ZERO);
 
     public static Tuple2<BigDecimal, BigDecimal> sumValues(
+        final Iterable<Tuple2<BigDecimal, BigDecimal>> dataSet) {
+      final AtomicBigDecimal sumA = new AtomicBigDecimal();
+      final AtomicBigDecimal sumB = new AtomicBigDecimal();
+
+      StreamSupport.stream(dataSet.spliterator(), true)
+          .filter(t2 ->
+              // a null value is not allowed here
+              t2 != null && t2.a != null && t2.b != null &&
+                  // both values will be zero if t2.b is zero
+                  // t2.b == 0 implies t2.a == 0
+                  t2.b.compareTo(BigDecimal.ZERO) != 0)
+          .forEach(t -> {
+                sumA.addAndGet(t.a, MATH_CONTEXT);
+                sumB.addAndGet(t.b, MATH_CONTEXT);
+              }
+          );
+
+      LOG.debug("pcSum={} pqSum={}",
+          sumA.doubleValue(), sumB.doubleValue());
+      return Tuple.tuple2(sumA.get(), sumB.get());
+    }
+
+    /*
+    public static Tuple2<BigDecimal, BigDecimal> sumValues2(
         final Iterable<Tuple2<BigDecimal, BigDecimal>> dataSet)
         throws ProcessingException {
       final AtomicBigDecimal sumA = new AtomicBigDecimal();
@@ -107,26 +127,26 @@ public final class MathUtils {
           new TargetFunc<Tuple2<BigDecimal, BigDecimal>>() {
 
             @Override
-            public void call(final Tuple2<BigDecimal, BigDecimal> data)
-                throws Exception {
-              if (data == null) {
+            public void call(final Tuple2<BigDecimal, BigDecimal> term)
+                throws DataProviderException {
+              if (term == null) {
                 return;
               }
 
-              if (data.a == null || data.b == null) {
+              if (term.a == null || term.b == null) {
                 LOG.warn("Null value in data-set. a={} b={}",
-                    data.a == null ? "null" : data.a,
-                    data.b == null ? "null" : data.b);
+                    term.a == null ? "null" : term.a,
+                    term.b == null ? "null" : term.b);
                 return;
               }
               // t2.b == 0 implies t2.a == 0
-              if (data.b.compareTo(BigDecimal.ZERO) == 0) {
+              if (term.b.compareTo(BigDecimal.ZERO) == 0) {
                 LOG.warn("data.b == 0, assuming data.a == 0 (implied)");
                 return;
               }
 
-              sumA.addAndGet(data.a, MATH_CONTEXT);
-              sumB.addAndGet(data.b, MATH_CONTEXT);
+              sumA.addAndGet(term.a, MATH_CONTEXT);
+              sumB.addAndGet(term.b, MATH_CONTEXT);
             }
           }
       )).process();
@@ -135,8 +155,40 @@ public final class MathUtils {
           sumA.doubleValue(), sumB.doubleValue());
       return Tuple.tuple2(sumA.get(), sumB.get());
     }
+    */
 
     public static BigDecimal calc(
+        final Iterable<Tuple2<BigDecimal, BigDecimal>> values,
+        final Tuple2<BigDecimal, BigDecimal> sums) {
+
+      final AtomicBigDecimal result = new AtomicBigDecimal();
+
+      StreamSupport.stream(values.spliterator(), true)
+          .filter(t2 ->
+              // a null value is not allowed here
+              t2 != null && t2.a != null && t2.b != null &&
+                  // t2.a will be zero if t2.b is zero:
+                  // t2.b == 0 implies t2.a == 0
+                  t2.b.compareTo(BigDecimal.ZERO) != 0 &&
+                  // dividing zero is always zero, so skip here
+                  t2.a.compareTo(BigDecimal.ZERO) != 0)
+          .map(t2 -> {
+            // scale value of t2.a & t2.b to [0,1]
+            final BigDecimal aScaled = t2.a.divide(sums.a, MATH_CONTEXT);
+            // r += (t2.a/sums.a) * log((t2.a/sums.a) / (t2.b/sums.b))
+
+            return aScaled.multiply(
+                BigDecimalMath.log(
+                    aScaled.divide(
+                        t2.b.divide(sums.b, MATH_CONTEXT),
+                        MATH_CONTEXT)), MATH_CONTEXT);
+          })
+          .forEach(s -> result.addAndGet(s, MATH_CONTEXT));
+
+      return result.get().divide(BD_LOG2, MATH_CONTEXT);
+    }
+
+    /*public static BigDecimal calc2(
         final Iterable<Tuple2<BigDecimal, BigDecimal>> values,
         final Tuple2<BigDecimal, BigDecimal> sums)
         throws ProcessingException {
@@ -154,32 +206,31 @@ public final class MathUtils {
           new TargetFunc<Tuple2<BigDecimal, BigDecimal>>() {
 
             @Override
-            public void call(final Tuple2<BigDecimal, BigDecimal> data)
-                throws Exception {
-              if (data == null
-                  || data.a == null || data.b == null
-                  || data.a.compareTo(BigDecimal.ZERO) == 0
+            public void call(final Tuple2<BigDecimal, BigDecimal> term) {
+              if (term == null
+                  || term.a == null || term.b == null
+                  || term.a.compareTo(BigDecimal.ZERO) == 0
                   // data.b == 0 implies data.a == 0
-                  || data.b.compareTo(BigDecimal.ZERO) == 0) {
-                if (data == null) {
+                  || term.b.compareTo(BigDecimal.ZERO) == 0) {
+                if (term == null) {
                   if (!source.isFinished()) {
                     LOG.warn("Skip data entry: NULL.");
                   }
                 } else {
-                  LOG.warn("Skip data entry: a={} b={}", data.a, data.b);
+                  LOG.warn("Skip data entry: a={} b={}", term.a, term.b);
                 }
                 return;
               }
 
               // scale value of t2.a & t2.b to [0,1]
-              final BigDecimal aScaled = data.a.divide(sums.a, MATH_CONTEXT);
+              final BigDecimal aScaled = term.a.divide(sums.a, MATH_CONTEXT);
 
               // r += (t2.a/sums.a) * log((t2.a/sums.a) / (t2.b/sums.b))
               rQueue.add(
                   aScaled.multiply(
                       BigDecimalMath.log(
                           aScaled.divide(
-                              data.b.divide(sums.b, MATH_CONTEXT),
+                              term.b.divide(sums.b, MATH_CONTEXT),
                               MATH_CONTEXT)), MATH_CONTEXT));
             }
           }
@@ -195,6 +246,6 @@ public final class MathUtils {
       // remove temp db from disk
       CACHE_DB.close();
       return result.divide(BD_LOG2, MATH_CONTEXT);
-    }
+    }*/
   }
 }

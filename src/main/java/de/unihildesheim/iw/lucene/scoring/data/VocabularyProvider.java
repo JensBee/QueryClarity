@@ -23,6 +23,7 @@ import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 
 import java.util.Iterator;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * @author Jens Bertram
@@ -58,6 +59,9 @@ public interface VocabularyProvider {
    * @return Vocabulary
    */
   Iterator<ByteArray> get()
+      throws DataProviderException;
+
+  Stream<ByteArray> getStream()
       throws DataProviderException;
 
   public interface Filter {

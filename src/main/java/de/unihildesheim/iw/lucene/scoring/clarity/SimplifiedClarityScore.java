@@ -27,7 +27,6 @@ import de.unihildesheim.iw.util.Configuration;
 import de.unihildesheim.iw.util.MathUtils.KlDivergence;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
-import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
 import org.apache.lucene.analysis.Analyzer;
 import org.slf4j.LoggerFactory;
 
@@ -131,15 +130,15 @@ public final class SimplifiedClarityScore
     }
 
     final double score;
-    try {
+    //try {
       score = KlDivergence.calc(
           dataSet, KlDivergence.sumValues(dataSet)
       ).doubleValue();
-    } catch (final ProcessingException e) {
+    /*} catch (final ProcessingException e) {
       final String msg = "Caught exception while calculating score.";
       LOG.error(msg, e);
       throw new ClarityScoreCalculationException(msg, e);
-    }
+    }*/
 
     LOG.debug("Calculation results: query={} score={}.", query, score);
 

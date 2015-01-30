@@ -23,7 +23,8 @@ import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.Tuple.Tuple3;
 import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
-import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderBuilder.Feature;
+import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderBuilder
+    .Feature;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import org.apache.lucene.analysis.Analyzer;
@@ -64,6 +65,11 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.Spliterator;
+import java.util.Spliterators.AbstractSpliterator;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
@@ -572,6 +578,120 @@ public class LuceneIndexDataProvider
       term = termsEnum.next();
     }
     return termsMap;
+  }
+
+  private final class LuceneDocTermsSpliterator
+  extends AbstractSpliterator<ByteArray> {
+    /**
+     * {@link TermsEnum} pointing at the target field.
+     */
+    private final TermsEnum termsEnum;
+    /**
+     * Next term in the list of provided terms.
+     */
+    private BytesRef nextTerm;
+    /**
+     * Indicate, if there are any stopwords to use.
+     */
+    private final boolean useStopwords;
+    /**
+     * Document ids to gather terms from.
+     */
+    private final List<Integer> docIds;
+    /**
+     * Documents with current term enumerator.
+     */
+    private DocsEnum docsEnum;
+
+    private LuceneDocTermsSpliterator(
+        final String field, final Collection<Integer> documentIds)
+        throws IOException {
+      super(Long.MAX_VALUE,
+          Spliterator.DISTINCT | Spliterator.NONNULL | Spliterator.IMMUTABLE);
+
+      final Terms terms = MultiFields.getTerms(LuceneIndexDataProvider
+          .this.index.reader, field);
+      this.termsEnum = terms.iterator(TermsEnum.EMPTY);
+      this.useStopwords = !LuceneIndexDataProvider.this
+          .index.stopwords.isEmpty();
+
+      this.docIds = new ArrayList<>(documentIds);
+      Collections.sort(this.docIds);
+
+      setNextTerm();
+    }
+
+    private void getNextTerm()
+        throws IOException {
+      if (this.useStopwords) {
+        do {
+          this.nextTerm = this.termsEnum.next();
+        } while (this.nextTerm != null &&
+            LuceneIndexDataProvider.this.index.isStopword(this.nextTerm));
+      } else {
+        this.nextTerm = this.termsEnum.next();
+      }
+    }
+
+    private void setNextTerm()
+        throws IOException {
+      getNextTerm();
+      boolean haveNext = false;
+      while (this.nextTerm != null && !haveNext) {
+        this.docsEnum = this.termsEnum.docs(
+            LuceneIndexDataProvider.this.index.liveDocs,
+            this.docsEnum, DocsEnum.FLAG_NONE);
+
+        for (final int docId : this.docIds) {
+          final int doc = this.docsEnum.advance(docId);
+          if (doc == DocsEnum.NO_MORE_DOCS) {
+            break;
+          }
+          if (doc == docId || this.docIds.contains(doc)) {
+            haveNext = true;
+            break;
+          }
+        }
+        if (!haveNext) {
+          getNextTerm();
+        }
+      }
+    }
+
+    @Override
+    public boolean tryAdvance(final Consumer<? super ByteArray> action) {
+      if (action == null) {
+        throw new NullPointerException();
+      }
+
+      if (this.nextTerm == null) {
+        return false;
+      }
+
+      action.accept(BytesRefUtils.toByteArray(this.nextTerm));
+
+      try {
+        setNextTerm();
+      } catch (final IOException e) {
+        LOG.error("Failed retrieving next term.", e);
+        return false;
+      }
+
+      return true;
+    }
+  }
+
+  @Override
+  public Stream<ByteArray> getDocumentsTermsStream(
+      final Collection<Integer> docIds)
+      throws DataProviderException {
+    // TODO: add support for multiple fields
+    try {
+      return StreamSupport.stream(new LuceneDocTermsSpliterator(
+          this.index.fields.get(0), docIds), true);
+    } catch (final IOException e) {
+      throw new DataProviderException("Failed creating terms stream.", e);
+    }
   }
 
   @Override

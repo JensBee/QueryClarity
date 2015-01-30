@@ -496,17 +496,17 @@ public final class ImprovedClarityScore
     }
 
     LOG.info("Calculating final score.");
-    try {
+    //try {
       result.setScore(
           KlDivergence.calc(
               this.model.dataSets.values(),
               KlDivergence.sumValues(this.model.dataSets.values())
           ).doubleValue());
-    } catch (final ProcessingException e) {
+    /*} catch (final ProcessingException e) {
       final String msg = "Caught exception while calculating score.";
       LOG.error(msg, e);
       throw new ClarityScoreCalculationException(msg, e);
-    }
+    }*/
 
     timeMeasure.stop();
 

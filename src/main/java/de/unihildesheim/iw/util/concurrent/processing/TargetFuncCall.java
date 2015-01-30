@@ -17,6 +17,9 @@
 
 package de.unihildesheim.iw.util.concurrent.processing;
 
+import de.unihildesheim.iw.lucene.index.DataProviderException;
+import org.jetbrains.annotations.Nullable;
+
 import java.util.Objects;
 
 /**
@@ -83,8 +86,8 @@ public final class TargetFuncCall<T>
      * @param data Current item
      * @throws Exception Any exception from implementing class
      */
-    public abstract void call(final T data)
-        throws Exception;
+    public abstract void call(@Nullable final T data)
+        throws DataProviderException;
 
     /**
      * Get the name of this class.

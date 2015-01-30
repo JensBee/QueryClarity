@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * IndexDataProvider provides statistical data from the underlying Lucene index.
@@ -121,6 +122,9 @@ public interface IndexDataProvider
    * @throws IOException Thrown on low-level I/O errors
    */
   Iterator<ByteArray> getDocumentsTermsSet(final Collection<Integer> docIds)
+      throws DataProviderException;
+
+  Stream<ByteArray> getDocumentsTermsStream(final Collection<Integer> docIds)
       throws DataProviderException;
 
   /**

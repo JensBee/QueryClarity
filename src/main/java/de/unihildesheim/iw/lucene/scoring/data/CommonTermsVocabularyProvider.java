@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Vocabulary provider avoiding terms common in the index.
@@ -112,5 +113,11 @@ public class CommonTermsVocabularyProvider
         throw new UnsupportedOperationException();
       }
     };
+  }
+
+  @Override
+  public Stream<ByteArray> getStream()
+      throws DataProviderException {
+    throw new UnsupportedOperationException("Not implemented yet.");
   }
 }

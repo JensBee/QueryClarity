@@ -31,16 +31,16 @@ import de.unihildesheim.iw.lucene.scoring.data.DefaultFeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.DefaultVocabularyProvider;
 import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
+import de.unihildesheim.iw.util.ByteArrayUtils;
 import de.unihildesheim.iw.util.MathUtils.KlDivergence;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
-import de.unihildesheim.iw.util.concurrent.processing.IteratorSource;
 import de.unihildesheim.iw.util.concurrent.processing.Processing;
 import de.unihildesheim.iw.util.concurrent.processing.ProcessingException;
-import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall;
 import de.unihildesheim.iw.util.concurrent.processing.TargetFuncCall.TargetFunc;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
@@ -48,7 +48,6 @@ import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -79,14 +78,13 @@ public final class DefaultClarityScore
   /**
    * Context for high precision math calculations.
    */
-  static final MathContext MATH_CONTEXT = new MathContext(
+  private static final MathContext MATH_CONTEXT = new MathContext(
       GlobalConfiguration.conf().getString(
           DefaultKeys.MATH_CONTEXT.toString()));
   /**
    * {@link IndexDataProvider} to use.
    */
-  @SuppressWarnings("PackageVisibleField")
-  final IndexDataProvider dataProv; // accessed by unit test
+  private final IndexDataProvider dataProv;
   /**
    * Reader to access Lucene index.
    */
@@ -120,7 +118,7 @@ public final class DefaultClarityScore
    * Class wrapping all methods needed for calculation needed models. Also holds
    * results of the calculations.
    */
-  private class Model
+  private final class Model
       extends TargetFunc<ByteArray>
       implements Closable {
     /**
@@ -179,7 +177,8 @@ public final class DefaultClarityScore
           (double) this.feedbackDocs.size() * 1.8));
       this.docModels = new ConcurrentHashMap<>((int) (
           (double) this.feedbackDocs.size() * 1.8));
-      this.dataSets = new ConcurrentHashMap<>(2000);
+      // final size depends on feedback vocabulary amount
+      this.dataSets = new ConcurrentHashMap<>(70000);
       this.dataSetCounter = new AtomicLong(0L);
 
       LOG.info("Pre-calculating static query model values");
@@ -236,6 +235,7 @@ public final class DefaultClarityScore
             .multiply(this.staticQueryModelParts.get(docId),
                 MATH_CONTEXT), MATH_CONTEXT);
       }
+
       return result;
     }
 
@@ -244,18 +244,40 @@ public final class DefaultClarityScore
       LOG.debug("Close runtime cache.");
     }
 
+    Tuple2<BigDecimal, BigDecimal> calulateQModForFeedbackTerm(final
+        ByteArray term) {
+      try {
+        return Tuple.tuple2(query(term),
+                DefaultClarityScore.this.dataProv.metrics().relTf(term));
+      } catch (final DataProviderException e) {
+        LOG.error("Failed processing term. t={}",
+            ByteArrayUtils.utf8ToString(term));
+        throw new IllegalStateException("Error while processing term.");
+      }
+    }
+
+    void addDataSet(final Tuple2<BigDecimal, BigDecimal> t2) {
+      this.dataSets.put(
+          this.dataSetCounter.incrementAndGet(), t2);
+    }
+
     /**
      * {@link Processing} callback function to calculate the score portion
      * for a given term using already calculated query models.
      */
     @Override
-    public void call(final ByteArray term)
-        throws DataProviderException {
+    public void call(@Nullable final ByteArray term) {
       if (term != null) {
-        this.dataSets.put(
-            this.dataSetCounter.incrementAndGet(),
-            Tuple.tuple2(query(term),
-                DefaultClarityScore.this.dataProv.metrics().relTf(term)));
+        try {
+          this.dataSets.put(
+              this.dataSetCounter.incrementAndGet(),
+              Tuple.tuple2(query(term),
+                  DefaultClarityScore.this.dataProv.metrics().relTf(term)));
+        } catch (final DataProviderException e) {
+          LOG.error("Failed processing term. t={}",
+              ByteArrayUtils.utf8ToString(term));
+          throw new IllegalStateException("Error while processing term.");
+        }
       }
     }
   }
@@ -286,6 +308,7 @@ public final class DefaultClarityScore
     } else {
       this.vocProvider = new DefaultVocabularyProvider();
     }
+    this.vocProvider.indexDataProvider(this.dataProv);
 
     if (builder.getFeedbackProvider() != null) {
       this.fbProvider = builder.getFeedbackProvider();
@@ -391,21 +414,13 @@ public final class DefaultClarityScore
     // object containing all methods for model calculations
     final Model model = new Model(queryTerms, feedbackDocIds);
 
-    LOG.info("Requesting feedback vocabulary.");
-    final Iterator<ByteArray> fbTermsIt;
-    fbTermsIt = this.vocProvider
-        .indexDataProvider(this.dataProv)
+    LOG.info("Calculating query models using feedback vocabulary.");
+    // calculate query models
+    this.vocProvider
         .documentIds(feedbackDocIds)
-        .get();
-
-    LOG.info("Calculating score values.");
-    new Processing().setSourceAndTarget(
-        new TargetFuncCall<>(
-            new IteratorSource<>(fbTermsIt),
-            //new ScoreCalculatorTarget()
-            model
-        )
-    ).process();
+        .getStream()
+        .map(model::calulateQModForFeedbackTerm)
+        .forEach(model::addDataSet);
 
     LOG.info("Calculating final score.");
     result.setScore(
@@ -567,27 +582,4 @@ public final class DefaultClarityScore
       });
     }
   }
-
-//  /**
-//   * {@link Processing} {@link Target} calculating a portion of the final
-//   * clarity score. The current term is passed in from a {@link Source}.
-//   */
-//  private final class ScoreCalculatorTarget
-//      extends TargetFunc<ByteArray> {
-//
-//    /**
-//     * Calculate the score portion for a given term using already calculated
-//     * query models.
-//     */
-//    @Override
-//    public void call(final ByteArray term)
-//        throws DataProviderException {
-//      if (term != null) {
-//        DefaultClarityScore.this.model.dataSets.put(
-//            DefaultClarityScore.this.model.dataSetCounter.incrementAndGet(),
-//            Tuple.tuple2(DefaultClarityScore.this.model.query(term),
-//                DefaultClarityScore.this.dataProv.metrics().relTf(term)));
-//      }
-//    }
-//  }
 }
