@@ -314,10 +314,8 @@ public class CollectionMetrics {
    *
    * @param term Term to lookup.
    * @return Document frequency of the given term
-   * @throws DataProviderException Forwarded from lower-level
    */
-  public Integer df(final ByteArray term)
-      throws DataProviderException {
+  public Integer df(final ByteArray term) {
     if (this.conf.cacheDf) {
       Integer result = this.c_df.get(term);
       if (result == null) {
@@ -335,10 +333,8 @@ public class CollectionMetrics {
    *
    * @param term Term to lookup.
    * @return Document frequency of the given term
-   * @throws DataProviderException Forwarded from lower-level
    */
-  public BigDecimal relDf(final ByteArray term)
-      throws DataProviderException {
+  public BigDecimal relDf(final ByteArray term) {
     return BigDecimal.valueOf((long) df(term)).divide(
         this.docCount, MATH_CONTEXT);
   }
@@ -348,10 +344,8 @@ public class CollectionMetrics {
    *
    * @param documentId Id of the document whose model to get
    * @return Document-model for the given document id
-   * @throws DataProviderException Forwarded from lower-level
    */
-  public DocumentModel docData(final int documentId)
-      throws DataProviderException {
+  public DocumentModel docData(final int documentId) {
     if (this.conf.cacheDocModels) {
       DocumentModel d = this.c_docModel.get(documentId);
       if (d == null) {

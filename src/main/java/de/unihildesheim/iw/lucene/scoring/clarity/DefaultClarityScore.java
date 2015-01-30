@@ -17,7 +17,6 @@
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.Closable;
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.Tuple;
@@ -35,7 +34,6 @@ import de.unihildesheim.iw.util.MathUtils.KlDivergence;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.index.IndexReader;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
@@ -81,10 +79,6 @@ public final class DefaultClarityScore
    */
   private final IndexDataProvider dataProv;
   /**
-   * Reader to access Lucene index.
-   */
-  private final IndexReader idxReader;
-  /**
    * Analyzer for parsing queries.
    */
   private final Analyzer analyzer;
@@ -113,8 +107,7 @@ public final class DefaultClarityScore
    * Class wrapping all methods needed for calculation needed models. Also holds
    * results of the calculations.
    */
-  private final class Model
-      implements Closable {
+  private final class Model {
     /**
      * List of query terms issued.
      */
@@ -136,7 +129,7 @@ public final class DefaultClarityScore
      * before calculating the score.
      */
     @SuppressWarnings("ProtectedField")
-    protected final Map<Long, Tuple2<BigDecimal, BigDecimal>> dataSets;
+    private final Map<Long, Tuple2<BigDecimal, BigDecimal>> dataSets;
     /**
      * Counter for entries in {@link #dataSets}. Gets used as map key.
      */
@@ -148,10 +141,9 @@ public final class DefaultClarityScore
      * @param qt Query terms. Query terms not found in the collection (TF=0)
      * will be skipped.
      * @param fb Feedback documents
-     * @throws DataProviderException Forwarded from lower-level
      */
-    private Model(final Collection<ByteArray> qt, final Collection<Integer> fb)
-        throws DataProviderException {
+    private Model(
+        final Collection<ByteArray> qt, final Collection<Integer> fb) {
       LOG.debug("Create runtime cache.");
 
       // add query terms, skip those not in index
@@ -228,11 +220,6 @@ public final class DefaultClarityScore
 
       return result;
     }
-
-    @Override
-    public void close() {
-      LOG.debug("Close runtime cache.");
-    }
   }
 
   /**
@@ -253,7 +240,6 @@ public final class DefaultClarityScore
     this.conf.debugDump();
 
     this.dataProv = builder.getIndexDataProvider();
-    this.idxReader = builder.getIndexReader();
     this.analyzer = builder.getAnalyzer();
 
     if (builder.getVocabularyProvider() != null) {
@@ -268,6 +254,9 @@ public final class DefaultClarityScore
     } else {
       this.fbProvider = new DefaultFeedbackProvider();
     }
+    this.fbProvider
+        .indexReader(builder.getIndexReader())
+        .analyzer(this.analyzer);
   }
 
   /**
@@ -300,8 +289,6 @@ public final class DefaultClarityScore
     final Set<Integer> feedbackDocIds;
     try {
       feedbackDocIds = this.fbProvider
-          .indexReader(this.idxReader)
-          .analyzer(this.analyzer)
           .query(query)
           .fields(this.dataProv.getDocumentFields())
           .amount(this.conf.getFeedbackDocCount())
@@ -369,10 +356,10 @@ public final class DefaultClarityScore
     // calculate query models
     this.vocProvider
         .documentIds(feedbackDocIds)
-        .getStream()
+        .get()
         .map(term ->
-            Tuple
-                .tuple2(model.query(term), this.dataProv.metrics().relTf(term)))
+            Tuple.tuple2(
+                model.query(term), this.dataProv.metrics().relTf(term)))
         .forEach(t2 ->
             model.dataSets.put(model.dataSetCounter.incrementAndGet(), t2));
 
@@ -383,7 +370,6 @@ public final class DefaultClarityScore
             KlDivergence.sumValues(model.dataSets.values())
         ).doubleValue());
 
-    model.close();
     return result;
   }
 

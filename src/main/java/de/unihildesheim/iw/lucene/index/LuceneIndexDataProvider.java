@@ -457,16 +457,6 @@ public class LuceneIndexDataProvider
     // NOP
   }
 
-  @Override
-  public Iterator<ByteArray> getTermsIterator() {
-    // TODO: add multiple fields support
-    try {
-      return new LuceneByteTermsIterator(this.index.fields.get(0));
-    } catch (final IOException e) {
-      throw new IllegalStateException("Error accessing Lucene index.", e);
-    }
-  }
-
   /**
    * Get a collection of all documents (their ids) in the index.
    * @return Collection of found documents (their ids)
@@ -510,12 +500,6 @@ public class LuceneIndexDataProvider
   @Override
   public Iterator<Integer> getDocumentIds() {
     return this.index.docIds.iterator();
-  }
-
-  @Override
-  public long getUniqueTermsCount() {
-    // // throws NPE, if not set on initialization time (intended)
-    return this.index.uniqueTerms;
   }
 
   @Override
@@ -674,23 +658,12 @@ public class LuceneIndexDataProvider
   }
 
   @Override
-  public Stream<ByteArray> getDocumentsTermsStream(
+  public Stream<ByteArray> getDocumentsTerms(
       final Collection<Integer> docIds) {
     // TODO: add support for multiple fields
     try {
       return StreamSupport.stream(new LuceneDocTermsSpliterator(
           this.index.fields.get(0), docIds), true);
-    } catch (final IOException e) {
-      throw new IllegalStateException("Error accessing Lucene index.", e);
-    }
-  }
-
-  @Override
-  public Iterator<ByteArray> getDocumentsTermsSet(
-      final Collection<Integer> docIds) {
-    // TODO: add support for multiple fields
-    try {
-      return new LuceneDocTermsIterator(this.index.fields.get(0), docIds);
     } catch (final IOException e) {
       throw new IllegalStateException("Error accessing Lucene index.", e);
     }
