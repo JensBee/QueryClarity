@@ -68,6 +68,7 @@ import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators.AbstractSpliterator;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -190,9 +191,9 @@ public class LuceneIndexDataProvider
       LOG.debug("Adding {} stopwords", sWords.size());
       this.stopwords = new HashSet<>(sWords.size());
 
-      for (final String s : sWords) {
-        this.stopwords.add(new ByteArray(s.getBytes(StandardCharsets.UTF_8)));
-      }
+      this.stopwords.addAll(sWords.stream()
+          .map(s -> new ByteArray(s.getBytes(StandardCharsets.UTF_8)))
+          .collect(Collectors.toList()));
     }
 
     /**
@@ -202,9 +203,8 @@ public class LuceneIndexDataProvider
      */
     void addStopwords(final Collection<BytesRef> brStopwords) {
       LOG.debug("Adding {} stopwords", brStopwords.size());
-      for (final BytesRef br : brStopwords) {
-        this.stopwords.add(BytesRefUtils.toByteArray(br));
-      }
+      this.stopwords.addAll(brStopwords.stream().map(BytesRefUtils::toByteArray)
+          .collect(Collectors.toList()));
     }
 
     /**
@@ -667,9 +667,8 @@ public class LuceneIndexDataProvider
   @Override
   public Set<String> getStopwords() {
     final Set<String> words = new HashSet<>(this.index.stopwords.size());
-    for (final ByteArray ba : this.index.stopwords) {
-      words.add(ByteArrayUtils.utf8ToString(ba));
-    }
+    words.addAll(this.index.stopwords.stream().map(ByteArrayUtils::utf8ToString)
+        .collect(Collectors.toList()));
     return words;
   }
 
