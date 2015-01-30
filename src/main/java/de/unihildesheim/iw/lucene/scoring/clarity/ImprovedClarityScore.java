@@ -191,21 +191,20 @@ public final class ImprovedClarityScore
       for (final Integer docId : this.feedbackDocs) {
         final DocumentModel docModel = ImprovedClarityScore.this.dataProv
             .metrics().docData(docId);
-
-        // static query model part
-        BigDecimal staticPart = BigDecimal.ONE;
-        for (final ByteArray queryTerm : this.queryTerms) {
-          staticPart = staticPart.multiply(
-              document(docModel, queryTerm), MATH_CONTEXT);
-        }
-        this.staticQueryModelParts.put(docModel.id, staticPart);
-
         // smoothing value
         final BigDecimal sSmooth = BigDecimal.valueOf(docModel.tf())
             .add(this.dmParams[0]
                 .multiply(BigDecimal.valueOf(docModel.termCount()),
                     MATH_CONTEXT), MATH_CONTEXT);
-        this.staticSmoothingParts.put(docModel.id, sSmooth);
+        this.staticSmoothingParts.put(docId, sSmooth);
+
+        // static query model part (needs smoothing values)
+        BigDecimal staticPart = BigDecimal.ONE;
+        for (final ByteArray queryTerm : this.queryTerms) {
+          staticPart = staticPart.multiply(
+              document(docModel, queryTerm), MATH_CONTEXT);
+        }
+        this.staticQueryModelParts.put(docId, staticPart);
       }
 
       LOG.info("Caching document models");
@@ -249,6 +248,12 @@ public final class ImprovedClarityScore
      * @return Query model value for all feedback documents
      */
     final BigDecimal query(final ByteArray term) {
+      return this.feedbackDocs.stream()
+          .map(d -> document(this.docModels.get(d), term)
+              .multiply(this.staticQueryModelParts.get(d),
+                  MATH_CONTEXT))
+          .reduce((x, y) -> x.add(y, MATH_CONTEXT)).get();
+      /*
       BigDecimal result = BigDecimal.ZERO;
 
       for (final Integer docId : this.feedbackDocs) {
@@ -257,6 +262,7 @@ public final class ImprovedClarityScore
                 MATH_CONTEXT), MATH_CONTEXT);
       }
       return result;
+      */
     }
   }
 
@@ -406,11 +412,6 @@ public final class ImprovedClarityScore
     LOG.info("Calculating final score.");
     result.setScore(
         KlDivergence.sumAndCalc(model.dataSets.values()).doubleValue());
-    /*result.setScore(
-        KlDivergence.calc(
-            model.dataSets.values(),
-            KlDivergence.sumValues(model.dataSets.values())
-        ).doubleValue());*/
 
     LOG.debug("Calculating improved clarity score for query {} "
             + "with {} document models took {}. {}",
