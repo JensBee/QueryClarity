@@ -16,7 +16,6 @@
  */
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
-import de.unihildesheim.iw.lucene.query.RuleBasedTryExactTermsQuery;
 import de.unihildesheim.iw.util.Configuration;
 
 import java.util.HashMap;
@@ -191,11 +190,6 @@ public final class ImprovedClarityScoreConfiguration
      * Maximum number of feedback documents to retrieve.
      */
     FB_DOCS_MAX,
-    /**
-     * Policy to use for simplifying queries. See {@link
-     * RuleBasedTryExactTermsQuery.RelaxRule}.
-     */
-    QUERY_SIMPLIFYING_POLICY,
     /**
      * Document-frequency threshold to pick terms from feedback documents.
      * Minimum value (lower range).
