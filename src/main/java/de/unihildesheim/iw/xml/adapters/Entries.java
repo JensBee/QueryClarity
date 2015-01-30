@@ -17,7 +17,8 @@
 
 package de.unihildesheim.iw.xml.adapters;
 
-import de.unihildesheim.iw.Tuple;
+import de.unihildesheim.iw.Tuple.Tuple2;
+import de.unihildesheim.iw.xml.adapters.ListAdapter.Tuple2ListValue;
 
 import javax.xml.bind.annotation.XmlAttribute;
 import javax.xml.bind.annotation.XmlElement;
@@ -46,14 +47,8 @@ final class Entries {
      */
     @SuppressWarnings("PackageVisibleField")
     @XmlElement
-    @XmlJavaTypeAdapter(ListAdapter.Tuple2ListValue.class)
-    List<Tuple.Tuple2<String, String>> entries = new ArrayList<>();
-
-    /**
-     * Default constructor used for JAXB (un)marshalling.
-     */
-    public Tuple2ListEntry() {
-    }
+    @XmlJavaTypeAdapter(Tuple2ListValue.class)
+    List<Tuple2<String, String>> entries = new ArrayList<>();
 
     /**
      * Create a new list entry with the provided key and entries.
@@ -62,14 +57,14 @@ final class Entries {
      * @param newT2List Entries
      */
     @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
-    Tuple2ListEntry(final String newKey, final List<Tuple.Tuple2<String,
+    Tuple2ListEntry(final String newKey, final List<Tuple2<String,
         String>> newT2List) {
       this.key = newKey;
       this.entries = newT2List;
     }
 
     @SuppressWarnings("ReturnOfCollectionOrArrayField")
-    List<Tuple.Tuple2<String, String>> getEntries() {
+    List<Tuple2<String, String>> getEntries() {
       return this.entries;
     }
 
@@ -78,7 +73,7 @@ final class Entries {
       final StringBuilder sb = new StringBuilder(this.entries.size() * 100);
       sb.append("Tuple2ListEntry(").append(this.key).append("){")
           .append(this.entries.size()).append(':');
-      for (final Tuple.Tuple2<String, String> t2 : this.entries) {
+      for (final Tuple2<String, String> t2 : this.entries) {
         sb.append("[a=").append(t2.a).append(" b=").append(t2.b).append(']');
       }
       return sb.append('}').toString();
@@ -99,12 +94,6 @@ final class Entries {
     @SuppressWarnings("PackageVisibleField")
     @XmlValue
     String value;
-
-    /**
-     * Default constructor used for JAXB (un)marshalling.
-     */
-    public StringValueEntry() {
-    }
 
     /**
      * Create a new entry with a string value.
