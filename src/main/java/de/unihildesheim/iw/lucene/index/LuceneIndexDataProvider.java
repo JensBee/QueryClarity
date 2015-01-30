@@ -163,23 +163,6 @@ public class LuceneIndexDataProvider
     }
 
     /**
-     * Check, if we have a total term frequency value set.
-     *
-     * @return True, if value is available
-     */
-    boolean hasTtf() {
-      return this.ttf != null;
-    }
-
-    /**
-     * Check if document count is set.
-     * @return True, if set
-     */
-    boolean hasDocCount() {
-      return this.docCount != null;
-    }
-
-    /**
      * Check if a term is flagged as stopword.
      * @param br Term
      * @return True, if stopword
@@ -309,7 +292,6 @@ public class LuceneIndexDataProvider
    * Check, if specific documents have TermVectors set for al  required fields.
    *
    * @param docIds Documents to check
-   * @throws DataProviderException Thrown on low-level I/O errors
    */
   private void checkForTermVectors(final Iterable<Integer> docIds) {
 
@@ -756,124 +738,6 @@ public class LuceneIndexDataProvider
     @Override
     public boolean hasNext() {
       return this.nextTerm != null;
-    }
-  }
-
-  /**
-   * Simple terms iterator converting {@link BytesRef} objects to {@link
-   * ByteArray} on the fly.
-   */
-  @SuppressWarnings("PackageVisibleInnerClass")
-  final class LuceneByteTermsIterator
-      extends AbstractLuceneTermsIterator<ByteArray> {
-    /**
-     * Current term.
-     */
-    private BytesRef term;
-
-    /**
-     * Default constructor setting up the required {@link TermsEnum}.
-     *
-     * @param field Field to query for terms
-     * @throws IOException Thrown on low-level I/O errors
-     */
-    LuceneByteTermsIterator(final String field)
-        throws IOException {
-      super(field);
-    }
-
-    @Override
-    public ByteArray next() {
-      this.term = this.nextTerm;
-      if (this.term == null) {
-        throw new NoSuchElementException();
-      }
-      try {
-        setNext();
-      } catch (final IOException e) {
-        LOG.error("Failed to get next term.", e);
-      }
-      return BytesRefUtils.toByteArray(this.term);
-    }
-  }
-
-  /**
-   * Iterator to access Lucene document terms by field.
-   */
-  @SuppressWarnings("PackageVisibleInnerClass")
-  final class LuceneDocTermsIterator
-      extends AbstractLuceneTermsIterator<ByteArray> {
-    /**
-     * Current term.
-     */
-    private ByteArray term;
-    /**
-     * Document ids to gather terms from.
-     */
-    private final List<Integer> docIds;
-    /**
-     * Documents with current term enumerator.
-     */
-    private DocsEnum docsEnum;
-
-    /**
-     * Iterate over all terms from a list of documents.
-     * @param field Documents field
-     * @param documentIds Documents to extract terms from
-     * @throws IOException Thrown on low-level I/O errors
-     */
-    public LuceneDocTermsIterator(final String field, final
-    Collection<Integer> documentIds)
-        throws IOException {
-      super(field);
-      this.docIds = new ArrayList<>(documentIds);
-      Collections.sort(this.docIds);
-      setNext();
-    }
-
-    /**
-     * Get the next element in order.
-     * @throws IOException Thrown on low-level I/O errors
-     */
-    @Override
-    protected void setNext()
-        throws IOException {
-      super.setNext();
-      boolean haveNext = false;
-      while (this.nextTerm != null && !haveNext) {
-          this.docsEnum = this.termsEnum.docs(
-              LuceneIndexDataProvider.this.index.liveDocs,
-              this.docsEnum, DocsEnum.FLAG_NONE);
-
-          for (final int docId : this.docIds) {
-            final int doc = this.docsEnum.advance(docId);
-            if (doc == DocsEnum.NO_MORE_DOCS) {
-              break;
-            }
-            if (doc == docId || this.docIds.contains(doc)) {
-              // store term in cache
-              haveNext = true;
-              break;
-            }
-          }
-          if (!haveNext) {
-            super.setNext();
-          }
-      }
-    }
-
-    @Override
-    public ByteArray next() {
-      if (this.nextTerm == null) {
-        throw new NoSuchElementException();
-      }
-      this.term = BytesRefUtils.toByteArray(this.nextTerm);
-      try {
-        setNext();
-      } catch (final IOException e) {
-        LOG.error("Failed to get next term.", e);
-      }
-      return this.term;
     }
   }
 
