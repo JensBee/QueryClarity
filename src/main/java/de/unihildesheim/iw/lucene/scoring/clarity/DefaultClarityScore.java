@@ -365,10 +365,11 @@ public final class DefaultClarityScore
 
     LOG.info("Calculating final score.");
     result.setScore(
-        KlDivergence.calc(
+        KlDivergence.sumAndCalc(model.dataSets.values()).doubleValue());
+        /*KlDivergence.calc(
             model.dataSets.values(),
             KlDivergence.sumValues(model.dataSets.values())
-        ).doubleValue());
+        )*/
 
     return result;
   }

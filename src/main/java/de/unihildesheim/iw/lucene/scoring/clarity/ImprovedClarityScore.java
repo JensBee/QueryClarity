@@ -405,10 +405,12 @@ public final class ImprovedClarityScore
 
     LOG.info("Calculating final score.");
     result.setScore(
+        KlDivergence.sumAndCalc(model.dataSets.values()).doubleValue());
+    /*result.setScore(
         KlDivergence.calc(
             model.dataSets.values(),
             KlDivergence.sumValues(model.dataSets.values())
-        ).doubleValue());
+        ).doubleValue());*/
 
     LOG.debug("Calculating improved clarity score for query {} "
             + "with {} document models took {}. {}",

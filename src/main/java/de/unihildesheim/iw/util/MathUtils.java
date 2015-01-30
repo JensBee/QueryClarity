@@ -86,6 +86,11 @@ public final class MathUtils {
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class KlDivergence {
+    public static BigDecimal sumAndCalc(
+        final Iterable<Tuple2<BigDecimal, BigDecimal>> dataSet) {
+      return calc(dataSet, sumValues(dataSet));
+    }
+
     public static Tuple2<BigDecimal, BigDecimal> sumValues(
         final Iterable<Tuple2<BigDecimal, BigDecimal>> dataSet) {
       final AtomicBigDecimal sumA = new AtomicBigDecimal();

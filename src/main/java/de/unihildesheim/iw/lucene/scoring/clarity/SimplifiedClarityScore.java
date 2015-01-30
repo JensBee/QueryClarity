@@ -130,10 +130,8 @@ public final class SimplifiedClarityScore
           this.dataProv.metrics().relTf(qTermEntry.getKey())));
     }
 
-    final double score;
-    score = KlDivergence.calc(
-        dataSet, KlDivergence.sumValues(dataSet)
-    ).doubleValue();
+    final double score = KlDivergence.sumAndCalc(dataSet).doubleValue();
+    //calc(dataSet, KlDivergence.sumValues(dataSet))
 
     LOG.debug("Calculation results: query={} score={}.", query, score);
 
