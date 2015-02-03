@@ -26,7 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
-import java.util.stream.StreamSupport;
+import java.util.Collection;
 
 /**
  * Collection of simple calculation utilities.
@@ -87,16 +87,16 @@ public final class MathUtils {
   @SuppressWarnings("PublicInnerClass")
   public static final class KlDivergence {
     public static BigDecimal sumAndCalc(
-        final Iterable<Tuple2<BigDecimal, BigDecimal>> dataSet) {
+        final Collection<Tuple2<BigDecimal, BigDecimal>> dataSet) {
       return calc(dataSet, sumValues(dataSet));
     }
 
     public static Tuple2<BigDecimal, BigDecimal> sumValues(
-        final Iterable<Tuple2<BigDecimal, BigDecimal>> dataSet) {
+        final Collection<Tuple2<BigDecimal, BigDecimal>> dataSet) {
       final AtomicBigDecimal sumA = new AtomicBigDecimal();
       final AtomicBigDecimal sumB = new AtomicBigDecimal();
 
-      StreamSupport.stream(dataSet.spliterator(), true)
+      dataSet.parallelStream()
           .filter(t2 ->
               // a null value is not allowed here
               t2 != null && t2.a != null && t2.b != null &&
@@ -115,12 +115,12 @@ public final class MathUtils {
     }
 
     public static BigDecimal calc(
-        final Iterable<Tuple2<BigDecimal, BigDecimal>> values,
+        final Collection<Tuple2<BigDecimal, BigDecimal>> values,
         final Tuple2<BigDecimal, BigDecimal> sums) {
 
       final AtomicBigDecimal result = new AtomicBigDecimal();
 
-      StreamSupport.stream(values.spliterator(), true)
+      values.parallelStream()
           .filter(t2 ->
               // a null value is not allowed here
               t2 != null && t2.a != null && t2.b != null &&
