@@ -24,9 +24,10 @@ import org.apache.lucene.util.Version;
 public final class LuceneDefaults {
 
   /**
-   * Lucene version the packages are designed for.
+   * Lucene version the packages are designed for. Set to LATEST to get set
+   * by current library version.
    */
-  public static final Version VERSION = Version.LUCENE_4_9;
+  public static final Version VERSION = Version.LATEST;
 
   /**
    * Private constructor for utility class.

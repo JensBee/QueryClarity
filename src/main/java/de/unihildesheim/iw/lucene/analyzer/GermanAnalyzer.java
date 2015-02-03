@@ -18,7 +18,6 @@
 package de.unihildesheim.iw.lucene.analyzer;
 
 import de.unihildesheim.iw.lucene.LuceneDefaults;
-import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
@@ -38,6 +37,8 @@ import java.io.Reader;
  */
 public final class GermanAnalyzer
     extends StopwordAnalyzerBase {
+  final Version matchVersion;
+
   /**
    * Builds an analyzer with the given stop words.
    *
@@ -46,17 +47,17 @@ public final class GermanAnalyzer
    */
   public GermanAnalyzer(final Version version,
       final CharArraySet newStopwords) {
-    super(version, newStopwords);
+    super(newStopwords);
+    this.matchVersion = version;
   }
 
   /**
    * Builds an analyzer with the default Lucene version and stopwords from the
    * given {@link IndexDataProvider}.
    */
-  public GermanAnalyzer(final IndexDataProvider dataProv)
-      throws DataProviderException {
-    super(LuceneDefaults.VERSION, new CharArraySet(LuceneDefaults.VERSION,
-        dataProv.getStopwords(), true));
+  public GermanAnalyzer(final IndexDataProvider dataProv) {
+    super(new CharArraySet(dataProv.getStopwords(), true));
+    this.matchVersion = LuceneDefaults.VERSION;
   }
 
   /**
@@ -69,10 +70,9 @@ public final class GermanAnalyzer
   @Override
   public final TokenStreamComponents createComponents(final String fieldName,
       final Reader reader) {
-    final StandardTokenizer src = new StandardTokenizer(
-        this.matchVersion, reader);
-    TokenStream tok = new StandardFilter(this.matchVersion, src);
-    tok = new LowerCaseFilter(this.matchVersion, tok);
+    final StandardTokenizer src = new StandardTokenizer(reader);
+    TokenStream tok = new StandardFilter(src);
+    tok = new LowerCaseFilter(tok);
 //    tok = new WordDelimiterFilter(tok,
 //        WordDelimiterFilter.GENERATE_NUMBER_PARTS |
 //            WordDelimiterFilter.GENERATE_WORD_PARTS |

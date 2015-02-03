@@ -18,7 +18,6 @@
 package de.unihildesheim.iw.lucene.analyzer;
 
 import de.unihildesheim.iw.lucene.LuceneDefaults;
-import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
@@ -38,26 +37,27 @@ import java.io.Reader;
  */
 public final class EnglishAnalyzer
     extends StopwordAnalyzerBase {
+  final Version matchVersion;
 
   /**
    * Builds an analyzer with the given stop words.
    *
-   * @param version Lucene version to match
+   * @param v Lucene version to match
    * @param newStopwords stop words
    */
-  public EnglishAnalyzer(final Version version,
+  public EnglishAnalyzer(final Version v,
       final CharArraySet newStopwords) {
-    super(version, newStopwords);
+    super(newStopwords);
+    this.matchVersion = v;
   }
 
   /**
    * Builds an analyzer with the default Lucene version and stopwords from the
    * given {@link IndexDataProvider}.
    */
-  public EnglishAnalyzer(final IndexDataProvider dataProv)
-      throws DataProviderException {
-    super(LuceneDefaults.VERSION, new CharArraySet(LuceneDefaults.VERSION,
-        dataProv.getStopwords(), true));
+  public EnglishAnalyzer(final IndexDataProvider dataProv) {
+    super(new CharArraySet(dataProv.getStopwords(), true));
+    this.matchVersion = LuceneDefaults.VERSION;
   }
 
   /**
@@ -70,11 +70,10 @@ public final class EnglishAnalyzer
   @Override
   public final TokenStreamComponents createComponents(final String fieldName,
       final Reader reader) {
-    final StandardTokenizer src = new StandardTokenizer(
-        this.matchVersion, reader);
-    TokenStream tok = new StandardFilter(this.matchVersion, src);
+    final StandardTokenizer src = new StandardTokenizer(reader);
+    TokenStream tok = new StandardFilter(src);
     tok = new EnglishPossessiveFilter(this.matchVersion, tok);
-    tok = new LowerCaseFilter(this.matchVersion, tok);
+    tok = new LowerCaseFilter(tok);
 //    tok = new WordDelimiterFilter(tok,
 //        WordDelimiterFilter.GENERATE_NUMBER_PARTS |
 //            WordDelimiterFilter.GENERATE_WORD_PARTS |
@@ -82,7 +81,7 @@ public final class EnglishAnalyzer
 //            WordDelimiterFilter.SPLIT_ON_CASE_CHANGE,
 //        null
 //    );
-    tok = new StopFilter(this.matchVersion, tok, getStopwordSet());
+    tok = new StopFilter(tok, getStopwordSet());
     tok = new PorterStemFilter(tok);
     return new TokenStreamComponents(src, tok);
   }

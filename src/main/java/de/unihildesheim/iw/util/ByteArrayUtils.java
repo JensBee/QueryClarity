@@ -18,7 +18,6 @@ package de.unihildesheim.iw.util;
 
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.InternMap;
-import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.UnicodeUtil;
 
 import java.util.Arrays;
@@ -70,9 +69,9 @@ public final class ByteArrayUtils {
   public static String utf8ToString(final byte[] bytes) {
     String str = INTERN8.get(Objects.requireNonNull(bytes, "Bytes were null."));
     if (str == null) {
-      final CharsRef ref = new CharsRef(bytes.length);
-      UnicodeUtil.UTF8toUTF16(bytes, 0, bytes.length, ref);
-      str = ref.toString();
+      final char[] ref = new char[bytes.length];
+      final int len = UnicodeUtil.UTF8toUTF16(bytes, 0, bytes.length, ref);
+      str = new String(ref, 0, len);
       INTERN8.put(Arrays.copyOf(bytes, bytes.length), str);
     }
     return str;

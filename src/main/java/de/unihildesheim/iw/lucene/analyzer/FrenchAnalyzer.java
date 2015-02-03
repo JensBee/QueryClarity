@@ -41,6 +41,7 @@ import java.util.Arrays;
  */
 public final class FrenchAnalyzer
     extends StopwordAnalyzerBase {
+  final Version matchVersion;
 
   /**
    * Logger instance for this class.
@@ -49,7 +50,7 @@ public final class FrenchAnalyzer
   private static final String[] DEFAULT_ELISIONS = {
       "c", "d", "j", "l", "m", "n", "qu", "s", "t"};
   private final CharArraySet elisions =
-      new CharArraySet(this.matchVersion, DEFAULT_ELISIONS.length, true);
+      new CharArraySet(DEFAULT_ELISIONS.length, true);
 
   /**
    * Builds an analyzer with the given stop words.
@@ -59,7 +60,8 @@ public final class FrenchAnalyzer
    */
   public FrenchAnalyzer(final Version version,
       final CharArraySet newStopwords) {
-    super(version, newStopwords);
+    super(newStopwords);
+    this.matchVersion = version;
     this.elisions.addAll(Arrays.asList(DEFAULT_ELISIONS));
   }
 
@@ -69,8 +71,8 @@ public final class FrenchAnalyzer
    */
   public FrenchAnalyzer(final IndexDataProvider dataProv)
       throws DataProviderException {
-    super(LuceneDefaults.VERSION, new CharArraySet(LuceneDefaults.VERSION,
-        dataProv.getStopwords(), true));
+    super(new CharArraySet(dataProv.getStopwords(), true));
+    this.matchVersion = LuceneDefaults.VERSION;
     this.elisions.addAll(Arrays.asList(DEFAULT_ELISIONS));
     LOG.debug("Stopwords: {}", dataProv.getStopwords());
   }
@@ -85,11 +87,10 @@ public final class FrenchAnalyzer
   @Override
   public final TokenStreamComponents createComponents(final String fieldName,
       final Reader reader) {
-    final StandardTokenizer src = new StandardTokenizer(
-        this.matchVersion, reader);
-    TokenStream tok = new StandardFilter(this.matchVersion, src);
+    final StandardTokenizer src = new StandardTokenizer(reader);
+    TokenStream tok = new StandardFilter(src);
     tok = new ElisionFilter(tok, this.elisions);
-    tok = new LowerCaseFilter(this.matchVersion, tok);
+    tok = new LowerCaseFilter(tok);
 //    tok = new WordDelimiterFilter(tok,
 //        WordDelimiterFilter.GENERATE_NUMBER_PARTS |
 //            WordDelimiterFilter.GENERATE_WORD_PARTS |
@@ -97,7 +98,7 @@ public final class FrenchAnalyzer
 //            WordDelimiterFilter.SPLIT_ON_CASE_CHANGE,
 //        null
 //    );
-    tok = new StopFilter(this.matchVersion, tok, getStopwordSet());
+    tok = new StopFilter(tok, getStopwordSet());
     tok = new FrenchLightStemFilter(tok);
 //    tok =
 //        new SnowballFilter(tok, new org.tartarus.snowball.ext.FrenchStemmer
