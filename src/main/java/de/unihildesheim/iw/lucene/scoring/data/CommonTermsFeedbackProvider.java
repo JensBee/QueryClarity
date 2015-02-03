@@ -54,6 +54,7 @@ public class CommonTermsFeedbackProvider
     if (this.useFixedAmount) {
       return FeedbackQuery.getFixed(
           Objects.requireNonNull(this.idxReader, "IndexReader not set."),
+          Objects.requireNonNull(this.dataProv, "IndexDataProvider not set."),
           qObj, this.fixedAmount);
     }
     return FeedbackQuery.getMinMax(

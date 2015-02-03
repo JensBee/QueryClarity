@@ -17,6 +17,7 @@
 
 package de.unihildesheim.iw.lucene.scoring.data;
 
+import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 
@@ -68,6 +69,15 @@ public interface FeedbackProvider {
    * @return Self reference
    */
   FeedbackProvider indexReader(final IndexReader indexReader);
+
+  /**
+   * Set the {@link IndexDataProvider} that may be used to retrieve feedback
+   * documents.
+   *
+   * @param indexDataProvider Data provider
+   * @return Self reference
+   */
+  FeedbackProvider dataProvider(final IndexDataProvider indexDataProvider);
 
   /**
    * Set the {@link Analyzer} that may be used to parse a query string.

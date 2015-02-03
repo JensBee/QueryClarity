@@ -16,10 +16,10 @@
  */
 package de.unihildesheim.iw.lucene.document;
 
+import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.TimeMeasure;
-import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.IndexSearcher;
@@ -32,8 +32,10 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Utility class to get feedback documents based on queries. Feedback documents
@@ -67,11 +69,11 @@ public final class FeedbackQuery {
    * @return List of Lucene document ids
    * @throws IOException Thrown on low-level I/O errors
    */
-  public static Set<Integer> get(final IndexReader reader,
+  /*public static Set<Integer> get(final IndexReader reader,
       final Query query, final int docCount)
       throws IOException {
     return get(new IndexSearcher(reader), query, docCount);
-  }
+  }*/
 
   /**
    * Try to get a specific number of feedback documents matching a query. <br>
@@ -84,7 +86,7 @@ public final class FeedbackQuery {
    * @return List of Lucene document ids
    * @throws IOException Thrown on low-level I/O errors
    */
-  public static Set<Integer> get(final IndexSearcher searcher,
+  /*public static Set<Integer> get(final IndexSearcher searcher,
       final Query query, final int docCount)
       throws IOException {
     Objects.requireNonNull(searcher, "IndexSearcher was null.");
@@ -98,7 +100,7 @@ public final class FeedbackQuery {
     }
 
     return getDocs(searcher, query, maxRetDocs);
-  }
+  }*/
 
   /**
    * Get the maximum number of documents that can be retrieved.
@@ -203,12 +205,12 @@ public final class FeedbackQuery {
    * @throws IOException Thrown on low-level I/O errors
    * @throws ParseException Thrown on errors parsing a relaxed query
    */
-  public static Set<Integer> getMin(final IndexReader reader,
+  /*public static Set<Integer> getMin(final IndexReader reader,
       final RelaxableQuery query, final int minDocCount)
       throws IOException, ParseException {
     final IndexSearcher searcher = new IndexSearcher(reader);
     return getMin(searcher, query, minDocCount);
-  }
+  }*/
 
   /**
    * Try to get a minimum number of feedback documents. If the number of
@@ -227,11 +229,11 @@ public final class FeedbackQuery {
    * @throws IOException Thrown on low-level I/O errors
    * @throws ParseException Thrown on errors parsing a relaxed query
    */
-  public static Set<Integer> getMin(final IndexSearcher searcher,
+  /*public static Set<Integer> getMin(final IndexSearcher searcher,
       final RelaxableQuery query, final int minDocCount)
       throws IOException, ParseException {
     return getMinMax(searcher, query, minDocCount, Integer.MAX_VALUE);
-  }
+  }*/
 
   /**
    * @param searcher Searcher to issue queries
@@ -245,7 +247,7 @@ public final class FeedbackQuery {
    * @throws ParseException Thrown on errors parsing a relaxed query
    */
   public static Set<Integer> getMinMax(final IndexSearcher searcher,
-      final RelaxableQuery query, final int minDocs, int maxDocCount)
+      final RelaxableQuery query, final int minDocs, final int maxDocCount)
       throws IOException, ParseException {
     Objects.requireNonNull(searcher, "IndexSearcher was null.");
     Objects.requireNonNull(query, "Query was null.");
@@ -266,7 +268,6 @@ public final class FeedbackQuery {
 
     final int maxRetDocs = getMaxDocs(searcher.getIndexReader(), maxDocs);
     final Query q = query.getQueryObj();
-//    LOG.debug("getMinMax: initial q={}", q);
     final Set<Integer> docIds = getDocs(searcher, q, maxRetDocs);
 
     int docsToGet;
@@ -303,8 +304,15 @@ public final class FeedbackQuery {
   }
 
   /**
-   * Same as {@link #getFixed(IndexSearcher, RelaxableQuery, int)}, but creates
-   * a new {@link IndexSearcher} from the provided {@link IndexReader}.
+   * Try to get a fixed number of feedback documents. If the number of feedback
+   * documents is not reached by running an initial query the query get relaxed
+   * (simplified) to reach a higher number of matching feedback documents. If
+   * the desired number of documents could not be reached by relaxing the query
+   * all matching documents collected so far are returned. So the number of
+   * returned documents may be lower than desired. <br> The documents in the
+   * returned set are ordered by their relevance. Sorting is from best to worst
+   * matching. Creates a new {@link IndexSearcher} from the provided {@link
+   * IndexReader}.
    *
    * @param reader Reader to access the Lucene index
    * @param query Relaxable query to get matching documents
@@ -315,10 +323,15 @@ public final class FeedbackQuery {
    * @throws ParseException Thrown on errors parsing a relaxed query
    */
   public static Set<Integer> getFixed(final IndexReader reader,
+      final IndexDataProvider dataProv,
       final RelaxableQuery query, final int docCount)
       throws IOException, ParseException {
-    final IndexSearcher searcher = new IndexSearcher(reader);
-    return getFixed(searcher, query, docCount);
+    final Set<Integer> docIds = getMinMax(
+        new IndexSearcher(reader), query, docCount, docCount);
+    if (docIds.size() < docCount) {
+      getRandom(dataProv, docCount, docIds);
+    }
+    return docIds;
   }
 
   /**
@@ -339,11 +352,11 @@ public final class FeedbackQuery {
    * @throws IOException Thrown on low-level I/O errors
    * @throws ParseException Thrown on errors parsing a relaxed query
    */
-  public static Set<Integer> getFixed(final IndexSearcher searcher,
+  /*public static Set<Integer> getFixed(final IndexSearcher searcher,
       final RelaxableQuery query, final int docCount)
       throws IOException, ParseException {
     return getMinMax(searcher, query, docCount, docCount);
-  }
+  }*/
 
   /**
    * Same as {@link #getMinMax(IndexSearcher, RelaxableQuery, int, int)}, but
@@ -360,20 +373,20 @@ public final class FeedbackQuery {
    * @throws ParseException Thrown on errors parsing a relaxed query
    */
   public static Set<Integer> getMinMax(final IndexReader reader,
-      final RelaxableQuery query, final int minDocCount, int maxDocCount)
+      final RelaxableQuery query, final int minDocCount, final int maxDocCount)
       throws IOException, ParseException {
-    final IndexSearcher searcher = new IndexSearcher(reader);
-    return getMinMax(searcher, query, minDocCount, maxDocCount);
+    return getMinMax(new IndexSearcher(reader), query, minDocCount,
+        maxDocCount);
   }
 
-  public static Set<Integer> getFixed(final IndexReader reader,
+  /*public static Set<Integer> getFixed(final IndexReader reader,
       final Query query, final String[] fields, final int docCount)
       throws IOException {
     final IndexSearcher searcher = new IndexSearcher(reader);
     return getFixed(searcher, query, fields, docCount);
-  }
+  }*/
 
-  public static Set<Integer> getFixed(final IndexSearcher searcher,
+  /*public static Set<Integer> getFixed(final IndexSearcher searcher,
       final Query query, final String[] fields, final int docCount)
       throws IOException {
     Objects.requireNonNull(searcher, "IndexSearcher was null.");
@@ -415,5 +428,31 @@ public final class FeedbackQuery {
 
     LOG.debug("Returning {} documents.", docIds.size());
     return docIds;
+  }*/
+
+  public static void getRandom(final IndexDataProvider dataProv,
+      final int amount, final Set<Integer> docIds) {
+    LOG.info("Getting {}/{} random feedback documents. {} documents provided.",
+        (amount - docIds.size()), amount, docIds.size());
+
+    final List<Integer> haveDocs = dataProv.getDocumentIds()
+        .filter(id -> !docIds.contains(id))
+        .collect(Collectors.toList());
+
+    if (haveDocs.isEmpty()) {
+      LOG.warn("Giving up. No random documents. Got {} documents.",
+          docIds.size());
+    } else {
+      while (docIds.size() < amount || haveDocs.isEmpty()) {
+        docIds.add(
+          haveDocs.remove(
+              RandomValue.getInteger(0, (haveDocs.size() - 1)))
+        );
+      }
+      if (docIds.size() < amount && haveDocs.isEmpty()) {
+        LOG.warn("Giving up searching for random documents. Got {} documents.",
+            docIds.size());
+      }
+    }
   }
 }

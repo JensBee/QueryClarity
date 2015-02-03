@@ -305,6 +305,7 @@ public final class ImprovedClarityScore
       this.fbProvider = new DefaultFeedbackProvider();
     }
     this.fbProvider
+        .dataProvider(this.dataProv)
         .indexReader(builder.getIndexReader())
         .analyzer(this.analyzer);
   }
@@ -336,10 +337,10 @@ public final class ImprovedClarityScore
     final Result result = new Result(this.getClass());
 
     // get a normalized unique list of query terms
-    // skips stopwords and removes unknown terms
+    // skips stopwords and removes unknown terms (not visible in current
+    // fields, etc.)
     final Collection<ByteArray> queryTerms = QueryUtils.tokenizeQuery(query,
         this.analyzer, this.dataProv.metrics());
-
     // check query term extraction result
     if (queryTerms.isEmpty()) {
       result.setEmpty("No query terms.");
@@ -394,7 +395,7 @@ public final class ImprovedClarityScore
         .getDocumentModelParamBeta(), this.conf.getDocumentModelParamLambda());
 
     LOG.info("Calculating query models using feedback vocabulary.");
-    this.vocProvider
+    List<Tuple2<BigDecimal, BigDecimal>> dataSets = this.vocProvider
         .documentIds(feedbackDocIds)
         .get()
         .filter(t -> {
@@ -405,12 +406,11 @@ public final class ImprovedClarityScore
         .map(term ->
             Tuple.tuple2(
                 model.query(term), this.dataProv.metrics().relTf(term)))
-        .forEach(t2 ->
-            model.dataSets.put(model.dataSetCounter.incrementAndGet(), t2));
+        .collect(Collectors.toList());
 
     LOG.info("Calculating final score.");
     result.setScore(
-        KlDivergence.sumAndCalc(model.dataSets.values()).doubleValue());
+        KlDivergence.sumAndCalc(dataSets).doubleValue());
 
     LOG.debug("Calculating improved clarity score for query {} "
             + "with {} document models took {}. {}",

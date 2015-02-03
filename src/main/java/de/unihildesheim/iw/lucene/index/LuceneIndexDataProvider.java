@@ -21,28 +21,23 @@ import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.Tuple.Tuple3;
-import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
-import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderBuilder
-    .Feature;
+import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderBuilder.Feature;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.util.ByteArrayUtils;
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.search.FieldValueFilter;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.jetbrains.annotations.Nullable;
@@ -270,7 +265,7 @@ public class LuceneIndexDataProvider
     // the number of unique terms also
     // this will also collect stopwords, if a common-terms
     // threshold is set and a term exceeds this value
-    LOG.debug("Collecting term counts");
+    LOG.info("Collecting term counts");
     final Tuple3<Long, Long, Set<BytesRef>> termCounts =
         collectTermFrequencyValues();
     // set gathered values
@@ -353,7 +348,7 @@ public class LuceneIndexDataProvider
     try {
       final LuceneTermsIteratorRetrieveFlags[] flags;
       if (skipCommonTerms) {
-        LOG.debug("Collecting common terms");
+        LOG.info("Collecting common terms");
         ctThreshold = (double) this.options.get(Feature.COMMON_TERM_THRESHOLD);
         flags = new LuceneTermsIteratorRetrieveFlags[]{
             LuceneTermsIteratorRetrieveFlags.TTF,
@@ -406,7 +401,7 @@ public class LuceneIndexDataProvider
       final Terms terms = MultiFields.getTerms(
           this.index.reader, this.index.fields.get(0));
       final TermsEnum termsEnum = terms.iterator(TermsEnum.EMPTY);
-      if (termsEnum.seekExact(new BytesRef(term.bytes))) {
+      if (termsEnum.seekExact(BytesRefUtils.fromByteArray(term))) {
         return termsEnum.totalTermFreq();
       } else {
         return 0L;
@@ -450,29 +445,23 @@ public class LuceneIndexDataProvider
         this.index.fields);
 
     final IndexSearcher searcher = new IndexSearcher(this.index.reader);
-    final Analyzer analyzer = new StandardAnalyzer(LuceneDefaults.VERSION,
-        CharArraySet.EMPTY_SET);
-    Query query;
-    final TotalHitCountCollector totalHitsCollector =
-        new TotalHitCountCollector();
     TopDocs matches;
+
+    final Query q = new MatchAllDocsQuery();
 
     for (final String field : this.index.fields) {
       @SuppressWarnings("ObjectAllocationInLoop")
-      final QueryParser qp = new QueryParser(
-          LuceneDefaults.VERSION, field, analyzer);
-      qp.setAllowLeadingWildcard(true);
+      // require documents to have content in the current field
+      final Filter fieldFilter = new FieldValueFilter(field);
+      LOG.debug("Using FieldFilter: {}", fieldFilter);
+
       try {
-        query = qp.parse("*");
-        searcher.search(query, totalHitsCollector);
-        final int expResults = totalHitsCollector.getTotalHits();
-        LOG.debug("Running query expecting {} results.", expResults);
-        matches = searcher.search(query, expResults);
+        matches = searcher.search(q, fieldFilter, this.index.reader.numDocs());
         LOG.debug("Query returned {} matching documents.", matches.totalHits);
         for (final ScoreDoc doc : matches.scoreDocs) {
           docIds.add(doc.doc);
         }
-      } catch (ParseException | IOException e) {
+      } catch (final IOException e) {
         e.printStackTrace();
       }
     }
@@ -480,8 +469,8 @@ public class LuceneIndexDataProvider
   }
 
   @Override
-  public Iterator<Integer> getDocumentIds() {
-    return this.index.docIds.iterator();
+  public Stream<Integer> getDocumentIds() {
+    return this.index.docIds.parallelStream();
   }
 
   @Override
@@ -499,13 +488,10 @@ public class LuceneIndexDataProvider
 
   @Override
   public boolean hasDocument(final int docId) {
-    final Iterator<Integer> docIdIt = getDocumentIds();
-    while (docIdIt.hasNext()) {
-      if (docId == docIdIt.next()) {
-        return true;
-      }
-    }
-    return false;
+    return getDocumentIds()
+        .filter(id -> id == docId)
+        .findFirst()
+        .isPresent();
   }
 
   private Map<ByteArray, Long> getDocumentTerms(
@@ -516,30 +502,37 @@ public class LuceneIndexDataProvider
     // TODO: add support for multiple fields
     final Terms terms = this.index.reader.getTermVector(
         docId, this.index.fields.get(0));
-    final TermsEnum termsEnum = terms.iterator(TermsEnum.EMPTY);
-    BytesRef term = termsEnum.next();
+    if (terms == null) {
+      LOG.warn("No Term Vectors for field {} in document {}.", this.index
+          .fields.get(0), docId);
+      LOG.debug("Field exists? {}", (this.index.reader.document(docId)
+          .getField(this.index.fields.get(0)) != null));
+    } else {
+      final TermsEnum termsEnum = terms.iterator(TermsEnum.EMPTY);
+      BytesRef term = termsEnum.next();
 
-    while (term != null) {
-      if (!this.index.isStopword(term)) {
-        if (asSet) {
-          termsMap.put(BytesRefUtils.toByteArray(term), null);
-        } else {
-          final ByteArray termBytes = BytesRefUtils.toByteArray(term);
-          if (termsMap.containsKey(termBytes)) {
-            termsMap.put(termBytes, termsMap.get(termBytes)
-                + termsEnum.totalTermFreq());
+      while (term != null) {
+        if (!this.index.isStopword(term)) {
+          if (asSet) {
+            termsMap.put(BytesRefUtils.toByteArray(term), null);
           } else {
-            termsMap.put(termBytes, termsEnum.totalTermFreq());
+            final ByteArray termBytes = BytesRefUtils.toByteArray(term);
+            if (termsMap.containsKey(termBytes)) {
+              termsMap.put(termBytes, termsMap.get(termBytes)
+                  + termsEnum.totalTermFreq());
+            } else {
+              termsMap.put(termBytes, termsEnum.totalTermFreq());
+            }
           }
         }
+        term = termsEnum.next();
       }
-      term = termsEnum.next();
     }
     return termsMap;
   }
 
   private final class LuceneDocTermsSpliterator
-  extends AbstractSpliterator<ByteArray> {
+      extends AbstractSpliterator<ByteArray> {
     /**
      * {@link TermsEnum} pointing at the target field.
      */

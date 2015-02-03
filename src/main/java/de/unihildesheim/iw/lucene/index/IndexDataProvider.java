@@ -20,7 +20,6 @@ import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -67,11 +66,11 @@ public interface IndexDataProvider
   void close();
 
   /**
-   * Get an iterator over all known document-ids.
+   * Get an all known document-ids.
    *
-   * @return Iterator over document-ids
+   * @return Stream of document-ids
    */
-  Iterator<Integer> getDocumentIds();
+  Stream<Integer> getDocumentIds();
 
   /**
    * Get a {@link DocumentModel} instance for the document with the given id.

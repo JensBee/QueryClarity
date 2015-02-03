@@ -17,6 +17,7 @@
 
 package de.unihildesheim.iw.lucene.scoring.data;
 
+import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 
@@ -54,7 +55,10 @@ public abstract class AbstractFeedbackProvider<T extends FeedbackProvider>
    * Reader to access the index.
    */
   protected IndexReader idxReader;
-
+  /**
+   * Reader to access the index.
+   */
+  protected IndexDataProvider dataProv;
   /**
    * Query analyzer.
    */
@@ -98,6 +102,12 @@ public abstract class AbstractFeedbackProvider<T extends FeedbackProvider>
   @Override
   public T analyzer(final Analyzer analyzer) {
     this.qAnalyzer = Objects.requireNonNull(analyzer);
+    return getThis();
+  }
+
+  @Override
+  public T dataProvider(final IndexDataProvider dp) {
+    this.dataProv = Objects.requireNonNull(dp);
     return getThis();
   }
 

@@ -22,6 +22,7 @@ import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
+import de.unihildesheim.iw.lucene.document.FeedbackQuery;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
@@ -34,6 +35,7 @@ import de.unihildesheim.iw.util.MathUtils.KlDivergence;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.IndexReader;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
@@ -46,7 +48,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -87,6 +88,7 @@ public final class DefaultClarityScore
    * Provider for feedback vocabulary.
    */
   private final VocabularyProvider vocProvider;
+  private final IndexReader indexReader;
   /**
    * Provider for feedback documents.
    */
@@ -125,16 +127,6 @@ public final class DefaultClarityScore
      * Stores the feedback document models.
      */
     private final Map<Integer, DocumentModel> docModels;
-    /**
-     * Caches values of document and query models. Those need to be normalized
-     * before calculating the score.
-     */
-    @SuppressWarnings("ProtectedField")
-    private final Map<Long, Tuple2<BigDecimal, BigDecimal>> dataSets;
-    /**
-     * Counter for entries in {@link #dataSets}. Gets used as map key.
-     */
-    private final AtomicLong dataSetCounter;
 
     /**
      * Initialize the model calculation object.
@@ -162,9 +154,6 @@ public final class DefaultClarityScore
           (double) this.feedbackDocs.size() * 1.8));
       this.docModels = new ConcurrentHashMap<>((int) (
           (double) this.feedbackDocs.size() * 1.8));
-      // final size depends on feedback vocabulary amount
-      this.dataSets = new ConcurrentHashMap<>(70000);
-      this.dataSetCounter = new AtomicLong(0L);
 
       LOG.info("Pre-calculating static query model values");
       // pre-calculate query term document models
@@ -210,11 +199,11 @@ public final class DefaultClarityScore
      * @return Query model value for all feedback documents
      */
     final BigDecimal query(final ByteArray term) {
-      return this.feedbackDocs.stream()
+      return this.feedbackDocs.parallelStream()
           .map(d -> document(this.docModels.get(d), term)
               .multiply(this.staticQueryModelParts.get(d),
                   MATH_CONTEXT))
-          .reduce((x, y) -> x.add(y, MATH_CONTEXT)).get();
+          .reduce(BigDecimal.ZERO, (x, y) -> x.add(y, MATH_CONTEXT));
     }
   }
 
@@ -237,6 +226,7 @@ public final class DefaultClarityScore
 
     this.dataProv = builder.getIndexDataProvider();
     this.analyzer = builder.getAnalyzer();
+    this.indexReader = builder.getIndexReader();
 
     if (builder.getVocabularyProvider() != null) {
       this.vocProvider = builder.getVocabularyProvider();
@@ -251,6 +241,7 @@ public final class DefaultClarityScore
       this.fbProvider = new DefaultFeedbackProvider();
     }
     this.fbProvider
+        .dataProvider(this.dataProv)
         .indexReader(builder.getIndexReader())
         .analyzer(this.analyzer);
   }
@@ -273,7 +264,7 @@ public final class DefaultClarityScore
    */
   @Override
   public Result calculateClarity(final String query)
-      throws ClarityScoreCalculationException, DataProviderException {
+      throws ClarityScoreCalculationException {
     if (StringUtils.isStrippedEmpty(
         Objects.requireNonNull(query, "Query was null."))) {
       throw new IllegalArgumentException("Query was empty.");
@@ -282,6 +273,18 @@ public final class DefaultClarityScore
     LOG.info("Calculating clarity score. query={}", query);
     final TimeMeasure timeMeasure = new TimeMeasure().start();
 
+    // get a normalized unique list of query terms
+    // skips stopwords and removes unknown terms (not visible in current
+    // fields, etc.)
+    final Collection<ByteArray> queryTerms = QueryUtils.tokenizeQuery(query,
+        this.analyzer, this.dataProv.metrics());
+    // check query term extraction result
+    if (queryTerms == null || queryTerms.isEmpty()) {
+      final Result result = new Result();
+      result.setEmpty("No query terms.");
+      return result;
+    }
+
     final Set<Integer> feedbackDocIds;
     try {
       feedbackDocIds = this.fbProvider
@@ -289,6 +292,12 @@ public final class DefaultClarityScore
           .fields(this.dataProv.getDocumentFields())
           .amount(this.conf.getFeedbackDocCount())
           .get();
+      if (feedbackDocIds.size() < this.conf.getFeedbackDocCount()) {
+        LOG.debug("Feedback amount too low, requesting random documents.");
+        FeedbackQuery.getRandom(this.dataProv,
+            this.conf.getFeedbackDocCount(), feedbackDocIds);
+      }
+      LOG.debug("Feedback size: {} documents.", feedbackDocIds.size());
     } catch (final Exception e) {
       final String msg = "Caught exception while getting feedback documents.";
       LOG.error(msg, e);
@@ -298,16 +307,6 @@ public final class DefaultClarityScore
     if (feedbackDocIds.isEmpty()) {
       final Result result = new Result();
       result.setEmpty("No feedback documents.");
-      return result;
-    }
-
-    final Collection<ByteArray> queryTerms = QueryUtils.tokenizeQuery(query,
-        this.analyzer, this.dataProv.metrics());
-
-    // check query term extraction result
-    if (queryTerms == null || queryTerms.isEmpty()) {
-      final Result result = new Result();
-      result.setEmpty("No query terms.");
       return result;
     }
 
@@ -350,18 +349,16 @@ public final class DefaultClarityScore
 
     LOG.info("Calculating query models using feedback vocabulary.");
     // calculate query models
-    this.vocProvider
-        .documentIds(feedbackDocIds)
-        .get()
+    final List<Tuple2<BigDecimal, BigDecimal>> dataSets = this.vocProvider
+        .documentIds(feedbackDocIds).get()
         .map(term ->
             Tuple.tuple2(
                 model.query(term), this.dataProv.metrics().relTf(term)))
-        .forEach(t2 ->
-            model.dataSets.put(model.dataSetCounter.incrementAndGet(), t2));
+        .collect(Collectors.toList());
 
     LOG.info("Calculating final score.");
     result.setScore(
-        KlDivergence.sumAndCalc(model.dataSets.values()).doubleValue());
+        KlDivergence.sumAndCalc(dataSets).doubleValue());
 
     return result;
   }
