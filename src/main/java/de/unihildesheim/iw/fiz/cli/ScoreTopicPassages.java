@@ -39,10 +39,9 @@ import de.unihildesheim.iw.lucene.scoring.clarity.DefaultClarityScoreConfigurati
 import de.unihildesheim.iw.lucene.scoring.clarity.ImprovedClarityScore;
 import de.unihildesheim.iw.lucene.scoring.clarity.ImprovedClarityScoreConfiguration;
 import de.unihildesheim.iw.lucene.scoring.clarity.SimplifiedClarityScore;
-import de.unihildesheim.iw.lucene.scoring.data.CommonTermsFeedbackProvider;
-import de.unihildesheim.iw.lucene.scoring.data.CommonTermsVocabularyProvider;
 import de.unihildesheim.iw.util.Configuration;
 import de.unihildesheim.iw.util.StopwordsFileReader;
+import de.unihildesheim.iw.util.TimeMeasure;
 import de.unihildesheim.iw.xml.TopicsXMLWriter;
 import de.unihildesheim.iw.xml.elements.Language;
 import de.unihildesheim.iw.xml.elements.Passage;
@@ -165,8 +164,8 @@ public final class ScoreTopicPassages
   /**
    * Scores a list of passages sorted by language. The languages to score are
    * set by commandline parameters {@link Params#lang}. <br> Calls {@link
-   * #scoreByLanguage(String)} for each
-   * language.
+   * #scoreByLanguage(String)} for each language.
+   *
    * @return True, if scoring was successfull
    */
   private boolean scoreByLanguage()
@@ -174,14 +173,14 @@ public final class ScoreTopicPassages
     // error flag
     boolean succeeded = true;
     // check for single language
-      LOG.info("Processing language '{}'.",
-          this.cliParams.lang);
-      try {
-        succeeded = scoreByLanguage(this.cliParams.lang);
-      } catch (IOException | BuildableException e) {
-        LOG.error("Failed to score language '{}'.", this.cliParams.lang, e);
-        succeeded = false;
-      }
+    LOG.info("Processing language '{}'.",
+        this.cliParams.lang);
+    try {
+      succeeded = scoreByLanguage(this.cliParams.lang);
+    } catch (IOException | BuildableException e) {
+      LOG.error("Failed to score language '{}'.", this.cliParams.lang, e);
+      succeeded = false;
+    }
     try {
       this.topicsXML.writeResults(this.cliParams.targetFile, true);
     } catch (final JAXBException e) {
@@ -193,6 +192,7 @@ public final class ScoreTopicPassages
 
   /**
    * Runs the scoring for a single language.
+   *
    * @param lang Language to score. Uses a two-char language code.
    * @return True, if scoring was successfull
    * @throws IOException
@@ -217,9 +217,7 @@ public final class ScoreTopicPassages
     // suffix all fields by language
     final Set<String> langFields =
         new HashSet<>(this.cliParams.fields.length);
-    for (final String field : this.cliParams.fields) {
-        langFields.add(field);
-    }
+    Collections.addAll(langFields, this.cliParams.fields);
 
     // create the IndexDataProvider
     LOG.info("Initializing IndexDataProvider. lang={} fields={}", lang,
@@ -267,6 +265,8 @@ public final class ScoreTopicPassages
         LOG.info("Using only scorer: {}", this.cliParams.scorerType);
       }
 
+      final TimeMeasure runTime = new TimeMeasure().start();
+
       // iterate over all scorers
       for (final Tuple2<? extends ClarityScoreCalculationBuilder,
           ? extends Configuration> scorerT2 : scorer) {
@@ -289,9 +289,10 @@ public final class ScoreTopicPassages
                 passages.size(), lang, csc.getIdentifier());
             try {
               //noinspection HardcodedFileSeparator
-              LOG.info("Scoring [{}/{}], language {}, scorer {}.",
+              LOG.info("Scoring [{}/{}], language {}, scorer {}. Runtime: {}",
                   ++passageCounter,
-                  passages.size(), lang, csc.getIdentifier());
+                  passages.size(), lang, csc.getIdentifier(),
+                  runTime.getTimeString());
               result = csc.calculateClarity(p.getContent());
               @SuppressWarnings("ObjectAllocationInLoop")
               final Score score = new Score(csc.getIdentifier(),
@@ -314,20 +315,22 @@ public final class ScoreTopicPassages
           succeeded = false;
         }
       }
+      LOG.info("Finished after {}.", runTime.stop().getTimeString());
     }
     return succeeded;
   }
 
   /**
    * Get a configured scorer.
+   *
    * @param st Scorer type
    * @param dataProv DataProvider to access index data
    * @param cacheName Name of a DataProvider cache file to load
    * @param dataPath Path to store DataProvider working files
    * @param idxReader Lucene index reader
    * @param analyzer Lucene analyzer
-   * @return Tuple containing a DataProvider instance and a configuration
-   * object for the instance
+   * @return Tuple containing a DataProvider instance and a configuration object
+   * for the instance
    * @throws IOException
    */
   private Tuple2<? extends ClarityScoreCalculationBuilder,
@@ -383,15 +386,14 @@ public final class ScoreTopicPassages
     }
 
     // check for custom configuration case
-      LOG.info("Using configuration: common-terms");
-      resTuple.a.feedbackProvider(new CommonTermsFeedbackProvider());
-      //resTuple.a.vocabularyProvider(new CommonTermsVocabularyProvider());
-
+    //LOG.info("Using configuration: common-terms");
+    //resTuple.a.feedbackProvider(new CommonTermsFeedbackProvider());
     return resTuple;
   }
 
   /**
    * Get a {@link ScorerType} by name.
+   *
    * @param name Name to identify the scorer to get
    * @return Scorer instance, or {@code null} if none was found
    */
@@ -457,6 +459,7 @@ public final class ScoreTopicPassages
 
     /**
      * New instance based on a initialized XML writer.
+     *
      * @param newTopicsXML Writer to use
      */
     XmlResult(final TopicsXMLWriter newTopicsXML) {
@@ -464,8 +467,9 @@ public final class ScoreTopicPassages
     }
 
     /**
-     * Add a scorer to the results. The type and configuration of the scorer
-     * is used to provide information in the result file.
+     * Add a scorer to the results. The type and configuration of the scorer is
+     * used to provide information in the result file.
+     *
      * @param csc Scorer instance
      * @param cscConf Configuration used by instance
      */
@@ -479,6 +483,7 @@ public final class ScoreTopicPassages
 
     /**
      * Set the list of stopwords used for a language.
+     *
      * @param lang Language identifier
      * @param sWords List of stopwords used
      */
