@@ -237,8 +237,6 @@ public final class ScoreTopicPassages
       // reader to access the Lucene index
       final IndexReader idxReader =
           IndexUtils.openReader(this.cliParams.idxDir);
-      // name of the db cache to create/load
-      final String cacheName = this.cliParams.prefix + "_" + lang;
 
       // build a list of scorers to use
       final Collection<Tuple2<? extends
@@ -249,8 +247,7 @@ public final class ScoreTopicPassages
         // use all available scorers
         scorer = new ArrayList<>(ScorerType.values().length);
         for (final ScorerType st : ScorerType.values()) {
-          scorer.add(getScorer(st, dataProv, cacheName,
-              this.cliParams.dataDir.getCanonicalPath(), idxReader, analyzer));
+          scorer.add(getScorer(st, dataProv, idxReader, analyzer));
         }
         LOG.info("Using all available scorers.");
       } else {
@@ -259,8 +256,7 @@ public final class ScoreTopicPassages
             .<Tuple2<? extends
                 ClarityScoreCalculationBuilder,
                 ? extends Configuration>>singletonList(
-                getScorer(this.cliParams.scorerType, dataProv, cacheName,
-                    this.cliParams.dataDir.getCanonicalPath(), idxReader,
+                getScorer(this.cliParams.scorerType, dataProv, idxReader,
                     analyzer));
         LOG.info("Using only scorer: {}", this.cliParams.scorerType);
       }
@@ -325,8 +321,6 @@ public final class ScoreTopicPassages
    *
    * @param st Scorer type
    * @param dataProv DataProvider to access index data
-   * @param cacheName Name of a DataProvider cache file to load
-   * @param dataPath Path to store DataProvider working files
    * @param idxReader Lucene index reader
    * @param analyzer Lucene analyzer
    * @return Tuple containing a DataProvider instance and a configuration object
@@ -337,11 +331,8 @@ public final class ScoreTopicPassages
       ? extends Configuration>
   getScorer(final ScorerType st,
       final IndexDataProvider dataProv,
-      final String cacheName,
-      final String dataPath,
       final IndexReader idxReader,
-      final Analyzer analyzer)
-      throws IOException {
+      final Analyzer analyzer) {
     Tuple2<? extends ClarityScoreCalculationBuilder, ? extends Configuration>
         resTuple = null;
     switch (st) {
@@ -350,8 +341,6 @@ public final class ScoreTopicPassages
             DefaultClarityScoreConfiguration();
         final ClarityScoreCalculationBuilder dcs =
             (ClarityScoreCalculationBuilder) new DefaultClarityScore.Builder()
-                .loadOrCreateCache(cacheName)
-                .dataPath(dataPath)
                 .indexDataProvider(dataProv)
                 .indexReader(idxReader)
                 .configuration(dcsc)
@@ -363,8 +352,6 @@ public final class ScoreTopicPassages
             ImprovedClarityScoreConfiguration();
         final ClarityScoreCalculationBuilder ics =
             (ClarityScoreCalculationBuilder) new ImprovedClarityScore.Builder()
-                .loadOrCreateCache(cacheName)
-                .dataPath(dataPath)
                 .indexDataProvider(dataProv)
                 .indexReader(idxReader)
                 .configuration(icsc)
@@ -532,13 +519,6 @@ public final class ScoreTopicPassages
         required = true, usage = CliParams.INDEX_DIR_U)
     File idxDir;
     /**
-     * Directory for storing working data.
-     */
-    @SuppressWarnings("PackageVisibleField")
-    @Option(name = CliParams.DATA_DIR_P, metaVar = CliParams.DATA_DIR_M,
-        required = true, usage = CliParams.DATA_DIR_U)
-    File dataDir;
-    /**
      * Document-fields to query.
      */
     @SuppressWarnings("PackageVisibleField")
@@ -547,13 +527,6 @@ public final class ScoreTopicPassages
         usage = "List of document fields separated by spaces to query. ")
     String[] fields;
 
-    /**
-     * Prefix for cache data.
-     */
-    @SuppressWarnings("PackageVisibleField")
-    @Option(name = "-prefix", metaVar = "name", required = true,
-        usage = "Naming prefix for cached data files to load or create.")
-    String prefix;
     /**
      * Pattern for stopwords files.
      */
@@ -620,10 +593,6 @@ public final class ScoreTopicPassages
       if (!this.idxDir.exists()) {
         LOG.error("Index directory'" + this.idxDir + "' does not exist.");
         System.exit(-1);
-      }
-      if (!this.dataDir.exists()) {
-        LOG.info("Data directory'" + this.dataDir +
-            "' does not exist and will be created.");
       }
       if (StopwordsFileReader.getFormatFromString(this.stopFileFormat) ==
           null) {
