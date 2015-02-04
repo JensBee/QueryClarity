@@ -65,7 +65,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
   /**
    * Values for features supported by the current instance.
    */
-  protected Map<Feature, String> supportedFeatures = Collections.EMPTY_MAP;
+  protected Map<Feature, String> supportedFeatures = Collections.emptyMap();
 
   /**
    * Set a list of supported features.
@@ -73,7 +73,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    */
   protected final void setSupportedFeatures(
       final Feature[] features) {
-    this.supportedFeatures = new EnumMap(Feature.class);
+    this.supportedFeatures = new EnumMap<>(Feature.class);
     for (final Feature f : features) {
       this.supportedFeatures.put(f, null);
     }
