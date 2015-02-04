@@ -119,7 +119,7 @@ public class LuceneIndexDataProvider
     /**
      * List of stopwords. Initially empty.
      */
-    private Set<ByteArray> stopwords = Collections.EMPTY_SET;
+    private Set<ByteArray> stopwords = Collections.emptySet();
     /**
      * Number of documents visible (documents having the required fields).
      */
@@ -128,7 +128,7 @@ public class LuceneIndexDataProvider
     /**
      * List of document-id of visible documents.
      */
-    private Collection<Integer> docIds = Collections.EMPTY_LIST;
+    private Collection<Integer> docIds = Collections.emptyList();
 
     /**
      * Initialize the access to the Lucene index and gather basic information
@@ -214,7 +214,7 @@ public class LuceneIndexDataProvider
   /**
    * Feature configuration.
    */
-  private final Map<Feature, Object> options = new EnumMap(Feature.class);
+  private final Map<Feature, Object> options = new EnumMap<>(Feature.class);
 
   /**
    * Create instance by using {@link Builder}.
@@ -345,7 +345,7 @@ public class LuceneIndexDataProvider
       newStopwords = new HashSet<>(1000);
       ctThreshold = (double) this.options.get(Feature.COMMON_TERM_THRESHOLD);
     } else {
-      newStopwords = Collections.EMPTY_SET;
+      newStopwords = Collections.emptySet();
       ctThreshold = 1d;
     }
 
@@ -375,34 +375,37 @@ public class LuceneIndexDataProvider
           // iterate over all terms in field
           termBr = termsEnum.next();
           while (termBr != null) {
-            final ByteArray termBa = BytesRefUtils.toByteArray(termBr);
+            if (!this.index.isStopword(termBr)) {
+              final ByteArray termBa = BytesRefUtils.toByteArray(termBr);
 
-            // add term to stopwords list, if it exceeds the document frequency
-            // threshold
-            //if (skipCommonTerms && termsEnum.docFreq() > dfThreshold) {
-            if (skipCommonTerms &&
-                (((double) termsEnum.docFreq() / (double) this.index.docCount) >
-                    ctThreshold)) {
-              newStopwords.add(termBa);
-            }
-
-            // skip terms already flagged as stopword
-            if (!newStopwords.contains(termBa) &&
-                !this.index.isStopword(termBa)) {
-              // obtain frequency so far, if term was already seen
-              Long termFreq = termMap.get(termBa);
-              if (termFreq == null) {
-                termFreq = 0L;
+              // add term to stopwords list, if it exceeds the document
+              // frequency
+              // threshold
+              //if (skipCommonTerms && termsEnum.docFreq() > dfThreshold) {
+              if (skipCommonTerms &&
+                  (((double) termsEnum.docFreq() /
+                      (double) this.index.docCount) >
+                      ctThreshold)) {
+                newStopwords.add(termBa);
               }
 
-              // go through all documents which contain the current term
-              docsEnum = termsEnum.docs(liveDocs, docsEnum);
-              doc = docsEnum.nextDoc();
-              while (doc != DocsEnum.NO_MORE_DOCS) {
-                termFreq += (long) docsEnum.freq();
+              // skip terms already flagged as stopword
+              if (!newStopwords.contains(termBa)) {
+                // obtain frequency so far, if term was already seen
+                Long termFreq = termMap.get(termBa);
+                if (termFreq == null) {
+                  termFreq = 0L;
+                }
+
+                // go through all documents which contain the current term
+                docsEnum = termsEnum.docs(liveDocs, docsEnum);
                 doc = docsEnum.nextDoc();
+                while (doc != DocsEnum.NO_MORE_DOCS) {
+                  termFreq += (long) docsEnum.freq();
+                  doc = docsEnum.nextDoc();
+                }
+                termMap.put(termBa, termFreq);
               }
-              termMap.put(termBa, termFreq);
             }
             termBr = termsEnum.next();
           }
@@ -431,12 +434,14 @@ public class LuceneIndexDataProvider
 
         currentTerm = termsEnum.next();
         while (currentTerm != null) {
-          if (((double) termsEnum.docFreq() / (double) this.index.docCount) >
-              ctThreshold) {
-            newStopwords.add(BytesRefUtils.toByteArray(currentTerm));
-          } else {
-            ttf += termsEnum.totalTermFreq();
-            uniqueCount++;
+          if (!this.index.isStopword(currentTerm)) {
+            if (((double) termsEnum.docFreq() / (double) this.index.docCount) >
+                ctThreshold) {
+              newStopwords.add(BytesRefUtils.toByteArray(currentTerm));
+            } else {
+              ttf += termsEnum.totalTermFreq();
+              uniqueCount++;
+            }
           }
           currentTerm = termsEnum.next();
         }
@@ -503,7 +508,7 @@ public class LuceneIndexDataProvider
   private Collection<Integer> getDocumentIdsCollection() {
     LOG.debug("@getDocumentIdsCollection");
     // TODO: maybe back by MapDB
-    final Collection<Integer> docIds = new ArrayList(this.index.maxDocs);
+    final Collection<Integer> docIds = new ArrayList<>(this.index.maxDocs);
     LOG.info("Collecting all documents from index with field(s) {}",
         this.index.fields);
 
@@ -596,9 +601,7 @@ public class LuceneIndexDataProvider
 
   @Override
   public Stream<ByteArray> getDocumentsTerms(
-      final Collection<Integer> docIds) {
-    // TODO: add support for multiple fields
-
+      final Set<Integer> docIds) {
     TermsEnum termsEnum = TermsEnum.EMPTY;
     final Collection<ByteArray> termSet = new HashSet<>(docIds.size() * 100);
     try {
@@ -613,7 +616,7 @@ public class LuceneIndexDataProvider
           }
         }
       }
-      return termSet.parallelStream();
+      return termSet.stream();
     } catch (final IOException e) {
       throw new IllegalStateException("Error accessing Lucene index.", e);
     }
