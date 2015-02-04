@@ -48,7 +48,6 @@ import java.io.IOException;
 import java.math.MathContext;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -58,14 +57,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.NoSuchElementException;
 import java.util.Set;
-import java.util.Spliterator;
-import java.util.Spliterators.AbstractSpliterator;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
@@ -160,6 +154,7 @@ public class LuceneIndexDataProvider
 
     /**
      * Check if a term is flagged as stopword.
+     *
      * @param br Term
      * @return True, if stopword
      */
@@ -169,6 +164,7 @@ public class LuceneIndexDataProvider
 
     /**
      * Check if a term is flagged as stopword.
+     *
      * @param ba Term
      * @return True, if stopword
      */
@@ -194,12 +190,11 @@ public class LuceneIndexDataProvider
     /**
      * Extend the list of words to exclude
      *
-     * @param brStopwords Stopwords list
+     * @param baStopwords Stopwords list
      */
-    void addStopwords(final Collection<BytesRef> brStopwords) {
-      LOG.debug("Adding {} stopwords", brStopwords.size());
-      this.stopwords.addAll(brStopwords.stream().map(BytesRefUtils::toByteArray)
-          .collect(Collectors.toList()));
+    void addStopwords(final Collection<ByteArray> baStopwords) {
+      LOG.debug("Adding {} stopwords", baStopwords.size());
+      this.stopwords.addAll(baStopwords);
     }
 
     /**
@@ -223,6 +218,7 @@ public class LuceneIndexDataProvider
 
   /**
    * Create instance by using {@link Builder}.
+   *
    * @param builder Builder
    * @throws DataProviderException If multiple fields are requested
    */
@@ -266,7 +262,7 @@ public class LuceneIndexDataProvider
     // this will also collect stopwords, if a common-terms
     // threshold is set and a term exceeds this value
     LOG.info("Collecting term counts");
-    final Tuple3<Long, Long, Set<BytesRef>> termCounts =
+    final Tuple3<Long, Long, Set<ByteArray>> termCounts =
         collectTermFrequencyValues();
     // set gathered values
     this.index.setTtf(termCounts.a);
@@ -274,7 +270,9 @@ public class LuceneIndexDataProvider
     this.index.addStopwords(termCounts.c);
 
     // all data gathered, initialize metrics instance
-    this.metrics = new CollectionMetrics(this);
+    this.metrics = new CollectionMetrics(this,
+        new CollectionMetrics.CollectionMetricsConfiguration()
+            .noCacheTf());
 
     LOG.debug("index.TTF {} index.UT {}", this.index.ttf,
         this.index.uniqueTerms);
@@ -328,58 +326,126 @@ public class LuceneIndexDataProvider
   /**
    * Get the total term frequency of all terms in the index (respecting fields).
    * May also count the number of unique terms, while gathering frequency
-   * values.
-   * If a common-terms threshold is set for the DataProvider terms will be
-   * added to the list of stopwords if the threshold is exceeded.
+   * values. If a common-terms threshold is set for the DataProvider terms will
+   * be added to the list of stopwords if the threshold is exceeded.
    *
-   * @return Tuple containing the TTf value (Tuple.A), the
+   * @return Tuple containing the total term frequency value (Tuple.A), the
    * number of unique terms (Tuple.B) and a list of terms exceeding the
    * common-terms threshold (if set) (Tuple.C).
    * @throws DataProviderException Thrown on low-level I/O errors
    */
-  private Tuple3<Long, Long, Set<BytesRef>> collectTermFrequencyValues()
+  private Tuple3<Long, Long, Set<ByteArray>> collectTermFrequencyValues()
       throws DataProviderException {
-    long uniqueCount = 0L;
+    double ctThreshold;
+    final Set<ByteArray> newStopwords;
     final boolean skipCommonTerms = this.options.containsKey(
         Feature.COMMON_TERM_THRESHOLD);
-    double ctThreshold = 1d;
-    final Set<BytesRef> newStopwords = new HashSet<>(1000);
-    // TODO: add multiple fields support
-    try {
-      final LuceneTermsIteratorRetrieveFlags[] flags;
-      if (skipCommonTerms) {
-        LOG.info("Collecting common terms");
-        ctThreshold = (double) this.options.get(Feature.COMMON_TERM_THRESHOLD);
-        flags = new LuceneTermsIteratorRetrieveFlags[]{
-            LuceneTermsIteratorRetrieveFlags.TTF,
-            LuceneTermsIteratorRetrieveFlags.DF};
-      } else {
-        flags = new LuceneTermsIteratorRetrieveFlags[]{
-            LuceneTermsIteratorRetrieveFlags.TTF};
-      }
-      final LuceneTermsIterator ttfIt = new LuceneTermsIterator(
-          this.index.fields.get(0), flags);
 
-      Long ttf = 0L; // final total term frequency value
-      while (ttfIt.hasNext()) {
-        if (skipCommonTerms) {
-          // save term to add to stopwords list
-          final BytesRef term = ttfIt.next();
-          // throws NPE, if docCount not set on initialization time (intended)
-          if (((double) ttfIt.df() / (double) this.index.docCount) >
-          ctThreshold) {
-            newStopwords.add(term);
-            continue; // next term, skip this one
+    if (skipCommonTerms) {
+      newStopwords = new HashSet<>(1000);
+      ctThreshold = (double) this.options.get(Feature.COMMON_TERM_THRESHOLD);
+    } else {
+      newStopwords = Collections.EMPTY_SET;
+      ctThreshold = 1d;
+    }
+
+    @Nullable Terms terms;
+    TermsEnum termsEnum = TermsEnum.EMPTY;
+    @Nullable DocsEnum docsEnum = null;
+
+    if (this.index.fields.size() > 1) {
+      // term, tf
+      final Map<ByteArray, Long> termMap = new HashMap<>(5000000);
+
+      int doc;
+      @Nullable BytesRef termBr;
+      final Bits liveDocs = MultiFields.getLiveDocs(this.index.reader);
+      // go through all fields
+      for (final String field : this.index.fields) {
+        LOG.debug("Collecting terms from field '{}'.", field);
+        try {
+          terms = MultiFields.getTerms(this.index.reader, field);
+          if (terms == null) {
+            LOG.warn("Field '{}' not found. Skipping.", field);
+            continue;
           }
-        } else {
-          ttfIt.next(); // term is not of interest
+
+          termsEnum = terms.iterator(termsEnum);
+
+          // iterate over all terms in field
+          termBr = termsEnum.next();
+          while (termBr != null) {
+            final ByteArray termBa = BytesRefUtils.toByteArray(termBr);
+
+            // add term to stopwords list, if it exceeds the document frequency
+            // threshold
+            //if (skipCommonTerms && termsEnum.docFreq() > dfThreshold) {
+            if (skipCommonTerms &&
+                (((double) termsEnum.docFreq() / (double) this.index.docCount) >
+                    ctThreshold)) {
+              newStopwords.add(termBa);
+            }
+
+            // skip terms already flagged as stopword
+            if (!newStopwords.contains(termBa) &&
+                !this.index.isStopword(termBa)) {
+              // obtain frequency so far, if term was already seen
+              Long termFreq = termMap.get(termBa);
+              if (termFreq == null) {
+                termFreq = 0L;
+              }
+
+              // go through all documents which contain the current term
+              docsEnum = termsEnum.docs(liveDocs, docsEnum);
+              doc = docsEnum.nextDoc();
+              while (doc != DocsEnum.NO_MORE_DOCS) {
+                termFreq += (long) docsEnum.freq();
+                doc = docsEnum.nextDoc();
+              }
+              termMap.put(termBa, termFreq);
+            }
+            termBr = termsEnum.next();
+          }
+        } catch (final IOException e) {
+          throw new DataProviderException(
+              "Failed to collect terms for field '" + field + "'", e);
         }
-        ttf += ttfIt.ttf();
-        uniqueCount++;
       }
-      return new Tuple3<>(ttf, uniqueCount, newStopwords);
-    } catch (final IOException e) {
-      throw new DataProviderException("Failed to collect terms", e);
+
+      return new Tuple3<>(
+          // sum up all single tf values
+          termMap.values().stream().reduce(0L, (x, y) -> x + y),
+          // number of unique terms
+          (long) termMap.keySet().size(),
+          // new stopwords based on threshold
+          newStopwords);
+    } else {
+      @Nullable BytesRef currentTerm; // current iteration term
+      long uniqueCount = 0L; // number of unique terms
+      long ttf = 0L; // final total term frequency value
+
+      try {
+        terms = MultiFields.getTerms(
+            this.index.reader, this.index.fields.get(0));
+        termsEnum = terms.iterator(termsEnum);
+
+        currentTerm = termsEnum.next();
+        while (currentTerm != null) {
+          if (((double) termsEnum.docFreq() / (double) this.index.docCount) >
+              ctThreshold) {
+            newStopwords.add(BytesRefUtils.toByteArray(currentTerm));
+          } else {
+            ttf += termsEnum.totalTermFreq();
+            uniqueCount++;
+          }
+          currentTerm = termsEnum.next();
+        }
+        return new Tuple3<>(ttf, uniqueCount, newStopwords);
+      } catch (final IOException e) {
+        throw new DataProviderException(
+            "Failed to collect terms for field '" +
+                this.index.fields.get(0) + "'", e);
+      }
     }
   }
 
@@ -391,11 +457,6 @@ public class LuceneIndexDataProvider
 
   @Override
   public final Long getTermFrequency(final ByteArray term) {
-    // short circuit for stopwords
-    if (this.index.isStopword(term)) {
-      return 0L;
-    }
-
     // TODO: add multiple fields support
     try {
       final Terms terms = MultiFields.getTerms(
@@ -413,7 +474,7 @@ public class LuceneIndexDataProvider
 
   @Override
   public int getDocumentFrequency(final ByteArray term) {
-
+    LOG.debug("@getDocumentFrequency");
     // TODO: add multiple fields support
     try {
       final Terms terms = MultiFields.getTerms(
@@ -436,9 +497,11 @@ public class LuceneIndexDataProvider
 
   /**
    * Get a collection of all documents (their ids) in the index.
+   *
    * @return Collection of found documents (their ids)
    */
   private Collection<Integer> getDocumentIdsCollection() {
+    LOG.debug("@getDocumentIdsCollection");
     // TODO: maybe back by MapDB
     final Collection<Integer> docIds = new ArrayList(this.index.maxDocs);
     LOG.info("Collecting all documents from index with field(s) {}",
@@ -531,114 +594,26 @@ public class LuceneIndexDataProvider
     return termsMap;
   }
 
-  private final class LuceneDocTermsSpliterator
-      extends AbstractSpliterator<ByteArray> {
-    /**
-     * {@link TermsEnum} pointing at the target field.
-     */
-    private final TermsEnum termsEnum;
-    /**
-     * Next term in the list of provided terms.
-     */
-    private BytesRef nextTerm;
-    /**
-     * Indicate, if there are any stopwords to use.
-     */
-    private final boolean useStopwords;
-    /**
-     * Document ids to gather terms from.
-     */
-    private final List<Integer> docIds;
-    /**
-     * Documents with current term enumerator.
-     */
-    private DocsEnum docsEnum;
-
-    private LuceneDocTermsSpliterator(
-        final String field, final Collection<Integer> documentIds)
-        throws IOException {
-      super(Long.MAX_VALUE,
-          Spliterator.DISTINCT | Spliterator.NONNULL | Spliterator.IMMUTABLE);
-
-      final Terms terms = MultiFields.getTerms(LuceneIndexDataProvider
-          .this.index.reader, field);
-      this.termsEnum = terms.iterator(TermsEnum.EMPTY);
-      this.useStopwords = !LuceneIndexDataProvider.this
-          .index.stopwords.isEmpty();
-
-      this.docIds = new ArrayList<>(documentIds);
-      Collections.sort(this.docIds);
-
-      setNextTerm();
-    }
-
-    private void getNextTerm()
-        throws IOException {
-      if (this.useStopwords) {
-        do {
-          this.nextTerm = this.termsEnum.next();
-        } while (this.nextTerm != null &&
-            LuceneIndexDataProvider.this.index.isStopword(this.nextTerm));
-      } else {
-        this.nextTerm = this.termsEnum.next();
-      }
-    }
-
-    private void setNextTerm()
-        throws IOException {
-      getNextTerm();
-      boolean haveNext = false;
-      while (this.nextTerm != null && !haveNext) {
-        this.docsEnum = this.termsEnum.docs(
-            LuceneIndexDataProvider.this.index.liveDocs,
-            this.docsEnum, DocsEnum.FLAG_NONE);
-
-        for (final int docId : this.docIds) {
-          final int doc = this.docsEnum.advance(docId);
-          if (doc == DocsEnum.NO_MORE_DOCS) {
-            break;
-          }
-          if (doc == docId || this.docIds.contains(doc)) {
-            haveNext = true;
-            break;
-          }
-        }
-        if (!haveNext) {
-          getNextTerm();
-        }
-      }
-    }
-
-    @Override
-    public boolean tryAdvance(final Consumer<? super ByteArray> action) {
-      if (action == null) {
-        throw new NullPointerException();
-      }
-
-      if (this.nextTerm == null) {
-        return false;
-      }
-
-      action.accept(BytesRefUtils.toByteArray(this.nextTerm));
-
-      try {
-        setNextTerm();
-      } catch (final IOException e) {
-        LOG.error("Failed retrieving next term.", e);
-        return false;
-      }
-
-      return true;
-    }
-  }
-
   @Override
   public Stream<ByteArray> getDocumentsTerms(
       final Collection<Integer> docIds) {
     // TODO: add support for multiple fields
+
+    TermsEnum termsEnum = TermsEnum.EMPTY;
+    final Collection<ByteArray> termSet = new HashSet<>(docIds.size() * 100);
     try {
-      return StreamSupport.stream(new LuceneDocTermsSpliterator(
-          this.index.fields.get(0), docIds), true);
+      for (final String field : this.index.fields) {
+        for (final Integer docId : docIds) {
+          final Terms terms = this.index.reader.getTermVector(docId, field);
+          termsEnum = terms.iterator(termsEnum);
+          BytesRef term = termsEnum.next();
+          while (term != null) {
+            termSet.add(BytesRefUtils.toByteArray(term));
+            term = termsEnum.next();
+          }
+        }
+      }
+      return termSet.parallelStream();
     } catch (final IOException e) {
       throw new IllegalStateException("Error accessing Lucene index.", e);
     }
@@ -670,188 +645,92 @@ public class LuceneIndexDataProvider
     return this.metrics;
   }
 
-  /**
-   * Abstract implementation to iterate over terms in a Lucene document field.
-   *
-   * @param <A> Type of value returned by the {@link Iterator}
-   */
-  private abstract class AbstractLuceneTermsIterator<A>
-      implements Iterator<A> {
-    /**
-     * {@link Terms} instance for target field.
-     */
-    protected final Terms terms;
-    /**
-     * {@link TermsEnum} pointing at the target field.
-     */
-    protected TermsEnum termsEnum;
-    /**
-     * Next term in the list of provided terms.
-     */
-    protected BytesRef nextTerm;
-    /**
-     * Indicate, if there are any stopwords to use.
-     */
-    private final boolean useStopwords;
+  private class DocIdBits
+      implements Bits {
+    final int l;
+    final Collection<Integer> docs;
 
-    /**
-     * Default constructor setting up the required {@link TermsEnum}.
-     *
-     * @param field Field to query for terms
-     * @throws IOException Thrown on low-level I/O errors
-     */
-    AbstractLuceneTermsIterator(final String field)
-        throws IOException {
-      this.terms = MultiFields.getTerms(LuceneIndexDataProvider
-          .this.index.reader, field);
-      this.termsEnum = TermsEnum.EMPTY;
-      this.termsEnum = this.terms.iterator(this.termsEnum);
-      this.useStopwords = !LuceneIndexDataProvider.this
-          .index.stopwords.isEmpty();
+    DocIdBits(final Collection<Integer> docIds) {
+      this.l = docIds.size();
+      this.docs = docIds;
     }
 
+    DocIdBits(final int length, final Collection<Integer> docIds) {
+      this.l = length;
+      this.docs = docIds;
+    }
+
+    @Override
+    public boolean get(final int index) {
+      return this.docs.contains(index);
+    }
+
+    @Override
+    public int length() {
+      return this.l;
+    }
+  }
+
+  /**
+   * Iterator over all terms from a list of documents.
+   */
+  private class DocTermsIterator
+      implements Iterator<ByteArray> {
     /**
-     * Forwards to the next term in the {@link TermsEnum}.
+     * Current term.
+     */
+    private BytesRef nextTerm;
+    /**
+     * Terms enumerator for the given field.
+     */
+    private final TermsEnum te;
+    /**
+     * Bits turned on for the specified documents only.
+     */
+    private final Bits bits;
+    /**
+     * Documents enumerator for current term.
+     */
+    private final DocsEnum de = null;
+
+    /**
+     * Default constructor with field and document ids. All terms from the
+     * specified field will be collected for the given list of documents only.
      *
+     * @param field Field to collect terms from
+     * @param docIds Documents whose terms should be collected
      * @throws IOException Thrown on low-level I/O errors
      */
-    protected void setNext()
+    DocTermsIterator(final String field, final Collection<Integer> docIds)
         throws IOException {
-      if (this.useStopwords) {
-        do {
-          this.nextTerm = this.termsEnum.next();
-        } while (this.nextTerm != null &&
-            LuceneIndexDataProvider.this.index.isStopword(this.nextTerm));
-      } else {
-        this.nextTerm = this.termsEnum.next();
-      }
+      this.te = MultiFields.getTerms(
+          LuceneIndexDataProvider.this.index.reader, field).iterator(
+          TermsEnum.EMPTY);
+      this.bits = new DocIdBits(docIds);
+      this.nextTerm = this.te.next();
     }
 
     @Override
     public boolean hasNext() {
       return this.nextTerm != null;
     }
-  }
-
-  /**
-   * Additional data retrieval flags.
-   */
-  @SuppressWarnings("PackageVisibleInnerClass")
-  enum LuceneTermsIteratorRetrieveFlags {
-    /**
-     * Retrieve total term frequency values.
-     */
-    TTF(0),
-    /**
-     * Retrieve document frequency values.
-     */
-    DF(1);
-
-    /**
-     * Index to {@link LuceneTermsIterator#retrieveFlags} array.
-     */
-    private final int idx;
-
-    /**
-     * Initialize a value setting the index to {@link
-     * LuceneTermsIterator#retrieveFlags}
-     * array.
-     *
-     * @param arrIdx Array index position
-     */
-    private LuceneTermsIteratorRetrieveFlags(final int arrIdx) {
-      this.idx = arrIdx;
-    }
-  }
-
-  /**
-   * Iterator to access Lucene document terms by field.
-   */
-  @SuppressWarnings("PackageVisibleInnerClass")
-  final class LuceneTermsIterator
-      extends AbstractLuceneTermsIterator<BytesRef> {
-    /**
-     * Current term.
-     */
-    private BytesRef term;
-
-    /**
-     * List of possible retrieval flags.
-     */
-    private final boolean[] retrieveFlags =
-        new boolean[LuceneTermsIteratorRetrieveFlags.values().length];
-    /**
-     * Total term frequency value for current term.
-     */
-    private long ttf = -1L;
-    /**
-     * Document frequency value for current term.
-     */
-    private int df = -1;
-
-    /**
-     * Iterate through all terms of a given field. Optionally retrieving
-     * additional information for each term encountered.
-     *
-     * @param field Field to get terms from
-     * @param flags Set optional values that should be retrieved for each term
-     * @throws IOException Thrown on low-level I/O errors
-     */
-    private LuceneTermsIterator(final String field,
-        @Nullable final LuceneTermsIteratorRetrieveFlags[] flags)
-        throws IOException {
-      super(field);
-
-      Arrays.fill(this.retrieveFlags, false);
-
-      if (flags != null && flags.length > 0) {
-        for (final LuceneTermsIteratorRetrieveFlags flag : flags) {
-          this.retrieveFlags[flag.idx] = true;
-        }
-      }
-
-      setNext();
-    }
-
-    /**
-     * Retrieves the total term frequency value for the current term.
-     *
-     * @return TTF value for the current term or {@code -1L}, if not enabled
-     */
-    public long ttf() {
-      return this.ttf;
-    }
-
-    /**
-     * Retrieves the total term frequency value for the current term.
-     *
-     * @return TTF value for the current term or {@code -1L}, if not enabled
-     */
-    public int df() {
-      return this.df;
-    }
 
     @Override
-    public BytesRef next() {
-      if (this.nextTerm == null) {
-        throw new NoSuchElementException();
-      }
-      // copy bytes, since reference may get out of scope
-      this.term = new BytesRef(BytesRefUtils.copyBytes(this.nextTerm));
+    public ByteArray next() {
+      final ByteArray term;
       try {
-        // retrieve values for current term..
-        if (this.retrieveFlags[LuceneTermsIteratorRetrieveFlags.TTF.idx]) {
-          this.ttf = this.termsEnum.totalTermFreq();
-        }
-        if (this.retrieveFlags[LuceneTermsIteratorRetrieveFlags.DF.idx]) {
-          this.df = this.termsEnum.docFreq();
-        }
-        // ..before advancing to the next term
-        setNext();
+        term = BytesRefUtils.toByteArray(this.nextTerm);
+        // get the next term, skipping those, not in our target documents
+        // by checking a docsEnum for contents
+        do {
+          this.nextTerm = this.te.next();
+        } while (this.nextTerm != null &&
+            this.te.docs(this.bits, this.de).nextDoc() ==
+                DocsEnum.NO_MORE_DOCS);
       } catch (final IOException e) {
-        LOG.error("Failed to get next term.", e);
+        throw new IllegalStateException("Error getting next term.", e);
       }
-      return this.term;
+      return term;
     }
   }
 
