@@ -121,7 +121,7 @@ public final class DefaultClarityScore
 
   /**
    * Abstract model class. Shared methods for low/high precision model
-   * calulations.
+   * calculations.
    */
   private abstract class AbstractModel {
     /**
