@@ -19,21 +19,14 @@ package de.unihildesheim.iw.lucene.scoring;
 
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.Buildable.ConfigurationException;
-import de.unihildesheim.iw.Persistence;
-import de.unihildesheim.iw.Persistence.Builder;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
+import de.unihildesheim.iw.lucene.scoring.data.DefaultFeedbackProvider;
+import de.unihildesheim.iw.lucene.scoring.data.DefaultVocabularyProvider;
 import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
 import de.unihildesheim.iw.util.Configuration;
-import de.unihildesheim.iw.util.FileUtils;
-import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
-import org.jetbrains.annotations.Nullable;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.Objects;
 
 /**
  * General builder interface for all scoring types. Should provide methods that
@@ -99,77 +92,6 @@ public interface ScoringBuilder<T extends ScoringBuilder,
   IndexReader getIndexReader();
 
   /**
-   * Instruction to load the named cache.
-   *
-   * @param cacheName Cache name
-   * @return Self reference
-   */
-  T loadCache(final String cacheName);
-
-  /**
-   * Create a cache name prefixed with the identifier of the implementing
-   * class.
-   *
-   * @param cacheName Cache name
-   * @return Self reference
-   */
-  T createCache(final String cacheName);
-
-  /**
-   * Instruction to try load the named cache and create it, if not found.
-   *
-   * @param cacheName Cache name
-   * @return Self reference
-   */
-  T loadOrCreateCache(final String cacheName);
-
-  /**
-   * Get the name of the cache to use.
-   *
-   * @return Cache name
-   */
-  String getCacheName();
-
-  /**
-   * Get the {@link CacheInstruction} telling how to load/create the cache.
-   *
-   * @return Instruction
-   */
-  CacheInstruction getCacheInstruction();
-
-  /**
-   * Set the working directory.
-   *
-   * @param dataPath Directory name
-   * @return Self reference
-   * @throws IOException Thrown, if the path could not be found, created or
-   * written to
-   */
-  T dataPath(final String dataPath)
-      throws IOException;
-
-  /**
-   * Get the working directory.
-   *
-   * @return Working directory
-   */
-  File getDataPath();
-
-  /**
-   * Set the instance as being temporary.
-   *
-   * @return Self reference
-   */
-  T temporary();
-
-  /**
-   * Get the flag indicating, if this instance is temporary.
-   *
-   * @return True, if temporary
-   */
-  boolean isTemporary();
-
-  /**
    * Set the {@link Configuration].
    *
    * @param configuration Configuration to use
@@ -190,13 +112,6 @@ public interface ScoringBuilder<T extends ScoringBuilder,
    * @return Instance identifier
    */
   String getIdentifier();
-
-  /**
-   * Get the cache builder instance.
-   *
-   * @return Cache builder instance
-   */
-  Builder getCache();
 
   /**
    * Set the provider for feedback documents.
@@ -240,54 +155,17 @@ public interface ScoringBuilder<T extends ScoringBuilder,
      */
     ANALYZER,
     /**
-     * Implementation makes use of a cache.
-     */
-    CACHE,
-    /**
      * Implementation makes use of a {@link Configuration}.
      */
     CONFIGURATION,
-    /**
-     * Implementation makes use of a dedicated working directory.
-     */
-    DATA_PATH,
     /**
      * Implementation makes use of an {@link IndexDataProvider}.
      */
     DATA_PROVIDER,
     /**
-     * Implementation makes use of a {@link FeedbackProvider}.
-     */
-    FB_PROVIDER,
-    /**
      * Implementation makes use of an {@link IndexReader}.
      */
-    INDEX_READER,
-    /**
-     * Implementation makes use of a {@link VocabularyProvider}.
-     */
-    VOC_PROVIDER
-  }
-
-  /**
-   * Possible instructions on how to handle a named cache.
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public enum CacheInstruction {
-    /**
-     * Create a new cache. Should fail, if a cache with the given name already
-     * exists.
-     */
-    CREATE,
-    /**
-     * Loads a cache. Should fail, if no cache with the given name exists.
-     */
-    LOAD,
-    /**
-     * Loads an existing or creates a new cache. Should automatically create a
-     * new cache, if no cache with the given name exists.
-     */
-    LOAD_OR_CREATE
+    INDEX_READER
   }
 
   /**
@@ -320,23 +198,6 @@ public interface ScoringBuilder<T extends ScoringBuilder,
      * Reader to access Lucene index.
      */
     private IndexReader indexReader;
-    /**
-     * Builder for persistent caches.
-     */
-    private volatile Builder persistenceBuilder;
-    /**
-     * Name of the cache to create.
-     */
-    private String cacheName;
-    /**
-     * Path to store working data.
-     */
-    @Nullable
-    private File dataPath;
-    /**
-     * If true, instance should provide a temporary state.
-     */
-    private boolean temporary;
     /**
      * Implementation specific {@link Configuration} object
      */
@@ -393,107 +254,6 @@ public interface ScoringBuilder<T extends ScoringBuilder,
     }
 
     @Override
-    public I loadCache(final String newCacheName) {
-      this.cacheName = createCacheName(newCacheName);
-      getPBuilder().name(this.cacheName);
-      getPBuilder().makeOrGet();
-      return getThis();
-    }
-
-    @Override
-    public I createCache(final String newCacheName) {
-      this.cacheName = createCacheName(newCacheName);
-      getPBuilder().name(this.cacheName);
-      getPBuilder().make();
-      return getThis();
-    }
-
-    /**
-     * Create a cache name prefixed with the identifier of the implementing
-     * class.
-     *
-     * @param name Cache name
-     * @return Cache name prefixed with current identifier
-     */
-    private String createCacheName(final String name) {
-      if (StringUtils.isStrippedEmpty(Objects.requireNonNull(name,
-          "Cache name was null."))) {
-        throw new IllegalArgumentException("Empty cache name.");
-      }
-      return this.identifier + "_" + name;
-    }
-
-    /**
-     * Get or initializes the persistent storage provider.
-     *
-     * @return Bulder interface for persistent storage provider
-     */
-    private Builder getPBuilder() {
-      if (this.persistenceBuilder == null) {
-        this.persistenceBuilder = new Builder();
-      }
-      return this.persistenceBuilder;
-    }
-
-    @Override
-    public I loadOrCreateCache(final String newCacheName) {
-      this.cacheName = createCacheName(newCacheName);
-      getPBuilder().name(this.cacheName);
-      getPBuilder().makeOrGet();
-      return getThis();
-    }
-
-    @Override
-    public String getCacheName() {
-      return this.cacheName;
-    }
-
-    @Nullable
-    @Override
-    public CacheInstruction getCacheInstruction() {
-      if (this.persistenceBuilder == null) {
-        return null;
-      }
-      switch (this.persistenceBuilder.getCacheLoadInstruction()) {
-        case GET:
-          return CacheInstruction.LOAD;
-        case MAKE:
-          return CacheInstruction.CREATE;
-        case MAKE_OR_GET:
-          return CacheInstruction.LOAD_OR_CREATE;
-        default:
-          return null;
-      }
-    }
-
-    @Override
-    public I dataPath(final String newDataPath)
-        throws IOException {
-      Objects.requireNonNull(newDataPath, "Data-path was null.");
-      this.dataPath = null;
-      this.dataPath = Persistence.tryCreateDataPath(newDataPath);
-      getPBuilder().dataPath(FileUtils.getPath(this.dataPath));
-      return getThis();
-    }
-
-    @Nullable
-    @Override
-    public File getDataPath() {
-      return this.dataPath;
-    }
-
-    @Override
-    public I temporary() {
-      this.temporary = true;
-      return getThis();
-    }
-
-    @Override
-    public boolean isTemporary() {
-      return this.temporary;
-    }
-
-    @Override
     public I configuration(final C newConfiguration) {
       this.configuration = newConfiguration;
       return getThis();
@@ -510,11 +270,6 @@ public interface ScoringBuilder<T extends ScoringBuilder,
     }
 
     @Override
-    public Builder getCache() {
-      return this.persistenceBuilder;
-    }
-
-    @Override
     public I feedbackProvider(final FeedbackProvider newFeedbackProvider) {
       this.feedbackProvider = newFeedbackProvider;
       return getThis();
@@ -522,6 +277,9 @@ public interface ScoringBuilder<T extends ScoringBuilder,
 
     @Override
     public FeedbackProvider getFeedbackProvider() {
+      if (this.feedbackProvider == null) {
+        return new DefaultFeedbackProvider();
+      }
       return this.feedbackProvider;
     }
 
@@ -534,6 +292,9 @@ public interface ScoringBuilder<T extends ScoringBuilder,
 
     @Override
     public VocabularyProvider getVocabularyProvider() {
+      if (this.vocabularyProvider == null) {
+        return new DefaultVocabularyProvider();
+      }
       return this.vocabularyProvider;
     }
   }
@@ -572,30 +333,10 @@ public interface ScoringBuilder<T extends ScoringBuilder,
               throw new ConfigurationException("No analyzer set.");
             }
             break;
-          case CACHE:
-            if (sb.getCacheName() == null) {
-              throw new ConfigurationException(
-                  "No cache name set.");
-            }
-            if (sb.getCacheInstruction() == null) {
-              throw new ConfigurationException(
-                  "No cache instruction set.");
-            }
-            if (sb.getCache() == null) {
-              throw new ConfigurationException(
-                  "No cache builder set.");
-            }
-            break;
           case CONFIGURATION:
             if (sb.getConfiguration() == null) {
               throw new ConfigurationException(
                   "No configuration set.");
-            }
-            break;
-          case DATA_PATH:
-            if (sb.getDataPath() == null) {
-              throw new ConfigurationException(
-                  "No data path set.");
             }
             break;
           case DATA_PROVIDER:
@@ -604,22 +345,10 @@ public interface ScoringBuilder<T extends ScoringBuilder,
                   "No indexDataProvider set.");
             }
             break;
-          case FB_PROVIDER:
-            if (sb.getFeedbackProvider() == null) {
-              throw new ConfigurationException(
-                  "No feedbackProvider set.");
-            }
-            break;
           case INDEX_READER:
             if (sb.getIndexReader() == null) {
               throw new ConfigurationException(
                   "No indexReader set.");
-            }
-            break;
-          case VOC_PROVIDER:
-            if (sb.getVocabularyProvider() == null) {
-              throw new ConfigurationException(
-                  "No vocabularyProvider set.");
             }
             break;
         }

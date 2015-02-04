@@ -62,4 +62,38 @@ public final class FileUtils {
     }
     return path;
   }
+
+  /**
+   * Tries to create a file directory.
+   *
+   * @param filePath Path to use/create
+   * @return File instance of the path
+   * @throws IOException Thrown, if the path is not a directory, if the path
+   * does not exist an could not be created or if reading/writing to this
+   * directory is not allowed.
+   */
+  public static File tryCreatePath(final String filePath)
+      throws IOException {
+    if (StringUtils.isStrippedEmpty(
+        Objects.requireNonNull(filePath, "Path was null."))) {
+      throw new IllegalArgumentException("Data path was empty.");
+    }
+
+    final File dataDir = new File(filePath);
+    if (dataDir.exists()) {
+      // check, if path is a directory
+      if (!dataDir.isDirectory()) {
+        throw new IOException("File '" + dataDir.getCanonicalPath()
+            + "' exists, but is not a directory.");
+      }
+    } else if (!dataDir.mkdirs()) {
+      throw new IOException("Error while creating directories '"
+          + dataDir.getCanonicalPath() + "'.");
+    }
+    if (!dataDir.canWrite() || !dataDir.canRead()) {
+      throw new IOException("Insufficient rights for directory '"
+          + dataDir.getCanonicalPath() + "'.");
+    }
+    return dataDir;
+  }
 }

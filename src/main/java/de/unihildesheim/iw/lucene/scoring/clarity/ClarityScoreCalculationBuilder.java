@@ -35,11 +35,6 @@ public abstract class ClarityScoreCalculationBuilder<S extends
    * Configuration object for the implementing score.
    */
   private C conf;
-  /**
-   * Flag indicating, if pre-calculation of scoring values may be done by
-   * implementation.
-   */
-  private boolean preCalculate;
 
   ClarityScoreCalculationBuilder(final String newIdentifier) {
     super(newIdentifier);
@@ -63,24 +58,4 @@ public abstract class ClarityScoreCalculationBuilder<S extends
   @Override
   public abstract S build()
       throws BuildableException;
-
-  /**
-   * Turns on pre-calculation of any values needed to perform the scoring.
-   *
-   * @return Self reference
-   */
-  public ClarityScoreCalculationBuilder preCalculate() {
-    this.preCalculate = true;
-    return this;
-  }
-
-  /**
-   * Get the flag indicating, if the instance may pre-calculate values needed
-   * for scoring.
-   *
-   * @return True, if pre-calculation may happen
-   */
-  public boolean shouldPrecalculate() {
-    return this.preCalculate;
-  }
 }

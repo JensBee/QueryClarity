@@ -27,8 +27,6 @@ import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.lucene.scoring.ScoringResult.ScoringResultXml.Keys;
-import de.unihildesheim.iw.lucene.scoring.data.DefaultFeedbackProvider;
-import de.unihildesheim.iw.lucene.scoring.data.DefaultVocabularyProvider;
 import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
 import de.unihildesheim.iw.util.MathUtils.KlDivergence;
@@ -331,18 +329,10 @@ public final class DefaultClarityScore
     this.dataProv = builder.getIndexDataProvider();
     this.analyzer = builder.getAnalyzer();
 
-    if (builder.getVocabularyProvider() != null) {
-      this.vocProvider = builder.getVocabularyProvider();
-    } else {
-      this.vocProvider = new DefaultVocabularyProvider();
-    }
+    this.vocProvider = builder.getVocabularyProvider();
     this.vocProvider.indexDataProvider(this.dataProv);
 
-    if (builder.getFeedbackProvider() != null) {
-      this.fbProvider = builder.getFeedbackProvider();
-    } else {
-      this.fbProvider = new DefaultFeedbackProvider();
-    }
+    this.fbProvider = builder.getFeedbackProvider();
     this.fbProvider
         .dataProvider(this.dataProv)
         .indexReader(builder.getIndexReader())
@@ -629,8 +619,6 @@ public final class DefaultClarityScore
       new Validator(this, new Feature[]{
           Feature.CONFIGURATION,
           Feature.ANALYZER,
-          Feature.CACHE,
-          Feature.DATA_PATH,
           Feature.DATA_PROVIDER,
           Feature.INDEX_READER
       });
