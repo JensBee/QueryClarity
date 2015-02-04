@@ -96,7 +96,7 @@ public final class MathUtils {
       final AtomicBigDecimal sumA = new AtomicBigDecimal();
       final AtomicBigDecimal sumB = new AtomicBigDecimal();
 
-      dataSet.parallelStream()
+      dataSet.stream()
           .filter(t2 ->
               // a null value is not allowed here
               t2 != null && t2.a != null && t2.b != null &&
@@ -109,8 +109,7 @@ public final class MathUtils {
               }
           );
 
-      LOG.debug("pcSum={} pqSum={}",
-          sumA.doubleValue(), sumB.doubleValue());
+      LOG.debug("pcSum={} pqSum={}", sumA.doubleValue(), sumB.doubleValue());
       return Tuple.tuple2(sumA.get(), sumB.get());
     }
 
@@ -120,7 +119,7 @@ public final class MathUtils {
 
       final AtomicBigDecimal result = new AtomicBigDecimal();
 
-      values.parallelStream()
+      values.stream()
           .filter(t2 ->
               // a null value is not allowed here
               t2 != null && t2.a != null && t2.b != null &&
@@ -142,6 +141,57 @@ public final class MathUtils {
           .forEach(s -> result.addAndGet(s, MATH_CONTEXT));
 
       return result.get().divide(BD_LOG2, MATH_CONTEXT);
+    }
+  }
+
+  /**
+   * Methods for calculating the Kullback-Leibler divergence.
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public static final class KlDivergenceLowPrecision {
+    public static double sumAndCalc(
+        final Collection<Tuple2<Double, Double>> dataSet) {
+      return calc(dataSet, sumValues(dataSet));
+    }
+
+    public static Tuple2<Double, Double> sumValues(
+        final Collection<Tuple2<Double, Double>> dataSet) {
+      final Tuple2<Double, Double> result = dataSet.stream()
+          .filter(t2 ->
+              // a null value is not allowed here
+              t2 != null && t2.a != null && t2.b != null &&
+                  // both values will be zero if t2.b is zero
+                  // t2.b == 0 implies t2.a == 0
+                  t2.b != 0d)
+          .reduce(Tuple.tuple2(0d, 0d),
+              (x, y) -> Tuple.tuple2(x.a + y.a, x.b + y.b));
+
+      LOG.debug("pqSum={} pcSum={}", result.a, result.b);
+      return result;
+    }
+
+    public static double calc(
+        final Collection<Tuple2<Double, Double>> values,
+        final Tuple2<Double, Double> sums) {
+      final double result = values.stream()
+          .filter(t2 ->
+              // a null value is not allowed here
+              t2 != null && t2.a != null && t2.b != null &&
+                  // t2.a will be zero if t2.b is zero:
+                  // t2.b == 0 implies t2.a == 0
+                  t2.b != 0d &&
+                  // dividing zero is always zero, so skip here
+                  t2.a != 0d)
+          .map(t2 -> {
+            // scale value of t2.a & t2.b to [0,1]
+            final double aScaled = t2.a / sums.a;
+            // r += (t2.a/sums.a) * log((t2.a/sums.a) / (t2.b/sums.b))
+            return aScaled * Math.log(aScaled / (t2.b / sums.b));
+          })
+          .reduce(0d, Double::sum);
+
+      // FIXME: may hit dev/0 if something goes wrong
+      return result / Math.log(2d);
     }
   }
 }

@@ -223,8 +223,8 @@ public final class ImprovedClarityScore
     final BigDecimal document(
         final DocumentModel docModel, final ByteArray term) {
       // collection model of current term
-      final BigDecimal cModel = ImprovedClarityScore.this.dataProv
-          .metrics().relTf(term);
+      final BigDecimal cModel = BigDecimal.valueOf(
+          ImprovedClarityScore.this.dataProv.metrics().relTf(term));
 
       // smoothed document-term model
       final BigDecimal smoothing = BigDecimal.valueOf(docModel.tf(term))
@@ -405,7 +405,8 @@ public final class ImprovedClarityScore
         })
         .map(term ->
             Tuple.tuple2(
-                model.query(term), this.dataProv.metrics().relTf(term)))
+                model.query(term), BigDecimal.valueOf(
+                    this.dataProv.metrics().relTf(term))))
         .collect(Collectors.toList());
 
     LOG.info("Calculating final score.");

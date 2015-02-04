@@ -17,7 +17,6 @@
 package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.Buildable;
-import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexUtils;
 import de.unihildesheim.iw.util.StringUtils;
@@ -117,8 +116,7 @@ public final class SimpleTermsQuery
     }
 
     final QueryParser qParser = new MultiFieldQueryParser(
-        LuceneDefaults.VERSION, fields.toArray(new String[fields.size()]),
-        analyzer);
+        fields.toArray(new String[fields.size()]), analyzer);
 
     LOG.debug("STQ userQuery={}", query);
     LOG.debug("STQ analyzer={} tokens={}",

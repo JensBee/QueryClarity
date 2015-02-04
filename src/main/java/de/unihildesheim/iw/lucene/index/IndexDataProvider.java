@@ -19,7 +19,6 @@ package de.unihildesheim.iw.lucene.index;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 
-import java.util.Collection;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -94,7 +93,7 @@ public interface IndexDataProvider
    * @param docIds List of document ids to extract terms from
    * @return Terms from all documents
    */
-  Stream<ByteArray> getDocumentsTerms(final Collection<Integer> docIds);
+  Stream<ByteArray> getDocumentsTerms(final Set<Integer> docIds);
 
   /**
    * Get the number of all Documents (models) known to this instance.

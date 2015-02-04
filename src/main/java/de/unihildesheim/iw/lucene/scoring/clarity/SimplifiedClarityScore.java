@@ -122,12 +122,13 @@ public final class SimplifiedClarityScore
     // query
     // iterate over all unique query terms
     final Collection<Tuple2<BigDecimal, BigDecimal>> dataSet =
-        new ArrayList(queryTerms.size());
+        new ArrayList<>(queryTerms.size());
     for (final Entry<ByteArray, Integer> qTermEntry : queryTerms.entrySet()) {
       dataSet.add(Tuple.tuple2(
           BigDecimal.valueOf(qTermEntry.getValue())
               .divide(BigDecimal.valueOf(queryLength), MATH_CONTEXT),
-          this.dataProv.metrics().relTf(qTermEntry.getKey())));
+          BigDecimal.valueOf(this.dataProv.metrics().relTf(qTermEntry.getKey
+              ()))));
     }
 
     final double score = KlDivergence.sumAndCalc(dataSet).doubleValue();

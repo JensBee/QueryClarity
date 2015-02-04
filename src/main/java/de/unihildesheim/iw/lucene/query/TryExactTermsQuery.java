@@ -17,7 +17,6 @@
 
 package de.unihildesheim.iw.lucene.query;
 
-import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
@@ -94,8 +93,7 @@ public final class TryExactTermsQuery
     this.queryTerms = QueryUtils.tokenizeQueryString(queryStr, analyzer);
 
     final QueryParser qParser = new MultiFieldQueryParser(
-        LuceneDefaults.VERSION, fields.toArray(new String[fields.size()]),
-        analyzer);
+        fields.toArray(new String[fields.size()]), analyzer);
 
     this.query = new BooleanQuery();
     this.uniqueQueryTerms = new HashSet<>(this.queryTerms);

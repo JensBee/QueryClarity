@@ -44,7 +44,7 @@ public class CollectionMetrics {
   /**
    * Index total term frequency value.
    */
-  private final BigDecimal tf;
+  private final long tf;
   /**
    * Number of documents in index.
    */
@@ -60,7 +60,7 @@ public class CollectionMetrics {
   /**
    * Cache relative term frequency values.
    */
-  private final Map<ByteArray, BigDecimal> c_rtf;
+  private final Map<ByteArray, Double> c_rtf;
   /**
    * Cache for created {@link DocumentModel}s.
    */
@@ -154,7 +154,7 @@ public class CollectionMetrics {
       // user supplied
       this.conf = cmConf;
     }
-    this.tf = BigDecimal.valueOf(this.dataProv.getTermFrequency());
+    this.tf = this.dataProv.getTermFrequency();
     this.docCount = BigDecimal.valueOf(this.dataProv.getDocumentCount());
 
     this.c_rtf = DBMaker
@@ -178,7 +178,7 @@ public class CollectionMetrics {
           .expireStoreSize(1000d)
           .make();
     } else {
-      this.c_docModel = Collections.EMPTY_MAP;
+      this.c_docModel = Collections.emptyMap();
     }
 
     if (this.conf.cacheDf) {
@@ -192,7 +192,7 @@ public class CollectionMetrics {
           .expireStoreSize(1500d)
           .make();
     } else {
-      this.c_df = Collections.EMPTY_MAP;
+      this.c_df = Collections.emptyMap();
     }
 
     if (this.conf.cacheTf) {
@@ -206,7 +206,7 @@ public class CollectionMetrics {
           .expireStoreSize(1500d)
           .make();
     } else {
-      this.c_tf = Collections.EMPTY_MAP;
+      this.c_tf = Collections.emptyMap();
     }
   }
 
@@ -265,14 +265,14 @@ public class CollectionMetrics {
    * @return Relative collection frequency of the given term
    * @throws DataProviderException Forwarded from lower-level
    */
-  public BigDecimal relTf(final ByteArray term) {
-    BigDecimal result = this.c_rtf.get(term);
+  public double relTf(final ByteArray term) {
+    Double result = this.c_rtf.get(term);
     if (result == null) {
       final long tf = tf(term);
       if (tf == 0L) {
-        result = BigDecimal.ZERO;
+        result = 0d;
       } else {
-        result = BigDecimal.valueOf(tf).divide(this.tf, MATH_CONTEXT);
+        result = (double) tf / (double) this.tf;
       }
       this.c_rtf.put(term, result);
     }
