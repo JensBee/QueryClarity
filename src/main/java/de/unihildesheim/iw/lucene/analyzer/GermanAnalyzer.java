@@ -80,7 +80,7 @@ public final class GermanAnalyzer
 //            WordDelimiterFilter.SPLIT_ON_CASE_CHANGE,
 //        null
 //    );
-    tok = new StopFilter(this.matchVersion, tok, getStopwordSet());
+    tok = new StopFilter(tok, getStopwordSet());
     tok = new GermanNormalizationFilter(tok);
     tok = new GermanLightStemFilter(tok);
 
