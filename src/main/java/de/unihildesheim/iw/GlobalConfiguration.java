@@ -62,13 +62,25 @@ public final class GlobalConfiguration
     saveOnExit();
   }
 
+  /**
+   * Default settings keys. Used by {@link #setDefaults()}
+   */
   public enum DefaultKeys {
-    MATH_CONTEXT
+    /**
+     * Default math context for high-precision calculations.
+     */
+    MATH_CONTEXT,
+    /**
+     * Boolean flag. If true, low precision math is used.
+     */
+    MATH_LOW_PRECISION
   }
 
   private void setDefaults() {
     this.getAndAddString(DefaultKeys.MATH_CONTEXT.toString(),
         MathContext.DECIMAL64.toString());
+    this.getAndAddBoolean(DefaultKeys.MATH_LOW_PRECISION.toString(),
+        false);
   }
 
   /**
