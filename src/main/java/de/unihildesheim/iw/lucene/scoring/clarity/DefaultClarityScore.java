@@ -32,10 +32,10 @@ import de.unihildesheim.iw.lucene.scoring.data.DefaultVocabularyProvider;
 import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
 import de.unihildesheim.iw.util.MathUtils.KlDivergence;
+import de.unihildesheim.iw.util.MathUtils.KlDivergenceLowPrecision;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.index.IndexReader;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
@@ -88,7 +88,6 @@ public final class DefaultClarityScore
    * Provider for feedback vocabulary.
    */
   private final VocabularyProvider vocProvider;
-  private final IndexReader indexReader;
   /**
    * Provider for feedback documents.
    */
@@ -102,43 +101,52 @@ public final class DefaultClarityScore
    */
   private final BigDecimal docLangModelWeight;
   /**
+   * Language model weighting parameter value. (low precision)
+   */
+  private final double docLangModelWeight_lp;
+  /**
    * Language model weighting parameter value remainder of 1d- value.
    */
   private final BigDecimal docLangModelWeight1Sub; // 1d - docLangModelWeight
+  /**
+   * Language model weighting parameter value remainder of 1d- value. (low
+   * precision)
+   */
+  private final double docLangModelWeight1Sub_lp; // 1d - docLangModelWeight_lp
+  /**
+   * If true, low precision math is used for doing calculations.
+   */
+  private final boolean useLowPrecisionMath = GlobalConfiguration.conf()
+      .getBoolean(DefaultKeys.MATH_LOW_PRECISION.toString(), false);
 
   /**
-   * Class wrapping all methods needed for calculation needed models. Also holds
-   * results of the calculations.
+   * Abstract model class. Shared methods for low/high precision model
+   * calulations.
    */
-  private final class Model {
+  private abstract class AbstractModel {
     /**
      * List of query terms issued.
      */
-    private final Collection<ByteArray> queryTerms;
+    final Collection<ByteArray> queryTerms;
     /**
      * List of feedback documents to use.
      */
-    private final Collection<Integer> feedbackDocs;
-    /**
-     * Stores the static part of the query model calculation.
-     */
-    private final Map<Integer, BigDecimal> staticQueryModelParts;
+    final Collection<Integer> feedbackDocs;
     /**
      * Stores the feedback document models.
      */
-    private final Map<Integer, DocumentModel> docModels;
+    final Map<Integer, DocumentModel> docModels;
 
     /**
-     * Initialize the model calculation object.
+     * Initialize the abstract model with a set of query terms and feedback
+     * documents.
      *
-     * @param qt Query terms. Query terms not found in the collection (TF=0)
-     * will be skipped.
+     * @param qt Query terms
      * @param fb Feedback documents
      */
-    private Model(
+    AbstractModel(
         final Collection<ByteArray> qt, final Collection<Integer> fb) {
       LOG.debug("Create runtime cache.");
-
       // add query terms, skip those not in index
       this.queryTerms = new ArrayList<>(qt.size());
       this.queryTerms.addAll(qt.stream().filter(queryTerm ->
@@ -149,10 +157,41 @@ public final class DefaultClarityScore
       this.feedbackDocs = new ArrayList<>(fb.size());
       this.feedbackDocs.addAll(fb);
 
+      this.docModels = new ConcurrentHashMap<>((int) (
+          (double) this.feedbackDocs.size() * 1.8));
+
+      LOG.info("Caching document models");
+      for (final Integer docId : this.feedbackDocs) {
+        this.docModels.put(docId,
+            DefaultClarityScore.this.dataProv.metrics().docData(docId));
+      }
+    }
+  }
+
+  /**
+   * Class wrapping all methods needed for high-precision calculation of model
+   * values. Also holds results of the calculations.
+   */
+  private final class Model
+      extends AbstractModel {
+    /**
+     * Stores the static part of the query model calculation.
+     */
+    private final Map<Integer, BigDecimal> staticQueryModelParts;
+
+    /**
+     * Initialize the model calculation object.
+     *
+     * @param qt Query terms. Query terms not found in the collection (TF=0)
+     * will be skipped.
+     * @param fb Feedback documents
+     */
+    private Model(
+        final Collection<ByteArray> qt, final Collection<Integer> fb) {
+      super(qt, fb);
+
       // initialize other properties
       this.staticQueryModelParts = new ConcurrentHashMap<>((int) (
-          (double) this.feedbackDocs.size() * 1.8));
-      this.docModels = new ConcurrentHashMap<>((int) (
           (double) this.feedbackDocs.size() * 1.8));
 
       LOG.info("Pre-calculating static query model values");
@@ -166,12 +205,6 @@ public final class DefaultClarityScore
               document(docModel, queryTerm), MATH_CONTEXT);
         }
         this.staticQueryModelParts.put(docModel.id, staticPart);
-      }
-
-      LOG.info("Caching document models");
-      for (final Integer docId : this.feedbackDocs) {
-        this.docModels.put(docId,
-            DefaultClarityScore.this.dataProv.metrics().docData(docId));
       }
     }
 
@@ -187,8 +220,8 @@ public final class DefaultClarityScore
       return DefaultClarityScore.this.docLangModelWeight.multiply(
           BigDecimal.valueOf(docModel.relTf(term)), MATH_CONTEXT)
           .add(DefaultClarityScore.this.docLangModelWeight1Sub
-              .multiply(
-                  DefaultClarityScore.this.dataProv.metrics().relTf(term),
+              .multiply(BigDecimal.valueOf(
+                      DefaultClarityScore.this.dataProv.metrics().relTf(term)),
                   MATH_CONTEXT), MATH_CONTEXT);
     }
 
@@ -199,11 +232,79 @@ public final class DefaultClarityScore
      * @return Query model value for all feedback documents
      */
     final BigDecimal query(final ByteArray term) {
-      return this.feedbackDocs.parallelStream()
+      return this.feedbackDocs.stream()
           .map(d -> document(this.docModels.get(d), term)
               .multiply(this.staticQueryModelParts.get(d),
                   MATH_CONTEXT))
-          .reduce(BigDecimal.ZERO, (x, y) -> x.add(y, MATH_CONTEXT));
+          .reduce(BigDecimal.ZERO, (sum, qm) -> sum.add(qm, MATH_CONTEXT),
+              (sum1, sum2) -> sum1.add(sum2, MATH_CONTEXT));
+    }
+  }
+
+  /**
+   * Class wrapping all methods needed for low-precision calculation of model
+   * values. Also holds results of the calculations.
+   */
+  private final class ModelLowPrecision
+      extends AbstractModel {
+    /**
+     * Stores the static part of the query model calculation.
+     */
+    private final Map<Integer, Double> staticQueryModelParts;
+
+    /**
+     * Initialize the model calculation object.
+     *
+     * @param qt Query terms. Query terms not found in the collection (TF=0)
+     * will be skipped.
+     * @param fb Feedback documents
+     */
+    private ModelLowPrecision(
+        final Collection<ByteArray> qt, final Collection<Integer> fb) {
+      super(qt, fb);
+
+      // initialize other properties
+      this.staticQueryModelParts = new ConcurrentHashMap<>((int) (
+          (double) this.feedbackDocs.size() * 1.8));
+
+      LOG.info("Pre-calculating static query model values");
+      // pre-calculate query term document models
+      for (final Integer docId : this.feedbackDocs) {
+        final double staticPart = this.queryTerms.stream()
+            .map(q -> document(
+                DefaultClarityScore.this.dataProv.metrics().docData(docId), q))
+            .reduce(1d, (res, curr) -> res *= curr);
+        this.staticQueryModelParts.put(docId, staticPart);
+      }
+    }
+
+    /**
+     * Document model.
+     *
+     * @param docModel Document data model
+     * @param term Term to calculate the document model value for
+     * @return Document model value
+     */
+    final double document(
+        final DocumentModel docModel, final ByteArray term) {
+      return (DefaultClarityScore.this.docLangModelWeight_lp *
+          docModel.relTf(term)) +
+          (DefaultClarityScore.this.docLangModelWeight1Sub_lp *
+              DefaultClarityScore.this.dataProv.metrics().relTf(term)
+          );
+    }
+
+    /**
+     * Query model for all feedback documents.
+     *
+     * @param term Term to calculate the query model value for
+     * @return Query model value for all feedback documents
+     */
+    final double query(final ByteArray term) {
+      return this.feedbackDocs.stream()
+          .map(d -> document(this.docModels.get(d), term) *
+              this.staticQueryModelParts.get(d))
+          .reduce(0d, Double::sum);
     }
   }
 
@@ -218,15 +319,17 @@ public final class DefaultClarityScore
     // set configuration
     this.conf = builder.getConfiguration();
     // localize some values for time critical calculations
+    this.docLangModelWeight_lp = this.conf.getLangModelWeight();
+    this.docLangModelWeight1Sub_lp = 1d - this.conf.getLangModelWeight();
     this.docLangModelWeight = BigDecimal.valueOf(
-        this.conf.getLangModelWeight());
+        this.docLangModelWeight_lp);
     this.docLangModelWeight1Sub = BigDecimal.valueOf(
-        1d - this.conf.getLangModelWeight());
+        this.docLangModelWeight1Sub_lp);
+
     this.conf.debugDump();
 
     this.dataProv = builder.getIndexDataProvider();
     this.analyzer = builder.getAnalyzer();
-    this.indexReader = builder.getIndexReader();
 
     if (builder.getVocabularyProvider() != null) {
       this.vocProvider = builder.getVocabularyProvider();
@@ -345,20 +448,41 @@ public final class DefaultClarityScore
     result.setQueryTerms(queryTerms);
 
     // object containing all methods for model calculations
-    final Model model = new Model(queryTerms, feedbackDocIds);
+    if (this.useLowPrecisionMath) {
+      // low precision math
+      final ModelLowPrecision model =
+          new ModelLowPrecision(queryTerms, feedbackDocIds);
 
-    LOG.info("Calculating query models using feedback vocabulary.");
-    // calculate query models
-    final List<Tuple2<BigDecimal, BigDecimal>> dataSets = this.vocProvider
-        .documentIds(feedbackDocIds).get()
-        .map(term ->
-            Tuple.tuple2(
-                model.query(term), this.dataProv.metrics().relTf(term)))
-        .collect(Collectors.toList());
+      LOG.info("Calculating query models using feedback vocabulary. " +
+          "(low precision)");
+      // calculate query models
+      final List<Tuple2<Double, Double>> dataSets = this.vocProvider
+          .documentIds(feedbackDocIds).get()
+          .map(term ->
+              Tuple.tuple2(
+                  model.query(term), this.dataProv.metrics().relTf(term)))
+          .collect(Collectors.toList());
 
-    LOG.info("Calculating final score.");
-    result.setScore(
-        KlDivergence.sumAndCalc(dataSets).doubleValue());
+      LOG.info("Calculating final score.");
+      result.setScore(KlDivergenceLowPrecision.sumAndCalc(dataSets));
+    } else {
+      // high precision math
+      final Model model = new Model(queryTerms, feedbackDocIds);
+
+      LOG.info("Calculating query models using feedback vocabulary. " +
+          "(high precision)");
+      // calculate query models
+      final List<Tuple2<BigDecimal, BigDecimal>> dataSets = this.vocProvider
+          .documentIds(feedbackDocIds).get()
+          .map(term ->
+              Tuple.tuple2(
+                  model.query(term),
+                  BigDecimal.valueOf(this.dataProv.metrics().relTf(term))))
+          .collect(Collectors.toList());
+
+      LOG.info("Calculating final score.");
+      result.setScore(KlDivergence.sumAndCalc(dataSets).doubleValue());
+    }
 
     return result;
   }
