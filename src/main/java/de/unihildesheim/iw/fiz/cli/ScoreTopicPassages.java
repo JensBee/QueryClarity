@@ -24,20 +24,25 @@ import de.unihildesheim.iw.cli.CliBase;
 import de.unihildesheim.iw.cli.CliCommon;
 import de.unihildesheim.iw.cli.CliParams;
 import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers;
-import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderBuilder.Feature;
+import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderBuilder
+    .Feature;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.IndexUtils;
 import de.unihildesheim.iw.lucene.index.LuceneIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.LuceneIndexDataProvider.Builder;
+import de.unihildesheim.iw.lucene.scoring.clarity
+    .AbstractClarityScoreCalculation.AbstractBuilder;
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation;
-import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation.ClarityScoreCalculationException;
-import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculationBuilder;
+import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation
+    .ClarityScoreCalculationException;
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreResult;
 import de.unihildesheim.iw.lucene.scoring.clarity.DefaultClarityScore;
-import de.unihildesheim.iw.lucene.scoring.clarity.DefaultClarityScoreConfiguration;
+import de.unihildesheim.iw.lucene.scoring.clarity
+    .DefaultClarityScoreConfiguration;
 import de.unihildesheim.iw.lucene.scoring.clarity.ImprovedClarityScore;
-import de.unihildesheim.iw.lucene.scoring.clarity.ImprovedClarityScoreConfiguration;
+import de.unihildesheim.iw.lucene.scoring.clarity
+    .ImprovedClarityScoreConfiguration;
 import de.unihildesheim.iw.lucene.scoring.clarity.SimplifiedClarityScore;
 import de.unihildesheim.iw.util.Configuration;
 import de.unihildesheim.iw.util.StopwordsFileReader;
@@ -239,8 +244,7 @@ public final class ScoreTopicPassages
           IndexUtils.openReader(this.cliParams.idxDir);
 
       // build a list of scorers to use
-      final Collection<Tuple2<? extends
-          ClarityScoreCalculationBuilder, ? extends Configuration>> scorer;
+      final Collection<Tuple2<AbstractBuilder, Configuration>> scorer;
 
       // choose which scorers to use
       if (this.cliParams.scorerType == null) {
@@ -252,22 +256,19 @@ public final class ScoreTopicPassages
         LOG.info("Using all available scorers.");
       } else {
         // Single scorer instance
-        scorer = Collections
-            .<Tuple2<? extends
-                ClarityScoreCalculationBuilder,
-                ? extends Configuration>>singletonList(
-                getScorer(this.cliParams.scorerType, dataProv, idxReader,
-                    analyzer));
+        scorer = Collections.singletonList(
+            getScorer(this.cliParams.scorerType, dataProv, idxReader,
+                analyzer));
         LOG.info("Using only scorer: {}", this.cliParams.scorerType);
       }
 
       final TimeMeasure runTime = new TimeMeasure().start();
 
       // iterate over all scorers
-      for (final Tuple2<? extends ClarityScoreCalculationBuilder,
-          ? extends Configuration> scorerT2 : scorer) {
+      for (final Tuple2<AbstractBuilder, Configuration> scorerT2 : scorer) {
         // scorer is auto-closable
-        try (final ClarityScoreCalculation csc = scorerT2.a.build()) {
+        try {
+          final ClarityScoreCalculation csc = scorerT2.a.build();
           final Configuration cscConf = scorerT2.b;
 
           this.xmlResult.addScoreType(csc, cscConf);
@@ -327,44 +328,38 @@ public final class ScoreTopicPassages
    * for the instance
    * @throws IOException
    */
-  private Tuple2<? extends ClarityScoreCalculationBuilder,
-      ? extends Configuration>
+  private Tuple2<AbstractBuilder, Configuration>
   getScorer(final ScorerType st,
       final IndexDataProvider dataProv,
       final IndexReader idxReader,
       final Analyzer analyzer) {
-    Tuple2<? extends ClarityScoreCalculationBuilder, ? extends Configuration>
-        resTuple = null;
+    Tuple2<AbstractBuilder, Configuration> resTuple = null;
     switch (st) {
       case DCS:
         final DefaultClarityScoreConfiguration dcsc = new
             DefaultClarityScoreConfiguration();
-        final ClarityScoreCalculationBuilder dcs =
-            (ClarityScoreCalculationBuilder) new DefaultClarityScore.Builder()
-                .indexDataProvider(dataProv)
-                .indexReader(idxReader)
-                .configuration(dcsc)
-                .analyzer(analyzer);
+        final AbstractBuilder dcs = new DefaultClarityScore.Builder()
+            .indexDataProvider(dataProv)
+            .indexReader(idxReader)
+            .configuration(dcsc)
+            .analyzer(analyzer);
         resTuple = Tuple.tuple2(dcs, dcsc);
         break;
       case ICS:
         final ImprovedClarityScoreConfiguration icsc = new
             ImprovedClarityScoreConfiguration();
-        final ClarityScoreCalculationBuilder ics =
-            (ClarityScoreCalculationBuilder) new ImprovedClarityScore.Builder()
-                .indexDataProvider(dataProv)
-                .indexReader(idxReader)
-                .configuration(icsc)
-                .analyzer(analyzer);
+        final AbstractBuilder ics = new ImprovedClarityScore.Builder()
+            .indexDataProvider(dataProv)
+            .indexReader(idxReader)
+            .configuration(icsc)
+            .analyzer(analyzer);
         resTuple = Tuple.tuple2(ics, icsc);
         break;
       case SCS:
-        final ClarityScoreCalculationBuilder scs =
-            (ClarityScoreCalculationBuilder) new SimplifiedClarityScore
-                .Builder()
-                .indexDataProvider(dataProv)
-                .indexReader(idxReader)
-                .analyzer(analyzer);
+        final AbstractBuilder scs = new SimplifiedClarityScore.Builder()
+            .indexDataProvider(dataProv)
+            .indexReader(idxReader)
+            .analyzer(analyzer);
         resTuple = Tuple.tuple2(scs, new Configuration());
         break;
       default:
