@@ -116,7 +116,7 @@ public final class DefaultClarityScore
   /**
    * If true, low precision math is used for doing calculations.
    */
-  private final boolean useLowPrecisionMath = GlobalConfiguration.conf()
+  private static final boolean MATH_LOW_PRECISION = GlobalConfiguration.conf()
       .getBoolean(DefaultKeys.MATH_LOW_PRECISION.toString(), false);
 
   /**
@@ -448,7 +448,7 @@ public final class DefaultClarityScore
     result.setQueryTerms(queryTerms);
 
     // object containing all methods for model calculations
-    if (this.useLowPrecisionMath) {
+    if (MATH_LOW_PRECISION) {
       // low precision math
       final ModelLowPrecision model =
           new ModelLowPrecision(queryTerms, feedbackDocIds);
