@@ -25,8 +25,7 @@ import java.io.IOException;
  *
  * @author Jens Bertram
  */
-public interface ClarityScoreCalculation
-    extends AutoCloseable {
+public interface ClarityScoreCalculation {
 
   /**
    * Calculate the clarity score based on the given query terms.
@@ -37,6 +36,7 @@ public interface ClarityScoreCalculation
    * @throws IOException Thrown on low-level I/O errors
    * @throws ClarityScoreCalculationException Thrown on errors by implementing
    * class, if calculation fails
+   * @throws DataProviderException Forwarded from IndexDataProvider
    */
   ClarityScoreResult calculateClarity(final String query)
       throws ClarityScoreCalculationException, IOException,
@@ -61,15 +61,6 @@ public interface ClarityScoreCalculation
      * Serialization id.
      */
     private static final long serialVersionUID = 3480986541044908191L;
-
-    /**
-     * Creates a new Exception, forwarding another throwable.
-     *
-     * @param ex Exception to forward
-     */
-    public ClarityScoreCalculationException(final Throwable ex) {
-      super("Failed to calculate clarity score.", ex);
-    }
 
     /**
      * Creates a new Exception, forwarding another exception and a custom

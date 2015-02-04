@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
+import de.unihildesheim.iw.Buildable.BuildableException;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
@@ -58,7 +59,7 @@ import java.util.stream.Collectors;
  * @author Jens Bertram
  */
 public final class DefaultClarityScore
-    implements ClarityScoreCalculation {
+    extends AbstractClarityScoreCalculation {
   /**
    * Prefix used to identify externally stored data.
    */
@@ -312,6 +313,7 @@ public final class DefaultClarityScore
    * @param builder Builder to use for constructing the instance
    */
   private DefaultClarityScore(final Builder builder) {
+    super(IDENTIFIER);
     Objects.requireNonNull(builder, "Builder was null.");
 
     // set configuration
@@ -337,14 +339,6 @@ public final class DefaultClarityScore
         .dataProvider(this.dataProv)
         .indexReader(builder.getIndexReader())
         .analyzer(this.analyzer);
-  }
-
-  /**
-   * Close this instance and release any resources.
-   */
-  @Override
-  public void close() {
-    // NOP
   }
 
   /**
@@ -477,11 +471,6 @@ public final class DefaultClarityScore
     return result;
   }
 
-  @Override
-  public String getIdentifier() {
-    return IDENTIFIER;
-  }
-
   /**
    * Extended result object containing additional meta information about what
    * values were actually used for calculation.
@@ -586,42 +575,35 @@ public final class DefaultClarityScore
     }
   }
 
-  /**
-   * Builder to create a new {@link DefaultClarityScore} instance.
-   */
-  @SuppressWarnings("PublicInnerClass")
   public static final class Builder
-      extends ClarityScoreCalculationBuilder<DefaultClarityScore,
-      DefaultClarityScoreConfiguration> {
+    extends AbstractBuilder<
+              DefaultClarityScore, Builder> {
 
-    /**
-     * Initializes the builder.
-     */
-    public Builder() {
-      super(IDENTIFIER);
+    @Override
+    Builder getThis() {
+      return this;
     }
 
     @Override
-    public Builder getThis() {
-      return this;
+    DefaultClarityScoreConfiguration getConfiguration() {
+      if (this.conf == null) {
+        LOG.info("Using default configuration.");
+        return new DefaultClarityScoreConfiguration();
+      }
+      return (DefaultClarityScoreConfiguration) this.conf;
     }
 
     @Override
     public DefaultClarityScore build()
         throws BuildableException {
-      validate();
-      return new DefaultClarityScore(this);
-    }
-
-    @Override
-    public void validate()
-        throws ConfigurationException {
-      new Validator(this, new Feature[]{
+      validateFeatures(new Feature[]{
           Feature.CONFIGURATION,
           Feature.ANALYZER,
           Feature.DATA_PROVIDER,
           Feature.INDEX_READER
       });
+      validateConfiguration(DefaultClarityScoreConfiguration.class);
+      return new DefaultClarityScore(this);
     }
   }
 }

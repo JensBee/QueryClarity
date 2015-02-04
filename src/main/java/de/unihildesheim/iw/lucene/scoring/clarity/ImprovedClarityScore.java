@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
+import de.unihildesheim.iw.Buildable.BuildableException;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
@@ -59,7 +60,7 @@ import java.util.stream.Stream;
  * @author Jens Bertram
  */
 public final class ImprovedClarityScore
-    implements ClarityScoreCalculation {
+    extends AbstractClarityScoreCalculation {
   /**
    * Prefix to use to store calculated term-data values in cache and access
    * properties stored in the {@link de.unihildesheim.iw.lucene.index
@@ -376,6 +377,7 @@ public final class ImprovedClarityScore
    * @param builder Builder to use for constructing the instance
    */
   private ImprovedClarityScore(final Builder builder) {
+    super(IDENTIFIER);
     Objects.requireNonNull(builder, "Builder was null.");
 
     // set configuration
@@ -405,15 +407,6 @@ public final class ImprovedClarityScore
         .dataProvider(this.dataProv)
         .indexReader(builder.getIndexReader())
         .analyzer(this.analyzer);
-  }
-
-
-  /**
-   * Close this instance and release any resources.
-   */
-  @Override
-  public void close() {
-    // NOP
   }
 
   /**
@@ -543,11 +536,6 @@ public final class ImprovedClarityScore
     return result;
   }
 
-  @Override
-  public String getIdentifier() {
-    return IDENTIFIER;
-  }
-
   /**
    * Extended result object containing additional meta information about what
    * values were actually used for calculation.
@@ -649,14 +637,8 @@ public final class ImprovedClarityScore
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class Builder
-      extends ClarityScoreCalculationBuilder<ImprovedClarityScore,
-      ImprovedClarityScoreConfiguration> {
-    /**
-     * Initializes the builder.
-     */
-    public Builder() {
-      super(IDENTIFIER);
-    }
+      extends AbstractBuilder<
+                  ImprovedClarityScore, Builder> {
 
     @Override
     public Builder getThis() {
@@ -664,21 +646,25 @@ public final class ImprovedClarityScore
     }
 
     @Override
-    public ImprovedClarityScore build()
-        throws BuildableException {
-      validate();
-      return new ImprovedClarityScore(this);
+    ImprovedClarityScoreConfiguration getConfiguration() {
+      if (this.conf == null) {
+        LOG.info("Using default configuration.");
+        return new ImprovedClarityScoreConfiguration();
+      }
+      return (ImprovedClarityScoreConfiguration) this.conf;
     }
 
     @Override
-    public void validate()
-        throws ConfigurationException {
-      new Validator(this, new Feature[]{
+    public ImprovedClarityScore build()
+        throws BuildableException {
+      validateFeatures(new Feature[]{
           Feature.CONFIGURATION,
           Feature.ANALYZER,
           Feature.DATA_PROVIDER,
           Feature.INDEX_READER
       });
+      validateConfiguration(ImprovedClarityScoreConfiguration.class);
+      return new ImprovedClarityScore(this);
     }
   }
 }

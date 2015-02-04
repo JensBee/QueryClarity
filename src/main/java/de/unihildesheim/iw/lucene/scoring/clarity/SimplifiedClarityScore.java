@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
+import de.unihildesheim.iw.Buildable.ConfigurationException;
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
@@ -24,7 +25,6 @@ import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
-import de.unihildesheim.iw.util.Configuration;
 import de.unihildesheim.iw.util.MathUtils.KlDivergence;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
@@ -50,7 +50,7 @@ import java.util.Objects;
  * @author Jens Bertram
  */
 public final class SimplifiedClarityScore
-    implements ClarityScoreCalculation {
+    extends AbstractClarityScoreCalculation {
 
   /**
    * Prefix used to identify externally stored data.
@@ -82,6 +82,7 @@ public final class SimplifiedClarityScore
    * @param builder Builder to use for constructing the instance
    */
   private SimplifiedClarityScore(final Builder builder) {
+    super(IDENTIFIER);
     Objects.requireNonNull(builder, "Builder was null.");
 
     // set configuration
@@ -147,26 +148,13 @@ public final class SimplifiedClarityScore
     return IDENTIFIER;
   }
 
-  @Override
-  public void close()
-      throws Exception {
-    // No function, only added to be compatible to other score types
-  }
-
   /**
    * Builder to create a new {@link SimplifiedClarityScore} instance.
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class Builder
-      extends ClarityScoreCalculationBuilder<SimplifiedClarityScore,
-      Configuration> {
-
-    /**
-     * Initializes the builder.
-     */
-    public Builder() {
-      super(IDENTIFIER);
-    }
+      extends AbstractBuilder<
+                  SimplifiedClarityScore, Builder> {
 
     @Override
     public Builder getThis() {
@@ -176,18 +164,13 @@ public final class SimplifiedClarityScore
     @Override
     public SimplifiedClarityScore build()
         throws ConfigurationException {
-      validate();
-      return new SimplifiedClarityScore(this);
-    }
-
-    @Override
-    public void validate()
-        throws ConfigurationException {
-      new Validator(this, new Feature[]{
+      validateFeatures(new Feature[]{
+          Feature.CONFIGURATION,
           Feature.ANALYZER,
           Feature.DATA_PROVIDER,
           Feature.INDEX_READER
       });
+      return new SimplifiedClarityScore(this);
     }
   }
 
