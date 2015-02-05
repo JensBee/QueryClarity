@@ -23,7 +23,6 @@ import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
-import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.lucene.scoring.ScoringResult.ScoringResultXml.Keys;
@@ -66,11 +65,11 @@ public final class ImprovedClarityScore
    * properties stored in the {@link de.unihildesheim.iw.lucene.index
    * .IndexDataProvider}.
    */
-  static final String IDENTIFIER = "ICS";
+  public static final String IDENTIFIER = "ICS";
   /**
    * Logger instance for this class.
    */
-  static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
+  private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       ImprovedClarityScore.class);
   /**
    * Default math context for model calculations.
@@ -157,7 +156,7 @@ public final class ImprovedClarityScore
    * Class wrapping all methods needed for calculation needed models. Also holds
    * results of the calculations.
    */
-  private class Model
+  private final class Model
       extends AbstractModel {
     /**
      * Stores the static part of the query model calculation for each document.
@@ -323,7 +322,7 @@ public final class ImprovedClarityScore
 
         // smoothing value
         final double sSmooth = docModel.tf() +
-            (this.dmParams[0] * docModel.termCount());
+            (this.dmParams[0] * (double) docModel.termCount());
         this.staticSmoothingParts.put(docId, sSmooth);
 
         // static query model part (needs smoothing values)
@@ -397,12 +396,14 @@ public final class ImprovedClarityScore
     }
     this.conf.debugDump();
 
+    assert builder.getAnalyzer() != null;
     this.analyzer = builder.getAnalyzer();
 
     this.vocProvider = builder.getVocabularyProvider();
     this.vocProvider.indexDataProvider(this.dataProv);
 
     this.fbProvider = builder.getFeedbackProvider();
+    assert builder.getIndexReader() != null;
     this.fbProvider
         .dataProvider(this.dataProv)
         .indexReader(builder.getIndexReader())
@@ -417,7 +418,7 @@ public final class ImprovedClarityScore
    */
   @Override
   public Result calculateClarity(final String query)
-      throws ClarityScoreCalculationException, DataProviderException {
+      throws ClarityScoreCalculationException {
     if (StringUtils.isStrippedEmpty(
         Objects.requireNonNull(query, "Query was null."))) {
       throw new IllegalArgumentException("Query was empty.");
@@ -594,15 +595,6 @@ public final class ImprovedClarityScore
      * Configuration prefix.
      */
     private static final String CONF_PREFIX = IDENTIFIER + "-result";
-
-    /**
-     * Get the collection of feedback documents used for calculation.
-     *
-     * @return Feedback documents used for calculation
-     */
-    public Set<Integer> getFeedbackDocuments() {
-      return Collections.unmodifiableSet(this.feedbackDocIds);
-    }
 
     @Override
     public ScoringResultXml getXml() {

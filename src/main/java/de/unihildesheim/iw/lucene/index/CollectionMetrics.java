@@ -34,7 +34,7 @@ import java.util.Map;
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class CollectionMetrics {
+public final class CollectionMetrics {
   /**
    * Default math context for calculations.
    */
@@ -80,7 +80,7 @@ public class CollectionMetrics {
    * values retrieved from the {@link IndexDataProvider}.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static class CollectionMetricsConfiguration {
+  public static final class CollectionMetricsConfiguration {
     /**
      * Should document frequency values be cached?
      */
@@ -107,7 +107,7 @@ public class CollectionMetrics {
      * Disable caching of term frequency values.
      * @return Self reference
      */
-    public CollectionMetricsConfiguration noCacheTf() {
+    public final CollectionMetricsConfiguration noCacheTf() {
       this.cacheTf = false;
       return this;
     }
@@ -116,7 +116,7 @@ public class CollectionMetrics {
      * Disable caching of document models.
      * @return Self reference
      */
-    public CollectionMetricsConfiguration noCacheDocModels() {
+    public final CollectionMetricsConfiguration noCacheDocModels() {
       this.cacheDocModels = false;
       return this;
     }
@@ -139,12 +139,10 @@ public class CollectionMetrics {
    *
    * @param idp DataProvider
    * @param cmConf Configuration
-   * @throws DataProviderException Forwarded from lower-level
    */
   public <I extends IndexDataProvider> CollectionMetrics(
       final I idp,
-      @Nullable final CollectionMetricsConfiguration cmConf)
-      throws DataProviderException {
+      @Nullable final CollectionMetricsConfiguration cmConf) {
     this.dataProv = idp;
     // set configuration
     if (cmConf == null) {
@@ -227,9 +225,8 @@ public class CollectionMetrics {
    *
    * @param term Term to lookup
    * @return Collection frequency of the given term
-   * @throws DataProviderException Forwarded from lower-level
    */
-  public Long tf(final ByteArray term) {
+  public final Long tf(final ByteArray term) {
     if (this.conf.cacheTf) {
       Long result = this.c_tf.get(term);
       if (result == null) {
@@ -265,7 +262,7 @@ public class CollectionMetrics {
    * @return Relative collection frequency of the given term
    * @throws DataProviderException Forwarded from lower-level
    */
-  public double relTf(final ByteArray term) {
+  public final double relTf(final ByteArray term) {
     Double result = this.c_rtf.get(term);
     if (result == null) {
       final long tf = tf(term);
@@ -315,7 +312,7 @@ public class CollectionMetrics {
    * @param term Term to lookup.
    * @return Document frequency of the given term
    */
-  public Integer df(final ByteArray term) {
+  public final Integer df(final ByteArray term) {
     if (this.conf.cacheDf) {
       Integer result = this.c_df.get(term);
       if (result == null) {
@@ -334,7 +331,7 @@ public class CollectionMetrics {
    * @param term Term to lookup.
    * @return Document frequency of the given term
    */
-  public BigDecimal relDf(final ByteArray term) {
+  public final BigDecimal relDf(final ByteArray term) {
     return BigDecimal.valueOf((long) df(term)).divide(
         this.docCount, MATH_CONTEXT);
   }
@@ -345,7 +342,7 @@ public class CollectionMetrics {
    * @param documentId Id of the document whose model to get
    * @return Document-model for the given document id
    */
-  public DocumentModel docData(final int documentId) {
+  public final DocumentModel docData(final int documentId) {
     if (this.conf.cacheDocModels) {
       DocumentModel d = this.c_docModel.get(documentId);
       if (d == null) {

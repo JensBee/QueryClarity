@@ -37,40 +37,40 @@ public abstract class AbstractFeedbackProvider<T extends FeedbackProvider>
   /**
    * Number of documents to get, if a fixed amount is requested.
    */
-  protected int fixedAmount;
+  int fixedAmount;
   /**
    * Minimum number of documents to get.
    */
-  protected int minAmount;
+  int minAmount;
   /**
    * Maximum number of documents to get.
    */
-  protected int maxAmount;
+  int maxAmount;
   /**
    * True, if a fixed amount of documents should be tried to retrieve.
    */
-  protected boolean useFixedAmount;
+  boolean useFixedAmount;
 
   /**
    * Reader to access the index.
    */
-  protected IndexReader idxReader;
+  IndexReader idxReader;
   /**
    * Reader to access the index.
    */
-  protected IndexDataProvider dataProv;
+  IndexDataProvider dataProv;
   /**
    * Query analyzer.
    */
-  protected Analyzer qAnalyzer;
+  Analyzer qAnalyzer;
   /**
    * Query string.
    */
-  protected String queryStr;
+  String queryStr;
   /**
    * Document fields to query.
    */
-  protected Set<String> docFields;
+  Set<String> docFields;
 
   @Override
   public T query(final String query) {
@@ -122,5 +122,5 @@ public abstract class AbstractFeedbackProvider<T extends FeedbackProvider>
    *
    * @return Self reference
    */
-  public abstract T getThis();
+  protected abstract T getThis();
 }

@@ -16,8 +16,9 @@
  */
 package de.unihildesheim.iw.lucene.scoring;
 
-import de.unihildesheim.iw.Tuple;
-import de.unihildesheim.iw.xml.adapters.MapAdapter;
+import de.unihildesheim.iw.Tuple.Tuple2;
+import de.unihildesheim.iw.xml.adapters.MapAdapter.StringValue;
+import de.unihildesheim.iw.xml.adapters.MapAdapter.Tuple2ListValue;
 
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
@@ -99,15 +100,15 @@ public abstract class ScoringResult {
      */
     @SuppressWarnings("CollectionWithoutInitialCapacity")
     @XmlElement
-    @XmlJavaTypeAdapter(MapAdapter.StringValue.class)
+    @XmlJavaTypeAdapter(StringValue.class)
     private final Map<String, String> items = new HashMap<>();
     /**
      * XML list items.
      */
     @SuppressWarnings("CollectionWithoutInitialCapacity")
     @XmlElement
-    @XmlJavaTypeAdapter(MapAdapter.Tuple2ListValue.class)
-    private final Map<String, List<Tuple.Tuple2<String, String>>> lists = new
+    @XmlJavaTypeAdapter(Tuple2ListValue.class)
+    private final Map<String, List<Tuple2<String, String>>> lists = new
         HashMap<>();
 
     /**
@@ -126,7 +127,7 @@ public abstract class ScoringResult {
      * @return Map of key, value pairs grouped by key
      */
     @SuppressWarnings("ReturnOfCollectionOrArrayField")
-    public Map<String, List<Tuple.Tuple2<String, String>>> getLists() {
+    public Map<String, List<Tuple2<String, String>>> getLists() {
       return this.lists;
     }
   }

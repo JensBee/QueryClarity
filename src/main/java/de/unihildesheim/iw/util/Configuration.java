@@ -255,6 +255,7 @@ public class Configuration {
    * @return Integer value assigned to the key, or {@code defaultValue} if there
    * was none or there was an error interpreting the value as integer
    */
+  @Nullable
   public final Integer getInteger(final String key,
       @Nullable final Integer defaultValue) {
     final String value = getString(key);
@@ -322,6 +323,7 @@ public class Configuration {
    * @return Double value assigned to the key, or <tt>defaultValue</tt> if there
    * was none or there was an error interpreting the value as double
    */
+  @Nullable
   public final Double getDouble(final String key,
       @Nullable final Double defaultValue) {
     final String value = getString(key);

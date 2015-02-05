@@ -34,11 +34,11 @@ public abstract class AbstractVocabularyProvider<T extends VocabularyProvider>
   /**
    * Data provider for index data.
    */
-  protected IndexDataProvider dataProv;
+  IndexDataProvider dataProv;
   /**
    * Document id's whose terms should be used as vocabulary.
    */
-  protected Set<Integer> docIds;
+  Set<Integer> docIds;
 
   @Override
   public T indexDataProvider(final IndexDataProvider indexDataProvider) {
@@ -51,7 +51,7 @@ public abstract class AbstractVocabularyProvider<T extends VocabularyProvider>
    *
    * @return Self reference
    */
-  public abstract T getThis();
+  protected abstract T getThis();
 
   @Override
   public T documentIds(final Set<Integer> documentIds) {

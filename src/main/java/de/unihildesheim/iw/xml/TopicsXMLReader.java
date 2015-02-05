@@ -80,15 +80,15 @@ public class TopicsXMLReader {
     return lang;
   }
 
-  JAXBContext getJaxbContext() {
+  final JAXBContext getJaxbContext() {
     return this.jaxbContext;
   }
 
-  TopicPassages getTopicPassages() {
+  final TopicPassages getTopicPassages() {
     return this.topicPassages;
   }
 
-  public Collection<PassagesGroup> getPassagesGroups() {
+  public final Collection<PassagesGroup> getPassagesGroups() {
     return this.topicPassages.getPassageGroups();
   }
 
@@ -98,7 +98,7 @@ public class TopicsXMLReader {
    * @param lang Language
    * @return List of passages
    */
-  public List<Passage> getPassages(final String lang) {
+  public final List<Passage> getPassages(final String lang) {
     final String language = StringUtils.lowerCase(lang);
     if (!getLanguages().contains(language)) {
       throw new IllegalArgumentException(
@@ -124,7 +124,7 @@ public class TopicsXMLReader {
    *
    * @return List of languages
    */
-  public Set<String> getLanguages() {
+  public final Set<String> getLanguages() {
     return Collections.unmodifiableSet(this.languages);
   }
 }

@@ -35,9 +35,9 @@ public final class MathUtils {
   /**
    * Constant value of log2.
    */
-  public static final double LOG2 = Math.log(2d);
-  public static final BigDecimal BD_LOG2 = BigDecimal.valueOf(Math.log(2d));
-  public static final MathContext MATH_CONTEXT = new MathContext(
+  private static final double LOG2 = Math.log(2d);
+  private static final BigDecimal BD_LOG2 = BigDecimal.valueOf(Math.log(2d));
+  private static final MathContext MATH_CONTEXT = new MathContext(
       GlobalConfiguration.conf().getString(
           DefaultKeys.MATH_CONTEXT.toString()));
   /**

@@ -18,7 +18,6 @@
 package de.unihildesheim.iw.lucene.scoring.data;
 
 import de.unihildesheim.iw.ByteArray;
-import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 
 import java.util.Set;
@@ -51,6 +50,5 @@ public interface VocabularyProvider {
    *
    * @return Vocabulary
    */
-  Stream<ByteArray> get()
-      throws DataProviderException;
+  Stream<ByteArray> get();
 }

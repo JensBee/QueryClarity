@@ -33,7 +33,7 @@ import java.util.stream.Stream;
  *
  * @author Jens Bertram
  */
-public class DefaultVocabularyProvider
+public final class DefaultVocabularyProvider
     extends AbstractVocabularyProvider<DefaultVocabularyProvider> {
 
   /**

@@ -36,7 +36,7 @@ public final class CliCommon {
   /**
    * Logger instance for this class.
    */
-  static final Logger LOG =
+  private static final Logger LOG =
       LoggerFactory.getLogger(CliCommon.class);
 
   /**

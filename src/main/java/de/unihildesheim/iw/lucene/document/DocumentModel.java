@@ -45,7 +45,7 @@ public final class DocumentModel
   /**
    * Overall frequency of all terms in the document.
    */
-  public final long termFrequency;
+  private final long termFrequency;
   /**
    * Mapping of {@code Term} to {@code document-frequency} for every known term
    * in the document.

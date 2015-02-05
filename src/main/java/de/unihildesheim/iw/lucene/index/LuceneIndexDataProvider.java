@@ -23,6 +23,7 @@ import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.Tuple.Tuple3;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderBuilder.Feature;
+import de.unihildesheim.iw.lucene.index.CollectionMetrics.CollectionMetricsConfiguration;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import org.apache.lucene.index.DocsEnum;
@@ -31,6 +32,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldValueFilter;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
@@ -53,7 +55,6 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -64,17 +65,13 @@ import java.util.stream.Stream;
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class LuceneIndexDataProvider
+public final class LuceneIndexDataProvider
     implements IndexDataProvider {
   /**
    * Logger instance for this class.
    */
   private static final Logger LOG =
       LoggerFactory.getLogger(LuceneIndexDataProvider.class);
-  /**
-   * Prefix used to store {@link GlobalConfiguration configuration} data.
-   */
-  private static final String IDENTIFIER = "LuceneIDP";
   /**
    * Context for high precision math calculations.
    */
@@ -89,15 +86,11 @@ public class LuceneIndexDataProvider
   /**
    * Information about the provided Lucene index.
    */
-  private static class LuceneIndex {
+  private static final class LuceneIndex {
     /**
      * {@link IndexReader} to access the Lucene index.
      */
     private final IndexReader reader;
-    /**
-     * Cache livedocs value from current IndexReader.
-     */
-    private final Bits liveDocs;
     /**
      * Number of all documents in lucene index.
      */
@@ -148,7 +141,6 @@ public class LuceneIndexDataProvider
       }
 
       this.reader = r;
-      this.liveDocs = MultiFields.getLiveDocs(this.reader);
       this.maxDocs = this.reader.maxDoc();
     }
 
@@ -158,7 +150,7 @@ public class LuceneIndexDataProvider
      * @param br Term
      * @return True, if stopword
      */
-    boolean isStopword(final BytesRef br) {
+    final boolean isStopword(final BytesRef br) {
       return this.stopwords.contains(BytesRefUtils.toByteArray(br));
     }
 
@@ -177,8 +169,7 @@ public class LuceneIndexDataProvider
      *
      * @param sWords Stopwords list
      */
-    @SuppressWarnings("ObjectAllocationInLoop")
-    void setStopwords(final Collection<String> sWords) {
+    final void setStopwords(final Collection<String> sWords) {
       LOG.debug("Adding {} stopwords", sWords.size());
       this.stopwords = new HashSet<>(sWords.size());
 
@@ -192,7 +183,7 @@ public class LuceneIndexDataProvider
      *
      * @param baStopwords Stopwords list
      */
-    void addStopwords(final Collection<ByteArray> baStopwords) {
+    final void addStopwords(final Collection<ByteArray> baStopwords) {
       LOG.debug("Adding {} stopwords", baStopwords.size());
       this.stopwords.addAll(baStopwords);
     }
@@ -202,7 +193,7 @@ public class LuceneIndexDataProvider
      *
      * @param newTtf New value
      */
-    void setTtf(final long newTtf) {
+    final void setTtf(final long newTtf) {
       this.ttf = newTtf;
     }
   }
@@ -222,7 +213,7 @@ public class LuceneIndexDataProvider
    * @param builder Builder
    * @throws DataProviderException If multiple fields are requested
    */
-  public LuceneIndexDataProvider(final Builder builder)
+  private LuceneIndexDataProvider(final Builder builder)
       throws DataProviderException {
     if (builder.documentFields.size() > 1) {
       throw new DataProviderException(
@@ -244,6 +235,7 @@ public class LuceneIndexDataProvider
     }
 
     // first initialize the Lucene index
+    assert builder.idxReader != null;
     this.index = new LuceneIndex(builder.idxReader, builder.documentFields);
     // set initial list of stopwords passed in by builder
     this.index.setStopwords(builder.stopwords);
@@ -271,7 +263,7 @@ public class LuceneIndexDataProvider
 
     // all data gathered, initialize metrics instance
     this.metrics = new CollectionMetrics(this,
-        new CollectionMetrics.CollectionMetricsConfiguration()
+        new CollectionMetricsConfiguration()
             .noCacheTf());
 
     LOG.debug("index.TTF {} index.UT {}", this.index.ttf,
@@ -336,7 +328,7 @@ public class LuceneIndexDataProvider
    */
   private Tuple3<Long, Long, Set<ByteArray>> collectTermFrequencyValues()
       throws DataProviderException {
-    double ctThreshold;
+    final double ctThreshold;
     final Set<ByteArray> newStopwords;
     final boolean skipCommonTerms = this.options.containsKey(
         Feature.COMMON_TERM_THRESHOLD);
@@ -379,9 +371,8 @@ public class LuceneIndexDataProvider
               final ByteArray termBa = BytesRefUtils.toByteArray(termBr);
 
               // add term to stopwords list, if it exceeds the document
-              // frequency
-              // threshold
-              //if (skipCommonTerms && termsEnum.docFreq() > dfThreshold) {
+              // frequency threshold
+              assert this.index.docCount != null;
               if (skipCommonTerms &&
                   (((double) termsEnum.docFreq() /
                       (double) this.index.docCount) >
@@ -400,7 +391,7 @@ public class LuceneIndexDataProvider
                 // go through all documents which contain the current term
                 docsEnum = termsEnum.docs(liveDocs, docsEnum);
                 doc = docsEnum.nextDoc();
-                while (doc != DocsEnum.NO_MORE_DOCS) {
+                while (doc != DocIdSetIterator.NO_MORE_DOCS) {
                   termFreq += (long) docsEnum.freq();
                   doc = docsEnum.nextDoc();
                 }
@@ -432,6 +423,7 @@ public class LuceneIndexDataProvider
             this.index.reader, this.index.fields.get(0));
         termsEnum = terms.iterator(termsEnum);
 
+        assert this.index.docCount != null;
         currentTerm = termsEnum.next();
         while (currentTerm != null) {
           if (!this.index.isStopword(currentTerm)) {
@@ -457,6 +449,7 @@ public class LuceneIndexDataProvider
   @Override
   public final long getTermFrequency() {
     // throws NPE, if not set on initialization time (intended)
+    assert this.index.ttf != null;
     return this.index.ttf;
   }
 
@@ -493,11 +486,6 @@ public class LuceneIndexDataProvider
     }
 
     return 0;
-  }
-
-  @Override // NOP
-  public void close() {
-    // NOP
   }
 
   /**
@@ -537,7 +525,7 @@ public class LuceneIndexDataProvider
   }
 
   @Override
-  public Stream<Integer> getDocumentIds() {
+  public final Stream<Integer> getDocumentIds() {
     return this.index.docIds.parallelStream();
   }
 
@@ -555,17 +543,26 @@ public class LuceneIndexDataProvider
   }
 
   @Override
-  public boolean hasDocument(final int docId) {
+  public final boolean hasDocument(final int docId) {
     return getDocumentIds()
         .filter(id -> id == docId)
         .findFirst()
         .isPresent();
   }
 
+  /**
+   * Get a mapping (or list) of all terms in a specific document.
+   * @param docId Document id
+   * @param asSet If true, only a set of terms will be created. If false
+   * terms are mapped to their (within document) term frequency value.
+   * @return List of terms or mapping of term to (within document) term
+   * frequency value
+   * @throws IOException Thrown on low-level I/O errors
+   */
   private Map<ByteArray, Long> getDocumentTerms(
       final int docId, final boolean asSet)
       throws IOException {
-    final Map<ByteArray, Long> termsMap = new HashMap<>();
+    final Map<ByteArray, Long> termsMap = new HashMap<>(500);
 
     // TODO: add support for multiple fields
     final Terms terms = this.index.reader.getTermVector(
@@ -627,6 +624,7 @@ public class LuceneIndexDataProvider
     // FIXME: may be incorrect if there are more documents than max integer
     // value
     // throws NPE, if not set on initialization time (intended)
+    assert this.index.docCount != null;
     return (long) this.index.docCount;
   }
 
@@ -648,94 +646,96 @@ public class LuceneIndexDataProvider
     return this.metrics;
   }
 
-  private class DocIdBits
-      implements Bits {
-    final int l;
-    final Collection<Integer> docs;
+//  private static final class DocIdBits
+//      implements Bits {
+//    final int l;
+//    final Collection<Integer> docs;
+//
+//    @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
+//    DocIdBits(final Collection<Integer> docIds) {
+//      this.l = docIds.size();
+//      this.docs = docIds;
+//    }
+//
+//    @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
+//    DocIdBits(final int length, final Collection<Integer> docIds) {
+//      this.l = length;
+//      this.docs = docIds;
+//    }
+//
+//    @Override
+//    public final boolean get(final int i) {
+//      return this.docs.contains(i);
+//    }
+//
+//    @Override
+//    public final int length() {
+//      return this.l;
+//    }
+//  }
 
-    DocIdBits(final Collection<Integer> docIds) {
-      this.l = docIds.size();
-      this.docs = docIds;
-    }
-
-    DocIdBits(final int length, final Collection<Integer> docIds) {
-      this.l = length;
-      this.docs = docIds;
-    }
-
-    @Override
-    public boolean get(final int index) {
-      return this.docs.contains(index);
-    }
-
-    @Override
-    public int length() {
-      return this.l;
-    }
-  }
-
-  /**
-   * Iterator over all terms from a list of documents.
-   */
-  private class DocTermsIterator
-      implements Iterator<ByteArray> {
-    /**
-     * Current term.
-     */
-    private BytesRef nextTerm;
-    /**
-     * Terms enumerator for the given field.
-     */
-    private final TermsEnum te;
-    /**
-     * Bits turned on for the specified documents only.
-     */
-    private final Bits bits;
-    /**
-     * Documents enumerator for current term.
-     */
-    private final DocsEnum de = null;
-
-    /**
-     * Default constructor with field and document ids. All terms from the
-     * specified field will be collected for the given list of documents only.
-     *
-     * @param field Field to collect terms from
-     * @param docIds Documents whose terms should be collected
-     * @throws IOException Thrown on low-level I/O errors
-     */
-    DocTermsIterator(final String field, final Collection<Integer> docIds)
-        throws IOException {
-      this.te = MultiFields.getTerms(
-          LuceneIndexDataProvider.this.index.reader, field).iterator(
-          TermsEnum.EMPTY);
-      this.bits = new DocIdBits(docIds);
-      this.nextTerm = this.te.next();
-    }
-
-    @Override
-    public boolean hasNext() {
-      return this.nextTerm != null;
-    }
-
-    @Override
-    public ByteArray next() {
-      final ByteArray term;
-      try {
-        term = BytesRefUtils.toByteArray(this.nextTerm);
-        // get the next term, skipping those, not in our target documents
-        // by checking a docsEnum for contents
-        do {
-          this.nextTerm = this.te.next();
-        } while (this.nextTerm != null &&
-            this.te.docs(this.bits, this.de).nextDoc() ==
-                DocsEnum.NO_MORE_DOCS);
-      } catch (final IOException e) {
-        throw new IllegalStateException("Error getting next term.", e);
-      }
-      return term;
-    }
-  }
+//  /**
+//   * Iterator over all terms from a list of documents.
+//   */
+//  private final class DocTermsIterator
+//      implements Iterator<ByteArray> {
+//    /**
+//     * Current term.
+//     */
+//    private BytesRef nextTerm;
+//    /**
+//     * Terms enumerator for the given field.
+//     */
+//    private final TermsEnum te;
+//    /**
+//     * Bits turned on for the specified documents only.
+//     */
+//    private final Bits bits;
+//    /**
+//     * Documents enumerator for current term.
+//     */
+//    private final DocsEnum de = null;
+//
+//    /**
+//     * Default constructor with field and document ids. All terms from the
+//     * specified field will be collected for the given list of documents only.
+//     *
+//     * @param field Field to collect terms from
+//     * @param docIds Documents whose terms should be collected
+//     * @throws IOException Thrown on low-level I/O errors
+//     */
+//    DocTermsIterator(final String field, final Collection<Integer> docIds)
+//        throws IOException {
+//      this.te = MultiFields.getTerms(
+//          LuceneIndexDataProvider.this.index.reader, field).iterator(
+//          TermsEnum.EMPTY);
+//      this.bits = new DocIdBits(docIds);
+//      this.nextTerm = this.te.next();
+//    }
+//
+//    @Override
+//    public final boolean hasNext() {
+//      return this.nextTerm != null;
+//    }
+//
+//    @Override
+//    public final ByteArray next() {
+//      final ByteArray term;
+//      try {
+//        term = BytesRefUtils.toByteArray(this.nextTerm);
+//        // get the next term, skipping those, not in our target documents
+//        // by checking a docsEnum for contents
+//        do {
+//          this.nextTerm = this.te.next();
+//        } while (this.nextTerm != null &&
+//            this.te.docs(this.bits, this.de).nextDoc() ==
+//                DocIdSetIterator.NO_MORE_DOCS);
+//      } catch (final IOException e) {
+//        throw new IllegalStateException("Error getting next term.", e);
+//      }
+//      return term;
+//    }
+//  }
 
   /**
    * Builder for creating a new {@link LuceneIndexDataProvider}.
@@ -745,17 +745,12 @@ public class LuceneIndexDataProvider
       extends AbstractIndexDataProviderBuilder<Builder> {
 
     /**
-     * Features supported by this {@link IndexDataProvider}.
-     */
-    private static final Feature[] FEATURES = {
-        Feature.COMMON_TERM_THRESHOLD
-    };
-
-    /**
-     * Constructor setting the implementation identifier for the cache.
+     * Constructor setting the supported features.
      */
     public Builder() {
-      setSupportedFeatures(FEATURES);
+      super(new Feature[]{
+        Feature.COMMON_TERM_THRESHOLD
+      });
     }
 
     @Override

@@ -18,7 +18,6 @@
 package de.unihildesheim.iw.lucene.analyzer;
 
 import de.unihildesheim.iw.lucene.LuceneDefaults;
-import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
@@ -41,12 +40,12 @@ import java.util.Arrays;
  */
 public final class FrenchAnalyzer
     extends StopwordAnalyzerBase {
-  final Version matchVersion;
+  private final Version matchVersion;
 
   /**
    * Logger instance for this class.
    */
-  static final Logger LOG = LoggerFactory.getLogger(FrenchAnalyzer.class);
+  private static final Logger LOG = LoggerFactory.getLogger(FrenchAnalyzer.class);
   private static final String[] DEFAULT_ELISIONS = {
       "c", "d", "j", "l", "m", "n", "qu", "s", "t"};
   private final CharArraySet elisions =
@@ -69,8 +68,7 @@ public final class FrenchAnalyzer
    * Builds an analyzer with the default Lucene version and stopwords from the
    * given {@link IndexDataProvider}.
    */
-  public FrenchAnalyzer(final IndexDataProvider dataProv)
-      throws DataProviderException {
+  public FrenchAnalyzer(final IndexDataProvider dataProv) {
     super(new CharArraySet(dataProv.getStopwords(), true));
     this.matchVersion = LuceneDefaults.VERSION;
     this.elisions.addAll(Arrays.asList(DEFAULT_ELISIONS));

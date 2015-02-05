@@ -34,7 +34,7 @@ import java.util.Set;
  *
  * @author Jens Bertram
  */
-public class DefaultFeedbackProvider
+public final class DefaultFeedbackProvider
     extends AbstractFeedbackProvider<DefaultFeedbackProvider> {
 
   @Override

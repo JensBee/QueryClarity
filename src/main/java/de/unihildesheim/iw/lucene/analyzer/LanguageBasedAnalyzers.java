@@ -17,7 +17,6 @@
 
 package de.unihildesheim.iw.lucene.analyzer;
 
-import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
@@ -85,7 +84,7 @@ public final class LanguageBasedAnalyzers {
    * @return New Analyzer instance
    */
   @SuppressWarnings("AssignmentToNull")
-  public static Analyzer createInstance(final LanguageAnalyzers lang,
+  public static Analyzer createInstance(@Nullable final LanguageAnalyzers lang,
       final Version matchVersion, final CharArraySet stopWords) {
     final Analyzer analyzer;
     switch (Objects.requireNonNull(lang, "Language was null.")) {
@@ -113,12 +112,10 @@ public final class LanguageBasedAnalyzers {
    * @param lang Language code (two-char)
    * @param dataProv Provider with stopwords
    * @return New Analyzer instance
-   * @throws DataProviderException
    */
   public static Analyzer createInstance(
-      final LanguageAnalyzers lang,
-      final IndexDataProvider dataProv)
-      throws DataProviderException {
+      @Nullable final LanguageAnalyzers lang,
+      final IndexDataProvider dataProv) {
     @Nullable final Analyzer analyzer;
     switch (Objects.requireNonNull(lang, "Language was null.")) {
       case DE:

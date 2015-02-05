@@ -18,9 +18,6 @@
 package de.unihildesheim.iw.cli;
 
 import au.com.bytecode.opencsv.CSVWriter;
-import de.unihildesheim.iw.Buildable.BuildException;
-import de.unihildesheim.iw.Buildable.ConfigurationException;
-import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.util.StopwordsFileReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -48,12 +45,12 @@ import java.util.Set;
  *
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class DumpCommonTerms
+class DumpCommonTerms
     extends CliBase {
   /**
    * Logger instance for this class.
    */
-  static final Logger LOG =
+  private static final Logger LOG =
       LoggerFactory.getLogger(DumpCommonTerms.class);
   /**
    * Object wrapping commandline options.
@@ -76,11 +73,9 @@ public class DumpCommonTerms
    * Main method.
    *
    * @param args Commandline arguments.
-   * @throws DataProviderException
    */
   public static void main(final String[] args)
-      throws BuildException, ConfigurationException, IOException,
-             DataProviderException {
+      throws IOException {
     new DumpCommonTerms().runMain(args);
     System.exit(0); // required to trigger shutdown-hooks
   }
@@ -201,7 +196,7 @@ public class DumpCommonTerms
     /**
      * Stopwords file format.
      */
-    @SuppressWarnings({"PackageVisibleField", "FieldMayBeStatic"})
+    @SuppressWarnings({"PackageVisibleField"})
     @Option(name = "-stop-format", metaVar = "(plain|snowball)", required =
         false, depends = "-stop", usage =
         "Format of the stopwords file. 'plain' for a simple list of " +

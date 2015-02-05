@@ -17,7 +17,6 @@
 
 package de.unihildesheim.iw.lucene.query;
 
-import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
@@ -51,7 +50,7 @@ public final class TryExactTermsQuery
   /**
    * Logger instance for this class.
    */
-  static final Logger LOG = LoggerFactory.getLogger(
+  private static final Logger LOG = LoggerFactory.getLogger(
       TryExactTermsQuery.class);
 
   /**
@@ -75,12 +74,11 @@ public final class TryExactTermsQuery
    * @param queryStr Query string
    * @param fields Fields to query
    * @throws ParseException Thrown, if the query could not be parsed
-   * @throws DataProviderException Thrown, if tokenizing the query fails
    */
   public TryExactTermsQuery(final Analyzer analyzer,
       final String queryStr,
       final Set<String> fields)
-      throws ParseException, DataProviderException {
+      throws ParseException {
     Objects.requireNonNull(analyzer, "Analyzer was null.");
     if (Objects.requireNonNull(fields, "Fields were null.").isEmpty()) {
       throw new IllegalArgumentException("Empty fields list.");

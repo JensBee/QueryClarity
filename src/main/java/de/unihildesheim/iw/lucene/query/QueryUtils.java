@@ -131,7 +131,6 @@ public final class QueryUtils {
    * @return List of tokens from original query with stop-words removed
    * @see #tokenizeQuery(String, Analyzer, CollectionMetrics)
    */
-  @SuppressWarnings("ObjectAllocationInLoop")
   public static List<String> tokenizeQueryString(final String query,
       final Analyzer qAnalyzer, @Nullable final CollectionMetrics cMetrics) {
     final List<ByteArray> tokenizedQuery = tokenizeQuery(query, qAnalyzer,

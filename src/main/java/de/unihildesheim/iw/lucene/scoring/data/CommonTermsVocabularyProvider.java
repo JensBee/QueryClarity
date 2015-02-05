@@ -30,7 +30,7 @@ import java.util.stream.Stream;
  * Vocabulary provider avoiding terms common in the index.
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class CommonTermsVocabularyProvider
+public final class CommonTermsVocabularyProvider
     extends AbstractVocabularyProvider<CommonTermsVocabularyProvider> {
   /**
    * Logger instance for this class.

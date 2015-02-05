@@ -76,7 +76,7 @@ public final class TimeMeasure {
 
     final List<String> strParts = new ArrayList<>(4);
 
-    if (day > 0L) {
+    if ((long) day > 0L) {
       strParts.add(day + "d");
     }
     if (hours > 0L) {

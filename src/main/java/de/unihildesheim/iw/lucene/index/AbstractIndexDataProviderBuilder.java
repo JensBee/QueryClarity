@@ -23,6 +23,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,8 +41,8 @@ import java.util.Set;
  *
  * @author Jens Bertram
  */
-public abstract class AbstractIndexDataProviderBuilder<T extends
-    AbstractIndexDataProviderBuilder<T>>
+public abstract class AbstractIndexDataProviderBuilder<
+    B extends AbstractIndexDataProviderBuilder>
     implements Buildable {
 
   /**
@@ -63,15 +64,28 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
   }
 
   /**
+   * Empty default constructor.
+   */
+  AbstractIndexDataProviderBuilder() {}
+
+  /**
+   * Constructor accepting additional {@link Feature}s.
+   * @param features Features provided by the implementation
+   */
+  AbstractIndexDataProviderBuilder(final Feature[] features) {
+    this.setSupportedFeatures(features);
+  }
+
+  /**
    * Values for features supported by the current instance.
    */
-  protected Map<Feature, String> supportedFeatures = Collections.emptyMap();
+  Map<Feature, String> supportedFeatures = Collections.emptyMap();
 
   /**
    * Set a list of supported features.
    * @param features Features supported by this instance
    */
-  protected final void setSupportedFeatures(
+  private void setSupportedFeatures(
       final Feature[] features) {
     this.supportedFeatures = new EnumMap<>(Feature.class);
     for (final Feature f : features) {
@@ -85,7 +99,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * @param value Feature setting value
    * @return Self reference
    */
-  public final T setFeature(final Feature f, final String value) {
+  public final B setFeature(final Feature f, final String value) {
     if (this.supportedFeatures.containsKey(f)) {
       this.supportedFeatures.put(f, value);
     } else {
@@ -98,21 +112,20 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
   /**
    * List of stopwords to use.
    */
-  @SuppressWarnings("PackageVisibleField")
   Set<String> stopwords = Collections.emptySet();
   /**
    * List of document fields to use.
    */
-  @SuppressWarnings("PackageVisibleField")
   Set<String> documentFields = Collections.emptySet();
   /**
    * {@link IndexReader} to use for accessing the Lucene index.
    */
-  @SuppressWarnings("PackageVisibleField")
+  @Nullable
   IndexReader idxReader;
   /**
    * {@link Directory} instance pointing at the Lucene index.
    */
+  @Nullable
   private Directory luceneDir;
 
   /**
@@ -120,7 +133,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    *
    * @return Self reference of implementing class instance
    */
-  abstract T getThis();
+  abstract B getThis();
 
   /**
    * Set a list of stopwords to use by this instance.
@@ -128,7 +141,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * @param words List of stopwords. May be empty.
    * @return self reference
    */
-  public final T stopwords(final Set<String> words) {
+  public final B stopwords(final Set<String> words) {
     this.stopwords = Objects.requireNonNull(words);
     return getThis();
   }
@@ -139,7 +152,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * @param fields List of field names. May be empty.
    * @return self reference
    */
-  public final T documentFields(
+  public final B documentFields(
       final Set<String> fields) {
     Objects.requireNonNull(fields, "Field were null.");
     this.documentFields = new HashSet<>(fields);
@@ -155,7 +168,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
    * was found in the directory or if reading from this directory is not
    * allowed.
    */
-  public final T indexPath(final String filePath)
+  public final B indexPath(final String filePath)
       throws IOException {
     if (StringUtils.isStrippedEmpty(
         Objects.requireNonNull(filePath, "Index path was null"))) {
@@ -191,7 +204,7 @@ public abstract class AbstractIndexDataProviderBuilder<T extends
   }
 
   @Override
-  public void validate()
+  public final void validate()
       throws ConfigurationException {
     // index reader
     if (this.idxReader == null) {

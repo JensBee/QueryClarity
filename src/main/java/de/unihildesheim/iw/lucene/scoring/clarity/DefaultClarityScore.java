@@ -24,7 +24,6 @@ import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.document.FeedbackQuery;
-import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.lucene.scoring.ScoringResult.ScoringResultXml.Keys;
@@ -63,7 +62,7 @@ public final class DefaultClarityScore
   /**
    * Prefix used to identify externally stored data.
    */
-  static final String IDENTIFIER = "DCS";
+  public static final String IDENTIFIER = "DCS";
   /**
    * Logger instance for this class.
    */
@@ -329,12 +328,14 @@ public final class DefaultClarityScore
     this.conf.debugDump();
 
     this.dataProv = builder.getIndexDataProvider();
+    assert builder.getAnalyzer() != null;
     this.analyzer = builder.getAnalyzer();
 
     this.vocProvider = builder.getVocabularyProvider();
     this.vocProvider.indexDataProvider(this.dataProv);
 
     this.fbProvider = builder.getFeedbackProvider();
+    assert builder.getIndexReader() != null;
     this.fbProvider
         .dataProvider(this.dataProv)
         .indexReader(builder.getIndexReader())
@@ -397,20 +398,13 @@ public final class DefaultClarityScore
       return result;
     }
 
-    try {
-      final Result r = calculateClarity(queryTerms, feedbackDocIds);
-      LOG.debug("Calculating default clarity score for query '{}' "
-              + "with {} document models took {}. {}", query,
-          feedbackDocIds.size(), timeMeasure.stop().getTimeString(),
-          r.getScore()
-      );
-      return r;
-    } catch (final DataProviderException e) {
-      timeMeasure.stop();
-      final String msg = "Caught exception while calculating score.";
-      LOG.error(msg, e);
-      throw new ClarityScoreCalculationException(msg, e);
-    }
+    final Result r = calculateClarity(queryTerms, feedbackDocIds);
+    LOG.debug("Calculating default clarity score for query '{}' "
+            + "with {} document models took {}. {}", query,
+        feedbackDocIds.size(), timeMeasure.stop().getTimeString(),
+        r.getScore()
+    );
+    return r;
   }
 
   /**
@@ -420,12 +414,10 @@ public final class DefaultClarityScore
    * @param queryTerms Query terms
    * @param feedbackDocIds Feedback document ids to use
    * @return Result of the calculation
-   * @throws DataProviderException Thrown on low-level errors
    */
   private Result calculateClarity(
       final Collection<ByteArray> queryTerms,
-      final Set<Integer> feedbackDocIds)
-      throws DataProviderException {
+      final Set<Integer> feedbackDocIds) {
     final Result result = new Result();
     result.setConf(this.conf);
     result.setFeedbackDocIds(feedbackDocIds);
@@ -517,16 +509,6 @@ public final class DefaultClarityScore
     }
 
     /**
-     * Get the collection of feedback documents used for calculation.
-     *
-     * @return Feedback documents used for calculation
-     */
-    @SuppressWarnings("TypeMayBeWeakened")
-    public Collection<Integer> getFeedbackDocuments() {
-      return Collections.unmodifiableCollection(this.feedbackDocIds);
-    }
-
-    /**
      * Configuration prefix.
      */
     private static final String CONF_PREFIX = IDENTIFIER + "-result";
@@ -575,9 +557,13 @@ public final class DefaultClarityScore
     }
   }
 
+  /**
+   * Builder creating a new {@link DefaultClarityScore} scoring instance.
+   */
+  @SuppressWarnings("PublicInnerClass")
   public static final class Builder
-    extends AbstractBuilder<
-              DefaultClarityScore, Builder> {
+      extends AbstractBuilder<
+      DefaultClarityScore, Builder> {
 
     @Override
     Builder getThis() {

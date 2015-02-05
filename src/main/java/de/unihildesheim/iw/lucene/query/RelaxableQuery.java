@@ -31,8 +31,7 @@ public interface RelaxableQuery {
    * @throws ParseException Thrown, if relaxed query could not be parsed
    */
   @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
-  boolean relax()
-      throws ParseException;
+  boolean relax();
 
   /**
    * Get the Query object.

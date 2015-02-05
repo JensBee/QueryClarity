@@ -50,8 +50,7 @@ public final class SimpleTermsQuery
   /**
    * Default boolean operator to use for concatenating terms.
    */
-  public static final Operator DEFAULT_OPERATOR
-      = Operator.OR;
+  public static final Operator DEFAULT_OPERATOR = Operator.OR;
 
   /**
    * Logger instance for this class.
@@ -77,7 +76,7 @@ public final class SimpleTermsQuery
    * string
    * @see #SimpleTermsQuery(Analyzer, String, Operator, Set)
    */
-  SimpleTermsQuery(final Builder builder)
+  private SimpleTermsQuery(final Builder builder)
       throws ParseException, DataProviderException {
     this(
         Objects.requireNonNull(builder, "Builder was null").analyzer,
@@ -97,7 +96,7 @@ public final class SimpleTermsQuery
    */
   public SimpleTermsQuery(final Analyzer analyzer, final String query,
       final Operator operator, final Set<String> fields)
-      throws ParseException, DataProviderException {
+      throws ParseException {
     Objects.requireNonNull(analyzer, "Analyzer was null.");
     Objects.requireNonNull(operator, "Operator was null.");
     if (Objects.requireNonNull(fields, "Fields were null.").isEmpty()) {

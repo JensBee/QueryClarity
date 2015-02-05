@@ -28,12 +28,12 @@ public final class VecTextField
   /**
    * Indexed, tokenized, not stored.
    */
-  public static final FieldType TYPE_NOT_STORED = new FieldType();
+  private static final FieldType TYPE_NOT_STORED = new FieldType();
 
   /**
    * Indexed, tokenized, stored.
    */
-  public static final FieldType TYPE_STORED = new FieldType();
+  private static final FieldType TYPE_STORED = new FieldType();
 
   static {
     TYPE_NOT_STORED.setIndexed(true);

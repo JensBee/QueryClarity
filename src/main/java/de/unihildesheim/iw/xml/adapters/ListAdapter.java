@@ -35,7 +35,7 @@ final class ListAdapter {
   /**
    * Logger instance for this class.
    */
-  static final Logger LOG = LoggerFactory.getLogger(ListAdapter.class);
+  private static final Logger LOG = LoggerFactory.getLogger(ListAdapter.class);
   /**
    * XML processing of Tuple2 objects.
    */
@@ -46,7 +46,6 @@ final class ListAdapter {
           String>>> {
 
     @Nullable
-    @SuppressWarnings("ReturnOfNull")
     @Override
     public final List<Tuple2<String, String>> unmarshal(
         final StringValueEntry[] value)

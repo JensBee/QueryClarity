@@ -21,6 +21,7 @@ import javax.xml.bind.annotation.XmlAttribute;
 import javax.xml.bind.annotation.adapters.XmlAdapter;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 
 /**
  * @author Jens Bertram
@@ -60,7 +61,7 @@ public final class Configuration {
       final ConfElements[] mapElements = new ConfElements[arg0.size()];
 
       int i = 0;
-      for (final Map.Entry<String, String> entry : arg0.entrySet()) {
+      for (final Entry<String, String> entry : arg0.entrySet()) {
         mapElements[i++] = new ConfElements(entry.getKey(), entry.getValue());
       }
       return mapElements;

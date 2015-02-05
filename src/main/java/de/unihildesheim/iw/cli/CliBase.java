@@ -136,7 +136,6 @@ public class CliBase {
   /**
    * Default commandline parameters shared by all instances.
    */
-  @SuppressWarnings("ProtectedInnerClass")
   final class DefaultCliParams {
     @SuppressWarnings("PackageVisibleField")
     @Option(name = "-h", aliases = "--help", usage = "Usage help",

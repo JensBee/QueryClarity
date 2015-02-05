@@ -36,7 +36,7 @@ public final class ByteArrayUtils {
    * Internal {@link Map} to cache string representations of UTF8 bytes.
    */
   private static final Map<byte[], String> INTERN8
-      = Collections.synchronizedMap(new InternMap<byte[], String>(100000));
+      = Collections.synchronizedMap(new InternMap<>(100000));
 
   /**
    * Private empty constructor for utility class.

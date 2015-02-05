@@ -18,7 +18,6 @@
 package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.lucene.CommonTermsDefaults;
-import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
@@ -40,13 +39,13 @@ import java.util.Set;
  * Relaxable implementation of a {@link RelaxableCommonTermsQuery}.
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class RelaxableCommonTermsQuery
+public final class RelaxableCommonTermsQuery
     implements TermsProvidingQuery, RelaxableQuery {
 
   /**
    * Logger instance for this class.
    */
-  static final Logger LOG = LoggerFactory.getLogger(
+  private static final Logger LOG = LoggerFactory.getLogger(
       RelaxableCommonTermsQuery.class);
   /**
    * Final query object.
@@ -72,12 +71,10 @@ public class RelaxableCommonTermsQuery
    * @param analyzer Query analyzer
    * @param queryStr Query string
    * @param fields Fields to query
-   * @throws DataProviderException Thrown, if tokenizing the query fails
    */
   public RelaxableCommonTermsQuery(final Analyzer analyzer,
       final String queryStr,
-      final Set<String> fields)
-      throws DataProviderException {
+      final Set<String> fields) {
     Objects.requireNonNull(analyzer, "Analyzer was null.");
     if (Objects.requireNonNull(fields, "Fields were null.").isEmpty()) {
       throw new IllegalArgumentException("Empty fields list.");

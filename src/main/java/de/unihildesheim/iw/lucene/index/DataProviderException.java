@@ -47,35 +47,4 @@ public class DataProviderException
   public DataProviderException(final String msg) {
     super(msg);
   }
-
-  /**
-   * Specific Exception class for errors related to data caches.
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public static final class CacheException
-      extends DataProviderException {
-    /**
-     * Serialization id.
-     */
-    private static final long serialVersionUID = 2072304946896607453L;
-
-    /**
-     * General Exception including a {@link Throwable}.
-     *
-     * @param msg Message
-     * @param t Throwable
-     */
-    public CacheException(final String msg, final Throwable t) {
-      super(msg, t);
-    }
-
-    /**
-     * General exception.
-     *
-     * @param msg Message
-     */
-    public CacheException(final String msg) {
-      super(msg);
-    }
-  }
 }

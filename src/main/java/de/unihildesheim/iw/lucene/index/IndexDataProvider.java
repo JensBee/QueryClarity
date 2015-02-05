@@ -60,9 +60,12 @@ public interface IndexDataProvider
   /**
    * Close this instance. This is meant for handling cleanups after using this
    * instance. The behavior of functions called after this is undefined.
+   * Default implementation does nothing.
    */
   @Override
-  void close();
+  default void close() {
+    // NOP
+  }
 
   /**
    * Get an all known document-ids.
@@ -118,6 +121,7 @@ public interface IndexDataProvider
 
   /**
    * Get a collection metrics instance providing derived index information.
+   *
    * @return {@link CollectionMetrics} instance
    */
   CollectionMetrics metrics();

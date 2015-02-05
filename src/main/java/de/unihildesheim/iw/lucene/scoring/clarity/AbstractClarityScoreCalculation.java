@@ -46,7 +46,7 @@ public abstract class AbstractClarityScoreCalculation
     return this.id;
   }
 
-  public static abstract class AbstractBuilder<
+  public abstract static class AbstractBuilder<
       S extends AbstractClarityScoreCalculation,
       B extends AbstractBuilder> {
     /**
@@ -76,7 +76,7 @@ public abstract class AbstractClarityScoreCalculation
      * Implementation specific {@link Configuration} object
      */
     @Nullable
-    protected Configuration conf;
+    Configuration conf;
     /**
      * Data provider for index related term-data.
      */
@@ -115,7 +115,7 @@ public abstract class AbstractClarityScoreCalculation
      * @param features Features to check
      * @throws ConfigurationException Thrown, if a feature is not configured
      */
-    B validateFeatures(final Feature[] features)
+    final B validateFeatures(final Feature[] features)
         throws ConfigurationException {
       for (final Feature f : features) {
         boolean fail = false;
@@ -132,7 +132,7 @@ public abstract class AbstractClarityScoreCalculation
       return getThis();
     }
 
-    B validateConfiguration(final Class<? extends Configuration> c)
+    final B validateConfiguration(final Class<? extends Configuration> c)
         throws ConfigurationException {
       if (this.conf == null) {
         throw new ConfigurationException("Configuration not set.");
@@ -144,7 +144,7 @@ public abstract class AbstractClarityScoreCalculation
       return getThis();
     }
 
-    public B configuration(final Configuration configuration) {
+    public final B configuration(final Configuration configuration) {
       this.conf = configuration;
       return getThis();
     }
@@ -153,55 +153,58 @@ public abstract class AbstractClarityScoreCalculation
       return this.conf;
     }
 
-    public B indexDataProvider(final IndexDataProvider newDataProv) {
+    public final B indexDataProvider(final IndexDataProvider newDataProv) {
       this.dataProv = newDataProv;
       return getThis();
     }
 
-    IndexDataProvider getIndexDataProvider() {
+    final IndexDataProvider getIndexDataProvider() {
       return this.dataProv;
     }
 
-    public B indexReader(final IndexReader newIndexReader) {
+    public final B indexReader(final IndexReader newIndexReader) {
       this.indexReader = newIndexReader;
       return getThis();
     }
 
-    IndexReader getIndexReader() {
+    @Nullable
+    final IndexReader getIndexReader() {
       return this.indexReader;
     }
 
-    public B feedbackProvider(final FeedbackProvider newFeedbackProvider) {
+    public final B feedbackProvider(
+        final FeedbackProvider newFeedbackProvider) {
       this.feedbackProvider = newFeedbackProvider;
       return getThis();
     }
 
-    FeedbackProvider getFeedbackProvider() {
+    final FeedbackProvider getFeedbackProvider() {
       if (this.feedbackProvider == null) {
         return new DefaultFeedbackProvider();
       }
       return this.feedbackProvider;
     }
 
-    public B vocabularyProvider(final VocabularyProvider
+    public final B vocabularyProvider(final VocabularyProvider
         newVocabularyProvider) {
       this.vocabularyProvider = newVocabularyProvider;
       return getThis();
     }
 
-    VocabularyProvider getVocabularyProvider() {
+    final VocabularyProvider getVocabularyProvider() {
       if (this.vocabularyProvider == null) {
         return new DefaultVocabularyProvider();
       }
       return this.vocabularyProvider;
     }
 
-    public B analyzer(final Analyzer newAnalyzer) {
+    public final B analyzer(final Analyzer newAnalyzer) {
       this.analyzer = newAnalyzer;
       return getThis();
     }
 
-    Analyzer getAnalyzer() {
+    @Nullable
+    final Analyzer getAnalyzer() {
       return this.analyzer;
     }
   }

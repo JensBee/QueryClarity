@@ -22,7 +22,6 @@ import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.Tuple.Tuple2;
-import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.util.MathUtils.KlDivergence;
@@ -55,11 +54,11 @@ public final class SimplifiedClarityScore
   /**
    * Prefix used to identify externally stored data.
    */
-  static final String IDENTIFIER = "SCS";
+  public static final String IDENTIFIER = "SCS";
   /**
    * Default math context for model calculations.
    */
-  static final MathContext MATH_CONTEXT = new MathContext(
+  private static final MathContext MATH_CONTEXT = new MathContext(
       GlobalConfiguration.conf().getString(
           DefaultKeys.MATH_CONTEXT.toString()));
   /**
@@ -91,8 +90,7 @@ public final class SimplifiedClarityScore
   }
 
   @Override
-  public Result calculateClarity(final String query)
-      throws DataProviderException {
+  public Result calculateClarity(final String query) {
     if (StringUtils.isStrippedEmpty(
         Objects.requireNonNull(query, "Query was null."))) {
       throw new IllegalArgumentException("Query was empty.");

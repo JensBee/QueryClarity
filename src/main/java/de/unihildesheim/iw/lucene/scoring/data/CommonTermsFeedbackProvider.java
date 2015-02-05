@@ -34,7 +34,7 @@ import java.util.Set;
  * lot of documents in the index.
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class CommonTermsFeedbackProvider
+public final class CommonTermsFeedbackProvider
     extends AbstractFeedbackProvider<CommonTermsFeedbackProvider>{
 
   @Override

@@ -37,7 +37,7 @@ import java.io.Reader;
  */
 public final class GermanAnalyzer
     extends StopwordAnalyzerBase {
-  final Version matchVersion;
+  private final Version matchVersion;
 
   /**
    * Builds an analyzer with the given stop words.

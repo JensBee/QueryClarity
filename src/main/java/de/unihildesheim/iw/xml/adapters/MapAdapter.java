@@ -38,7 +38,7 @@ public final class MapAdapter {
   /**
    * Logger instance for this class.
    */
-  static final Logger LOG = LoggerFactory.getLogger(MapAdapter.class);
+  private static final Logger LOG = LoggerFactory.getLogger(MapAdapter.class);
 
   /**
    * XML processing of mapping from key to Tuple2.
@@ -49,7 +49,6 @@ public final class MapAdapter {
       List<Tuple2<String, String>>>> {
 
     @Nullable
-    @SuppressWarnings("ReturnOfNull")
     @Override
     public final Map<String, List<Tuple2<String, String>>> unmarshal(
         final Tuple2ListEntry[] value)
@@ -92,7 +91,6 @@ public final class MapAdapter {
       extends XmlAdapter<StringValueEntry[], Map<String, String>> {
 
     @Nullable
-    @SuppressWarnings("ReturnOfNull")
     @Override
     public final Map<String, String> unmarshal(
         final StringValueEntry[] value)
