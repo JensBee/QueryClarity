@@ -17,13 +17,15 @@
 
 package de.unihildesheim.iw.fiz;
 
+import org.jetbrains.annotations.Nullable;
+
 /**
  * Default values for interacting with the ES based document repository and the
  * scoring tools.
  *
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class Defaults {
+public final class Defaults {
   /**
    * Languages provided by ES index.
    */
@@ -47,6 +49,7 @@ public class Defaults {
      * @param lng Language identifier as string
      * @return Language or {@code null} if none was found for the given string
      */
+    @Nullable
     public static SRC_LANGUAGE getByString(final String lng) {
       for (final SRC_LANGUAGE srcLng : SRC_LANGUAGE.values()) {
         if (lng.equalsIgnoreCase(srcLng.name())) {

@@ -55,6 +55,7 @@ import de.unihildesheim.iw.xml.elements.ScoreType;
 import de.unihildesheim.iw.xml.elements.TopicPassages;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
+import org.jetbrains.annotations.Nullable;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -83,7 +84,7 @@ public final class ScoreTopicPassages
   /**
    * Logger instance for this class.
    */
-  static final Logger LOG =
+  private static final Logger LOG =
       LoggerFactory.getLogger(ScoreTopicPassages.class);
   /**
    * Object wrapping commandline options.
@@ -159,7 +160,7 @@ public final class ScoreTopicPassages
   /**
    * Print a list of known scorer implementations.
    */
-  static void printKnownScorers() {
+  private static void printKnownScorers() {
     System.out.println("Scorers:");
     for (final ScorerType st : ScorerType.values()) {
       System.out.println(" * " + st.name() + ": " + st);
@@ -176,7 +177,7 @@ public final class ScoreTopicPassages
   private boolean scoreByLanguage()
       throws DataProviderException {
     // error flag
-    boolean succeeded = true;
+    boolean succeeded;
     // check for single language
     LOG.info("Processing language '{}'.",
         this.cliParams.lang);
@@ -328,12 +329,12 @@ public final class ScoreTopicPassages
    * for the instance
    * @throws IOException
    */
-  private Tuple2<AbstractBuilder, Configuration>
+  private static Tuple2<AbstractBuilder, Configuration>
   getScorer(final ScorerType st,
       final IndexDataProvider dataProv,
       final IndexReader idxReader,
       final Analyzer analyzer) {
-    Tuple2<AbstractBuilder, Configuration> resTuple = null;
+    Tuple2<AbstractBuilder, Configuration> resTuple;
     switch (st) {
       case DCS:
         final DefaultClarityScoreConfiguration dcsc = new
@@ -379,7 +380,8 @@ public final class ScoreTopicPassages
    * @param name Name to identify the scorer to get
    * @return Scorer instance, or {@code null} if none was found
    */
-  static ScorerType getScorerTypeByName(final String name) {
+  @Nullable
+  private static ScorerType getScorerTypeByName(final String name) {
     for (final ScorerType st : ScorerType.values()) {
       if (st.name().equalsIgnoreCase(name)) {
         return st;
@@ -485,10 +487,10 @@ public final class ScoreTopicPassages
     /**
      * Stopwords file format.
      */
-    @SuppressWarnings({"PackageVisibleField", "FieldMayBeStatic"})
-    @Option(name = "-stop-format", metaVar = "(plain|snowball)",
-        required = false, depends = {"-stop"},
-        usage = "Format of the stopwords file. 'plain' for a simple list of " +
+    @SuppressWarnings({"PackageVisibleField"})
+    @Option(name = "-stop-format", metaVar = "(plain|snowball)", required =
+        false, depends = "-stop", usage =
+        "Format of the stopwords file. 'plain' for a simple list of " +
             "each stopword per line. 'snowball' for a list of words and " +
             "comments starting with '|'. Defaults to 'plain'.")
     String stopFileFormat = "plain";

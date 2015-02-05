@@ -37,11 +37,11 @@ import java.io.IOException;
  * Convert term dumps listed as CSV file to scoring XML format.
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class TermDumpToScoringXml extends CliBase {
+public final class TermDumpToScoringXml extends CliBase {
   /**
    * Logger instance for this class.
    */
-  static final Logger LOG =
+  private static final Logger LOG =
       LoggerFactory.getLogger(TermDumpToScoringXml.class);
 
   /**
@@ -110,14 +110,9 @@ public class TermDumpToScoringXml extends CliBase {
     LOG.debug("header: {}", line);
     line = csvReader.readNext();
     while (line != null) {
-      final StringBuilder srcStr = new StringBuilder();
-      srcStr.append(line[CSV_FLD.FIELD.idx])
-          .append(':')
-          .append(line[CSV_FLD.BIN.idx])
-          .append(':')
-          .append(line[CSV_FLD.RELDF.idx]);
-
-      final PassagesGroup pGroup = new PassagesGroup(srcStr.toString());
+      final PassagesGroup pGroup = new PassagesGroup(
+          line[CSV_FLD.FIELD.idx] + ':' + line[CSV_FLD.BIN.idx] + ':' +
+              line[CSV_FLD.RELDF.idx]);
       pGroup.getPassages().add(
           new Passage(this.cliParams.lang, line[CSV_FLD.TERM.idx]));
 
@@ -163,11 +158,8 @@ public class TermDumpToScoringXml extends CliBase {
 
     /**
      * Check parameters.
-     *
-     * @throws IOException Thrown, if the source directory could not be found
      */
-    void check()
-        throws IOException {
+    void check() {
       if (!this.csvFile.exists()) {
         LOG.error("Topic file '" + this.csvFile + "' does not exist.");
         System.exit(1);

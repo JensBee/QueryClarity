@@ -23,14 +23,13 @@ import com.google.gson.JsonObject;
 import de.unihildesheim.iw.cli.CliBase;
 import de.unihildesheim.iw.cli.CliCommon;
 import de.unihildesheim.iw.cli.CliParams;
-import de.unihildesheim.iw.fiz.Defaults;
 import de.unihildesheim.iw.fiz.Defaults.ES_CONF;
 import de.unihildesheim.iw.fiz.Defaults.LUCENE_CONF;
 import de.unihildesheim.iw.fiz.Defaults.SRC_LANGUAGE;
-import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers;
 import de.unihildesheim.iw.fiz.models.Patent;
 import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.lucene.VecTextField;
+import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers;
 import de.unihildesheim.iw.util.StopwordsFileReader;
 import io.searchbox.action.Action;
 import io.searchbox.client.JestClient;
@@ -73,12 +72,12 @@ import java.util.Set;
  * remote documents repository.
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class BuildIndex
+class BuildIndex
     extends CliBase {
   /**
    * Logger instance for this class.
    */
-  static final Logger LOG = org.slf4j.LoggerFactory.getLogger(BuildIndex.class);
+  private static final Logger LOG = org.slf4j.LoggerFactory.getLogger(BuildIndex.class);
   /**
    * Object wrapping commandline options.
    */
@@ -100,7 +99,7 @@ public class BuildIndex
 
   /**
    * Runs a REST request against the ES instance. Optionally retrying the
-   * request {@link Defaults.ES_CONF#MAX_RETRY} times, if a request has timed out.
+   * request {@link ES_CONF#MAX_RETRY} times, if a request has timed out.
    * @param action Request action
    * @return Request result
    * @throws Exception Thrown on any error while performing the request
@@ -145,8 +144,7 @@ public class BuildIndex
         this.cliParams.stopFileFormat, this.cliParams.stopFilePattern);
     final Analyzer analyzer = LanguageBasedAnalyzers.createInstance
         (LanguageBasedAnalyzers.getLanguage(lang.toString()),
-            LuceneDefaults.VERSION, new CharArraySet(LuceneDefaults.VERSION,
-                sWords, true));
+            LuceneDefaults.VERSION, new CharArraySet(sWords, true));
 
     // create Lucene index in language specific sub-directory
     final File target = new File(this.cliParams.dataDir.getAbsolutePath() + File
@@ -171,7 +169,7 @@ public class BuildIndex
     LOG.info("Creating index for: {}", lang);
 
     // claim by language
-    final String fld_claim = Defaults.ES_CONF.FLD_CLAIM_PREFIX + lang;
+    final String fld_claim = ES_CONF.FLD_CLAIM_PREFIX + lang;
 
     // get all claims from patents in the specific language including
     // detailed technical description, if available
@@ -354,7 +352,7 @@ public class BuildIndex
 
     // setup REST client
     final JestClientFactory factory = new JestClientFactory();
-    factory.setHttpClientConfig(new Builder(Defaults.ES_CONF.URL)
+    factory.setHttpClientConfig(new Builder(ES_CONF.URL)
         .multiThreaded(true).build());
     this.client = factory.getObject();
 
@@ -442,7 +440,7 @@ public class BuildIndex
     /**
      * Stopwords file format.
      */
-    @SuppressWarnings({"PackageVisibleField", "FieldMayBeStatic"})
+    @SuppressWarnings({"PackageVisibleField"})
     @Option(name = "-stop-format", metaVar = "(plain|snowball)",
         required = false, depends = "-stop",
         usage = "Format of the stopwords file. 'plain' for a simple list of " +
@@ -464,7 +462,7 @@ public class BuildIndex
     @SuppressWarnings("PackageVisibleField")
     @Option(name = "-term-vectors", required = false,
         usage = "If provided term vectors will be stored for text fields.")
-    boolean useTermVectors = false;
+    boolean useTermVectors;
 
     /**
      * Skip languages.

@@ -32,12 +32,12 @@ import java.util.Objects;
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class Patent {
+public final class Patent {
   /**
    * Logger instance for this class.
    */
   static final Logger LOG = org.slf4j.LoggerFactory.getLogger(Patent.class);
-  private static final String[] STRINGS = new String[]{};
+  private static final String[] STRINGS = {};
 
   /** Claims by language. */
   private final Map<SRC_LANGUAGE, JsonArray> claimsByLanguage;
@@ -48,7 +48,7 @@ public class Patent {
   /** Patent identifier. */
   private final String patId;
 
-  public static Patent fromJson(JsonObject json) {
+  public static Patent fromJson(final JsonObject json) {
     Objects.requireNonNull(json);
     final Patent p;
 
@@ -94,18 +94,18 @@ public class Patent {
     return p;
   }
 
-  private Patent(final String id, final String patId) {
+  private Patent(final String id, final String pid) {
     this.docId = id;
-    this.patId = patId;
+    this.patId = pid;
     this.claimsByLanguage = Collections.emptyMap();
     this.detdByLanguage = Collections.emptyMap();
   }
 
-  private Patent(final String id, final String patId, final Map<SRC_LANGUAGE,
+  private Patent(final String id, final String pid, final Map<SRC_LANGUAGE,
       JsonArray> claims,
       final Map<SRC_LANGUAGE, String> detd) {
     this.docId = id;
-    this.patId = patId;
+    this.patId = pid;
     this.claimsByLanguage = claims;
     this.detdByLanguage = detd;
   }
@@ -115,7 +115,7 @@ public class Patent {
    * @param lng Language
    * @return Array of Strings or empty array if no claims were stored
    */
-  public String[] getClaims(final SRC_LANGUAGE lng) {
+  public final String[] getClaims(final SRC_LANGUAGE lng) {
     final JsonArray claims = this.claimsByLanguage.get(lng);
     if (claims == null) {
       return STRINGS;
@@ -140,7 +140,7 @@ public class Patent {
    * @param lng Language
    * @return Claims combined by space character
    */
-  public String getClaimsAsString(final SRC_LANGUAGE lng) {
+  public final String getClaimsAsString(final SRC_LANGUAGE lng) {
     final String[] claimsStrArr = getClaims(lng);
     final StringBuilder claimsStr = new StringBuilder();
     for (final String claim : claimsStrArr) {
@@ -149,15 +149,15 @@ public class Patent {
     return claimsStr.substring(0, claimsStr.length() -1);
   }
 
-  public String getDetd(final SRC_LANGUAGE lng) {
+  public final String getDetd(final SRC_LANGUAGE lng) {
     return this.detdByLanguage.get(lng);
   }
 
-  public boolean hasDetd(final SRC_LANGUAGE lng) {
+  public final boolean hasDetd(final SRC_LANGUAGE lng) {
     return this.detdByLanguage.get(lng) != null;
   }
 
-  public boolean hasClaims(final SRC_LANGUAGE lng) {
+  public final boolean hasClaims(final SRC_LANGUAGE lng) {
     return this.claimsByLanguage.get(lng) != null;
   }
 
@@ -165,7 +165,7 @@ public class Patent {
    * Get the document id.
    * @return Document id
    */
-  public String getId() {
+  public final String getId() {
     return this.docId;
   }
 
@@ -173,7 +173,7 @@ public class Patent {
    * Get the patent id.
    * @return Patent id
    */
-  public String getPatId() {
+  public final String getPatId() {
     return this.patId;
   }
 }
