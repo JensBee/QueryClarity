@@ -19,7 +19,6 @@ package de.unihildesheim.iw.lucene.scoring.data;
 
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.CommonTermsDefaults;
-import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import org.slf4j.LoggerFactory;
 
@@ -51,8 +50,7 @@ public final class CommonTermsVocabularyProvider
   }
 
   @Override
-  public Stream<ByteArray> get()
-      throws DataProviderException {
+  public Stream<ByteArray> get() {
     final float threshold = CommonTermsDefaults.MTF_DEFAULT;
     return Objects.requireNonNull(this.dataProv,
         "Data provider not set.")
