@@ -97,7 +97,9 @@ public final class TryExactTermsQuery
     this.uniqueQueryTerms = new HashSet<>(this.queryTerms);
     for (final String term : this.uniqueQueryTerms) {
       @SuppressWarnings("ObjectAllocationInLoop")
-      final BooleanClause bc = new BooleanClause(qParser.parse(term),
+      final BooleanClause bc = new BooleanClause(
+          //qParser.parse(term),
+          qParser.parse(qParser.escape(term)),
           Occur.SHOULD);
       this.query.add(bc);
     }
