@@ -31,7 +31,6 @@ import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.lucene.VecTextField;
 import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers;
 import de.unihildesheim.iw.util.StopwordsFileReader;
-import io.searchbox.action.Action;
 import io.searchbox.client.JestClient;
 import io.searchbox.client.JestClientFactory;
 import io.searchbox.client.JestResult;
@@ -59,7 +58,6 @@ import org.slf4j.Logger;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.SocketTimeoutException;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collection;
@@ -97,31 +95,31 @@ class BuildIndex
         "Create the local term index from the remote patents repository.");
   }
 
-  /**
-   * Runs a REST request against the ES instance. Optionally retrying the
-   * request {@link ES_CONF#MAX_RETRY} times, if a request has timed out.
-   * @param action Request action
-   * @return Request result
-   * @throws Exception Thrown on any error while performing the request
-   */
-  private JestResult runRequest(final Action action)
-      throws Exception {
-    int tries = 0;
-    while (tries < ES_CONF.MAX_RETRY) {
-      try {
-        return this.client.execute(action);
-      } catch (final SocketTimeoutException ex) {
-        // connection timed out - retry after a short delay
-        final int delay = (1 + this.rand.nextInt(10)) * 100;
-        LOG.warn("Timeout - retry ~{}..", delay);
-        Thread.sleep((long) delay);
-        tries++;
-      }
-    }
-    // retries maxed out
-    throw new RuntimeException("Giving up trying to connect after "+tries+" " +
-        "retries.");
-  }
+//  /**
+//   * Runs a REST request against the ES instance. Optionally retrying the
+//   * request {@link ES_CONF#MAX_RETRY} times, if a request has timed out.
+//   * @param action Request action
+//   * @return Request result
+//   * @throws Exception Thrown on any error while performing the request
+//   */
+//  private JestResult runRequest(final Action action)
+//      throws Exception {
+//    int tries = 0;
+//    while (tries < ES_CONF.MAX_RETRY) {
+//      try {
+//        return this.client.execute(action);
+//      } catch (final SocketTimeoutException ex) {
+//        // connection timed out - retry after a short delay
+//        final int delay = (1 + this.rand.nextInt(10)) * 100;
+//        LOG.warn("Timeout - retry ~{}..", delay);
+//        Thread.sleep((long) delay);
+//        tries++;
+//      }
+//    }
+//    // retries maxed out
+//    throw new RuntimeException("Giving up trying to connect after "+tries+" " +
+//        "retries.");
+//  }
 
   /**
    * Prepare a Lucene index for the given language. This will initialize a
@@ -208,7 +206,7 @@ class BuildIndex
         .build();
 
     // initialize the scroll search
-    JestResult result = runRequest(search);
+    JestResult result = ESUtils.runRequest(this.client, search);
 
     if (!result.isSucceeded()) {
       LOG.error("Initial request failed. {}", result.getErrorMessage());
@@ -237,8 +235,8 @@ class BuildIndex
       delay = (1 + this.rand.nextInt(10)) * 100;
 
       Thread.sleep((long) delay);
-      result = runRequest(new SearchScroll.Builder(scrollId, ES_CONF.SCROLL_KEEP)
-          .build());
+      result = ESUtils.runRequest(this.client, new SearchScroll.Builder
+          (scrollId, ES_CONF.SCROLL_KEEP).build());
 
       if (result.isSucceeded()) {
         // parse result set
