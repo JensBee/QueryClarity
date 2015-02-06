@@ -95,32 +95,6 @@ class BuildIndex
         "Create the local term index from the remote patents repository.");
   }
 
-//  /**
-//   * Runs a REST request against the ES instance. Optionally retrying the
-//   * request {@link ES_CONF#MAX_RETRY} times, if a request has timed out.
-//   * @param action Request action
-//   * @return Request result
-//   * @throws Exception Thrown on any error while performing the request
-//   */
-//  private JestResult runRequest(final Action action)
-//      throws Exception {
-//    int tries = 0;
-//    while (tries < ES_CONF.MAX_RETRY) {
-//      try {
-//        return this.client.execute(action);
-//      } catch (final SocketTimeoutException ex) {
-//        // connection timed out - retry after a short delay
-//        final int delay = (1 + this.rand.nextInt(10)) * 100;
-//        LOG.warn("Timeout - retry ~{}..", delay);
-//        Thread.sleep((long) delay);
-//        tries++;
-//      }
-//    }
-//    // retries maxed out
-//    throw new RuntimeException("Giving up trying to connect after "+tries+" " +
-//        "retries.");
-//  }
-
   /**
    * Prepare a Lucene index for the given language. This will initialize a
    * language specific analyzer and creates the directories necessary to
