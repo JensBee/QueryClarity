@@ -22,8 +22,10 @@ import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.Tuple.Tuple3;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
-import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderBuilder.Feature;
-import de.unihildesheim.iw.lucene.index.CollectionMetrics.CollectionMetricsConfiguration;
+import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderBuilder
+    .Feature;
+import de.unihildesheim.iw.lucene.index.CollectionMetrics
+    .CollectionMetricsConfiguration;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import org.apache.lucene.index.DocsEnum;
@@ -65,7 +67,7 @@ import java.util.stream.Stream;
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public final class LuceneIndexDataProvider
+public abstract class LuceneIndexDataProvider
     implements IndexDataProvider {
   /**
    * Logger instance for this class.
@@ -279,7 +281,6 @@ public final class LuceneIndexDataProvider
    * @param docIds Documents to check
    */
   private void checkForTermVectors(final Iterable<Integer> docIds) {
-
     boolean hasTermVectors = true;
 
     for (final int docId : docIds) {
@@ -326,166 +327,14 @@ public final class LuceneIndexDataProvider
    * common-terms threshold (if set) (Tuple.C).
    * @throws DataProviderException Thrown on low-level I/O errors
    */
-  private Tuple3<Long, Long, Set<ByteArray>> collectTermFrequencyValues()
-      throws DataProviderException {
-    final double ctThreshold;
-    final Set<ByteArray> newStopwords;
-    final boolean skipCommonTerms = this.options.containsKey(
-        Feature.COMMON_TERM_THRESHOLD);
-
-    if (skipCommonTerms) {
-      newStopwords = new HashSet<>(1000);
-      ctThreshold = (double) this.options.get(Feature.COMMON_TERM_THRESHOLD);
-    } else {
-      newStopwords = Collections.emptySet();
-      ctThreshold = 1d;
-    }
-
-    @Nullable Terms terms;
-    TermsEnum termsEnum = TermsEnum.EMPTY;
-    @Nullable DocsEnum docsEnum = null;
-
-    if (this.index.fields.size() > 1) {
-      // term, tf
-      final Map<ByteArray, Long> termMap = new HashMap<>(5000000);
-
-      int doc;
-      @Nullable BytesRef termBr;
-      final Bits liveDocs = MultiFields.getLiveDocs(this.index.reader);
-      // go through all fields
-      for (final String field : this.index.fields) {
-        LOG.debug("Collecting terms from field '{}'.", field);
-        try {
-          terms = MultiFields.getTerms(this.index.reader, field);
-          if (terms == null) {
-            LOG.warn("Field '{}' not found. Skipping.", field);
-            continue;
-          }
-
-          termsEnum = terms.iterator(termsEnum);
-
-          // iterate over all terms in field
-          termBr = termsEnum.next();
-          while (termBr != null) {
-            if (!this.index.isStopword(termBr)) {
-              final ByteArray termBa = BytesRefUtils.toByteArray(termBr);
-
-              // add term to stopwords list, if it exceeds the document
-              // frequency threshold
-              assert this.index.docCount != null;
-              if (skipCommonTerms &&
-                  (((double) termsEnum.docFreq() /
-                      (double) this.index.docCount) >
-                      ctThreshold)) {
-                newStopwords.add(termBa);
-              }
-
-              // skip terms already flagged as stopword
-              if (!newStopwords.contains(termBa)) {
-                // obtain frequency so far, if term was already seen
-                Long termFreq = termMap.get(termBa);
-                if (termFreq == null) {
-                  termFreq = 0L;
-                }
-
-                // go through all documents which contain the current term
-                docsEnum = termsEnum.docs(liveDocs, docsEnum);
-                doc = docsEnum.nextDoc();
-                while (doc != DocIdSetIterator.NO_MORE_DOCS) {
-                  termFreq += (long) docsEnum.freq();
-                  doc = docsEnum.nextDoc();
-                }
-                termMap.put(termBa, termFreq);
-              }
-            }
-            termBr = termsEnum.next();
-          }
-        } catch (final IOException e) {
-          throw new DataProviderException(
-              "Failed to collect terms for field '" + field + "'", e);
-        }
-      }
-
-      return new Tuple3<>(
-          // sum up all single tf values
-          termMap.values().stream().reduce(0L, (x, y) -> x + y),
-          // number of unique terms
-          (long) termMap.keySet().size(),
-          // new stopwords based on threshold
-          newStopwords);
-    } else {
-      @Nullable BytesRef currentTerm; // current iteration term
-      long uniqueCount = 0L; // number of unique terms
-      long ttf = 0L; // final total term frequency value
-
-      try {
-        terms = MultiFields.getTerms(
-            this.index.reader, this.index.fields.get(0));
-        termsEnum = terms.iterator(termsEnum);
-
-        assert this.index.docCount != null;
-        currentTerm = termsEnum.next();
-        while (currentTerm != null) {
-          if (!this.index.isStopword(currentTerm)) {
-            if (((double) termsEnum.docFreq() / (double) this.index.docCount) >
-                ctThreshold) {
-              newStopwords.add(BytesRefUtils.toByteArray(currentTerm));
-            } else {
-              ttf += termsEnum.totalTermFreq();
-              uniqueCount++;
-            }
-          }
-          currentTerm = termsEnum.next();
-        }
-        return new Tuple3<>(ttf, uniqueCount, newStopwords);
-      } catch (final IOException e) {
-        throw new DataProviderException(
-            "Failed to collect terms for field '" +
-                this.index.fields.get(0) + "'", e);
-      }
-    }
-  }
+  abstract Tuple3<Long, Long, Set<ByteArray>> collectTermFrequencyValues()
+      throws DataProviderException;
 
   @Override
   public final long getTermFrequency() {
     // throws NPE, if not set on initialization time (intended)
     assert this.index.ttf != null;
     return this.index.ttf;
-  }
-
-  @Override
-  public final Long getTermFrequency(final ByteArray term) {
-    // TODO: add multiple fields support
-    try {
-      final Terms terms = MultiFields.getTerms(
-          this.index.reader, this.index.fields.get(0));
-      final TermsEnum termsEnum = terms.iterator(TermsEnum.EMPTY);
-      if (termsEnum.seekExact(BytesRefUtils.fromByteArray(term))) {
-        return termsEnum.totalTermFreq();
-      } else {
-        return 0L;
-      }
-    } catch (final IOException e) {
-      throw new IllegalStateException("Error accessing Lucene index.", e);
-    }
-  }
-
-  @Override
-  public int getDocumentFrequency(final ByteArray term) {
-    LOG.debug("@getDocumentFrequency");
-    // TODO: add multiple fields support
-    try {
-      final Terms terms = MultiFields.getTerms(
-          this.index.reader, this.index.fields.get(0));
-      final TermsEnum termsEnum = terms.iterator(TermsEnum.EMPTY);
-      if (termsEnum.seekExact(BytesRefUtils.fromByteArray(term))) {
-        return termsEnum.docFreq();
-      }
-    } catch (final IOException e) {
-      throw new IllegalStateException("Error accessing Lucene index.", e);
-    }
-
-    return 0;
   }
 
   /**
@@ -526,20 +375,7 @@ public final class LuceneIndexDataProvider
 
   @Override
   public final Stream<Integer> getDocumentIds() {
-    return this.index.docIds.parallelStream();
-  }
-
-  @Override
-  public DocumentModel getDocumentModel(final int docId) {
-    checkForTermVectors(Collections.singleton(docId));
-    try {
-      return new DocumentModel.Builder(docId)
-          .setTermFrequency(
-              getDocumentTerms(docId, false)
-          ).getModel();
-    } catch (final IOException e) {
-      throw new IllegalStateException("Error accessing Lucene index.", e);
-    }
+    return this.index.docIds.stream();
   }
 
   @Override
@@ -548,52 +384,6 @@ public final class LuceneIndexDataProvider
         .filter(id -> id == docId)
         .findFirst()
         .isPresent();
-  }
-
-  /**
-   * Get a mapping (or list) of all terms in a specific document.
-   * @param docId Document id
-   * @param asSet If true, only a set of terms will be created. If false
-   * terms are mapped to their (within document) term frequency value.
-   * @return List of terms or mapping of term to (within document) term
-   * frequency value
-   * @throws IOException Thrown on low-level I/O errors
-   */
-  private Map<ByteArray, Long> getDocumentTerms(
-      final int docId, final boolean asSet)
-      throws IOException {
-    final Map<ByteArray, Long> termsMap = new HashMap<>(500);
-
-    // TODO: add support for multiple fields
-    final Terms terms = this.index.reader.getTermVector(
-        docId, this.index.fields.get(0));
-    if (terms == null) {
-      LOG.warn("No Term Vectors for field {} in document {}.", this.index
-          .fields.get(0), docId);
-      LOG.debug("Field exists? {}", (this.index.reader.document(docId)
-          .getField(this.index.fields.get(0)) != null));
-    } else {
-      final TermsEnum termsEnum = terms.iterator(TermsEnum.EMPTY);
-      BytesRef term = termsEnum.next();
-
-      while (term != null) {
-        if (!this.index.isStopword(term)) {
-          if (asSet) {
-            termsMap.put(BytesRefUtils.toByteArray(term), null);
-          } else {
-            final ByteArray termBytes = BytesRefUtils.toByteArray(term);
-            if (termsMap.containsKey(termBytes)) {
-              termsMap.put(termBytes, termsMap.get(termBytes)
-                  + termsEnum.totalTermFreq());
-            } else {
-              termsMap.put(termBytes, termsEnum.totalTermFreq());
-            }
-          }
-        }
-        term = termsEnum.next();
-      }
-    }
-    return termsMap;
   }
 
   @Override
@@ -738,6 +528,299 @@ public final class LuceneIndexDataProvider
 //  }
 
   /**
+   * {@link LuceneIndexDataProvider} instance with methods optimized for usage
+   * with a single document field only.
+   */
+  private static final class SingleFieldInstance
+      extends LuceneIndexDataProvider {
+    /**
+     * Create instance by using {@link Builder}.
+     *
+     * @param builder Builder
+     * @throws DataProviderException If multiple fields are requested
+     */
+    private SingleFieldInstance(
+        final Builder builder)
+        throws DataProviderException {
+      super(builder);
+      LOG.debug("LIDP-Type: SingleFieldInstance");
+    }
+
+    @Override
+    public DocumentModel getDocumentModel(final int docId) {
+      super.checkForTermVectors(Collections.singleton(docId));
+      try {
+        return new DocumentModel.Builder(docId)
+            .setTermFrequency(
+                getDocumentTerms(docId, false)
+            ).getModel();
+      } catch (final IOException e) {
+        throw new IllegalStateException("Error accessing Lucene index.", e);
+      }
+    }
+
+    @Override
+    public int getDocumentFrequency(final ByteArray term) {
+      try {
+        final Terms terms = MultiFields.getTerms(
+            super.index.reader, super.index.fields.get(0));
+        final TermsEnum termsEnum = terms.iterator(TermsEnum.EMPTY);
+        if (termsEnum.seekExact(BytesRefUtils.fromByteArray(term))) {
+          return termsEnum.docFreq();
+        }
+      } catch (final IOException e) {
+        throw new IllegalStateException("Error accessing Lucene index.", e);
+      }
+      return 0;
+    }
+
+    // WARN: Local class may not yet initialized when this method is called!
+    // Use .THIS with caution!
+    @Override
+    public final Long getTermFrequency(final ByteArray term) {
+      try {
+        final Terms terms = MultiFields.getTerms(
+            super.index.reader, super.index.fields.get(0));
+        final TermsEnum termsEnum = terms.iterator(TermsEnum.EMPTY);
+        if (termsEnum.seekExact(BytesRefUtils.fromByteArray(term))) {
+          return termsEnum.totalTermFreq();
+        } else {
+          return 0L;
+        }
+      } catch (final IOException e) {
+        throw new IllegalStateException("Error accessing Lucene index.", e);
+      }
+    }
+
+    /**
+     * Get a mapping (or list) of all terms in a specific document.
+     *
+     * @param docId Document id
+     * @param asSet If true, only a set of terms will be created. If false terms
+     * are mapped to their (within document) term frequency value.
+     * @return List of terms or mapping of term to (within document) term
+     * frequency value
+     * @throws IOException Thrown on low-level I/O errors
+     */
+    private Map<ByteArray, Long> getDocumentTerms(
+        final int docId, final boolean asSet)
+        throws IOException {
+      final Map<ByteArray, Long> termsMap = new HashMap<>(500);
+      final Terms terms = super.index.reader.getTermVector(
+          docId, super.index.fields.get(0));
+      if (terms == null) {
+        LOG.warn("No Term Vectors for field {} in document {}.",
+            super.index.fields.get(0));
+        LOG.debug("Field exists? {}", (super.index.reader.document(docId)
+            .getField(super.index.fields.get(0)) != null));
+      } else {
+        final TermsEnum termsEnum = terms.iterator(TermsEnum.EMPTY);
+        BytesRef term = termsEnum.next();
+
+        while (term != null) {
+          if (!super.index.isStopword(term)) {
+            if (asSet) {
+              termsMap.put(BytesRefUtils.toByteArray(term), null);
+            } else {
+              final ByteArray termBytes = BytesRefUtils.toByteArray(term);
+              if (termsMap.containsKey(termBytes)) {
+                termsMap.put(termBytes, termsMap.get(termBytes)
+                    + termsEnum.totalTermFreq());
+              } else {
+                termsMap.put(termBytes, termsEnum.totalTermFreq());
+              }
+            }
+          }
+          term = termsEnum.next();
+        }
+      }
+      return termsMap;
+    }
+
+    // WARN: Local class may not yet initialized when this method is called!
+    // Use .THIS with caution!
+    @Override
+    Tuple3<Long, Long, Set<ByteArray>> collectTermFrequencyValues()
+        throws DataProviderException {
+      final double ctThreshold;
+      final Set<ByteArray> newStopwords;
+      final boolean skipCommonTerms = super.options.containsKey(
+          Feature.COMMON_TERM_THRESHOLD);
+
+      if (skipCommonTerms) {
+        newStopwords = new HashSet<>(1000);
+        ctThreshold = (double) super.options.get(Feature.COMMON_TERM_THRESHOLD);
+      } else {
+        newStopwords = Collections.emptySet();
+        ctThreshold = 1d;
+      }
+
+      TermsEnum termsEnum = TermsEnum.EMPTY;
+      @Nullable BytesRef currentTerm; // current iteration term
+      long uniqueCount = 0L; // number of unique terms
+      long ttf = 0L; // final total term frequency value
+
+      try {
+        @Nullable
+        final Terms terms = MultiFields.getTerms(
+            super.index.reader, super.index.fields.get(0));
+        termsEnum = terms.iterator(termsEnum);
+
+        assert super.index.docCount != null;
+        currentTerm = termsEnum.next();
+        while (currentTerm != null) {
+          if (!super.index.isStopword(currentTerm)) {
+            if (((double) termsEnum.docFreq() /
+                (double) super.index.docCount) > ctThreshold) {
+              newStopwords.add(BytesRefUtils.toByteArray(currentTerm));
+            } else {
+              ttf += termsEnum.totalTermFreq();
+              uniqueCount++;
+            }
+          }
+          currentTerm = termsEnum.next();
+        }
+        return new Tuple3<>(ttf, uniqueCount, newStopwords);
+      } catch (final IOException e) {
+        throw new DataProviderException("Failed to collect terms for field '" +
+                super.index.fields.get(0) + "'", e);
+      }
+    }
+  }
+
+  /**
+   * {@link LuceneIndexDataProvider} instance with methods optimized for usage
+   * with multiple document fields.
+   */
+  private static final class MultiFieldInstance
+      extends LuceneIndexDataProvider {
+
+    /**
+     * Create instance by using {@link Builder}.
+     *
+     * @param builder Builder
+     * @throws DataProviderException If multiple fields are requested
+     */
+    private MultiFieldInstance(
+        final Builder builder)
+        throws DataProviderException {
+      super(builder);
+      LOG.debug("LIDP-Type: MultiFieldInstance");
+    }
+
+    @Override
+    public int getDocumentFrequency(final ByteArray term) {
+      // TODO: implement
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public DocumentModel getDocumentModel(final int docId) {
+      // TODO: implement
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public final Long getTermFrequency(final ByteArray term) {
+      // TODO: implement
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    Tuple3<Long, Long, Set<ByteArray>> collectTermFrequencyValues()
+        throws DataProviderException {
+      final double ctThreshold;
+      final Set<ByteArray> newStopwords;
+      final boolean skipCommonTerms = super.options.containsKey(
+          Feature.COMMON_TERM_THRESHOLD);
+
+      if (skipCommonTerms) {
+        newStopwords = new HashSet<>(1000);
+        ctThreshold = (double) super.options.get(Feature.COMMON_TERM_THRESHOLD);
+      } else {
+        newStopwords = Collections.emptySet();
+        ctThreshold = 1d;
+      }
+
+      @Nullable Terms terms;
+      TermsEnum termsEnum = TermsEnum.EMPTY;
+      @Nullable DocsEnum docsEnum = null;
+
+      // term -> tf
+      final Map<ByteArray, Long> termMap = new HashMap<>(5000000);
+
+      int doc;
+      @Nullable BytesRef termBr;
+      final Bits liveDocs = MultiFields.getLiveDocs(super.index.reader);
+      // go through all fields
+      for (final String field : super.index.fields) {
+        LOG.debug("Collecting terms from field '{}'.", field);
+        try {
+          terms = MultiFields.getTerms(super.index.reader, field);
+          if (terms == null) {
+            LOG.warn("Field '{}' not found. Skipping.", field);
+            continue;
+          }
+
+          termsEnum = terms.iterator(termsEnum);
+
+          // iterate over all terms in field
+          termBr = termsEnum.next();
+          while (termBr != null) {
+            if (!super.index.isStopword(termBr)) {
+              final ByteArray termBa = BytesRefUtils.toByteArray(termBr);
+
+              // add term to stopwords list, if it exceeds the document
+              // frequency threshold
+              // TODO: may need a df check over all fields? - check all
+              // together at the end?
+              assert super.index.docCount != null;
+              if (skipCommonTerms &&
+                  (((double) termsEnum.docFreq() /
+                      (double) super.index.docCount) >
+                      ctThreshold)) {
+                newStopwords.add(termBa);
+              }
+
+              // skip terms already flagged as stopword
+              if (!newStopwords.contains(termBa)) {
+                // obtain frequency so far, if term was already seen
+                Long termFreq = termMap.get(termBa);
+                if (termFreq == null) {
+                  termFreq = 0L;
+                }
+
+                // go through all documents which contain the current term
+                docsEnum = termsEnum.docs(liveDocs, docsEnum);
+                doc = docsEnum.nextDoc();
+                while (doc != DocIdSetIterator.NO_MORE_DOCS) {
+                  termFreq += (long) docsEnum.freq();
+                  doc = docsEnum.nextDoc();
+                }
+                termMap.put(termBa, termFreq);
+              }
+            }
+            termBr = termsEnum.next();
+          }
+        } catch (final IOException e) {
+          throw new DataProviderException(
+              "Failed to collect terms for field '" + field + "'", e);
+        }
+      }
+
+      // TODO: check df for all remaining terms here ?
+
+      return new Tuple3<>(
+          // sum up all single tf values
+          termMap.values().stream().reduce(0L, (x, y) -> x + y),
+          // number of unique terms
+          (long) termMap.keySet().size(),
+          // new stopwords based on threshold
+          newStopwords);
+    }
+  }
+
+  /**
    * Builder for creating a new {@link LuceneIndexDataProvider}.
    */
   @SuppressWarnings("PublicInnerClass")
@@ -749,7 +832,7 @@ public final class LuceneIndexDataProvider
      */
     public Builder() {
       super(new Feature[]{
-        Feature.COMMON_TERM_THRESHOLD
+          Feature.COMMON_TERM_THRESHOLD
       });
     }
 
@@ -763,7 +846,11 @@ public final class LuceneIndexDataProvider
         throws BuildException, ConfigurationException {
       validate();
       try {
-        return new LuceneIndexDataProvider(this);
+        if (this.documentFields.size() == 1) {
+          return new SingleFieldInstance(this);
+        } else {
+          return new MultiFieldInstance(this);
+        }
       } catch (final DataProviderException e) {
         throw new BuildException("Failed to build instance.", e);
       }
