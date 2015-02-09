@@ -144,49 +144,6 @@ class DumpCommonTerms
         this.csvWriter.close();
       }
     }
-
-    /*
-    final Set<String> sWords = CliCommon.getStopwords(this.cliParams.lang,
-        this.cliParams.stopFileFormat, this.cliParams.stopFilePattern);
-
-    // suffix all fields by language
-    final Set<String> langFields = Collections.singleton(this.cliParams.field);
-
-    // create the IndexDataProvider
-    LOG.info("Initializing IndexDataProvider. lang={} fields={}",
-        this.cliParams.lang, langFields);
-    final DirectAccessIndexDataProvider dataProv = new Builder()
-        .documentFields(langFields)
-        .indexPath(this.cliParams.idxDir.getCanonicalPath())
-        .stopwords(sWords)
-        .build();
-    final CollectionMetrics cMetrics = new Metrics(dataProv).collection();
-
-    try {
-      // target file
-      this.csvWriter = new CSVWriter(new FileWriter(this.cliParams.targetFile));
-      // write header line
-      this.csvWriter.writeNext(new String[]{"term", "relDF"});
-
-      // iterate through terms
-      final Iterator<ByteArray> termsIt = dataProv.getTermsIterator();
-      final String termStr;
-      while (termsIt.hasNext()) {
-        final ByteArray termBa = termsIt.next();
-        final float relDf = cMetrics.relDf(termBa).floatValue();
-        if (relDf > this.cliParams.threshold) {
-          // log term
-          this.csvWriter.writeNext(new String[]{
-              ByteArrayUtils.utf8ToString(termBa),
-              // make exponential string R compatible
-              Float.toString(relDf).toLowerCase()
-          });
-        }
-      }
-    } finally {
-      this.csvWriter.close();
-    }
-    */
   }
 
   /**
