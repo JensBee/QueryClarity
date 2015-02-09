@@ -49,8 +49,8 @@ public final class QueryUtils {
 
   /**
    * Tokenizes a query string using Lucenes analyzer. This also removes
-   * stopwords from the query string. The {@link CollectionMetrics}
-   * instance is used to skip terms no found in the collection.
+   * stopwords from the query string. The {@link CollectionMetrics} instance is
+   * used to skip terms no found in the collection.
    *
    * @param query Query string to tokenize
    * @param qAnalyzer Analyzer to use
@@ -66,8 +66,11 @@ public final class QueryUtils {
     try (TokenStream stream = qAnalyzer.tokenStream(null, query)) {
       stream.reset();
       while (stream.incrementToken()) {
-        result.add(new ByteArray(stream.getAttribute(CharTermAttribute.class)
-            .toString().getBytes(StandardCharsets.UTF_8)));
+        final String term = stream.getAttribute(CharTermAttribute.class)
+            .toString();
+        if (!term.isEmpty()) {
+          result.add(new ByteArray(term.getBytes(StandardCharsets.UTF_8)));
+        }
       }
     } catch (final IOException e) {
       // not thrown b/c we're using a string reader
@@ -111,8 +114,8 @@ public final class QueryUtils {
    *
    * @param query Query string to tokenize
    * @param qAnalyzer Analyzer to use
-   * @return Tokenized query string with stop-words removed
-   * CollectionMetrics} fails
+   * @return Tokenized query string with stop-words removed CollectionMetrics}
+   * fails
    */
   public static List<String> tokenizeQueryString(final String query,
       final Analyzer qAnalyzer) {
@@ -121,8 +124,8 @@ public final class QueryUtils {
 
   /**
    * Tokenizes a query string using Lucenes analyzer. This also removes
-   * stopwords from the query string. The {@link CollectionMetrics}
-   * instance is used to skip terms no found in the collection.
+   * stopwords from the query string. The {@link CollectionMetrics} instance is
+   * used to skip terms no found in the collection.
    *
    * @param query Query string to tokenize
    * @param qAnalyzer Analyzer to use
@@ -135,10 +138,11 @@ public final class QueryUtils {
       final Analyzer qAnalyzer, @Nullable final CollectionMetrics cMetrics) {
     final List<ByteArray> tokenizedQuery = tokenizeQuery(query, qAnalyzer,
         cMetrics);
-    final List<String> tokenizedQueryStr = new ArrayList<>(tokenizedQuery.size());
-    tokenizedQueryStr.addAll(
-        tokenizedQuery.stream().map(ByteArrayUtils::utf8ToString)
-            .collect(Collectors.toList()));
+    final List<String> tokenizedQueryStr =
+        new ArrayList<>(tokenizedQuery.size());
+    tokenizedQueryStr.addAll(tokenizedQuery.stream()
+        .map(ByteArrayUtils::utf8ToString)
+        .collect(Collectors.toList()));
     return tokenizedQueryStr;
   }
 
@@ -160,8 +164,8 @@ public final class QueryUtils {
   /**
    * Tokenizes a query string using Lucenes analyzer. This also removes
    * stopwords from the query string. Returns a mapping of query-term to
-   * in-query-frequency. The {@link CollectionMetrics} instance is used
-   * to skip terms no found in the collection.
+   * in-query-frequency. The {@link CollectionMetrics} instance is used to skip
+   * terms no found in the collection.
    *
    * @param query Query String
    * @param qAnalyzer Analyzer used to parse the query String
