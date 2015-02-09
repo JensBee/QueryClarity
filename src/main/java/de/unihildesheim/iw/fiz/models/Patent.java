@@ -127,7 +127,7 @@ public final class Patent {
     return claimsStrArr;
   }
 
-  private static String joinJsonArray(final JsonArray jArr) {
+  public static String joinJsonArray(final JsonArray jArr) {
     final StringBuilder jStr = new StringBuilder();
     for (final JsonElement je : jArr) {
       jStr.append(je.getAsString());
