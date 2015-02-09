@@ -39,7 +39,7 @@ public class TopicsXMLWriter
 
   public TopicsXMLWriter(final File source)
       throws JAXBException {
-    super(source);
+    super(source, false);
     this.jaxbMarshaller = getJaxbContext().createMarshaller();
     this.jaxbMarshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT,
         Boolean.TRUE);
@@ -61,8 +61,8 @@ public class TopicsXMLWriter
   public void writeResults(final File out, final boolean strip)
       throws JAXBException {
     if (strip) {
-      final Iterator<PassagesGroup> passageGroupIt = getTopicPassages()
-          .getPassageGroups().iterator();
+      final Iterator<PassagesGroup> passageGroupIt =
+          getPassagesGroups().iterator();
       while (passageGroupIt.hasNext()) {
         final PassagesGroup pg = passageGroupIt.next();
         final Iterator<Passage> passageIt = pg.getPassages().iterator();

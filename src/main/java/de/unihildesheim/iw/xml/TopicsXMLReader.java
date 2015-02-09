@@ -60,9 +60,30 @@ public class TopicsXMLReader {
       throws JAXBException {
     this.jaxbContext = JAXBContext.newInstance(TopicPassages.class);
     final Unmarshaller jaxbUnmarshaller = this.jaxbContext.createUnmarshaller();
-    this.topicPassages = (TopicPassages) jaxbUnmarshaller.unmarshal
-        (source);
+    this.topicPassages = (TopicPassages) jaxbUnmarshaller.unmarshal(source);
     this.languages = extractLanguages();
+  }
+
+  /**
+   * New instance meant for classes extending this class. Skips the
+   * unmarshalling, if the file could not be found.
+   *
+   * @param source
+   * @param skipRead
+   * @throws JAXBException
+   */
+  protected TopicsXMLReader(final File source, final boolean skipRead)
+      throws JAXBException {
+    this.jaxbContext = JAXBContext.newInstance(TopicPassages.class);
+    final Unmarshaller jaxbUnmarshaller = this.jaxbContext.createUnmarshaller();
+    if (source.exists()) {
+      this.topicPassages = (TopicPassages) jaxbUnmarshaller.unmarshal
+          (source);
+      this.languages = extractLanguages();
+    } else {
+      this.languages = new HashSet<>(10);
+      this.topicPassages = new TopicPassages();
+    }
   }
 
   /**
@@ -71,13 +92,16 @@ public class TopicsXMLReader {
    * @return List of languages
    */
   private Set<String> extractLanguages() {
-    final Set<String> lang = new HashSet<>(10);
-    for (final PassagesGroup pg : this.topicPassages.getPassageGroups()) {
-      lang.addAll(pg.getPassages().stream()
+    //for (final PassagesGroup pg : this.topicPassages.getPassageGroups()) {
+      return this.topicPassages.getPassageGroups().stream()
+          .flatMap(group -> group.getPassages().stream())
           .map(p -> StringUtils.lowerCase(p.getLanguage()))
-          .collect(Collectors.toList()));
-    }
-    return lang;
+          .collect(Collectors.toSet());
+//      lang.addAll(pg.getPassages().stream()
+//          .map(p -> StringUtils.lowerCase(p.getLanguage()))
+//          .collect(Collectors.toList()));
+    //}
+    //return lang;
   }
 
   final JAXBContext getJaxbContext() {
