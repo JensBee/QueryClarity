@@ -607,5 +607,4 @@ public final class ScoreTopicPassages
       }
     }
   }
-
 }
