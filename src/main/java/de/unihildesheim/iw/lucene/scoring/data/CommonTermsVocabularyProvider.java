@@ -19,8 +19,6 @@ package de.unihildesheim.iw.lucene.scoring.data;
 
 import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.CommonTermsDefaults;
-import de.unihildesheim.iw.lucene.index.IndexDataProvider;
-import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -31,21 +29,8 @@ import java.util.stream.Stream;
  */
 public final class CommonTermsVocabularyProvider
     extends AbstractVocabularyProvider<CommonTermsVocabularyProvider> {
-  /**
-   * Logger instance for this class.
-   */
-  static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
-      CommonTermsVocabularyProvider.class);
-
   @Override
   public CommonTermsVocabularyProvider getThis() {
-    return this;
-  }
-
-  @Override
-  public CommonTermsVocabularyProvider indexDataProvider(
-      final IndexDataProvider indexDataProvider) {
-    super.indexDataProvider(indexDataProvider);
     return this;
   }
 
