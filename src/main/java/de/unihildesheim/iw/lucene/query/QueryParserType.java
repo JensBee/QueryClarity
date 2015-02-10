@@ -45,8 +45,10 @@ public enum QueryParserType {
    * Create parser type instance.
    *
    * @param qName Name of the parser
+   * @param qClass Class of the parser
    */
-  QueryParserType(final String qName, Class<? extends RelaxableQuery> qClass) {
+  QueryParserType(
+      final String qName, final Class<? extends RelaxableQuery> qClass) {
     this.name = qName;
     this.clazz = qClass;
   }
@@ -65,19 +67,19 @@ public enum QueryParserType {
    * @return Class
    */
   public Class<? extends RelaxableQuery> getQClass() {
-    return clazz;
+    return this.clazz;
   }
 
   /**
-   * Get a {@link QueryParserType} by name.
+   * Get a parser instance by name.
    *
-   * @param name Name to identify the parser to get
+   * @param aName Name to identify the parser to get
    * @return Parser instance, or {@code null} if none was found
    */
   @Nullable
-  public static QueryParserType getByName(final String name) {
+  public static QueryParserType getByName(final String aName) {
     for (final QueryParserType qpt : values()) {
-      if (qpt.name().equalsIgnoreCase(name)) {
+      if (qpt.name().equalsIgnoreCase(aName)) {
         return qpt;
       }
     }
@@ -85,16 +87,16 @@ public enum QueryParserType {
   }
 
   /**
-   * Get a {@link QueryParserType} class by name.
+   * Get a instance class by name.
    *
-   * @param name Name to identify the parser to get
+   * @param aName Name to identify the parser to get
    * @return Parser class, or {@code null} if none was found
    */
   @Nullable
   public static Class<? extends RelaxableQuery> getClassByName(
-      final String name) {
+      final String aName) {
     for (final QueryParserType qpt : values()) {
-      if (qpt.name().equalsIgnoreCase(name)) {
+      if (qpt.name().equalsIgnoreCase(aName)) {
         return qpt.clazz;
       }
     }

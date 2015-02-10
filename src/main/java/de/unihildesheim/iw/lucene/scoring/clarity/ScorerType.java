@@ -60,15 +60,15 @@ public enum ScorerType {
   }
 
   /**
-   * Get a {@link ScorerType} by name.
+   * Get a instance by name.
    *
-   * @param name Name to identify the scorer to get
+   * @param aName Name to identify the scorer to get
    * @return Scorer instance, or {@code null} if none was found
    */
   @Nullable
-  public static ScorerType getByName(final String name) {
+  public static ScorerType getByName(final String aName) {
     for (final ScorerType st : values()) {
-      if (st.name().equalsIgnoreCase(name)) {
+      if (st.name().equalsIgnoreCase(aName)) {
         return st;
       }
     }
