@@ -18,9 +18,13 @@
 package de.unihildesheim.iw.lucene.scoring.data;
 
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
+import de.unihildesheim.iw.lucene.query.RelaxableQuery;
+import de.unihildesheim.iw.lucene.query.TryExactTermsQuery;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Objects;
 import java.util.Set;
 
@@ -71,6 +75,10 @@ public abstract class AbstractFeedbackProvider<T extends FeedbackProvider>
    * Document fields to query.
    */
   Set<String> docFields;
+  /**
+   * Query parser to use. Defaults to {@link TryExactTermsQuery}.
+   */
+  Class<? extends RelaxableQuery> queryParser;
 
   @Override
   public T query(final String query) {
@@ -115,6 +123,31 @@ public abstract class AbstractFeedbackProvider<T extends FeedbackProvider>
   public T fields(final Set<String> fields) {
     this.docFields = Objects.requireNonNull(fields);
     return getThis();
+  }
+
+  @Override
+  public T queryParser(final Class<? extends RelaxableQuery> rtq) {
+    this.queryParser = Objects.requireNonNull(rtq);
+    return getThis();
+  }
+
+  protected RelaxableQuery getQueryParserInstance()
+      throws NoSuchMethodException, IllegalAccessException,
+             InvocationTargetException, InstantiationException {
+    final Constructor cTor = getQueryParser().getDeclaredConstructor(
+        Analyzer.class, String.class, Set.class);
+    return (RelaxableQuery)cTor.newInstance(
+        Objects.requireNonNull(this.qAnalyzer, "Analyzer not set."),
+        Objects.requireNonNull(this.queryStr, "Query string not set."),
+        Objects.requireNonNull(this.docFields, "Document fields not set."));
+  }
+
+  private Class<? extends RelaxableQuery> getQueryParser() {
+    if (this.queryParser == null) {
+     return TryExactTermsQuery.class;
+    } else {
+      return this.queryParser;
+    }
   }
 
   /**

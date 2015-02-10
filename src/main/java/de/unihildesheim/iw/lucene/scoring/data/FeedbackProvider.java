@@ -18,6 +18,7 @@
 package de.unihildesheim.iw.lucene.scoring.data;
 
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
+import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 
@@ -94,4 +95,12 @@ public interface FeedbackProvider {
    * @return Self reference
    */
   FeedbackProvider fields(final Set<String> fields);
+
+  /**
+   * Set the query parser to use for getting feedback documents.
+   *
+   * @param rtq Query parser
+   * @return Self reference
+   */
+  FeedbackProvider queryParser(final Class<? extends RelaxableQuery> rtq);
 }

@@ -22,6 +22,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -45,7 +46,7 @@ import java.util.Set;
  * @author Jens Bertram
  */
 public final class TryExactTermsQuery
-    implements TermsProvidingQuery, RelaxableQuery {
+    extends RelaxableQuery implements TermsProvidingQuery {
 
   /**
    * Logger instance for this class.
@@ -79,6 +80,7 @@ public final class TryExactTermsQuery
       final String queryStr,
       final Set<String> fields)
       throws ParseException {
+    super(analyzer, queryStr, fields);
     Objects.requireNonNull(analyzer, "Analyzer was null.");
     if (Objects.requireNonNull(fields, "Fields were null.").isEmpty()) {
       throw new IllegalArgumentException("Empty fields list.");
@@ -99,7 +101,7 @@ public final class TryExactTermsQuery
       @SuppressWarnings("ObjectAllocationInLoop")
       final BooleanClause bc = new BooleanClause(
           //qParser.parse(term),
-          qParser.parse(qParser.escape(term)),
+          qParser.parse(QueryParserBase.escape(term)),
           Occur.SHOULD);
       this.query.add(bc);
     }

@@ -17,13 +17,24 @@
 
 package de.unihildesheim.iw.lucene.query;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.Query;
+
+import java.util.Set;
 
 /**
  * @author Jens Bertram
  */
-public interface RelaxableQuery {
+public abstract class RelaxableQuery {
+
+  RelaxableQuery(final Analyzer analyzer,
+      final String qString,
+      final Set<String> fields) {
+    // Empty constructor to provide a common interface. Parameters are unused
+    // here.
+  }
+
   /**
    * Relaxes (simplifies) the query, e.g. to get more results.
    *
@@ -31,12 +42,12 @@ public interface RelaxableQuery {
    * @throws ParseException Thrown, if relaxed query could not be parsed
    */
   @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
-  boolean relax();
+  public abstract boolean relax();
 
   /**
    * Get the Query object.
    *
    * @return Query object
    */
-  Query getQueryObj();
+  public abstract Query getQueryObj();
 }

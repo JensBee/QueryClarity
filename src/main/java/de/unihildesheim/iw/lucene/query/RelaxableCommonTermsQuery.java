@@ -40,7 +40,7 @@ import java.util.Set;
  * @author Jens Bertram (code@jens-bertram.net)
  */
 public final class RelaxableCommonTermsQuery
-    implements TermsProvidingQuery, RelaxableQuery {
+    extends RelaxableQuery implements TermsProvidingQuery  {
 
   /**
    * Logger instance for this class.
@@ -75,6 +75,7 @@ public final class RelaxableCommonTermsQuery
   public RelaxableCommonTermsQuery(final Analyzer analyzer,
       final String queryStr,
       final Set<String> fields) {
+    super(analyzer, queryStr, fields);
     Objects.requireNonNull(analyzer, "Analyzer was null.");
     if (Objects.requireNonNull(fields, "Fields were null.").isEmpty()) {
       throw new IllegalArgumentException("Empty fields list.");

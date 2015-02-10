@@ -17,16 +17,8 @@
 
 package de.unihildesheim.iw.lucene.scoring.data;
 
-import de.unihildesheim.iw.lucene.document.FeedbackQuery;
-import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.query.RelaxableCommonTermsQuery;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
-import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.queryparser.classic.QueryParserBase;
-
-import java.io.IOException;
-import java.util.Objects;
-import java.util.Set;
 
 /**
  * {@link FeedbackProvider} using a {@link RelaxableCommonTermsQuery} to
@@ -35,7 +27,11 @@ import java.util.Set;
  * @author Jens Bertram (code@jens-bertram.net)
  */
 public final class CommonTermsFeedbackProvider
-    extends AbstractFeedbackProvider<CommonTermsFeedbackProvider>{
+  extends DefaultFeedbackProvider {
+
+  public CommonTermsFeedbackProvider() {
+    super.queryParser(RelaxableCommonTermsQuery.class);
+  }
 
   @Override
   public CommonTermsFeedbackProvider getThis() {
@@ -43,22 +39,8 @@ public final class CommonTermsFeedbackProvider
   }
 
   @Override
-  public Set<Integer> get()
-      throws ParseException, IOException, DataProviderException {
-    final RelaxableQuery qObj =
-        new RelaxableCommonTermsQuery(
-            Objects.requireNonNull(this.qAnalyzer, "Analyzer not set."),
-            QueryParserBase.escape(Objects.requireNonNull(this.queryStr,
-                "Query string not set.")),
-            Objects.requireNonNull(this.docFields, "Document fields not set."));
-    if (this.useFixedAmount) {
-      return FeedbackQuery.getFixed(
-          Objects.requireNonNull(this.idxReader, "IndexReader not set."),
-          Objects.requireNonNull(this.dataProv, "IndexDataProvider not set."),
-          qObj, this.fixedAmount);
-    }
-    return FeedbackQuery.getMinMax(
-        Objects.requireNonNull(this.idxReader, "IndexReader not set."),
-        qObj, this.minAmount, this.maxAmount);
+  public CommonTermsFeedbackProvider queryParser(
+      final Class<? extends RelaxableQuery> rtq) {
+    throw new UnsupportedOperationException("Query parser cannot be changed.");
   }
 }

@@ -18,13 +18,12 @@
 package de.unihildesheim.iw.lucene.scoring.data;
 
 import de.unihildesheim.iw.lucene.document.FeedbackQuery;
-import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import de.unihildesheim.iw.lucene.query.TryExactTermsQuery;
 import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.queryparser.classic.QueryParserBase;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Objects;
 import java.util.Set;
 
@@ -34,7 +33,7 @@ import java.util.Set;
  *
  * @author Jens Bertram
  */
-public final class DefaultFeedbackProvider
+public class DefaultFeedbackProvider
     extends AbstractFeedbackProvider<DefaultFeedbackProvider> {
 
   @Override
@@ -44,13 +43,18 @@ public final class DefaultFeedbackProvider
 
   @Override
   public Set<Integer> get()
-      throws ParseException, IOException, DataProviderException {
+      throws ParseException, IOException, InvocationTargetException,
+             NoSuchMethodException, InstantiationException,
+             IllegalAccessException {
+    /*
     final RelaxableQuery qObj =
         new TryExactTermsQuery(
             Objects.requireNonNull(this.qAnalyzer, "Analyzer not set."),
             QueryParserBase.escape(Objects.requireNonNull(this.queryStr,
                 "Query string not set.")),
             Objects.requireNonNull(this.docFields, "Document fields not set."));
+            */
+    final RelaxableQuery qObj = getQueryParserInstance();
     if (this.useFixedAmount) {
       return FeedbackQuery.getFixed(
           Objects.requireNonNull(this.idxReader, "IndexReader not set."),
