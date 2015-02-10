@@ -24,26 +24,24 @@ import de.unihildesheim.iw.cli.CliBase;
 import de.unihildesheim.iw.cli.CliCommon;
 import de.unihildesheim.iw.cli.CliParams;
 import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers;
-import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderBuilder
-    .Feature;
+import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderBuilder.Feature;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.IndexUtils;
 import de.unihildesheim.iw.lucene.index.LuceneIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.LuceneIndexDataProvider.Builder;
-import de.unihildesheim.iw.lucene.scoring.clarity
-    .AbstractClarityScoreCalculation.AbstractBuilder;
+import de.unihildesheim.iw.lucene.query.QueryParserType;
+import de.unihildesheim.iw.lucene.scoring.clarity.AbstractClarityScoreCalculation.AbstractBuilder;
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation;
-import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation
-    .ClarityScoreCalculationException;
+import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation.ClarityScoreCalculationException;
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreResult;
 import de.unihildesheim.iw.lucene.scoring.clarity.DefaultClarityScore;
-import de.unihildesheim.iw.lucene.scoring.clarity
-    .DefaultClarityScoreConfiguration;
+import de.unihildesheim.iw.lucene.scoring.clarity.DefaultClarityScoreConfiguration;
 import de.unihildesheim.iw.lucene.scoring.clarity.ImprovedClarityScore;
-import de.unihildesheim.iw.lucene.scoring.clarity
-    .ImprovedClarityScoreConfiguration;
+import de.unihildesheim.iw.lucene.scoring.clarity.ImprovedClarityScoreConfiguration;
+import de.unihildesheim.iw.lucene.scoring.clarity.ScorerType;
 import de.unihildesheim.iw.lucene.scoring.clarity.SimplifiedClarityScore;
+import de.unihildesheim.iw.lucene.scoring.data.DefaultFeedbackProvider;
 import de.unihildesheim.iw.util.Configuration;
 import de.unihildesheim.iw.util.StopwordsFileReader;
 import de.unihildesheim.iw.util.TimeMeasure;
@@ -55,7 +53,6 @@ import de.unihildesheim.iw.xml.elements.ScoreType;
 import de.unihildesheim.iw.xml.elements.TopicPassages;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
-import org.jetbrains.annotations.Nullable;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -71,6 +68,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -134,6 +132,9 @@ public final class ScoreTopicPassages
       if (this.cliParams.listScorers) {
         printKnownScorers();
         System.exit(0);
+      } else if (this.cliParams.listQueryParsers) {
+        printKnownQParsers();
+        System.exit(0);
       }
     }
 
@@ -164,6 +165,16 @@ public final class ScoreTopicPassages
     System.out.println("Scorers:");
     for (final ScorerType st : ScorerType.values()) {
       System.out.println(" * " + st.name() + ": " + st);
+    }
+  }
+
+  /**
+   * Print a list of known query parsers.
+   */
+  private static void printKnownQParsers() {
+    System.out.println("Query parsers:");
+    for (final QueryParserType qpt : QueryParserType.values()) {
+      System.out.println(" * " + qpt.name() + ": " + qpt);
     }
   }
 
@@ -329,7 +340,7 @@ public final class ScoreTopicPassages
    * for the instance
    * @throws IOException
    */
-  private static Tuple2<AbstractBuilder, Configuration>
+  private Tuple2<AbstractBuilder, Configuration>
   getScorer(final ScorerType st,
       final IndexDataProvider dataProv,
       final IndexReader idxReader,
@@ -369,67 +380,15 @@ public final class ScoreTopicPassages
     }
 
     // check for custom configuration case
-    //LOG.info("Using configuration: common-terms");
-    //resTuple.a.feedbackProvider(new CommonTermsFeedbackProvider());
+    if (this.cliParams.queryParser != null) {
+      final QueryParserType qpt = QueryParserType.getByName(
+          this.cliParams.queryParser);
+      Objects.requireNonNull(qpt, "Unknown query parser (got null).");
+      LOG.info("Using query parser: ", qpt.name());
+      resTuple.a.feedbackProvider(
+          new DefaultFeedbackProvider().queryParser(qpt.getQClass()));
+    }
     return resTuple;
-  }
-
-  /**
-   * Get a {@link ScorerType} by name.
-   *
-   * @param name Name to identify the scorer to get
-   * @return Scorer instance, or {@code null} if none was found
-   */
-  @Nullable
-  private static ScorerType getScorerTypeByName(final String name) {
-    for (final ScorerType st : ScorerType.values()) {
-      if (st.name().equalsIgnoreCase(name)) {
-        return st;
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Types of scorers available.
-   */
-  @SuppressWarnings("PackageVisibleInnerClass")
-  enum ScorerType {
-    /**
-     * {@link DefaultClarityScore} scorer.
-     */
-    DCS("Default Clarity Score"),
-    /**
-     * {@link ImprovedClarityScore} scorer.
-     */
-    ICS("Improved Clarity Score"),
-    /**
-     * {@link SimplifiedClarityScore} scorer.
-     */
-    SCS("Simplified Clarity Score");
-
-    /**
-     * Current scorer name.
-     */
-    private final String name;
-
-    /**
-     * Create scorer type instance.
-     *
-     * @param sName Name of the scorer
-     */
-    ScorerType(final String sName) {
-      this.name = sName;
-    }
-
-    /**
-     * Get the name of the scorer.
-     *
-     * @return Scorer's name
-     */
-    public String toString() {
-      return this.name;
-    }
   }
 
   /**
@@ -568,6 +527,20 @@ public final class ScoreTopicPassages
         required = true,
         usage = "Common-terms threshold value")
     double ctTreshold;
+    /**
+     * Single languages.
+     */
+    @SuppressWarnings("PackageVisibleField")
+    @Option(name = "-qparser", metaVar = "queryParserName", required = true,
+        usage = "Use a specific query parser for getting feedback.")
+    String queryParser;
+    /**
+     * List known query parsers.
+     */
+    @SuppressWarnings("PackageVisibleField")
+    @Option(name = "-qparsers", usage = "List known query parsers",
+        required = false)
+    boolean listQueryParsers;
 
     /**
      * Accessor for parent class.
@@ -598,7 +571,7 @@ public final class ScoreTopicPassages
         System.exit(-1);
       }
       if (this.scorer != null) {
-        this.scorerType = getScorerTypeByName(this.scorer);
+        this.scorerType = ScorerType.getByName(this.scorer);
         if (this.scorerType == null) {
           LOG.error("Unknown scorer type '" + this.scorer + "'.");
           printKnownScorers();
