@@ -71,4 +71,9 @@ doc/
 # r
 */.Rhistory
 */.RData
+.Rproj.user/
+*.Rproj
 
+*.log
+
+src/main/resources/nlpModels/
