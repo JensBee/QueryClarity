@@ -1,9 +1,0 @@
-#!/bin/sh
-
-JVM="-Xms128m -Xmx4G"
-MAVEN_OPTS="$MAVEN_OPTS $JVM -Djava.io.tmpdir=/data/clef/tmp"
-
-CLASS=$1
-shift
-
-mvn exec:java -Dexec.mainClass="de.unihildesheim.iw.cli.${CLASS}" -Dexec.args="$*"

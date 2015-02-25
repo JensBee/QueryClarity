@@ -1,2 +1,0 @@
-#!/bin/bash
-mvn -Dmaven.repo.local=/home/bertra/.m2-temp -Djava.io.tmpdir=/data/clef/tmp $*

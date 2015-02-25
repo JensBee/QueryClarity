@@ -1,5 +1,0 @@
-#!/bin/sh
-cd test
-mvn cobertura:cobertura -Djava.io.tmpdir=/media/Brain2/tmp $*
-rm /media/Brain2/mapdb-test*
-cd ..
