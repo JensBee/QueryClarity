@@ -24,12 +24,14 @@ import de.unihildesheim.iw.cli.CliBase;
 import de.unihildesheim.iw.cli.CliCommon;
 import de.unihildesheim.iw.cli.CliParams;
 import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers;
-import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderBuilder.Feature;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
+import de.unihildesheim.iw.lucene.index.FDRIndexDataProvider;
+import de.unihildesheim.iw.lucene.index.FDRIndexDataProvider.Builder;
+import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader;
+import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader.TermFilter.CommonTerms;
+import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader.TermFilter.StopwordWrapper;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.index.IndexUtils;
-import de.unihildesheim.iw.lucene.index.LuceneIndexDataProvider;
-import de.unihildesheim.iw.lucene.index.LuceneIndexDataProvider.Builder;
 import de.unihildesheim.iw.lucene.query.QueryParserType;
 import de.unihildesheim.iw.lucene.scoring.clarity.AbstractClarityScoreCalculation.AbstractBuilder;
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation;
@@ -52,7 +54,9 @@ import de.unihildesheim.iw.xml.elements.Passage.Score;
 import de.unihildesheim.iw.xml.elements.ScoreType;
 import de.unihildesheim.iw.xml.elements.TopicPassages;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.store.FSDirectory;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -240,12 +244,17 @@ public final class ScoreTopicPassages
     LOG.info("Initializing IndexDataProvider. lang={} fields={}", lang,
         langFields);
 
-    try (final LuceneIndexDataProvider dataProv = new Builder()
-        .documentFields(langFields)
-        .indexPath(this.cliParams.idxDir.getCanonicalPath())
-        .stopwords(sWords)
-        .setFeature(Feature.COMMON_TERM_THRESHOLD,
-            Double.toString(this.cliParams.ctTreshold))
+    final DirectoryReader reader = DirectoryReader.open(
+        FSDirectory.open(this.cliParams.idxDir));
+    final IndexReader wReader = new FilteredDirectoryReader
+        .Builder(reader)
+        .fields(langFields)
+        .termFilter(new StopwordWrapper(sWords,
+            new CommonTerms(this.cliParams.ctTreshold)))
+        .build();
+
+    try (final FDRIndexDataProvider dataProv = new Builder()
+        .indexReader(wReader)
         .build()) {
 
       analyzer = LanguageBasedAnalyzers.createInstance(LanguageBasedAnalyzers
@@ -531,7 +540,7 @@ public final class ScoreTopicPassages
      * Single languages.
      */
     @SuppressWarnings("PackageVisibleField")
-    @Option(name = "-qparser", metaVar = "queryParserName", required = true,
+    @Option(name = "-qparser", metaVar = "queryParserName", required = false,
         usage = "Use a specific query parser for getting feedback.")
     String queryParser;
     /**
