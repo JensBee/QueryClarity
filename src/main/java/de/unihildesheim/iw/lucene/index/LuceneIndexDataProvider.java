@@ -22,10 +22,8 @@ import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.Tuple.Tuple3;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
-import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderBuilder
-    .Feature;
-import de.unihildesheim.iw.lucene.index.CollectionMetrics
-    .CollectionMetricsConfiguration;
+import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderBuilder.Feature;
+import de.unihildesheim.iw.lucene.index.CollectionMetrics.CollectionMetricsConfiguration;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import org.apache.lucene.index.DocsEnum;
@@ -248,7 +246,12 @@ public abstract class LuceneIndexDataProvider
     // values to allow removal of common terms (based on document frequency
     // values)
     LOG.debug("Estimating index size");
-    this.index.docIds = getDocumentIdsCollection();
+
+    try {
+      this.index.docIds = getDocumentIdsCollection();
+    } catch (final IOException e) {
+      throw new DataProviderException("Failed to collect documents.", e);
+    }
     this.index.docCount = this.index.docIds.size();
 
     // calculate total term frequency value for all current fields and get
@@ -342,10 +345,12 @@ public abstract class LuceneIndexDataProvider
    *
    * @return Collection of found documents (their ids)
    */
-  private Collection<Integer> getDocumentIdsCollection() {
+  private Collection<Integer> getDocumentIdsCollection()
+      throws IOException {
     LOG.debug("@getDocumentIdsCollection");
     // TODO: maybe back by MapDB
-    final Collection<Integer> docIds = new ArrayList<>(this.index.maxDocs);
+    final Collection<Integer> docIds =
+        new ArrayList<>(this.index.reader.numDocs());
     LOG.info("Collecting all documents from index with field(s) {}",
         this.index.fields);
 
@@ -354,20 +359,22 @@ public abstract class LuceneIndexDataProvider
 
     final Query q = new MatchAllDocsQuery();
 
+    matches = searcher.search(q, this.index.reader.numDocs());
+    LOG.debug("MatchAllQuery returned {} matching documents.", matches
+        .totalHits);
+
     for (final String field : this.index.fields) {
       @SuppressWarnings("ObjectAllocationInLoop")
       // require documents to have content in the current field
       final Filter fieldFilter = new FieldValueFilter(field);
       LOG.debug("Using FieldFilter: {}", fieldFilter);
 
-      try {
-        matches = searcher.search(q, fieldFilter, this.index.reader.numDocs());
-        LOG.debug("Query returned {} matching documents.", matches.totalHits);
-        for (final ScoreDoc doc : matches.scoreDocs) {
-          docIds.add(doc.doc);
-        }
-      } catch (final IOException e) {
-        e.printStackTrace();
+      LOG.debug("Expecting {} documents at max.", this.index.reader.numDocs());
+      matches = searcher.search(q, fieldFilter, this.index.reader.numDocs());
+      LOG.debug("Query returned {} matching documents.", matches
+          .totalHits);
+      for (final ScoreDoc doc : matches.scoreDocs) {
+        docIds.add(doc.doc);
       }
     }
     return docIds;
@@ -670,7 +677,7 @@ public abstract class LuceneIndexDataProvider
         currentTerm = termsEnum.next();
         while (currentTerm != null) {
           if (!super.index.isStopword(currentTerm)) {
-            if (((double) termsEnum.docFreq() /
+            if (skipCommonTerms && ((double) termsEnum.docFreq() /
                 (double) super.index.docCount) > ctThreshold) {
               newStopwords.add(BytesRefUtils.toByteArray(currentTerm));
             } else {
@@ -683,7 +690,7 @@ public abstract class LuceneIndexDataProvider
         return new Tuple3<>(ttf, uniqueCount, newStopwords);
       } catch (final IOException e) {
         throw new DataProviderException("Failed to collect terms for field '" +
-                super.index.fields.get(0) + "'", e);
+            super.index.fields.get(0) + "'", e);
       }
     }
   }
@@ -845,6 +852,11 @@ public abstract class LuceneIndexDataProvider
     public LuceneIndexDataProvider build()
         throws BuildException, ConfigurationException {
       validate();
+      assert this.idxReader != null;
+      if (this.idxReader.hasDeletions()) {
+        throw new BuildException(
+            "Index with deletions is currently not supported.");
+      }
       try {
         if (this.documentFields.size() == 1) {
           return new SingleFieldInstance(this);
