@@ -64,11 +64,6 @@ public abstract class AbstractIndexDataProviderBuilder<
   }
 
   /**
-   * Empty default constructor.
-   */
-  AbstractIndexDataProviderBuilder() {}
-
-  /**
    * Constructor accepting additional {@link Feature}s.
    * @param features Features provided by the implementation
    */
@@ -156,6 +151,11 @@ public abstract class AbstractIndexDataProviderBuilder<
       final Set<String> fields) {
     Objects.requireNonNull(fields, "Field were null.");
     this.documentFields = new HashSet<>(fields);
+    return getThis();
+  }
+
+  public final B indexReader(final IndexReader reader) {
+    this.idxReader = reader;
     return getThis();
   }
 
