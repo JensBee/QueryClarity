@@ -1,0 +1,11 @@
+#!/bin/bash
+
+if [ $# -lt 1 ]; then
+	printf "de.unihildesheim.iw.fiz.<class>\n"
+	exit 1
+fi
+
+CLASS=de.unihildesheim.iw.fiz.${1}
+shift
+
+java -cp target/QueryClarityFIZ.jar ${CLASS} $*

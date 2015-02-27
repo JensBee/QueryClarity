@@ -1,0 +1,11 @@
+#!/bin/bash
+. "$(dirname $0)/mvn.inc.sh"
+
+if [ $# -lt 1 ]; then
+	printf "de.unihildesheim.iw.<class>\n"
+	exit 1
+fi
+
+CLASS=de.unihildesheim.iw.${1}
+
+${MVN_CMD} -Dexec.mainClass="${CLASS}" -Dexec.args="$*"

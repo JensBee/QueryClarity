@@ -1,0 +1,25 @@
+#!/bin/bash
+. "$(dirname $0)/mvn.inc.sh"
+
+if [ $# -lt 3 ]; then
+	printf "<language> <infile> <outfile>\n"
+	exit 1
+fi
+
+SCORE_LANG=$1
+shift
+SCORE_FILE=$1
+shift
+SCORE_OUT=$1
+shift
+
+DIR_DATA=data
+IDX=/data/clef/Clarity/work/fiz/index/$(echo $SCORE_LANG | tr '[:lower:]' '[:upper:]')
+
+OUT=${SCORE_OUT}
+IN=${SCORE_FILE}
+
+CLASS=de.unihildesheim.iw.fiz.cli.ScoreTermSentenceExtractor
+ARGS="-i ${IN} -o ${OUT} -idx ${IDX} -lang ${SCORE_LANG} "
+
+${MVN_CMD} -Dexec.mainClass="${CLASS}" -Dexec.args="${ARGS} $*"
