@@ -19,7 +19,6 @@ package de.unihildesheim.iw.lucene.util;
 
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
-import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -32,8 +31,6 @@ public final class BitsUtils {
    * @param bits Bits to convert
    * @return New instance or {@code null} if {@code bits} were {@code null}.
    */
-  @Contract("null -> null")
-  @Nullable
   public static FixedBitSet Bits2FixedBitSet(@Nullable final Bits bits) {
     if (bits == null) {
       return null;
