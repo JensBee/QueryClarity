@@ -17,11 +17,8 @@
 
 package de.unihildesheim.iw.lucene.index;
 
-import de.unihildesheim.iw.ByteArray;
+import de.unihildesheim.iw.lucene.search.EmptyFieldFilter;
 import de.unihildesheim.iw.lucene.util.BitsUtils;
-import de.unihildesheim.iw.lucene.util.BytesRefUtils;
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocsAndPositionsEnum;
@@ -29,8 +26,10 @@ import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.FilterAtomicReader;
 import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
@@ -46,6 +45,7 @@ import org.apache.lucene.search.FieldValueFilter;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.FixedBitSet;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -53,7 +53,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -193,11 +192,11 @@ public class FilteredDirectoryReader
   }
 
   /**
-   * Filtered {@link AtomicReader} that wraps another AtomicReader and provides
+   * Filtered {@link LeafReader} that wraps another AtomicReader and provides
    * filtering functions.
    */
-  static final class FilteredAtomicReader
-      extends FilterAtomicReader {
+  private static final class FilteredLeafReader
+      extends FilterLeafReader {
     /**
      * Fields instance.
      */
@@ -213,18 +212,18 @@ public class FilteredDirectoryReader
     /**
      * Contextual meta-data.
      */
-    private final FARContext farContext;
+    private final FLRContext flrContext;
     /**
      * FieldInfos reduced to the visible fields.
      */
     private FieldInfos fieldInfos;
 
     /**
-     * <p>Construct a FilterAtomicReader based on the specified base reader.
+     * <p>Construct a FilterLeafReader based on the specified base reader.
      * <p>Note that base reader is closed if this FilterAtomicReader is
      * closed.</p>
      *
-     * @param aReader specified base reader
+     * @param lReader specified base reader
      * @param vFields Collection of fields visible to the reader
      * @param negate If true, given fields should be negated
      * @param qFilter Filter to reduce the number of documents visible to this
@@ -232,11 +231,12 @@ public class FilteredDirectoryReader
      * @param tFilter Term-filter
      * @throws IOException Thrown on low-level I/O-errors
      */
-    FilteredAtomicReader(final AtomicReader aReader,
+    FilteredLeafReader(final LeafReader lReader,
         final Collection<String> vFields, final boolean negate,
         @Nullable final Filter qFilter, final TermFilter tFilter)
         throws IOException {
-      super(aReader);
+      super(lReader);
+
       this.negateFields = negate;
 
       if (vFields.isEmpty() && qFilter == null) {
@@ -244,11 +244,11 @@ public class FilteredDirectoryReader
             "You should use a plain IndexReader to get better performance.");
       }
 
-      this.farContext = new FARContext();
+      this.flrContext = new FLRContext();
 
       // all docs are initially live (no deletions allowed)
-      this.farContext.docBits = new FixedBitSet(this.in.maxDoc());
-      this.farContext.docBits.set(0, this.farContext.docBits.length());
+      this.flrContext.docBits = new FixedBitSet(this.in.maxDoc());
+      this.flrContext.docBits.set(0, this.flrContext.docBits.length());
 
       // reduce the number of visible fields, if desired
       if (vFields.isEmpty()) {
@@ -270,26 +270,31 @@ public class FilteredDirectoryReader
       // set maxDoc value
       if (this.fields.isEmpty() && qFilter == null) {
         // documents are unchanged
-        this.farContext.maxDoc = this.in.maxDoc();
+        this.flrContext.maxDoc = this.in.maxDoc();
       } else {
         // find max value
-        final int maxBit = this.farContext.docBits.length() - 1;
-        if (this.farContext.docBits.get(maxBit)) {
+        final int maxBit = this.flrContext.docBits.length() - 1;
+        if (this.flrContext.docBits.get(maxBit)) {
           // highest bit is set
-          this.farContext.maxDoc = maxBit + 1;
+          this.flrContext.maxDoc = maxBit + 1;
         } else {
           // get the first bit set starting from the highest one
-          final int maxDoc = this.farContext.docBits.prevSetBit(maxBit);
+          final int maxDoc = this.flrContext.docBits.prevSetBit(maxBit);
           if (maxDoc >= 0) {
-            this.farContext.maxDoc = maxDoc + 1;
+            this.flrContext.maxDoc = maxDoc + 1;
           } else {
-            this.farContext.maxDoc = 1;
+            this.flrContext.maxDoc = 1;
           }
         }
       }
 
       // number of documents enabled after filtering
-      this.farContext.numDocs = this.farContext.docBits.cardinality();
+      this.flrContext.numDocs = this.flrContext.docBits.cardinality();
+
+      // check, if still all documents are live
+      if (this.flrContext.numDocs == this.flrContext.maxDoc) {
+        this.flrContext.docBits = null; // all live
+      }
 
       if (LOG.isDebugEnabled()) {
         final Collection<String> fields =
@@ -298,15 +303,14 @@ public class FilteredDirectoryReader
           fields.add(fi.name);
         }
         LOG.debug("Final state: numDocs={} maxDoc={} fields={}",
-            this.farContext.numDocs, this.farContext.maxDoc, fields);
+            this.flrContext.numDocs, this.flrContext.maxDoc, fields);
       }
+      tFilter.setFlrContext(this.flrContext);
+      this.flrContext.termFilter = tFilter;
+      this.flrContext.context = this.getContext();
+      this.flrContext.originContext = this.in.getContext();
 
-      tFilter.setFarContext(this.farContext);
-      this.farContext.termFilter = tFilter;
-      this.farContext.context = this.getContext();
-      this.farContext.originContext = this.in.getContext();
-
-      this.fieldsInstance = new FilteredFields(this.farContext,
+      this.fieldsInstance = new FilteredFields(this.flrContext,
           this.in.fields(), this.fields);
     }
 
@@ -316,7 +320,6 @@ public class FilteredDirectoryReader
      */
     private void applyFieldFilter(final Collection<String> vFields)
         throws IOException {
-      // taken from FieldFilterAtomicReader constructor
       final List<FieldInfo> filteredInfos = new ArrayList<>(vFields.size());
 
       for (final FieldInfo fi : this.in.getFieldInfos()) {
@@ -335,10 +338,10 @@ public class FilteredDirectoryReader
       final FixedBitSet filterBits = new FixedBitSet(this.in.maxDoc());
       for (final FieldInfo fi : this.fieldInfos) {
         @SuppressWarnings("ObjectAllocationInLoop")
-        Filter f = this.farContext.cachedFieldValueFilters.get(fi.name);
+        Filter f = this.flrContext.cachedFieldValueFilters.get(fi.name);
         if (f == null) {
-          f = new CachingWrapperFilter(new FieldValueFilter(fi.name));
-          this.farContext.cachedFieldValueFilters.put(fi.name, f);
+          f = new CachingWrapperFilter(new EmptyFieldFilter(fi.name));
+          this.flrContext.cachedFieldValueFilters.put(fi.name, f);
         }
         final DocIdSet docsWithField = f.getDocIdSet(
             this.in.getContext(), null); // accept all docs, no deletions
@@ -363,10 +366,15 @@ public class FilteredDirectoryReader
       }
 
       if (LOG.isDebugEnabled()) {
-        LOG.debug("Filter (fields): {} -> {}",
-            this.farContext.docBits.cardinality(), filterBits.cardinality());
+        if (this.flrContext.docBits != null) {
+          LOG.debug("Filter (fields): {} -> {}",
+              this.flrContext.docBits.cardinality(), filterBits.cardinality());
+        } else {
+          LOG.debug("Filter (fields): {} -> {}",
+              this.flrContext.maxDoc, filterBits.cardinality());
+        }
       }
-      this.farContext.docBits = filterBits;
+      this.flrContext.docBits = filterBits;
     }
 
     /**
@@ -376,7 +384,7 @@ public class FilteredDirectoryReader
     private void applyDocFilter(final Filter aFilter)
         throws IOException {
       final DocIdSetIterator keepDocs = aFilter.getDocIdSet(
-          this.in.getContext(), this.farContext.docBits).iterator();
+          this.in.getContext(), this.flrContext.docBits).iterator();
       // Bit-set indicating valid documents (after filtering).
       // A document whose bit is on is valid.
       final FixedBitSet filterBits = new FixedBitSet(this.in.maxDoc());
@@ -394,10 +402,15 @@ public class FilteredDirectoryReader
       }
 
       if (LOG.isDebugEnabled()) {
-        LOG.debug("Filter (doc): {} -> {}",
-            this.farContext.docBits.cardinality(), filterBits.cardinality());
+        if (this.flrContext.docBits != null) {
+          LOG.debug("Filter (doc): {} -> {}",
+              this.flrContext.docBits.cardinality(), filterBits.cardinality());
+        } else {
+          LOG.debug("Filter (doc): {} -> {}",
+              this.flrContext.maxDoc, filterBits.cardinality());
+        }
       }
-      this.farContext.docBits = filterBits;
+      this.flrContext.docBits = filterBits;
     }
 
     /**
@@ -412,8 +425,9 @@ public class FilteredDirectoryReader
     }
 
     @Override
+    @Nullable
     public FixedBitSet getLiveDocs() {
-      return this.farContext.docBits;
+      return this.flrContext.docBits;
     }
 
     @Override
@@ -429,18 +443,18 @@ public class FilteredDirectoryReader
       if (f == null) {
         return null;
       }
-      f = new FilteredFields(this.farContext, f, this.fields);
+      f = new FilteredFields(this.flrContext, f, this.fields);
       return f.iterator().hasNext() ? f : null;
     }
 
     @Override
     public int numDocs() {
-      return this.farContext.numDocs;
+      return this.flrContext.numDocs;
     }
 
     @Override
     public int maxDoc() {
-      return this.farContext.maxDoc;
+      return this.flrContext.maxDoc;
     }
 
     @Override
@@ -570,11 +584,16 @@ public class FilteredDirectoryReader
       if (filteredDocs == null) {
         return null;
       }
-      filteredDocs.and(this.farContext.docBits);
+      if (this.flrContext.docBits != null) {
+        filteredDocs.and(this.flrContext.docBits);
+      }
       return filteredDocs;
     }
 
-    static class FARContext {
+    /**
+     * Contextual information for an FilteredLeafReader instance.
+     */
+    static class FLRContext {
       /**
        * Store cached results of {@link FieldValueFilter}s.
        */
@@ -582,11 +601,12 @@ public class FilteredDirectoryReader
       /**
        * Bits with visible documents bits turned on.
        */
+      @Nullable
       @SuppressWarnings("FieldAccessedSynchronizedAndUnsynchronized")
       FixedBitSet docBits;
       TermFilter termFilter;
-      AtomicReaderContext context;
-      AtomicReaderContext originContext;
+      LeafReaderContext context;
+      LeafReaderContext originContext;
       /**
        * Number of visible documents.
        */
@@ -596,7 +616,7 @@ public class FilteredDirectoryReader
        */
       int maxDoc;
 
-      FARContext() {
+      FLRContext() {
         this.cachedFieldValueFilters = Collections.synchronizedMap(
             new HashMap<>(15));
       }
@@ -616,21 +636,21 @@ public class FilteredDirectoryReader
        * FilteredTerms} instance.
        */
       private final Map<String, Long[]> fieldTermsSumCache;
-      private final FARContext far;
+      private final FLRContext flr;
 
       /**
        * Creates a new FilterFields.
        *
        * @param originFields Original Fields instance
        */
-      FilteredFields(final FARContext far,
+      FilteredFields(final FLRContext flr,
           final Fields originFields, final Collection<String> fields) {
         super(originFields);
         if (LOG.isTraceEnabled()) {
           LOG.trace("@FilteredFields t={}",
               Thread.currentThread().getName());
         }
-        this.far = far;
+        this.flr = flr;
         this.fieldTermsSumCache = Collections.synchronizedMap(
             new HashMap<>(fields.size() * 2));
         // collect visible document fields
@@ -651,7 +671,7 @@ public class FilteredDirectoryReader
             .filter(f -> {
               try {
                 return fields.contains(f) &&
-                    new FilteredTerms(this.far, this,
+                    new FilteredTerms(this.flr, this,
                         this.in.terms(f), f).hasDoc();
               } catch (final IOException e) {
                 LOG.error("Error parsing terms in field '{}'.", f, e);
@@ -679,7 +699,7 @@ public class FilteredDirectoryReader
               Thread.currentThread().getName());
         }
         if (this.fields.contains(field)) {
-          return new FilteredTerms(this.far, this, this.in.terms(field), field);
+          return new FilteredTerms(this.flr, this, this.in.terms(field), field);
         } else {
           return null;
         }
@@ -726,7 +746,7 @@ public class FilteredDirectoryReader
        * calculated, otherwise the value is -1.
        */
       private final Long[] sumFreqs;
-      private final FARContext far;
+      private final FLRContext flr;
 
       /**
        * Creates a new FilterTerms, passing a FilterFields instance. This gets
@@ -736,7 +756,7 @@ public class FilteredDirectoryReader
        * @param aField Current field.
        * @param ffInstance FilteredFields instance, if not initialized already
        */
-      FilteredTerms(final FARContext far,
+      FilteredTerms(final FLRContext flr,
           final FilteredFields ffInstance,
           final Terms originTerms, final String aField) {
         super(originTerms);
@@ -744,7 +764,7 @@ public class FilteredDirectoryReader
           LOG.trace("@FilteredTerms::new t={}",
               Thread.currentThread().getName());
         }
-        this.far = far;
+        this.flr = flr;
         this.field = aField;
 
         // initialized cached frequency values
@@ -776,7 +796,7 @@ public class FilteredDirectoryReader
             break;
           }
 
-          docsEnum = termsEnum.docs(this.far.docBits,
+          docsEnum = termsEnum.docs(this.flr.docBits,
               docsEnum, DocsEnum.FLAG_NONE);
           if (docsEnum.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
             return true;
@@ -792,7 +812,7 @@ public class FilteredDirectoryReader
           LOG.trace("@FilteredTerms::iterator() t={}",
               Thread.currentThread().getName());
         }
-        return new FilteredTermsEnum(this.far, this.in.iterator(reuse));
+        return new FilteredTermsEnum(this.flr, this.in.iterator(reuse));
       }
 
       @Override
@@ -837,7 +857,7 @@ public class FilteredDirectoryReader
                 if (nextTerm == null) {
                   return false;
                 } else {
-                  if (FilteredTerms.this.far.termFilter.accept(te, nextTerm)) {
+                  if (FilteredTerms.this.flr.termFilter.accept(te, nextTerm)) {
                     action.accept(te.totalTermFreq());
                   }
                   return true;
@@ -874,7 +894,7 @@ public class FilteredDirectoryReader
                 if (nextTerm == null) {
                   return false;
                 } else {
-                  if (FilteredTerms.this.far.termFilter.accept(te, nextTerm)) {
+                  if (FilteredTerms.this.flr.termFilter.accept(te, nextTerm)) {
                     action.accept((long) te.docFreq());
                   }
                   return true;
@@ -912,15 +932,15 @@ public class FilteredDirectoryReader
           LOG.trace("@FilteredTerms::getDocCount() t={}",
               Thread.currentThread().getName());
         }
-        Filter f = this.far.cachedFieldValueFilters.get(this.field);
+        Filter f = this.flr.cachedFieldValueFilters.get(this.field);
 
         if (f == null) {
           f = new CachingWrapperFilter(new FieldValueFilter(this.field));
-          this.far.cachedFieldValueFilters.put(this.field, f);
+          this.flr.cachedFieldValueFilters.put(this.field, f);
         }
 
         final DocIdSet docsWithField = f.getDocIdSet(
-            this.far.originContext, this.far.docBits);
+            this.flr.originContext, this.flr.docBits);
 
         if (docsWithField == null) {
           return 0;
@@ -970,7 +990,7 @@ public class FilteredDirectoryReader
      */
     static class FilteredTermsEnum
         extends FilterTermsEnum {
-      private final FARContext far;
+      private final FLRContext flr;
       /**
        * Shared {@link DocsEnum} instance.
        */
@@ -987,13 +1007,13 @@ public class FilteredDirectoryReader
        *
        * @param originTe the underlying TermsEnum instance
        */
-      FilteredTermsEnum(final FARContext far, final TermsEnum originTe) {
+      FilteredTermsEnum(final FLRContext flr, final TermsEnum originTe) {
         super(originTe);
         if (LOG.isTraceEnabled()) {
           LOG.trace("@FilteredTermsEnum::new t={}",
               Thread.currentThread().getName());
         }
-        this.far = far;
+        this.flr = flr;
       }
 
       @Override
@@ -1029,7 +1049,7 @@ public class FilteredDirectoryReader
           throws IOException {
         // check, if term is contained in any visible document
         return DocIdSetIterator.NO_MORE_DOCS != this.in
-            .docs(this.far.docBits,
+            .docs(this.flr.docBits,
                 this.sharedDocsEnum, DocsEnum.FLAG_NONE).nextDoc();
       }
 
@@ -1051,7 +1071,7 @@ public class FilteredDirectoryReader
             return null;
           }
           // check, if term is contained in any visible document
-          if (hasDoc() && this.far.termFilter.accept(this.in, term)) {
+          if (hasDoc() && this.flr.termFilter.accept(this.in, term)) {
             return term;
           }
         }
@@ -1077,7 +1097,7 @@ public class FilteredDirectoryReader
       private synchronized long[] freqs()
           throws IOException {
         if (this.freqs == null) {
-          this.sharedDocsEnum = this.in.docs(this.far.docBits,
+          this.sharedDocsEnum = this.in.docs(this.flr.docBits,
               this.sharedDocsEnum, DocsEnum.FLAG_FREQS);
           final long[] freqs = {0L, 0L}; // docFreq, ttf
           while (this.sharedDocsEnum.nextDoc() !=
@@ -1109,10 +1129,12 @@ public class FilteredDirectoryReader
               Thread.currentThread().getName());
         }
         if (liveDocs == null) {
-          return this.in.docs(this.far.docBits, reuse, flags);
+          return this.in.docs(this.flr.docBits, reuse, flags);
         } else {
-          final FixedBitSet liveBits = this.far.docBits.clone();
-
+          if (this.flr.docBits == null) {
+            return this.in.docs(liveDocs, reuse, flags);
+          }
+          final FixedBitSet liveBits = this.flr.docBits.clone();
           liveBits.and(BitsUtils.Bits2FixedBitSet(liveDocs));
           return this.in.docs(liveBits, reuse, flags);
         }
@@ -1128,9 +1150,12 @@ public class FilteredDirectoryReader
               Thread.currentThread().getName());
         }
         if (liveDocs == null) {
-          return this.in.docsAndPositions(this.far.docBits, reuse, flags);
+          return this.in.docsAndPositions(this.flr.docBits, reuse, flags);
         } else {
-          final FixedBitSet liveBits = this.far.docBits.clone();
+          if (this.flr.docBits == null) {
+            return this.in.docsAndPositions(liveDocs, reuse, flags);
+          }
+          final FixedBitSet liveBits = this.flr.docBits.clone();
           liveBits.and(BitsUtils.Bits2FixedBitSet(liveDocs));
           return this.in.docsAndPositions(liveBits, reuse, flags);
         }
@@ -1177,9 +1202,9 @@ public class FilteredDirectoryReader
       }
       final SubReaderWrapper srw = new SubReaderWrapper() {
         @Override
-        public AtomicReader wrap(final AtomicReader reader) {
+        public LeafReader wrap(final LeafReader reader) {
           try {
-            return new FilteredAtomicReader(reader, Builder.this.f,
+            return new FilteredLeafReader(reader, Builder.this.f,
                 Builder.this.fn, Builder.this.qf, Builder.this.tf);
           } catch (final IOException e) {
             throw new UncheckedIOException(e);
@@ -1207,7 +1232,7 @@ public class FilteredDirectoryReader
     @Nullable
     protected FilteredDirectoryReader topReader;
     @Nullable
-    protected FilteredAtomicReader.FARContext farContext;
+    protected FilteredLeafReader.FLRContext flrContext;
 
     /**
      * @param termsEnum TermsEnum currently in use. Be careful not to change the
@@ -1224,9 +1249,9 @@ public class FilteredDirectoryReader
       this.topReader = reader;
     }
 
-    protected void setFarContext(
-        final FilteredAtomicReader.FARContext context) {
-      this.farContext = context;
+    protected void setFlrContext(
+        final FilteredLeafReader.FLRContext context) {
+      this.flrContext = context;
     }
 
     /**
@@ -1238,14 +1263,14 @@ public class FilteredDirectoryReader
        * Wrapped filter.
        */
       private final TermFilter in;
-      private final Set<ByteArray> sWords;
+      private final BytesRefHash sWords;
 
       public StopwordWrapper(
           final Collection<String> sWords, final TermFilter in) {
         this.in = in;
-        this.sWords = new HashSet<>(sWords.size());
+        this.sWords = new BytesRefHash();
         for (final String sw : sWords) {
-          this.sWords.add(new ByteArray(sw.getBytes(StandardCharsets.UTF_8)));
+          this.sWords.add(new BytesRef(sw));
         }
       }
 
@@ -1253,7 +1278,7 @@ public class FilteredDirectoryReader
       public boolean accept(
           @Nullable final TermsEnum termsEnum, final BytesRef term)
           throws IOException {
-        if (this.sWords.contains(BytesRefUtils.toByteArray(term))) {
+        if (this.sWords.find(term) > -1) {
           return false;
         }
         return this.in.accept(termsEnum, term);
@@ -1267,9 +1292,9 @@ public class FilteredDirectoryReader
     public static final class CommonTerms
         extends TermFilter {
       /**
-       * Common terms collected so far.
+       * Common terms collected so flr.
        */
-      private final Set<ByteArray> commonTerms = new HashSet<>(2000);
+      private final BytesRefHash commonTerms = new BytesRefHash();
       /**
        * Document frequency threshold.
        */
@@ -1285,7 +1310,7 @@ public class FilteredDirectoryReader
       /**
        * Array of sub-readers from top-level having at least one document.
        */
-      private AtomicReader[] subReaders;
+      private LeafReader[] subReaders;
       /**
        * Number of sub-readers used by top-level.
        */
@@ -1333,7 +1358,7 @@ public class FilteredDirectoryReader
         this.subReaders = this.topReader.getSequentialSubReaders().stream()
             // skip readers without documents
             .filter(r -> r.numDocs() > 0)
-            .toArray(AtomicReader[]::new);
+            .toArray(LeafReader[]::new);
         this.subReaderCount = this.subReaders.length;
         this.checkBits = BitsUtils.Bits2FixedBitSet(
             MultiFields.getLiveDocs(this.topReader));
@@ -1354,8 +1379,7 @@ public class FilteredDirectoryReader
           return true;
         }
 
-        final ByteArray termBa = BytesRefUtils.toByteArray(term);
-        if (this.commonTerms.contains(termBa)) {
+        if (this.commonTerms.find(term) > -1) {
           return false;
         }
 
@@ -1366,8 +1390,8 @@ public class FilteredDirectoryReader
         int count = this.limit;
 
         for (int i = this.subReaderCount - 1; i >= 0; i--) {
-          final FilteredAtomicReader.FilteredFields ffields =
-              (FilteredAtomicReader.FilteredFields)
+          final FilteredLeafReader.FilteredFields ffields =
+              (FilteredLeafReader.FilteredFields)
                   this.subReaders[i].fields();
           final int fieldCount = ffields.fields.size();
           for (int j = fieldCount - 1; j >= 0; j--) {
@@ -1379,7 +1403,7 @@ public class FilteredDirectoryReader
               if (te.seekExact(term)) {
                 // check, if threshold is exceeded
                 if (!isAccepted(te.docFreq())) {
-                  this.commonTerms.add(termBa);
+                  this.commonTerms.add(term);
                   return false;
                 }
 
@@ -1395,7 +1419,7 @@ public class FilteredDirectoryReader
                   }
                   if (count == 0 &&
                       !isAccepted(hitBits.cardinality())) {
-                    this.commonTerms.add(termBa);
+                    this.commonTerms.add(term);
                     return false;
                   }
                 }
@@ -1408,7 +1432,7 @@ public class FilteredDirectoryReader
           return true;
         }
 
-        this.commonTerms.add(termBa);
+        this.commonTerms.add(term);
         return false;
       }
     }
