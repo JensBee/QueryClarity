@@ -17,9 +17,9 @@
 
 package de.unihildesheim.iw.lucene.analyzer;
 
-import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.fr.FrenchLightStemFilter;
@@ -28,11 +28,9 @@ import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.apache.lucene.analysis.util.StopwordAnalyzerBase;
-import org.apache.lucene.util.Version;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Reader;
 import java.util.Arrays;
 
 /**
@@ -40,27 +38,24 @@ import java.util.Arrays;
  */
 public final class FrenchAnalyzer
     extends StopwordAnalyzerBase {
-  private final Version matchVersion;
 
   /**
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(FrenchAnalyzer.class);
   private static final String[] DEFAULT_ELISIONS = {
-      "c", "d", "j", "l", "m", "n", "qu", "s", "t"};
+      "c", "d", "j", "l", "m", "n", "qu", "s", "t",
+      "jusqu", "quoiqu", "lorsqu", "puisqu"};
   private final CharArraySet elisions =
       new CharArraySet(DEFAULT_ELISIONS.length, true);
 
   /**
    * Builds an analyzer with the given stop words.
    *
-   * @param version Lucene version to match
    * @param newStopwords stop words
    */
-  public FrenchAnalyzer(final Version version,
-      final CharArraySet newStopwords) {
+  public FrenchAnalyzer(final CharArraySet newStopwords) {
     super(newStopwords);
-    this.matchVersion = version;
     this.elisions.addAll(Arrays.asList(DEFAULT_ELISIONS));
   }
 
@@ -70,7 +65,6 @@ public final class FrenchAnalyzer
    */
   public FrenchAnalyzer(final IndexDataProvider dataProv) {
     super(new CharArraySet(dataProv.getStopwords(), true));
-    this.matchVersion = LuceneDefaults.VERSION;
     this.elisions.addAll(Arrays.asList(DEFAULT_ELISIONS));
     LOG.debug("Stopwords: {}", dataProv.getStopwords());
   }
@@ -79,28 +73,16 @@ public final class FrenchAnalyzer
    * This configuration must match with the configuration used for the index!
    *
    * @param fieldName Document field
-   * @param reader Index Reader
    * @return Token stream
    */
   @Override
-  public final TokenStreamComponents createComponents(final String fieldName,
-      final Reader reader) {
-    final StandardTokenizer src = new StandardTokenizer(reader);
-    TokenStream tok = new StandardFilter(src);
-    tok = new ElisionFilter(tok, this.elisions);
-    tok = new LowerCaseFilter(tok);
-//    tok = new WordDelimiterFilter(tok,
-//        WordDelimiterFilter.GENERATE_NUMBER_PARTS |
-//            WordDelimiterFilter.GENERATE_WORD_PARTS |
-//            WordDelimiterFilter.SPLIT_ON_NUMERICS |
-//            WordDelimiterFilter.SPLIT_ON_CASE_CHANGE,
-//        null
-//    );
-    tok = new StopFilter(tok, getStopwordSet());
-    tok = new FrenchLightStemFilter(tok);
-//    tok =
-//        new SnowballFilter(tok, new org.tartarus.snowball.ext.FrenchStemmer
-// ());
-    return new TokenStreamComponents(src, tok);
+  protected TokenStreamComponents createComponents(final String fieldName) {
+    final Tokenizer source = new StandardTokenizer();
+    TokenStream result = new StandardFilter(source);
+    result = new ElisionFilter(result, this.elisions);
+    result = new LowerCaseFilter(result);
+    result = new StopFilter(result, getStopwordSet());
+    result = new FrenchLightStemFilter(result);
+    return new TokenStreamComponents(source, result);
   }
 }

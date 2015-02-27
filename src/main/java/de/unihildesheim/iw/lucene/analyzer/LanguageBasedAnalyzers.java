@@ -39,8 +39,8 @@ public final class LanguageBasedAnalyzers {
   private static final List<String> LANG_LIST;
 
   static {
-    LANG_LIST = new ArrayList<>(LanguageAnalyzers.values().length);
-    for (final LanguageAnalyzers lang : LanguageAnalyzers.values()) {
+    LANG_LIST = new ArrayList<>(Language.values().length);
+    for (final Language lang : Language.values()) {
       LANG_LIST.add(lang.name());
     }
   }
@@ -58,9 +58,9 @@ public final class LanguageBasedAnalyzers {
    * @return Language instance
    */
   @Nullable
-  public static LanguageAnalyzers getLanguage(final String lang) {
+  public static Language getLanguage(final String lang) {
     if (hasAnalyzer(lang)) {
-      return LanguageAnalyzers.valueOf(StringUtils.upperCase(lang));
+      return Language.valueOf(StringUtils.upperCase(lang));
     }
     return null;
   }
@@ -84,18 +84,18 @@ public final class LanguageBasedAnalyzers {
    * @return New Analyzer instance
    */
   @SuppressWarnings("AssignmentToNull")
-  public static Analyzer createInstance(@Nullable final LanguageAnalyzers lang,
+  public static Analyzer createInstance(@Nullable final Language lang,
       final Version matchVersion, final CharArraySet stopWords) {
     final Analyzer analyzer;
     switch (Objects.requireNonNull(lang, "Language was null.")) {
       case DE:
-        analyzer = new GermanAnalyzer(matchVersion, stopWords);
+        analyzer = new GermanAnalyzer(stopWords);
         break;
       case EN:
-        analyzer = new EnglishAnalyzer(matchVersion, stopWords);
+        analyzer = new EnglishAnalyzer(stopWords);
         break;
       case FR:
-        analyzer = new FrenchAnalyzer(matchVersion, stopWords);
+        analyzer = new FrenchAnalyzer(stopWords);
         break;
       default:
         // should never be reached
@@ -114,7 +114,7 @@ public final class LanguageBasedAnalyzers {
    * @return New Analyzer instance
    */
   public static Analyzer createInstance(
-      @Nullable final LanguageAnalyzers lang,
+      @Nullable final Language lang,
       final IndexDataProvider dataProv) {
     @Nullable final Analyzer analyzer;
     switch (Objects.requireNonNull(lang, "Language was null.")) {
@@ -139,7 +139,7 @@ public final class LanguageBasedAnalyzers {
    * List of known language codes to which an {@link Analyzer} exists.
    */
   @SuppressWarnings("PublicInnerClass")
-  public enum LanguageAnalyzers {
+  public enum Language {
     /**
      * German.
      */
@@ -151,6 +151,22 @@ public final class LanguageBasedAnalyzers {
     /**
      * French.
      */
-    FR
+    FR;
+
+    /**
+     * Try to get a language by it's name.
+     *
+     * @param lng Language identifier as string
+     * @return Language or {@code null} if none was found for the given string
+     */
+    @Nullable
+    public static Language getByString(final String lng) {
+      for (final Language srcLng : Language.values()) {
+        if (lng.equalsIgnoreCase(srcLng.name())) {
+          return srcLng;
+        }
+      }
+      return null;
+    }
   }
 }

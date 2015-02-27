@@ -257,7 +257,7 @@ class DumpCommonTerms
               + "' exists, but is not a directory.");
         }
         // check, if there's a Lucene index in the path
-        this.luceneDir = FSDirectory.open(this.idxDir);
+        this.luceneDir = FSDirectory.open(this.idxDir.toPath());
         if (!DirectoryReader.indexExists(this.luceneDir)) {
           throw new IOException("No index found at index path '" +
               this.idxDir.getCanonicalPath() + "'.");

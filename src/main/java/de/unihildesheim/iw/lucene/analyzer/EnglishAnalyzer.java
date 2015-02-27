@@ -17,9 +17,9 @@
 
 package de.unihildesheim.iw.lucene.analyzer;
 
-import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.en.EnglishPossessiveFilter;
@@ -28,27 +28,20 @@ import org.apache.lucene.analysis.standard.StandardFilter;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.analysis.util.StopwordAnalyzerBase;
-import org.apache.lucene.util.Version;
-
-import java.io.Reader;
 
 /**
  * @author Jens Bertram
  */
 public final class EnglishAnalyzer
     extends StopwordAnalyzerBase {
-  final Version matchVersion;
 
   /**
    * Builds an analyzer with the given stop words.
    *
-   * @param v Lucene version to match
    * @param newStopwords stop words
    */
-  public EnglishAnalyzer(final Version v,
-      final CharArraySet newStopwords) {
+  public EnglishAnalyzer(final CharArraySet newStopwords) {
     super(newStopwords);
-    this.matchVersion = v;
   }
 
   /**
@@ -57,32 +50,22 @@ public final class EnglishAnalyzer
    */
   public EnglishAnalyzer(final IndexDataProvider dataProv) {
     super(new CharArraySet(dataProv.getStopwords(), true));
-    this.matchVersion = LuceneDefaults.VERSION;
   }
 
   /**
    * This configuration must match with the configuration used for the index!
    *
    * @param fieldName Document field
-   * @param reader Index Reader
    * @return Token stream
    */
   @Override
-  public final TokenStreamComponents createComponents(final String fieldName,
-      final Reader reader) {
-    final StandardTokenizer src = new StandardTokenizer(reader);
-    TokenStream tok = new StandardFilter(src);
-    tok = new EnglishPossessiveFilter(this.matchVersion, tok);
-    tok = new LowerCaseFilter(tok);
-//    tok = new WordDelimiterFilter(tok,
-//        WordDelimiterFilter.GENERATE_NUMBER_PARTS |
-//            WordDelimiterFilter.GENERATE_WORD_PARTS |
-//            WordDelimiterFilter.SPLIT_ON_NUMERICS |
-//            WordDelimiterFilter.SPLIT_ON_CASE_CHANGE,
-//        null
-//    );
-    tok = new StopFilter(tok, getStopwordSet());
-    tok = new PorterStemFilter(tok);
-    return new TokenStreamComponents(src, tok);
+  protected TokenStreamComponents createComponents(final String fieldName) {
+    final Tokenizer source = new StandardTokenizer();
+    TokenStream result = new StandardFilter(source);
+    result = new EnglishPossessiveFilter(result);
+    result = new LowerCaseFilter(result);
+    result = new StopFilter(result, getStopwordSet());
+    result = new PorterStemFilter(result);
+    return new TokenStreamComponents(source, result);
   }
 }

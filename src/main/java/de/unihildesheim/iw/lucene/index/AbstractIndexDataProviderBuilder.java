@@ -183,7 +183,7 @@ public abstract class AbstractIndexDataProviderBuilder<
             + "' exists, but is not a directory.");
       }
       // check, if there's a Lucene index in the path
-      this.luceneDir = FSDirectory.open(newIdxDir);
+      this.luceneDir = FSDirectory.open(newIdxDir.toPath());
       if (!DirectoryReader.indexExists(this.luceneDir)) {
         throw new IOException("No index found at index path '" + newIdxDir
             .getCanonicalPath() + "'.");

@@ -22,9 +22,9 @@ import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
-import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.ReaderSlice;
@@ -117,7 +117,7 @@ public class FDRIndexDataProvider
   public final Long getTermFrequency(final ByteArray term) {
     final BytesRef termBr = BytesRefUtils.fromByteArray(term);
     return this.index.reader.leaves().stream()
-        .map(AtomicReaderContext::reader)
+        .map(LeafReaderContext::reader)
         .filter(r -> r.numDocs() > 0)
         .mapToLong(r -> {
           try {
@@ -160,7 +160,7 @@ public class FDRIndexDataProvider
   public int getDocumentFrequency(final ByteArray term) {
     final BytesRef termBr = BytesRefUtils.fromByteArray(term);
     return this.index.reader.leaves().stream()
-        .map(AtomicReaderContext::reader)
+        .map(LeafReaderContext::reader)
         .filter(r -> r.numDocs() > 0)
         .mapToInt(r -> {
           try {
@@ -450,10 +450,10 @@ public class FDRIndexDataProvider
         this.uniqueTerms = 0L;
       } else {
         // gather sub-reader which have documents
-        final AtomicReaderContext[] leaves =
+        final LeafReaderContext[] leaves =
             this.reader.leaves().stream()
-                .filter(arc -> arc.reader().numDocs() > 0)
-                .toArray(AtomicReaderContext[]::new);
+                .filter(lrc -> lrc.reader().numDocs() > 0)
+                .toArray(LeafReaderContext[]::new);
 
         // collect slices for all sub-readers
         final ReaderSlice[] slices = IntStream.range(0, leaves.length)

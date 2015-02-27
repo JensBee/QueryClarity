@@ -97,7 +97,7 @@ public final class IndexUtils {
   public static IndexReader openReader(final File idxDir)
       throws IOException {
     // check, if there's a Lucene index in the path
-    final FSDirectory luceneDir = FSDirectory.open(idxDir);
+    final FSDirectory luceneDir = FSDirectory.open(idxDir.toPath());
     if (!DirectoryReader.indexExists(luceneDir)) {
       throw new IOException("No index found at index path '" + idxDir
           .getCanonicalPath() + "'.");
