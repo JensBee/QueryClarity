@@ -17,8 +17,6 @@
 
 package de.unihildesheim.iw.fiz;
 
-import org.jetbrains.annotations.Nullable;
-
 /**
  * Default values for interacting with the ES based document repository and the
  * scoring tools.
@@ -26,62 +24,39 @@ import org.jetbrains.annotations.Nullable;
  * @author Jens Bertram (code@jens-bertram.net)
  */
 public final class Defaults {
-  /**
-   * Languages provided by ES index.
-   */
-  public enum SRC_LANGUAGE {
-    /**
-     * German.
-     */
-    DE,
-    /**
-     * English
-     */
-    EN,
-    /**
-     * French
-     */
-    FR;
-
-    /**
-     * Try to get a language by it's name.
-     *
-     * @param lng Language identifier as string
-     * @return Language or {@code null} if none was found for the given string
-     */
-    @Nullable
-    public static SRC_LANGUAGE getByString(final String lng) {
-      for (final SRC_LANGUAGE srcLng : SRC_LANGUAGE.values()) {
-        if (lng.equalsIgnoreCase(srcLng.name())) {
-          return srcLng;
-        }
-      }
-      return null;
-    }
-  }
-
-  /**
-   * Lucene settings. (TODO: make these external)
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public static final class LUCENE_CONF {
-    /**
-     * Field containing a unique document identifier.
-     */
-    public static final String FLD_DOC_ID = "_id";
-    /**
-     * Field containing a unique patent identifier.
-     */
-    public static final String FLD_PAT_ID = "pat_id";
-    /**
-     * Field containing claims.
-     */
-    public static final String FLD_CLAIMS = "claims";
-    /**
-     * Field containing detailed description.
-     */
-    public static final String FLD_DETD = "detd";
-  }
+//  /**
+//   * Languages provided by ES index.
+//   */
+//  public enum SRC_LANGUAGE {
+//    /**
+//     * German.
+//     */
+//    DE,
+//    /**
+//     * English
+//     */
+//    EN,
+//    /**
+//     * French
+//     */
+//    FR;
+//
+//    /**
+//     * Try to get a language by it's name.
+//     *
+//     * @param lng Language identifier as string
+//     * @return Language or {@code null} if none was found for the given string
+//     */
+//    @Nullable
+//    public static SRC_LANGUAGE getByString(final String lng) {
+//      for (final SRC_LANGUAGE srcLng : SRC_LANGUAGE.values()) {
+//        if (lng.equalsIgnoreCase(srcLng.name())) {
+//          return srcLng;
+//        }
+//      }
+//      return null;
+//    }
+//  }
 
   /**
    * ES settings. (TODO: make these external)
@@ -131,6 +106,10 @@ public final class Defaults {
      * Field holding a reference to the patent.
      */
     public static final String FLD_PATREF = "PN";
+    /**
+     * Field holding IPC codes.
+     */
+    public static final String FLD_IPC = "IPC";
 
     /**
      * How many times to retry a connection.

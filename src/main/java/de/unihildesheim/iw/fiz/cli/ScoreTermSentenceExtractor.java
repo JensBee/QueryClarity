@@ -17,16 +17,13 @@
 
 package de.unihildesheim.iw.fiz.cli;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
 import de.unihildesheim.iw.cli.CliBase;
 import de.unihildesheim.iw.cli.CliParams;
 import de.unihildesheim.iw.fiz.Defaults.ES_CONF;
-import de.unihildesheim.iw.fiz.Defaults.LUCENE_CONF;
-import de.unihildesheim.iw.fiz.models.Patent;
 import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers;
 import de.unihildesheim.iw.lucene.document.FeedbackQuery;
+import de.unihildesheim.iw.lucene.index.builder.IndexBuilder;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.lucene.query.TryExactTermsQuery;
 import de.unihildesheim.iw.util.RandomValue;
@@ -36,9 +33,7 @@ import de.unihildesheim.iw.xml.elements.Passage;
 import de.unihildesheim.iw.xml.elements.PassagesGroup;
 import io.searchbox.client.JestClient;
 import io.searchbox.client.JestClientFactory;
-import io.searchbox.client.JestResult;
 import io.searchbox.client.config.HttpClientConfig.Builder;
-import io.searchbox.core.Search;
 import opennlp.tools.sentdetect.SentenceDetector;
 import opennlp.tools.sentdetect.SentenceDetectorME;
 import opennlp.tools.sentdetect.SentenceModel;
@@ -50,8 +45,6 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 import org.slf4j.Logger;
@@ -232,77 +225,78 @@ public class ScoreTermSentenceExtractor
       final String lang, final Field f, final String term)
       throws Exception {
 
-    final String ref;
-    if (refs.isEmpty()) {
-      LOG.warn("No refs! l={} f={} t={}", lang, f, term);
-      return "";
-    } else if (refs.size() > 1) {
-      ref = refs.get(RandomValue.getInteger(0, refs.size() - 1));
-    } else {
-      ref = refs.get(0);
-    }
-
-    final String lng = StringUtils.upperCase(lang);
-    String sentence = "";
-
-    final String fld;
-    switch (f) {
-      case CLAIMS:
-        // claim by language
-        fld = ES_CONF.FLD_CLAIM_PREFIX + lng;
-        break;
-      case DETD:
-        fld = ES_CONF.FLD_DESC;
-        break;
-      default:
-        // should never be reached
-        throw new IllegalArgumentException();
-    }
-
-    final Search search = new Search.Builder(new SearchSourceBuilder()
-        .field(fld)
-        .query(QueryBuilders.matchQuery(ES_CONF.FLD_PATREF, ref))
-        .toString())
-        // document type to retrieve
-        .addType(ES_CONF.DOC_TYPE)
-        .build();
-
-    // initialize the scroll search
-    final JestResult result = ESUtils.runRequest(this.client, search);
-
-    if (result.isSucceeded()) {
-      final JsonArray hits = result.getJsonObject()
-          .getAsJsonObject("hits")
-          .getAsJsonArray("hits");
-
-      if (hits.size() == 1) {
-        final JsonObject json = hits.get(0).getAsJsonObject();
-        if (json.has("fields")) {
-          final JsonObject jHits = json.getAsJsonObject("fields");
-          if (jHits.has(fld)) {
-            switch (f) {
-              case CLAIMS:
-                sentence = Patent.joinJsonArray(jHits.getAsJsonArray(fld));
-                break;
-              case DETD:
-                sentence = Patent.joinJsonArray(
-                    jHits.getAsJsonArray(ES_CONF.FLD_DESC));
-                break;
-            }
-          } else {
-            LOG.error("Required field {} not found.", fld);
-          }
-        } else {
-          LOG.error("No hit fields returned.");
-        }
-      } else {
-        LOG.error("Expected 1 hit, got {}.", hits.size());
-      }
-    } else {
-      LOG.error("Initial request failed. {}", result.getErrorMessage());
-    }
-
-    return pickSentence(analyzeSentence(sentence, term));
+    throw new UnsupportedOperationException("Currently broken.");
+//    final String ref;
+//    if (refs.isEmpty()) {
+//      LOG.warn("No refs! l={} f={} t={}", lang, f, term);
+//      return "";
+//    } else if (refs.size() > 1) {
+//      ref = refs.get(RandomValue.getInteger(0, refs.size() - 1));
+//    } else {
+//      ref = refs.get(0);
+//    }
+//
+//    final String lng = StringUtils.upperCase(lang);
+//    String sentence = "";
+//
+//    final String fld;
+//    switch (f) {
+//      case CLAIMS:
+//        // claim by language
+//        fld = ES_CONF.FLD_CLAIM_PREFIX + lng;
+//        break;
+//      case DETD:
+//        fld = ES_CONF.FLD_DESC;
+//        break;
+//      default:
+//        // should never be reached
+//        throw new IllegalArgumentException();
+//    }
+//
+//    final Search search = new Search.Builder(new SearchSourceBuilder()
+//        .field(fld)
+//        .query(QueryBuilders.matchQuery(ES_CONF.FLD_PATREF, ref))
+//        .toString())
+//        // document type to retrieve
+//        .addType(ES_CONF.DOC_TYPE)
+//        .build();
+//
+//    // initialize the scroll search
+//    final JestResult result = ESUtils.runRequest(this.client, search);
+//
+//    if (result.isSucceeded()) {
+//      final JsonArray hits = result.getJsonObject()
+//          .getAsJsonObject("hits")
+//          .getAsJsonArray("hits");
+//
+//      if (hits.size() == 1) {
+//        final JsonObject json = hits.get(0).getAsJsonObject();
+//        if (json.has("fields")) {
+//          final JsonObject jHits = json.getAsJsonObject("fields");
+//          if (jHits.has(fld)) {
+//            switch (f) {
+//              case CLAIMS:
+//                sentence = Patent.joinJsonArray(jHits.getAsJsonArray(fld));
+//                break;
+//              case DETD:
+//                sentence = Patent.joinJsonArray(
+//                    jHits.getAsJsonArray(ES_CONF.FLD_DESC));
+//                break;
+//            }
+//          } else {
+//            LOG.error("Required field {} not found.", fld);
+//          }
+//        } else {
+//          LOG.error("No hit fields returned.");
+//        }
+//      } else {
+//        LOG.error("Expected 1 hit, got {}.", hits.size());
+//      }
+//    } else {
+//      LOG.error("Initial request failed. {}", result.getErrorMessage());
+//    }
+//
+//    return pickSentence(analyzeSentence(sentence, term));
   }
 
   private String pickSentence(final List<String> sentences) {
@@ -363,12 +357,12 @@ public class ScoreTermSentenceExtractor
         .map(id -> {
           try {
             return this.cliParams.idxReader.document(id,
-                Collections.singleton(LUCENE_CONF.FLD_PAT_ID));
+                Collections.singleton(IndexBuilder.LUCENE_CONF.FLD_PAT_ID));
           } catch (final IOException e) {
             throw new UncheckedIOException(e);
           }
         })
-        .map(doc -> doc.get(LUCENE_CONF.FLD_PAT_ID))
+        .map(doc -> doc.get(IndexBuilder.LUCENE_CONF.FLD_PAT_ID))
         .collect(Collectors.toList());
   }
 
@@ -440,7 +434,7 @@ public class ScoreTermSentenceExtractor
               + "' exists, but is not a directory.");
         }
         // check, if there's a Lucene index in the path
-        this.luceneDir = FSDirectory.open(this.idxDir);
+        this.luceneDir = FSDirectory.open(this.idxDir.toPath());
         if (!DirectoryReader.indexExists(this.luceneDir)) {
           throw new IOException("No index found at index path '" +
               this.idxDir.getCanonicalPath() + "'.");

@@ -245,7 +245,7 @@ public final class ScoreTopicPassages
         langFields);
 
     final DirectoryReader reader = DirectoryReader.open(
-        FSDirectory.open(this.cliParams.idxDir));
+        FSDirectory.open(this.cliParams.idxDir.toPath()));
     final IndexReader wReader = new FilteredDirectoryReader
         .Builder(reader)
         .fields(langFields)

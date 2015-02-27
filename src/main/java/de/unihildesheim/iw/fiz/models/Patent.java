@@ -21,159 +21,144 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import de.unihildesheim.iw.fiz.Defaults.ES_CONF;
-import de.unihildesheim.iw.fiz.Defaults.SRC_LANGUAGE;
+import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers.Language;
+import de.unihildesheim.iw.lucene.index.builder.PatentDocument;
+import de.unihildesheim.iw.util.StringUtils;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public final class Patent {
+public final class Patent
+    implements PatentDocument {
   /**
    * Logger instance for this class.
    */
   static final Logger LOG = org.slf4j.LoggerFactory.getLogger(Patent.class);
   private static final String[] STRINGS = {};
 
-  /** Claims by language. */
-  private final Map<SRC_LANGUAGE, JsonArray> claimsByLanguage;
-  /** Detailed descriptions by language. */
-  private final Map<SRC_LANGUAGE, String> detdByLanguage;
-  /** ES internal Document identifier. */
-  private final String docId;
-  /** Patent identifier. */
-  private final String patId;
+  /**
+   * Claims by language.
+   */
+  private Map<Language, String> claimsByLanguage;
+  /**
+   * Detailed descriptions by language.
+   */
+  private Map<Language, String> detdByLanguage;
+  /**
+   * List of ipcs.
+   */
+  private Set<String> ipcs;
+  /**
+   * Patent identifier.
+   */
+  @Nullable
+  private String patId;
 
   public static Patent fromJson(final JsonObject json) {
     Objects.requireNonNull(json);
-    final Patent p;
+    final Patent p = new Patent();
 
     if (json.has("fields")) {
       final JsonObject hitFieldsJson = json.getAsJsonObject("fields");
 
       // collect claims
-      final Map<SRC_LANGUAGE, JsonArray> claimsByLanguage =
-          new EnumMap(SRC_LANGUAGE.class);
-      for (final SRC_LANGUAGE lng : SRC_LANGUAGE.values()) {
-        if (hitFieldsJson.has(ES_CONF.FLD_CLAIM_PREFIX + lng)) {
-          claimsByLanguage.put(lng,
-              hitFieldsJson.getAsJsonArray(ES_CONF.FLD_CLAIM_PREFIX + lng));
-        }
-      }
+      p.claimsByLanguage = Arrays.stream(Language.values())
+          .filter(l -> hitFieldsJson.has(ES_CONF.FLD_CLAIM_PREFIX + l))
+          .collect(HashMap<Language, String>::new,
+              (map, l) -> map.put(l, StreamSupport.stream(hitFieldsJson
+                          .getAsJsonArray(ES_CONF.FLD_CLAIM_PREFIX + l)
+                      .spliterator(), false)
+                  .map(JsonElement::toString)
+                  .collect(Collectors.joining(" "))),
+              HashMap<Language, String>::putAll);
 
       // collect detd
-      Map<SRC_LANGUAGE, String> detdByLanguage = null;
       if (hitFieldsJson.has(ES_CONF.FLD_DESC_LNG) &&
           hitFieldsJson.has(ES_CONF.FLD_DESC)) {
         final String detdl = hitFieldsJson.getAsJsonArray(
             ES_CONF.FLD_DESC_LNG).get(0).getAsString();
-        for (final SRC_LANGUAGE lng : SRC_LANGUAGE.values()) {
-          if (lng.toString().equalsIgnoreCase(detdl)) {
-            detdByLanguage = Collections.singletonMap(lng,
-                joinJsonArray(hitFieldsJson.getAsJsonArray(ES_CONF.FLD_DESC)));
-            break;
-          }
-        }
+        p.detdByLanguage = Arrays.stream(Language.values())
+            .filter(l -> l.toString().equalsIgnoreCase(detdl))
+            .collect(HashMap<Language, String>::new,
+                (map, l) -> map.put(l, joinJsonArray(
+                    hitFieldsJson.getAsJsonArray(ES_CONF.FLD_DESC))),
+                HashMap<Language, String>::putAll);
+      } else {
+        p.detdByLanguage = Collections.emptyMap();
       }
-      if (detdByLanguage == null) {
-        detdByLanguage = Collections.emptyMap();
+
+      // collect IPC(s)
+      if (hitFieldsJson.has(ES_CONF.FLD_IPC)) {
+        p.ipcs = StreamSupport.stream(
+            hitFieldsJson.getAsJsonArray(ES_CONF.FLD_IPC).spliterator(), false)
+            .map(JsonElement::toString)
+            .collect(Collectors.toSet());
+      } else {
+        p.ipcs = Collections.emptySet();
       }
 
       // construct model
-      p = new Patent(json.get(ES_CONF.FLD_DOCID).getAsString(),
-          hitFieldsJson.get(ES_CONF.FLD_PATREF).getAsString(),
-          claimsByLanguage, detdByLanguage);
-    } else {
-      // construct empty model
-      p = new Patent(json.get(ES_CONF.FLD_DOCID).getAsString(), "");
+      p.patId = hitFieldsJson.get(ES_CONF.FLD_PATREF).getAsString();
     }
     return p;
   }
 
-  private Patent(final String id, final String pid) {
-    this.docId = id;
-    this.patId = pid;
-    this.claimsByLanguage = Collections.emptyMap();
-    this.detdByLanguage = Collections.emptyMap();
-  }
-
-  private Patent(final String id, final String pid, final Map<SRC_LANGUAGE,
-      JsonArray> claims,
-      final Map<SRC_LANGUAGE, String> detd) {
-    this.docId = id;
-    this.patId = pid;
-    this.claimsByLanguage = claims;
-    this.detdByLanguage = detd;
-  }
-
-  /**
-   * Get claims by language.
-   * @param lng Language
-   * @return Array of Strings or empty array if no claims were stored
-   */
-  public final String[] getClaims(final SRC_LANGUAGE lng) {
-    final JsonArray claims = this.claimsByLanguage.get(lng);
-    if (claims == null) {
-      return STRINGS;
-    }
-    final String[] claimsStrArr = new String[claims.size()];
-    for (int i=0; i<claims.size(); i++) {
-      claimsStrArr[i] = claims.get(i).getAsString();
-    }
-    return claimsStrArr;
-  }
-
   public static String joinJsonArray(final JsonArray jArr) {
-    final StringBuilder jStr = new StringBuilder();
-    for (final JsonElement je : jArr) {
-      jStr.append(je.getAsString());
+    return StreamSupport.stream(jArr.spliterator(), false)
+        .map(JsonElement::toString)
+        .collect(Collectors.joining(" "));
+  }
+
+  @Override
+  @Nullable
+  public String getField(
+      final RequiredFields fld, final @Nullable Language lng) {
+    switch (fld) {
+      case P_ID:
+        if (this.patId == null) {
+          return "";
+        }
+        return this.patId;
+      case CLAIMS:
+        if (lng == null) {
+          return "";
+        }
+        return this.claimsByLanguage.get(lng);
+      case DETD:
+        if (lng == null) {
+          return "";
+        }
+        return this.detdByLanguage.get(lng);
+      case IPC:
+        return StringUtils.join(this.ipcs, " ");
     }
-    return jStr.toString();
+    return "";
   }
 
-  /**
-   * Get all claims by language as single concatenated string.
-   * @param lng Language
-   * @return Claims combined by space character
-   */
-  public final String getClaimsAsString(final SRC_LANGUAGE lng) {
-    final String[] claimsStrArr = getClaims(lng);
-    final StringBuilder claimsStr = new StringBuilder();
-    for (final String claim : claimsStrArr) {
-      claimsStr.append(claim).append(' ');
+  @Override
+  public boolean hasField(
+      final RequiredFields fld, final @Nullable Language lng) {
+    switch (fld) {
+      case P_ID:
+        return this.patId != null && !this.patId.isEmpty();
+      case CLAIMS:
+        return lng != null && this.claimsByLanguage.get(lng) != null;
+      case DETD:
+        return lng != null && this.detdByLanguage.get(lng) != null;
+      case IPC:
+        return this.ipcs != null && !this.ipcs.isEmpty();
     }
-    return claimsStr.substring(0, claimsStr.length() -1);
-  }
-
-  public final String getDetd(final SRC_LANGUAGE lng) {
-    return this.detdByLanguage.get(lng);
-  }
-
-  public final boolean hasDetd(final SRC_LANGUAGE lng) {
-    return this.detdByLanguage.get(lng) != null;
-  }
-
-  public final boolean hasClaims(final SRC_LANGUAGE lng) {
-    return this.claimsByLanguage.get(lng) != null;
-  }
-
-  /**
-   * Get the document id.
-   * @return Document id
-   */
-  public final String getId() {
-    return this.docId;
-  }
-
-  /**
-   * Get the patent id.
-   * @return Patent id
-   */
-  public final String getPatId() {
-    return this.patId;
+    return false;
   }
 }

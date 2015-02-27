@@ -24,13 +24,11 @@ import de.unihildesheim.iw.cli.CliBase;
 import de.unihildesheim.iw.cli.CliCommon;
 import de.unihildesheim.iw.cli.CliParams;
 import de.unihildesheim.iw.fiz.Defaults.ES_CONF;
-import de.unihildesheim.iw.fiz.Defaults.LUCENE_CONF;
-import de.unihildesheim.iw.fiz.Defaults.SRC_LANGUAGE;
 import de.unihildesheim.iw.fiz.models.Patent;
-import de.unihildesheim.iw.lucene.LuceneDefaults;
-import de.unihildesheim.iw.lucene.VecTextField;
-import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers;
+import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers.Language;
+import de.unihildesheim.iw.lucene.index.builder.IndexBuilder;
 import de.unihildesheim.iw.util.StopwordsFileReader;
+import de.unihildesheim.iw.util.StringUtils;
 import io.searchbox.client.JestClient;
 import io.searchbox.client.JestClientFactory;
 import io.searchbox.client.JestResult;
@@ -38,19 +36,6 @@ import io.searchbox.client.config.HttpClientConfig.Builder;
 import io.searchbox.core.Search;
 import io.searchbox.core.SearchScroll;
 import io.searchbox.params.Parameters;
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field.Store;
-import org.apache.lucene.document.StringField;
-import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
-import org.elasticsearch.index.query.FilterBuilders;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 import org.kohsuke.args4j.spi.StringArrayOptionHandler;
@@ -59,15 +44,16 @@ import org.slf4j.Logger;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Random;
-import java.util.Set;
 
 /**
  * Builds a language specific Lucene index from all documents queried from a
  * remote documents repository.
+ *
  * @author Jens Bertram (code@jens-bertram.net)
  */
 class BuildIndex
@@ -75,7 +61,8 @@ class BuildIndex
   /**
    * Logger instance for this class.
    */
-  private static final Logger LOG = org.slf4j.LoggerFactory.getLogger(BuildIndex.class);
+  private static final Logger LOG =
+      org.slf4j.LoggerFactory.getLogger(BuildIndex.class);
   /**
    * Object wrapping commandline options.
    */
@@ -84,7 +71,9 @@ class BuildIndex
    * Client to ElasticSearch instance.
    */
   private JestClient client;
-  /** Used to generate randomized delays for request throttling. */
+  /**
+   * Used to generate randomized delays for request throttling.
+   */
   private final Random rand = new Random();
 
   /**
@@ -95,48 +84,49 @@ class BuildIndex
         "Create the local term index from the remote patents repository.");
   }
 
-  /**
-   * Prepare a Lucene index for the given language. This will initialize a
-   * language specific analyzer and creates the directories necessary to
-   * contain the index.
-   * @param lang Language
-   * @return Writer targeting the language specific index
-   * @throws IOException Thrown, if setting up the index target fails
-   */
-  private IndexWriter getIndexWriter(final SRC_LANGUAGE lang)
-      throws IOException {
-    // check, if we've an analyzer for the current language
-    if (!LanguageBasedAnalyzers.hasAnalyzer(lang.toString())) {
-      throw new IllegalArgumentException(
-          "No analyzer for language '" + lang + "'.");
-    }
-
-    // get an analyzer for the target language
-    final Set<String> sWords = CliCommon.getStopwords(lang.toString(),
-        this.cliParams.stopFileFormat, this.cliParams.stopFilePattern);
-    final Analyzer analyzer = LanguageBasedAnalyzers.createInstance
-        (LanguageBasedAnalyzers.getLanguage(lang.toString()),
-            LuceneDefaults.VERSION, new CharArraySet(sWords, true));
-
-    // create Lucene index in language specific sub-directory
-    final File target = new File(this.cliParams.dataDir.getAbsolutePath() + File
-        .separator + lang);
-    Files.createDirectories(target.toPath());
-
-    // Lucene index setup
-    final Directory index = FSDirectory.open(target);
-    final IndexWriterConfig config = new IndexWriterConfig(LuceneDefaults
-        .VERSION, analyzer);
-
-    return new IndexWriter(index, config);
-  }
+//  /**
+//   * Prepare a Lucene index for the given language. This will initialize a
+//   * language specific analyzer and creates the directories necessary to contain
+//   * the index.
+//   *
+//   * @param lang Language
+//   * @return Writer targeting the language specific index
+//   * @throws IOException Thrown, if setting up the index target fails
+//   */
+//  private IndexWriter getIndexWriter(final Language lang)
+//      throws IOException {
+//    // check, if we've an analyzer for the current language
+//    if (!LanguageBasedAnalyzers.hasAnalyzer(lang.toString())) {
+//      throw new IllegalArgumentException(
+//          "No analyzer for language '" + lang + "'.");
+//    }
+//
+//    // get an analyzer for the target language
+//    final Set<String> sWords = CliCommon.getStopwords(lang.toString(),
+//        this.cliParams.stopFileFormat, this.cliParams.stopFilePattern);
+//    final Analyzer analyzer = LanguageBasedAnalyzers.createInstance
+//        (LanguageBasedAnalyzers.getLanguage(lang.toString()),
+//            LuceneDefaults.VERSION, new CharArraySet(sWords, true));
+//
+//    // create Lucene index in language specific sub-directory
+//    final File target = new File(this.cliParams.dataDir.getAbsolutePath() + File
+//        .separator + lang);
+//    Files.createDirectories(target.toPath());
+//
+//    // Lucene index setup
+//    final Directory index = FSDirectory.open(target.toPath());
+//    final IndexWriterConfig config = new IndexWriterConfig(analyzer);
+//
+//    return new IndexWriter(index, config);
+//  }
 
   /**
    * Index the documents for a specific language.
+   *
    * @param lang Language to index.
    * @throws Exception Thrown on REST request errors
    */
-  private void indexByLanguage(final SRC_LANGUAGE lang)
+  private void indexByLanguage(final Language lang)
       throws Exception {
     LOG.info("Creating index for: {}", lang);
 
@@ -145,37 +135,90 @@ class BuildIndex
 
     // get all claims from patents in the specific language including
     // detailed technical description, if available
-    final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-    searchSourceBuilder.query(QueryBuilders.filteredQuery(
-        QueryBuilders.matchAllQuery(),
-            FilterBuilders.orFilter(
-                FilterBuilders.existsFilter(fld_claim),
-                FilterBuilders.andFilter(
-                    FilterBuilders.termFilter(ES_CONF.FLD_DESC_LNG,
-                        lang.toString()),
-                    FilterBuilders.existsFilter(ES_CONF.FLD_DESC)
-                )
-            )
-    ));
-    searchSourceBuilder.field(fld_claim); // claims
-    searchSourceBuilder.field(ES_CONF.FLD_DOCID); // document id
-    searchSourceBuilder.field(ES_CONF.FLD_DESC); // detailed description
-    // detailed description language
-    searchSourceBuilder.field(ES_CONF.FLD_DESC_LNG);
-    searchSourceBuilder.field(ES_CONF.FLD_PATREF); // patent reference
+    final String query =
+        "{\n" +
+            // match all documents - filter later on
+            "  \"query\": {\n" +
+            "    \"match_all\": {}\n" +
+            "  },\n" +
+
+            // fields to return
+            "  \"fields\": [\n" +
+            // f: claims
+            "    \"" + fld_claim + "\",\n" +
+            // f: detailed description
+            "    \"" + ES_CONF.FLD_DESC + "\",\n" +
+            // f: detailed description language
+            "    \"" + ES_CONF.FLD_DESC_LNG + "\",\n" +
+            // f: patent id
+            "    \"" + ES_CONF.FLD_PATREF + "\",\n" +
+            // f: ipc code(s)
+            "    \"" + ES_CONF.FLD_IPC + "\"\n" +
+            "  ],\n" +
+
+            "  \"filter\": {\n" +
+            // document requires to have claims or detd in target language
+            "    \"or\": [\n" +
+            //     condition: claims in target language
+            "      {\n" +
+            "        \"exists\": {\n" +
+            "          \"field\": \"" + fld_claim + "\"\n" +
+            "        }\n" +
+            "      },\n" +
+            //     condition: detd in target language
+            "      {\n" +
+            "        \"and\": [\n" +
+            //         match language
+            "          {\n" +
+            "            \"term\": {\n" +
+            "              \"" + ES_CONF.FLD_DESC_LNG + "\": " +
+            "                 \"" + lang + "\"\n" +
+            "            }\n" +
+            "          },\n" +
+            //         require field to exist
+            "          {\n" +
+            "            \"exists\": {\n" +
+            "              \"field\": \"" + ES_CONF.FLD_DESC + "\"\n" +
+            "            }\n" +
+            "          }\n" +
+            "        ]\n" +
+            "      }\n" +
+            "    ]\n" +
+            "  }\n" +
+            "}";
+
+//    final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+//    searchSourceBuilder.query(QueryBuilders.filteredQuery(
+//        QueryBuilders.matchAllQuery(),
+//        FilterBuilders.orFilter(
+//            FilterBuilders.existsFilter(fld_claim),
+//            FilterBuilders.andFilter(
+//                FilterBuilders.termFilter(ES_CONF.FLD_DESC_LNG,
+//                    lang.toString()),
+//                FilterBuilders.existsFilter(ES_CONF.FLD_DESC)
+//            )
+//        )
+//    ));
+//    searchSourceBuilder.field(fld_claim); // claims
+//    searchSourceBuilder.field(ES_CONF.FLD_DOCID); // document id
+//    searchSourceBuilder.field(ES_CONF.FLD_DESC); // detailed description
+//    // detailed description language
+//    searchSourceBuilder.field(ES_CONF.FLD_DESC_LNG);
+//    searchSourceBuilder.field(ES_CONF.FLD_PATREF); // patent reference
 
     // setup the search using scan & scroll
-    final Search search = new Search.Builder(searchSourceBuilder.toString())
+//    final Search search = new Search.Builder(searchSourceBuilder.toString())
+    final Search search = new Search.Builder(query)
         // index to query
         .addIndex(ES_CONF.INDEX)
-        // document type to retrieve
+            // document type to retrieve
         .addType(ES_CONF.DOC_TYPE)
-        // FIXME: using SearchType.SCAN does not work. ES instance requires
-        // parameter to be a lower-cased string.
+            // FIXME: using SearchType.SCAN does not work. ES instance requires
+            // parameter to be a lower-cased string.
         .setParameter(Parameters.SEARCH_TYPE, "scan")//SearchType.SCAN)
-        // hits per shard, each scroll
+            // hits per shard, each scroll
         .setParameter(Parameters.SIZE, ES_CONF.PAGE_SIZE)
-        // keep scroll open for a specific time
+            // keep scroll open for a specific time
         .setParameter(Parameters.SCROLL, ES_CONF.SCROLL_KEEP)
         .build();
 
@@ -197,8 +240,14 @@ class BuildIndex
     LOG.debug("{} - hits:{}/{} scroll-id:{}", lang, currentResultSize,
         hitsTotal, scrollId);
 
-    final IndexWriter writer = getIndexWriter(lang);
-    indexResults(writer, lang, hits);
+//    final IndexWriter writer = getIndexWriter(lang);
+    final Path targetPath = new File(this.cliParams.dataDir.getAbsolutePath() +
+        File.separator + lang).toPath();
+    Files.createDirectories(targetPath);
+    final IndexBuilder iBuilder = new IndexBuilder(targetPath, lang,
+        CliCommon.getStopwords(StringUtils.lowerCase(lang.toString()),
+            this.cliParams.stopFileFormat, this.cliParams.stopFilePattern));
+    indexResults(iBuilder, hits);
 
     // scroll through pages to gather all results
     int pageNumber = 1; // number of pages requested
@@ -220,7 +269,7 @@ class BuildIndex
         scrollId = resultJson.get("_scroll_id").getAsString();
 
         // index results
-        indexResults(writer, lang, hits);
+        indexResults(iBuilder, hits);
         dataCount += (long) currentResultSize;
 
         LOG.info("{} - hits:{}/{}/{} page:{} scroll-id:{} ~{}",
@@ -232,19 +281,18 @@ class BuildIndex
       }
     } while (currentResultSize == ES_CONF.PAGE_SIZE);
 
-    writer.close();
+    iBuilder.close();
   }
 
   /**
    * Index search results from a query.
+   *
    * @param writer Lucene index writer
-   * @param lang Language that gets indexed
    * @param hits JSON array of search hits
    * @throws IOException Thrown, if writing the Lucene index fails
    */
   @SuppressWarnings("ObjectAllocationInLoop")
-  private void indexResults(final IndexWriter writer, final SRC_LANGUAGE
-      lang, final JsonArray hits)
+  private void indexResults(final IndexBuilder writer, final JsonArray hits)
       throws IOException {
     if (hits.size() <= 0) {
       LOG.warn("No hits! ({})", hits.size());
@@ -254,52 +302,52 @@ class BuildIndex
     // go through all hits
     for (final JsonElement hit : hits) {
       // parse JSON data to model
-      final Patent p = Patent.fromJson(hit.getAsJsonObject());
-      // create Lucene document from model
-      final Document patDoc = new Document();
-      boolean hasData = false;
-
-      patDoc.add(new StringField(LUCENE_CONF.FLD_DOC_ID,
-          p.getId(), Store.YES));
-      patDoc.add(new StringField(LUCENE_CONF.FLD_PAT_ID,
-          p.getPatId(), Store.YES));
-
-      if (p.getPatId().isEmpty()) {
-        LOG.warn("Patent reference was empty! id:{}", p.getId());
-      }
-
-      // test, if we have claim data
-      if (p.hasClaims(lang)) {
-        if (this.cliParams.useTermVectors) {
-          patDoc.add(new VecTextField(LUCENE_CONF.FLD_CLAIMS,
-              p.getClaimsAsString(lang), Store.NO));
-        } else {
-          patDoc.add(new TextField(LUCENE_CONF.FLD_CLAIMS,
-              p.getClaimsAsString(lang), Store.NO));
-        }
-        hasData = true;
-      }
-
-      // test, if we have detailed description data
-      if (p.hasDetd(lang)) {
-        if (this.cliParams.useTermVectors) {
-          patDoc.add(new VecTextField(LUCENE_CONF.FLD_DETD,
-              p.getDetd(lang), Store.NO));
-        } else {
-          patDoc.add(new TextField(LUCENE_CONF.FLD_DETD,
-              p.getDetd(lang), Store.NO));
-        }
-        hasData = true;
-      }
-
-      // check if there's something to index
-      if (hasData) {
-        LOG.trace("Add doc:{} pat:{} [claims:{} detd:{}]",
-            p.getId(), p.getPatId(), p.hasClaims(lang), p.hasDetd(lang));
-        writer.addDocument(patDoc);
-      } else {
-        LOG.warn("No data to write for docId:{}", p.getId());
-      }
+      writer.index(Patent.fromJson(hit.getAsJsonObject()));
+//      // create Lucene document from model
+//      final Document patDoc = new Document();
+//      boolean hasData = false;
+//
+//      patDoc.add(new StringField(IndexBuilder.LUCENE_CONF.FLD_DOC_ID,
+//          p.getId(), Store.YES));
+//      patDoc.add(new StringField(IndexBuilder.LUCENE_CONF.FLD_PAT_ID,
+//          p.getPatId(), Store.YES));
+//
+//      if (p.getPatId().isEmpty()) {
+//        LOG.warn("Patent reference was empty! id:{}", p.getId());
+//      }
+//
+//      // test, if we have claim data
+//      if (p.hasClaims(lang)) {
+//        if (this.cliParams.useTermVectors) {
+//          patDoc.add(new VecTextField(IndexBuilder.LUCENE_CONF.FLD_CLAIMS,
+//              p.getClaimsAsString(lang), Store.NO));
+//        } else {
+//          patDoc.add(new TextField(IndexBuilder.LUCENE_CONF.FLD_CLAIMS,
+//              p.getClaimsAsString(lang), Store.NO));
+//        }
+//        hasData = true;
+//      }
+//
+//      // test, if we have detailed description data
+//      if (p.hasDetd(lang)) {
+//        if (this.cliParams.useTermVectors) {
+//          patDoc.add(new VecTextField(IndexBuilder.LUCENE_CONF.FLD_DETD,
+//              p.getDetd(lang), Store.NO));
+//        } else {
+//          patDoc.add(new TextField(IndexBuilder.LUCENE_CONF.FLD_DETD,
+//              p.getDetd(lang), Store.NO));
+//        }
+//        hasData = true;
+//      }
+//
+//      // check if there's something to index
+//      if (hasData) {
+//        LOG.trace("Add doc:{} pat:{} [claims:{} detd:{}]",
+//            p.getId(), p.getPatId(), p.hasClaims(lang), p.hasDetd(lang));
+//        writer.addDocument(patDoc);
+//      } else {
+//        LOG.warn("No data to write for docId:{}", p.getId());
+//      }
     }
   }
 
@@ -311,7 +359,7 @@ class BuildIndex
    * @throws IOException Thrown, if target directory is not accessible
    */
   private void runMain(final String[] args)
-      throws IOException {
+      throws Exception {
     new CmdLineParser(this.cliParams);
 
     //parser.parseArgument(args);
@@ -329,14 +377,14 @@ class BuildIndex
     this.client = factory.getObject();
 
     // languages to index, initially empty
-    Collection<SRC_LANGUAGE> runLanguages = Collections.emptyList();
+    Collection<Language> runLanguages = Collections.emptyList();
 
     // decide which languages to index
     if (this.cliParams.onlyLang != null) {
       // create an index for a single language only
       LOG.info("Processing language '{}' only as requested by user.",
           this.cliParams.onlyLang);
-      final SRC_LANGUAGE onlyLang = SRC_LANGUAGE.getByString(this
+      final Language onlyLang = Language.getByString(this
           .cliParams.onlyLang);
       if (onlyLang != null) {
         runLanguages = Collections.singletonList(onlyLang);
@@ -345,13 +393,13 @@ class BuildIndex
       }
     } else {
       // create an index for each known language optionally skipping single ones
-      runLanguages = Arrays.asList(SRC_LANGUAGE.values());
+      runLanguages = Arrays.asList(Language.values());
       // optionally skip languages
       if (this.cliParams.skipLang.length > 0) {
         LOG.info("Skipping languages {} as requested by user.",
             this.cliParams.skipLang);
         for (final String skipLang : this.cliParams.skipLang) {
-          final SRC_LANGUAGE skipSrcLang = SRC_LANGUAGE.getByString(skipLang);
+          final Language skipSrcLang = Language.getByString(skipLang);
           if (skipSrcLang != null) {
             runLanguages.remove(skipSrcLang);
           }
@@ -359,16 +407,13 @@ class BuildIndex
       }
     }
 
-    if (this.cliParams.useTermVectors) {
-      LOG.info("Indexing text fields using TermVectors.");
-    }
-
     // run index for each specified language
-    for (final SRC_LANGUAGE lng : runLanguages) {
+    for (final Language lng : runLanguages) {
       try {
         indexByLanguage(lng);
       } catch (final Exception e) {
         LOG.error("Indexing failed. lang={} {}", lng, e);
+        throw e;
       }
     }
 
@@ -378,6 +423,7 @@ class BuildIndex
 
   /**
    * Main method.
+   *
    * @param args Commandline arguments
    * @throws Exception Forwarded
    */
@@ -429,14 +475,6 @@ class BuildIndex
     String onlyLang;
 
     /**
-     * Single languages.
-     */
-    @SuppressWarnings("PackageVisibleField")
-    @Option(name = "-term-vectors", required = false,
-        usage = "If provided term vectors will be stored for text fields.")
-    boolean useTermVectors;
-
-    /**
      * Skip languages.
      */
     @SuppressWarnings({"PackageVisibleField", "ZeroLengthArrayAllocation"})
@@ -445,12 +483,6 @@ class BuildIndex
         usage = "Skip the listed languages while processing. Separate each " +
             "language by a space.")
     String[] skipLang = {};
-
-    /**
-     * Accessor for parent class.
-     */
-    Params() {
-    }
 
     /**
      * Check, if the defined files and directories are available.
