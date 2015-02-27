@@ -22,8 +22,11 @@ import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.Tuple.Tuple3;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
-import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderBuilder.Feature;
-import de.unihildesheim.iw.lucene.index.CollectionMetrics.CollectionMetricsConfiguration;
+import de.unihildesheim.iw.lucene.index.AbstractIndexDataProviderBuilder
+    .Feature;
+import de.unihildesheim.iw.lucene.index.CollectionMetrics
+    .CollectionMetricsConfiguration;
+import de.unihildesheim.iw.lucene.search.EmptyFieldFilter;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import org.apache.lucene.index.DocsEnum;
@@ -33,7 +36,6 @@ import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.FieldValueFilter;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -366,7 +368,7 @@ public abstract class LuceneIndexDataProvider
     for (final String field : this.index.fields) {
       @SuppressWarnings("ObjectAllocationInLoop")
       // require documents to have content in the current field
-      final Filter fieldFilter = new FieldValueFilter(field);
+      final Filter fieldFilter = new EmptyFieldFilter(field);
       LOG.debug("Using FieldFilter: {}", fieldFilter);
 
       LOG.debug("Expecting {} documents at max.", this.index.reader.numDocs());
