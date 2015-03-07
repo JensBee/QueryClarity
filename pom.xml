@@ -21,7 +21,7 @@
     <properties>
         <jdk.version>1.8</jdk.version>
         <compiler.args>-Xlint:all</compiler.args>
-        <project.lucene.version>4.10.3</project.lucene.version>
+        <project.lucene.version>5.0.0</project.lucene.version>
         <project.name>queryClarity</project.name>
         <project.test.enableAssertions>true</project.test.enableAssertions>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -121,9 +121,21 @@
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-misc</artifactId>
+            <version>${project.lucene.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-test-framework</artifactId>
             <version>${project.lucene.version}</version>
         </dependency>
+        <!--
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-backward-codecs</artifactId>
+            <version>${project.lucene.version}</version>
+        </dependency>
+        -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
