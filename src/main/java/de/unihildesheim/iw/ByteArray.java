@@ -187,7 +187,7 @@ public final class ByteArray
       return true;
     }
 
-    if (o == null || !(o instanceof ByteArray)) {
+    if (!(o instanceof ByteArray)) {
       return false;
     }
 
