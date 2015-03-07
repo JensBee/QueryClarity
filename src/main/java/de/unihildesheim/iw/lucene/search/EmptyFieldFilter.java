@@ -41,7 +41,7 @@ import java.io.IOException;
  *
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class EmptyFieldFilter
+public final class EmptyFieldFilter
     extends Filter {
   /**
    * Logger instance for this class.

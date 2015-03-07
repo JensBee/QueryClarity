@@ -21,8 +21,7 @@ import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
-
-import java.util.Set;
+import org.apache.lucene.search.DocIdSet;
 
 /**
  * @author Jens Bertram
@@ -34,7 +33,7 @@ public interface FeedbackProvider {
    * @return Set of document ids
    * @throws Exception Any exception may be thrown by implementing class
    */
-  Set<Integer> get()
+  DocIdSet get()
       throws Exception;
 
   /**
@@ -94,7 +93,7 @@ public interface FeedbackProvider {
    * @param fields Set of document field names
    * @return Self reference
    */
-  FeedbackProvider fields(final Set<String> fields);
+  FeedbackProvider fields(final String[] fields);
 
   /**
    * Set the query parser to use for getting feedback documents.

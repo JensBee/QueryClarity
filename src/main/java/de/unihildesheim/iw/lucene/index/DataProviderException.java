@@ -22,7 +22,7 @@ package de.unihildesheim.iw.lucene.index;
  *
  * @author Jens Bertram
  */
-public class DataProviderException
+public final class DataProviderException
     extends Exception {
   /**
    * Serialization id.

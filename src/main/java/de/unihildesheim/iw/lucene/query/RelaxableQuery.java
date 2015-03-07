@@ -21,16 +21,13 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.Query;
 
-import java.util.Set;
-
 /**
  * @author Jens Bertram
  */
 public abstract class RelaxableQuery {
 
   RelaxableQuery(final Analyzer analyzer,
-      final String qString,
-      final Set<String> fields) {
+      final String qString, final String[] fields) {
     // Empty constructor to provide a common interface. Parameters are unused
     // here.
   }

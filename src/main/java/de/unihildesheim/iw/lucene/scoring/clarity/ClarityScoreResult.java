@@ -16,20 +16,19 @@
  */
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
-import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.lucene.scoring.ScoringResult;
-import de.unihildesheim.iw.util.ByteArrayUtils;
-import de.unihildesheim.iw.util.StringUtils;
+import de.unihildesheim.iw.lucene.util.StreamUtils;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefArray;
+import org.apache.lucene.util.Counter;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -57,16 +56,12 @@ public abstract class ClarityScoreResult
   /**
    * Query terms used for calculation.
    */
-  private Collection<ByteArray> queryTerms;
+  @Nullable
+  private BytesRefArray queryTerms;
   /**
    * Flag indicating, if this result is empty.
    */
   private boolean isEmpty;
-  /**
-   * If this result is empty, this should contain a message for the user to
-   * explain why it's empty.
-   */
-  private String emptyReasonMessage = "";
 
   /**
    * Create a new calculation result of the given type with no result.
@@ -76,7 +71,6 @@ public abstract class ClarityScoreResult
   ClarityScoreResult(final Class<? extends ClarityScoreCalculation>
       cscType) {
     this.type = Objects.requireNonNull(cscType, "Score type was null.");
-    this.queryTerms = Collections.emptyList();
   }
 
   /**
@@ -96,7 +90,6 @@ public abstract class ClarityScoreResult
    * @param message Reason why this result is empty
    */
   public final void setEmpty(final String message) {
-    this.emptyReasonMessage = Objects.requireNonNull(message);
     this.messages.add(Tuple.tuple2("EMPTY", message));
     this.isEmpty = true;
     setScore(0d);
@@ -113,16 +106,6 @@ public abstract class ClarityScoreResult
   }
 
   /**
-   * If this result is empty the message describing the reason may be received
-   * here.
-   *
-   * @return Reason message
-   */
-  public final String getEmptyReasonMessage() {
-    return this.emptyReasonMessage;
-  }
-
-  /**
    * Get the type of calculation that created this result.
    *
    * @return Class implementing {@link ClarityScoreCalculation} that created
@@ -134,48 +117,24 @@ public abstract class ClarityScoreResult
   }
 
   /**
-   * Get the query terms used for calculation.
-   *
-   * @return Query terms
-   */
-  public final Collection<ByteArray> getQueryTerms() {
-    return Collections.unmodifiableCollection(this.queryTerms);
-  }
-
-  /**
-   * Set the query terms used. Expects a map of term->count.
-   *
-   * @param qTerms Query terms map
-   */
-  final void setQueryTerms(final Map<ByteArray, Integer> qTerms) {
-    Objects.requireNonNull(qTerms);
-    this.queryTerms = new ArrayList<>(qTerms.size());
-    for (final Entry<ByteArray, Integer> te : qTerms.entrySet()) {
-      for (int i = 1; i <= te.getValue(); i++) {
-        this.queryTerms.add(te.getKey());
-      }
-    }
-  }
-
-  /**
-   * Set the query terms used.
+   * Set the query terms used. Will be referenced only.
    *
    * @param qTerms Query terms
    */
-  final void setQueryTerms(final Collection<ByteArray> qTerms) {
+  final void setQueryTerms(final BytesRefArray qTerms) {
     Objects.requireNonNull(qTerms);
-    this.queryTerms = new ArrayList<>(qTerms.size());
-    this.queryTerms.addAll(qTerms);
+    this.queryTerms = qTerms;
   }
 
   /**
-   * Add a message to the result.
+   * Set the query terms used. Will be referenced only.
    *
-   * @param mType Message type
-   * @param msg Content
+   * @param qTerms Query terms
    */
-  final void addMessage(final MessageType mType, final String msg) {
-    this.messages.add(Tuple.tuple2(mType.name(), msg));
+  final void setQueryTerms(final Collection<BytesRef> qTerms) {
+    Objects.requireNonNull(qTerms);
+    this.queryTerms = new BytesRefArray(Counter.newCounter(false));
+    qTerms.stream().forEach(this.queryTerms::append);
   }
 
   /**
@@ -185,17 +144,18 @@ public abstract class ClarityScoreResult
    * @return Provided xml results instance updated in place
    */
   final ScoringResultXml getXml(final ScoringResultXml xml) {
-    // number of query terms
-    xml.getItems().put("queryTerms",
-        Integer.toString(this.queryTerms.size()));
+    if (this.queryTerms != null) {
+      // number of query terms
+      xml.getItems().put("queryTerms",
+          Integer.toString(this.queryTerms.size()));
 
-    // query terms
-    if (!this.queryTerms.isEmpty()) {
-      final Collection<String> termStr = new ArrayList<>(
-          this.queryTerms.size());
-      termStr.addAll(this.queryTerms.stream().map(ByteArrayUtils::utf8ToString)
-          .collect(Collectors.toList()));
-      xml.getItems().put("queryTerms", StringUtils.join(termStr, " "));
+      // query terms
+      final String termStr = StreamUtils.stream(this.queryTerms)
+          .map(BytesRef::utf8ToString)
+          .collect(Collectors.joining(" "));
+      if (!termStr.isEmpty()) {
+        xml.getItems().put("queryTerms", termStr);
+      }
     }
 
     // messages

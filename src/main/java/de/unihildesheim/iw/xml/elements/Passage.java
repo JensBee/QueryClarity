@@ -70,7 +70,7 @@ public final class Passage {
    * @return Language identifier
    */
   @XmlAttribute(name = "lang")
-  public final String getLanguage() {
+  public String getLanguage() {
     return this.lang;
   }
 
@@ -88,7 +88,7 @@ public final class Passage {
    *
    * @return Passage content
    */
-  public final String getContent() {
+  public String getContent() {
     return this.content;
   }
 
@@ -108,7 +108,7 @@ public final class Passage {
    */
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
   @XmlElement(name = "score", type = Score.class)
-  public final Collection<Score> getScores() {
+  public Collection<Score> getScores() {
     return this.scores;
   }
 
@@ -188,7 +188,7 @@ public final class Passage {
      *
      * @param newResult Scoring result
      */
-    public final void setResult(
+    public void setResult(
         final ScoringResultXml newResult) {
       this.result = newResult;
     }

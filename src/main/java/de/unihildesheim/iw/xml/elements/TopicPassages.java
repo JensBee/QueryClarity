@@ -68,7 +68,7 @@ public final class TopicPassages {
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
   @XmlElementWrapper(name = "passages")
   @XmlElement(name = "passages", type = PassagesGroup.class)
-  public final Collection<PassagesGroup> getPassageGroups() {
+  public Collection<PassagesGroup> getPassageGroups() {
     return this.passagesGroups;
   }
 
@@ -78,7 +78,7 @@ public final class TopicPassages {
    * @param groupList Groups to add
    */
   @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
-  public final void setPassageGroups(
+  public void setPassageGroups(
       final Collection<PassagesGroup> groupList) {
     this.passagesGroups = groupList;
   }
@@ -86,7 +86,7 @@ public final class TopicPassages {
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
   @XmlElementWrapper(name = "languages")
   @XmlElement(name = "lang", type = Language.class)
-  public final Collection<Language> getLanguages() {
+  public Collection<Language> getLanguages() {
     return this.languages;
   }
 
@@ -97,7 +97,7 @@ public final class TopicPassages {
    */
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
   @XmlElement(name = "scores", type = ScoreType.class)
-  public final Collection<ScoreType> getScoreTypes() {
+  public Collection<ScoreType> getScoreTypes() {
     return this.scoreTypes;
   }
 }

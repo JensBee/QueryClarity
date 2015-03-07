@@ -148,6 +148,7 @@ public class TopicsXMLReader {
    *
    * @return List of languages
    */
+  @SuppressWarnings("TypeMayBeWeakened")
   public final Set<String> getLanguages() {
     return Collections.unmodifiableSet(this.languages);
   }

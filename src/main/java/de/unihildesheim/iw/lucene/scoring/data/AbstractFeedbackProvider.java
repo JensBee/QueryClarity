@@ -22,6 +22,7 @@ import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import de.unihildesheim.iw.lucene.query.TryExactTermsQuery;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
+import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -41,23 +42,29 @@ public abstract class AbstractFeedbackProvider<T extends FeedbackProvider>
   /**
    * Number of documents to get, if a fixed amount is requested.
    */
+  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
   int fixedAmount;
   /**
    * Minimum number of documents to get.
    */
+  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
   int minAmount;
   /**
    * Maximum number of documents to get.
    */
+  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
   int maxAmount;
   /**
    * True, if a fixed amount of documents should be tried to retrieve.
    */
+  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
   boolean useFixedAmount;
 
   /**
    * Reader to access the index.
    */
+  @Nullable
+  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
   IndexReader idxReader;
   /**
    * Reader to access the index.
@@ -66,18 +73,26 @@ public abstract class AbstractFeedbackProvider<T extends FeedbackProvider>
   /**
    * Query analyzer.
    */
+  @Nullable
+  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
   Analyzer qAnalyzer;
   /**
    * Query string.
    */
+  @Nullable
+  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
   String queryStr;
   /**
    * Document fields to query.
    */
-  Set<String> docFields;
+  @Nullable
+  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
+  String[] docFields;
   /**
    * Query parser to use. Defaults to {@link TryExactTermsQuery}.
    */
+  @Nullable
+  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
   Class<? extends RelaxableQuery> queryParser;
 
   @Override
@@ -120,7 +135,7 @@ public abstract class AbstractFeedbackProvider<T extends FeedbackProvider>
   }
 
   @Override
-  public T fields(final Set<String> fields) {
+  public T fields(final String[] fields) {
     this.docFields = Objects.requireNonNull(fields);
     return getThis();
   }
@@ -143,11 +158,8 @@ public abstract class AbstractFeedbackProvider<T extends FeedbackProvider>
   }
 
   private Class<? extends RelaxableQuery> getQueryParser() {
-    if (this.queryParser == null) {
-     return TryExactTermsQuery.class;
-    } else {
-      return this.queryParser;
-    }
+    return this.queryParser == null ? TryExactTermsQuery.class :
+        this.queryParser;
   }
 
   /**

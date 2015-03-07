@@ -17,11 +17,12 @@
 
 package de.unihildesheim.iw.lucene.index;
 
-import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
-import de.unihildesheim.iw.lucene.util.BytesRefUtils;
+import de.unihildesheim.iw.lucene.util.BytesRefUtils.MergingBytesRefHash;
+import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
+import de.unihildesheim.iw.lucene.util.StreamUtils;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -30,30 +31,24 @@ import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.ReaderSlice;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.BytesRef;
-import org.jetbrains.annotations.Nullable;
+import org.apache.lucene.util.BytesRefHash;
+import org.apache.lucene.util.FixedBitSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.MathContext;
-import java.nio.charset.StandardCharsets;
-import java.util.AbstractCollection;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
-import java.util.Spliterator;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -61,7 +56,7 @@ import java.util.stream.StreamSupport;
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class FDRIndexDataProvider
+public final class FDRIndexDataProvider
     implements IndexDataProvider {
   /**
    * Context for high precision math calculations.
@@ -82,16 +77,16 @@ public class FDRIndexDataProvider
    * Collection metrics instance for this DataProvider.
    */
   private final CollectionMetrics metrics;
+  private static final BytesRefHash EMPTY_STOPWORDS = new BytesRefHash();
 
   /**
    * Create instance by using {@link Builder}.
    *
    * @param builder Builder instance
-   * @throws DataProviderException Forwarded from {@link CollectionMetrics}
    * @throws IOException Thrown on low-level I/O-errors
    */
-  private FDRIndexDataProvider(final Builder builder)
-      throws IOException, DataProviderException {
+  FDRIndexDataProvider(final Builder builder)
+      throws IOException {
     // first initialize the Lucene index
     assert builder.idxReader != null;
 
@@ -101,11 +96,12 @@ public class FDRIndexDataProvider
     // all data gathered, initialize metrics instance
     this.metrics = new CollectionMetrics(this);
 
-    LOG.debug("index.TTF {} index.UT {}", this.index.ttf,
-        this.index.uniqueTerms);
-    LOG.debug("TTF (abwasserreinigungsstuf): {}", getTermFrequency(new
-        ByteArray("abwasserreinigungsstuf"
-        .getBytes(StandardCharsets.UTF_8))));
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("index.TTF {} index.UT {}", this.index.ttf,
+          this.index.uniqueTerms);
+      LOG.debug("TTF (abwasserreinigungsstuf): {}", getTermFrequency(new
+          BytesRef("abwasserreinigungsstuf")));
+    }
   }
 
   @Override
@@ -114,8 +110,7 @@ public class FDRIndexDataProvider
   }
 
   @Override
-  public final Long getTermFrequency(final ByteArray term) {
-    final BytesRef termBr = BytesRefUtils.fromByteArray(term);
+  public long getTermFrequency(final BytesRef term) {
     return this.index.reader.leaves().stream()
         .map(LeafReaderContext::reader)
         .filter(r -> r.numDocs() > 0)
@@ -125,12 +120,12 @@ public class FDRIndexDataProvider
                 .mapToLong(f -> {
                   try {
                     final Terms terms = r.terms(f);
-                    final TermsEnum termsEnum = terms.iterator(null);
-                    if (termsEnum.seekExact(termBr)) {
-                      return termsEnum.totalTermFreq();
-                    } else {
+                    if (terms == null) {
                       return 0L;
                     }
+                    final TermsEnum termsEnum = terms.iterator(null);
+                    return termsEnum.seekExact(term) ?
+                        termsEnum.totalTermFreq() : 0L;
                   } catch (final IOException e) {
                     throw new UncheckedIOException(e);
                   }
@@ -140,25 +135,10 @@ public class FDRIndexDataProvider
             throw new UncheckedIOException(e);
           }
         }).sum();
-//    return this.index.fields.stream()
-//        .mapToLong(f -> {
-//          try {
-//            final Terms terms = MultiFields.getTerms(this.index.reader, f);
-//            final TermsEnum termsEnum = terms.iterator(null);
-//            if (termsEnum.seekExact(BytesRefUtils.fromByteArray(term))) {
-//              return termsEnum.totalTermFreq();
-//            } else {
-//              return 0L;
-//            }
-//          } catch (final IOException e) {
-//            throw new UncheckedIOException(e);
-//          }
-//        }).sum();
   }
 
   @Override
-  public int getDocumentFrequency(final ByteArray term) {
-    final BytesRef termBr = BytesRefUtils.fromByteArray(term);
+  public int getDocumentFrequency(final BytesRef term) {
     return this.index.reader.leaves().stream()
         .map(LeafReaderContext::reader)
         .filter(r -> r.numDocs() > 0)
@@ -168,12 +148,11 @@ public class FDRIndexDataProvider
                 .mapToInt(f -> {
                   try {
                     final Terms terms = r.terms(f);
-                    final TermsEnum termsEnum = terms.iterator(null);
-                    if (termsEnum.seekExact(termBr)) {
-                      return termsEnum.docFreq();
-                    } else {
+                    if (terms == null) {
                       return 0;
                     }
+                    final TermsEnum termsEnum = terms.iterator(null);
+                    return termsEnum.seekExact(term) ? termsEnum.docFreq() : 0;
                   } catch (final IOException e) {
                     throw new UncheckedIOException(e);
                   }
@@ -183,26 +162,11 @@ public class FDRIndexDataProvider
             throw new UncheckedIOException(e);
           }
         }).sum();
-
-//    return this.index.fields.stream()
-//        .mapToInt(f -> {
-//          try {
-//            final Terms terms = MultiFields.getTerms(this.index.reader, f);
-//            final TermsEnum termsEnum = terms.iterator(null);
-//            if (termsEnum.seekExact(BytesRefUtils.fromByteArray(term))) {
-//              return termsEnum.docFreq();
-//            } else {
-//              return 0;
-//            }
-//          } catch (final IOException e) {
-//            throw new UncheckedIOException(e);
-//          }
-//        }).sum();
   }
 
   @Override
-  public Stream<Integer> getDocumentIds() {
-    return this.index.docIds.stream();
+  public IntStream getDocumentIds() {
+    return StreamUtils.stream(this.index.docIds);
   }
 
   @Override
@@ -218,112 +182,92 @@ public class FDRIndexDataProvider
    * @return List of terms or mapping of term to (within document) term
    * frequency value
    */
-  private Map<ByteArray, Long> getDocumentTerms(final int docId) {
-    return this.index.fields.stream()
+  private Map<BytesRef, Long> getDocumentTerms(final int docId) {
+    return Arrays.stream(this.index.fields)
         .flatMap(f -> {
           try {
             final Terms terms = this.index.reader.getTermVector(docId, f);
             if (terms == null) {
-              LOG.warn("No Term Vectors for field {} in document {}.", f);
-              LOG.debug("Field exists? {}",
-                  (this.index.reader.document(docId).getField(f) != null));
+              LOG.warn("No Term Vectors for field {} in document {}.",
+                  f, docId);
+              if (LOG.isDebugEnabled()) {
+                LOG.debug("Field exists? {}",
+                    (this.index.reader.document(docId).getField(f) != null));
+              }
               return Stream.empty();
             } else {
-              final TermsEnum te = terms.iterator(null);
-              return StreamSupport.stream(new Spliterator<ByteArray>() {
-                @Override
-                public boolean tryAdvance(
-                    final Consumer<? super ByteArray> action) {
-                  try {
-                    final BytesRef nextTerm = te.next();
-                    if (nextTerm == null) {
-                      return false;
-                    } else {
-                      action.accept(BytesRefUtils.toByteArray(nextTerm));
-                      return true;
-                    }
-                  } catch (final IOException e) {
-                    throw new UncheckedIOException(e);
-                  }
-                }
-
-                @Override
-                @Nullable
-                public Spliterator<ByteArray> trySplit() {
-                  return null; // no split support
-                }
-
-                @Override
-                public long estimateSize() {
-                  return Long.MAX_VALUE; // we don't know
-                }
-
-                @Override
-                public int characteristics() {
-                  return IMMUTABLE; // not mutable
-                }
-              }, false);
+              return StreamUtils.stream(terms.iterator(null));
             }
           } catch (final IOException e) {
             throw new UncheckedIOException(e);
           }
-        }).collect(HashMap<ByteArray, Long>::new,
+        }).collect(HashMap<BytesRef, Long>::new,
             (map, ba) -> {
               if (map.containsKey(ba)) {
                 map.put(ba, map.get(ba) + 1L);
               } else {
                 map.put(ba, 1L);
               }
-            }, HashMap<ByteArray, Long>::putAll);
+            }, HashMap<BytesRef, Long>::putAll);
   }
 
   @Override
   public boolean hasDocument(final int docId) {
-    return this.index.docIds.contains(docId);
+    return docId < this.index.docIds.length() && this.index.docIds.get(docId);
   }
 
   @Override
-  public Stream<ByteArray> getDocumentsTerms(final Set<Integer> docIds) {
-    return docIds.stream()
-        .map(docId -> {
-          try {
-            return this.index.reader.getTermVectors(docId);
-          } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-          }
-        })
-        .filter(f -> f != null)
-        .map(f -> {
-          final Set<ByteArray> termSet = new HashSet<>(100 * docIds.size());
-          StreamSupport.stream(f.spliterator(), false)
-              .map(fn -> {
-                try {
-                  return f.terms(fn);
-                } catch (final IOException e) {
-                  throw new UncheckedIOException(e);
-                }
-              })
-              .filter(t -> t != null)
-              .forEach(t -> {
-                try {
-                  final TermsEnum te = t.iterator(null);
-                  while (true) {
-                    final BytesRef term = te.next();
-                    if (term == null) {
-                      break;
-                    }
-                    termSet.add(BytesRefUtils.toByteArray(term));
+  public Stream<BytesRef> getDocumentsTerms(final DocIdSet docIds) {
+    try {
+      final int[] docIdList = new int[DocIdSetUtils.cardinality(docIds)];
+      final DocIdSetIterator disi = docIds.iterator();
+      int idx = 0;
+      for (int docId = disi.nextDoc();
+           docId != DocIdSetIterator.NO_MORE_DOCS;
+           docId = disi.nextDoc()) {
+        docIdList[idx++] = docId;
+      }
+
+      return Arrays.stream(docIdList)
+          .mapToObj(docId -> {
+            try {
+              return this.index.reader.getTermVectors(docId);
+            } catch (final IOException e) {
+              throw new UncheckedIOException(e);
+            }
+          })
+          .filter(f -> f != null)
+          .map(f -> {
+            final BytesRefHash terms = new BytesRefHash();
+            StreamSupport.stream(f.spliterator(), false)
+                .map(fn -> {
+                  try {
+                    return f.terms(fn);
+                  } catch (final IOException e) {
+                    throw new UncheckedIOException(e);
                   }
-                } catch (final IOException e) {
-                  throw new UncheckedIOException(e);
-                }
-              });
-          return termSet;
-        })
-        .collect(HashSet<ByteArray>::new,
-            AbstractCollection::addAll,
-            HashSet<ByteArray>::addAll)
-        .stream();
+                })
+                .filter(t -> t != null)
+                .forEach(t -> {
+                  try {
+                    final TermsEnum te = t.iterator(null);
+                    BytesRef term;
+                    while ((term = te.next()) != null) {
+                      terms.add(term);
+                    }
+                  } catch (final IOException e) {
+                    throw new UncheckedIOException(e);
+                  }
+                });
+            return terms;
+          })
+          .collect(MergingBytesRefHash::new,
+              MergingBytesRefHash::addAll,
+              MergingBytesRefHash::addAll)
+          .stream();
+    } catch (final IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   @Override
@@ -332,13 +276,13 @@ public class FDRIndexDataProvider
   }
 
   @Override
-  public Set<String> getDocumentFields() {
-    return new HashSet<>(this.index.fields);
+  public String[] getDocumentFields() {
+    return this.index.fields;
   }
 
   @Override
-  public Set<String> getStopwords() {
-    return Collections.emptySet();
+  public BytesRefHash getStopwords() {
+    return EMPTY_STOPWORDS; // we don't use stopwords
   }
 
   @Override
@@ -351,29 +295,38 @@ public class FDRIndexDataProvider
    */
   private static final class LuceneIndex {
     /**
+     * Logger instance for this class.
+     */
+    private static final Logger LOG =
+        LoggerFactory.getLogger(LuceneIndex.class);
+    /**
      * {@link IndexReader} to access the Lucene index.
      */
-    private final FilteredDirectoryReader reader;
+    final FilteredDirectoryReader reader;
     /**
      * List of document-id of visible documents.
      */
-    private final Collection<Integer> docIds;
+    final FixedBitSet docIds;
     /**
      * Number of documents visible.
      */
-    private final int docCount;
+    final int docCount;
     /**
      * Frequency of all terms in index.
      */
-    private final long ttf;
+    final long ttf;
     /**
      * Number of unique terms in index (respects active fields).
      */
-    private final long uniqueTerms;
+    final long uniqueTerms;
     /**
      * Document fields.
      */
-    private final Collection<String> fields;
+    final String[] fields;
+    /**
+     * Constant value if no document fields are available.
+     */
+    private static final String[] NO_FIELDS = new String[0];
 
     /**
      * Initialize the index information store.
@@ -386,17 +339,28 @@ public class FDRIndexDataProvider
       this.reader = r;
 
       // collect the ids of all documents in the index
-      LOG.debug("Estimating index size");
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Estimating index size");
+      }
       final int numDocs = this.reader.numDocs();
+
       LOG.info("Collecting all ({}) documents from index.", numDocs);
       final Query q = new MatchAllDocsQuery();
       final IndexSearcher searcher = new IndexSearcher(this.reader);
       final TopDocs matches = searcher.search(q, numDocs);
-      LOG.debug("Query returned {} matching documents.", matches.totalHits);
-      this.docIds = Arrays.stream(matches.scoreDocs)
-          .map(sd -> sd.doc)
-          .collect(Collectors.toList());
-      this.docCount = this.docIds.size();
+
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Query returned {} matching documents.", matches.totalHits);
+      }
+      final int[] docIds = Arrays.stream(matches.scoreDocs)
+          .mapToInt(sd -> sd.doc)
+          .sorted()
+          .toArray();
+      this.docIds = new FixedBitSet(docIds[docIds.length -1]);
+      Arrays.stream(docIds)
+          .forEach(this.docIds::set);
+      this.docCount = this.docIds.cardinality();
+      LOG.debug("DocIds c={}", this.docCount);
       // both counts should be equal, since there are no deletions
       assert this.docCount == numDocs;
 
@@ -406,11 +370,11 @@ public class FDRIndexDataProvider
       if (fields == null) {
         LOG.warn("Reader does not contain any postings.");
         this.ttf = 0L;
-        this.fields = Collections.emptyList();
+        this.fields = NO_FIELDS;
       } else {
         this.fields = StreamSupport.stream(fields.spliterator(), false)
-            .collect(Collectors.toList());
-        this.ttf = this.fields.stream()
+            .toArray(String[]::new);
+        this.ttf = Arrays.stream(this.fields)
             .mapToLong(f -> {
               try {
                 return this.reader.getSumTotalTermFreq(f);
@@ -421,7 +385,7 @@ public class FDRIndexDataProvider
       }
 
       // check for TermVectors
-      if (!this.fields.isEmpty()) {
+      if (this.fields.length > 0) {
         final boolean termVectorsMissing =
             this.reader.getContext().leaves().stream()
                 .filter(arc -> arc.reader().getFieldInfos().size() > 0)
@@ -445,7 +409,7 @@ public class FDRIndexDataProvider
 
       // collect all unique terms from the index
       LOG.info("Collecting term counts (unique terms)");
-      if (this.fields.isEmpty()) {
+      if (this.fields.length == 0) {
         // still no postings
         this.uniqueTerms = 0L;
       } else {
@@ -463,56 +427,23 @@ public class FDRIndexDataProvider
             .toArray(ReaderSlice[]::new);
 
         // iterate all terms in all fields in all sub-readers
-        this.uniqueTerms = this.fields.stream()
+        this.uniqueTerms = Arrays.stream(this.fields)
             // collect terms instances from all sub-readers
             .map(f -> IntStream.range(0, leaves.length)
-                    .mapToObj(i -> {
-                      try {
-                        return leaves[i].reader().terms(f);
-                      } catch (final IOException e) {
-                        throw new UncheckedIOException(e);
-                      }
-                    })
-                    // exclude empty terms
-                    .filter(t -> t != null)
-                    .toArray(Terms[]::new))
+                .mapToObj(i -> {
+                  try {
+                    return leaves[i].reader().terms(f);
+                  } catch (final IOException e) {
+                    throw new UncheckedIOException(e);
+                  }
+                })
+                // exclude empty terms
+                .filter(t -> t != null)
+                .toArray(Terms[]::new))
             .flatMap(t -> {
               try {
                 final MultiTerms mTerms = new MultiTerms(t, slices);
-                final TermsEnum te = mTerms.iterator(null);
-                return StreamSupport.stream(new Spliterator<BytesRef>() {
-                  @Override
-                  public boolean tryAdvance(
-                      final Consumer<? super BytesRef> action) {
-                    try {
-                      final BytesRef nextTerm = te.next();
-                      if (nextTerm == null) {
-                        return false;
-                      } else {
-                        action.accept(nextTerm);
-                        return true;
-                      }
-                    } catch (final IOException e) {
-                      throw new UncheckedIOException(e);
-                    }
-                  }
-
-                  @Override
-                  @Nullable
-                  public Spliterator<BytesRef> trySplit() {
-                    return null; // no split support
-                  }
-
-                  @Override
-                  public long estimateSize() {
-                    return Long.MAX_VALUE; // we don't know
-                  }
-
-                  @Override
-                  public int characteristics() {
-                    return IMMUTABLE; // not mutable
-                  }
-                }, false);
+                return StreamUtils.stream(mTerms.iterator(null));
               } catch (final IOException e) {
                 throw new UncheckedIOException(e);
               }
@@ -539,7 +470,7 @@ public class FDRIndexDataProvider
 //                      if (nextTerm == null) {
 //                        return false;
 //                      } else {
-//                        action.accept(nextTerm);
+//                        action.isAccepted(nextTerm);
 //                        return true;
 //                      }
 //                    } catch (final IOException e) {
@@ -572,7 +503,7 @@ public class FDRIndexDataProvider
   }
 
   /**
-   * Builder for creating a new {@link LuceneIndexDataProvider}.
+   * Builder for creating a new {@link FDRIndexDataProvider}.
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class Builder
@@ -608,7 +539,7 @@ public class FDRIndexDataProvider
 
       try {
         return new FDRIndexDataProvider(this);
-      } catch (final DataProviderException | IOException e) {
+      } catch (final IOException e) {
         throw new BuildException("Failed to create instance.", e);
       }
     }

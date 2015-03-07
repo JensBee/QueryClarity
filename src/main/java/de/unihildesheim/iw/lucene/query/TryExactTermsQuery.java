@@ -76,13 +76,12 @@ public final class TryExactTermsQuery
    * @param fields Fields to query
    * @throws ParseException Thrown, if the query could not be parsed
    */
-  public TryExactTermsQuery(final Analyzer analyzer,
-      final String queryStr,
-      final Set<String> fields)
+  public TryExactTermsQuery(final Analyzer analyzer, final String queryStr,
+      final String... fields)
       throws ParseException {
     super(analyzer, queryStr, fields);
     Objects.requireNonNull(analyzer, "Analyzer was null.");
-    if (Objects.requireNonNull(fields, "Fields were null.").isEmpty()) {
+    if (Objects.requireNonNull(fields, "Fields were null.").length == 0) {
       throw new IllegalArgumentException("Empty fields list.");
     }
     if (StringUtils.isStrippedEmpty(Objects.requireNonNull(queryStr,
@@ -92,8 +91,7 @@ public final class TryExactTermsQuery
 
     this.queryTerms = QueryUtils.tokenizeQueryString(queryStr, analyzer);
 
-    final QueryParser qParser = new MultiFieldQueryParser(
-        fields.toArray(new String[fields.size()]), analyzer);
+    final QueryParser qParser = new MultiFieldQueryParser(fields, analyzer);
 
     this.query = new BooleanQuery();
     this.uniqueQueryTerms = new HashSet<>(this.queryTerms);

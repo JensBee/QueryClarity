@@ -17,8 +17,8 @@
 
 package de.unihildesheim.iw.lucene.scoring.data;
 
-import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
+import org.apache.lucene.util.BytesRef;
 import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
@@ -47,7 +47,7 @@ public final class DefaultVocabularyProvider
   }
 
   @Override
-  public Stream<ByteArray> get() {
+  public Stream<BytesRef> get() {
     return
         Objects.requireNonNull(this.dataProv,
             "Data provider not set.")

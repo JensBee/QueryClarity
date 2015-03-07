@@ -50,7 +50,7 @@ public final class MapAdapter {
 
     @Nullable
     @Override
-    public final Map<String, List<Tuple2<String, String>>> unmarshal(
+    public Map<String, List<Tuple2<String, String>>> unmarshal(
         final Tuple2ListEntry[] value)
         throws Exception {
       if (null == value) {
@@ -67,7 +67,7 @@ public final class MapAdapter {
 
     @SuppressWarnings("ObjectAllocationInLoop")
     @Override
-    public final Tuple2ListEntry[] marshal(
+    public Tuple2ListEntry[] marshal(
         final Map<String, List<Tuple2<String, String>>> value)
         throws Exception {
       final Tuple2ListEntry[] mapElements =
@@ -92,7 +92,7 @@ public final class MapAdapter {
 
     @Nullable
     @Override
-    public final Map<String, String> unmarshal(
+    public Map<String, String> unmarshal(
         final StringValueEntry[] value)
         throws Exception {
       if (null == value) {
@@ -108,7 +108,7 @@ public final class MapAdapter {
 
     @SuppressWarnings("ObjectAllocationInLoop")
     @Override
-    public final StringValueEntry[] marshal(
+    public StringValueEntry[] marshal(
         final Map<String, String> value)
         throws Exception {
       final StringValueEntry[] mapElements =

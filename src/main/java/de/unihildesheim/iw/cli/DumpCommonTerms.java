@@ -27,6 +27,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
+import org.jetbrains.annotations.Nullable;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 import org.kohsuke.args4j.spi.StringArrayOptionHandler;
@@ -45,7 +46,7 @@ import java.util.Set;
  *
  * @author Jens Bertram (code@jens-bertram.net)
  */
-class DumpCommonTerms
+final class DumpCommonTerms
     extends CliBase {
   /**
    * Logger instance for this class.
@@ -59,6 +60,7 @@ class DumpCommonTerms
   /**
    * CSV writer instance.
    */
+  @Nullable
   private CSVWriter csvWriter;
 
   /**
@@ -153,7 +155,7 @@ class DumpCommonTerms
     /**
      * Stopwords file format.
      */
-    @SuppressWarnings({"PackageVisibleField"})
+    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-stop-format", metaVar = "(plain|snowball)", required =
         false, depends = "-stop", usage =
         "Format of the stopwords file. 'plain' for a simple list of " +
@@ -164,6 +166,7 @@ class DumpCommonTerms
     /**
      * Target file file for writing scored claims.
      */
+    @Nullable
     @SuppressWarnings("PackageVisibleField")
     @Option(name = "-o", metaVar = "FILE", required = true,
         usage = "Output file for writing scored passages")
@@ -172,6 +175,7 @@ class DumpCommonTerms
     /**
      * Directory containing the target Lucene index.
      */
+    @Nullable
     @SuppressWarnings("PackageVisibleField")
     @Option(name = CliParams.INDEX_DIR_P, metaVar = CliParams.INDEX_DIR_M,
         required = true, usage = CliParams.INDEX_DIR_U)
@@ -179,16 +183,19 @@ class DumpCommonTerms
     /**
      * {@link Directory} instance pointing at the Lucene index.
      */
+    @Nullable
     private Directory luceneDir;
     /**
      * {@link IndexReader} to use for accessing the Lucene index.
      */
     @SuppressWarnings("PackageVisibleField")
+    @Nullable
     IndexReader idxReader;
 
     /**
      * Directory for storing working data.
      */
+    @Nullable
     @SuppressWarnings("PackageVisibleField")
     @Option(name = CliParams.DATA_DIR_P, metaVar = CliParams.DATA_DIR_M,
         required = true, usage = CliParams.DATA_DIR_U)
@@ -196,6 +203,7 @@ class DumpCommonTerms
     /**
      * Document-fields to query.
      */
+    @Nullable
     @SuppressWarnings("PackageVisibleField")
     @Option(name = "-field", metaVar = "field name", required = true,
         handler = StringArrayOptionHandler.class,
@@ -205,6 +213,7 @@ class DumpCommonTerms
     /**
      * Prefix for cache data.
      */
+    @Nullable
     @SuppressWarnings("PackageVisibleField")
     @Option(name = "-prefix", metaVar = "name", required = true,
         usage = "Naming prefix for cached data files to load or create.")
@@ -213,6 +222,7 @@ class DumpCommonTerms
     /**
      * Pattern for stopwords files.
      */
+    @Nullable
     @SuppressWarnings("PackageVisibleField")
     @Option(name = "-stop", metaVar = "pattern", required = false,
         usage = "File naming pattern for stopword lists. " +
@@ -223,6 +233,7 @@ class DumpCommonTerms
     /**
      * Single language.
      */
+    @Nullable
     @SuppressWarnings("PackageVisibleField")
     @Option(name = "-lang", metaVar = "language", required = true,
         usage = "Process for the defined language.")
@@ -242,6 +253,7 @@ class DumpCommonTerms
 
     /**
      * Check, if the defined files and directories are available.
+     *
      * @throws IOException
      */
     void check()

@@ -47,7 +47,7 @@ final class ListAdapter {
 
     @Nullable
     @Override
-    public final List<Tuple2<String, String>> unmarshal(
+    public List<Tuple2<String, String>> unmarshal(
         final StringValueEntry[] value)
         throws Exception {
       if (null == value) {
@@ -65,7 +65,7 @@ final class ListAdapter {
 
     @SuppressWarnings("ObjectAllocationInLoop")
     @Override
-    public final StringValueEntry[] marshal(
+    public StringValueEntry[] marshal(
         final List<Tuple2<String, String>> value)
         throws Exception {
       final StringValueEntry[] listElements =

@@ -17,7 +17,7 @@
 
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
-import de.unihildesheim.iw.Buildable.BuildableException;
+import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.Buildable.ConfigurationException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.scoring.data.DefaultFeedbackProvider;
@@ -46,6 +46,7 @@ public abstract class AbstractClarityScoreCalculation
     return this.id;
   }
 
+  @SuppressWarnings("PublicInnerClass")
   public abstract static class AbstractBuilder<
       S extends AbstractClarityScoreCalculation,
       B extends AbstractBuilder> {
@@ -80,6 +81,7 @@ public abstract class AbstractClarityScoreCalculation
     /**
      * Data provider for index related term-data.
      */
+    @SuppressWarnings("InstanceVariableMayNotBeInitialized")
     @Nullable
     private IndexDataProvider dataProv;
     /**
@@ -90,21 +92,24 @@ public abstract class AbstractClarityScoreCalculation
     /**
      * Provider for feedback documents.
      */
+    @SuppressWarnings("InstanceVariableMayNotBeInitialized")
     @Nullable
     private FeedbackProvider feedbackProvider;
     /**
      * Provider for feedback vocabulary.
      */
+    @SuppressWarnings("InstanceVariableMayNotBeInitialized")
     @Nullable
     private VocabularyProvider vocabularyProvider;
     /**
      * Analyzer to parse queries & terms.
      */
+    @SuppressWarnings("InstanceVariableMayNotBeInitialized")
     @Nullable
     private Analyzer analyzer;
 
     public abstract S build()
-        throws BuildableException;
+        throws Buildable.BuildableException;
 
     abstract B getThis();
 

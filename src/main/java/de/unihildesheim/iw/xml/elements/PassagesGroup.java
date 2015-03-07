@@ -66,7 +66,7 @@ public final class PassagesGroup {
    */
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
   @XmlElement(name = "p", type = Passage.class)
-  public final Collection<Passage> getPassages() {
+  public Collection<Passage> getPassages() {
     return this.passages;
   }
 

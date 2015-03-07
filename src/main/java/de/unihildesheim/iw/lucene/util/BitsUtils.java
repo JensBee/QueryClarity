@@ -21,6 +21,8 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Arrays;
+
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
@@ -43,5 +45,14 @@ public final class BitsUtils {
       }
     }
     return fbs;
+  }
+
+  public static FixedBitSet arrayToBits(final int[] intArr) {
+    final int[] sorted = new int[intArr.length];
+    System.arraycopy(intArr, 0, sorted, 0, intArr.length);
+    Arrays.sort(sorted);
+    final FixedBitSet bits = new FixedBitSet(sorted[sorted.length -1]);
+    Arrays.stream(sorted).forEach(bits::set);
+    return bits;
   }
 }

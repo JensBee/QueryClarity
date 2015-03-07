@@ -17,8 +17,8 @@
 
 package de.unihildesheim.iw.xml.elements;
 
-import de.unihildesheim.iw.xml.adapters.MapAdapter;
 import de.unihildesheim.iw.xml.adapters.MapAdapter.StringValue;
+import org.jetbrains.annotations.Nullable;
 
 import javax.xml.bind.annotation.XmlAttribute;
 import javax.xml.bind.annotation.XmlElement;
@@ -36,11 +36,13 @@ public final class ScoreType {
   /**
    * Score type identifier.
    */
+  @Nullable
   private String identifier;
 
   /**
    * Configuration.
    */
+  @Nullable
   private Map<String, String> confMap;
 
   /**
@@ -61,7 +63,7 @@ public final class ScoreType {
    * @param map Configuration map
    */
   @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
-  public final void setConfiguration(final Map<String, String> map) {
+  public void setConfiguration(final Map<String, String> map) {
     this.confMap = map;
   }
 
@@ -80,7 +82,7 @@ public final class ScoreType {
    *
    * @param id Score identifier
    */
-  public final void setImplementation(final String id) {
+  public void setImplementation(final String id) {
     this.identifier = id;
   }
 }

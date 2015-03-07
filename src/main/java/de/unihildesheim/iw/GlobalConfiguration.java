@@ -65,6 +65,7 @@ public final class GlobalConfiguration
   /**
    * Default settings keys. Used by {@link #setDefaults()}
    */
+  @SuppressWarnings("PublicInnerClass")
   public enum DefaultKeys {
     /**
      * Default math context for high-precision calculations.

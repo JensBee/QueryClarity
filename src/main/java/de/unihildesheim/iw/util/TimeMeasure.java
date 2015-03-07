@@ -176,11 +176,7 @@ public final class TimeMeasure {
   public double getElapsedNanos() {
     final double nanos;
     if (this.stopped) {
-      if (this.elapsed > 0L) {
-        nanos = (double) this.elapsed;
-      } else {
-        nanos = 0d;
-      }
+      nanos = this.elapsed > 0L ? (double) this.elapsed : 0d;
     } else {
       nanos = (double) (this.elapsed + getNanos());
     }

@@ -42,7 +42,7 @@ public final class Language {
   }
 
   @XmlAttribute(name = "name")
-  public final void setLanguage(final String language) {
+  public void setLanguage(final String language) {
     this.lang = language;
   }
 
@@ -55,7 +55,7 @@ public final class Language {
    *
    * @param newStopwords Stopwords
    */
-  public final void setStopwords(final Collection<String> newStopwords) {
+  public void setStopwords(final Collection<String> newStopwords) {
     final List<String> sw = new ArrayList<>(new HashSet<>(newStopwords));
     Collections.sort(sw);
     this.stopwords = StringUtils.join(sw, " ");
@@ -66,7 +66,7 @@ public final class Language {
    *
    * @param newStopwords Stopwords as single string
    */
-  public final void setStopwords(final String newStopwords) {
+  public void setStopwords(final String newStopwords) {
     final List<String> sw = new ArrayList<>(
         new HashSet<>(StringUtils.split(newStopwords, " ")));
     Collections.sort(sw);

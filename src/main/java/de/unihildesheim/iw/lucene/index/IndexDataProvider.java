@@ -16,10 +16,12 @@
  */
 package de.unihildesheim.iw.lucene.index;
 
-import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefHash;
 
-import java.util.Set;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 /**
@@ -44,10 +46,9 @@ public interface IndexDataProvider
    * Get the term frequency of a single term in the index.
    *
    * @param term Term to lookup
-   * @return The frequency of the term in the index, or <tt>null</tt> if none
-   * was stored
+   * @return The frequency of the term in the index
    */
-  Long getTermFrequency(final ByteArray term);
+  long getTermFrequency(final BytesRef term);
 
   /**
    * Get the document frequency of a single term in the index.
@@ -55,7 +56,7 @@ public interface IndexDataProvider
    * @param term Term to lookup
    * @return The frequency of the term in the index
    */
-  int getDocumentFrequency(final ByteArray term);
+  int getDocumentFrequency(final BytesRef term);
 
   /**
    * Close this instance. This is meant for handling cleanups after using this
@@ -72,7 +73,7 @@ public interface IndexDataProvider
    *
    * @return Stream of document-ids
    */
-  Stream<Integer> getDocumentIds();
+  IntStream getDocumentIds();
 
   /**
    * Get a {@link DocumentModel} instance for the document with the given id.
@@ -96,7 +97,7 @@ public interface IndexDataProvider
    * @param docIds List of document ids to extract terms from
    * @return Terms from all documents
    */
-  Stream<ByteArray> getDocumentsTerms(final Set<Integer> docIds);
+  Stream<BytesRef> getDocumentsTerms(final DocIdSet docIds);
 
   /**
    * Get the number of all Documents (models) known to this instance.
@@ -106,18 +107,20 @@ public interface IndexDataProvider
   long getDocumentCount();
 
   /**
-   * Get the list of currently visible document fields.
+   * Get the list of currently visible document fields. The returned array
+   * should not be modified by caller.
    *
    * @return List of document field names
    */
-  Set<String> getDocumentFields();
+  String[] getDocumentFields();
 
   /**
-   * Get the list of stopwords currently in use.
+   * Get the list of stopwords currently in use. Returned instance should not
+   * be modified by caller.
    *
-   * @return List of words to exclude
+   * @return List of words to exclude.
    */
-  Set<String> getStopwords();
+  BytesRefHash getStopwords();
 
   /**
    * Get a collection metrics instance providing derived index information.

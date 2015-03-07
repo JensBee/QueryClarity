@@ -18,9 +18,10 @@
 package de.unihildesheim.iw.lucene.scoring.data;
 
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
+import org.apache.lucene.search.DocIdSet;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Base (no-operation) class for more specific {@link VocabularyProvider}
@@ -34,11 +35,15 @@ public abstract class AbstractVocabularyProvider<T extends VocabularyProvider>
   /**
    * Data provider for index data.
    */
+  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
+  @Nullable
   IndexDataProvider dataProv;
   /**
    * Document id's whose terms should be used as vocabulary.
    */
-  Set<Integer> docIds;
+  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
+  @Nullable
+  DocIdSet docIds;
 
   @Override
   public T indexDataProvider(final IndexDataProvider indexDataProvider) {
@@ -54,7 +59,7 @@ public abstract class AbstractVocabularyProvider<T extends VocabularyProvider>
   protected abstract T getThis();
 
   @Override
-  public T documentIds(final Set<Integer> documentIds) {
+  public T documentIds(final DocIdSet documentIds) {
     this.docIds = Objects.requireNonNull(documentIds);
     return getThis();
   }

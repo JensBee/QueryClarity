@@ -17,12 +17,13 @@
 
 package de.unihildesheim.iw.lucene.index;
 
-import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
+import org.apache.lucene.util.BytesRef;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.mapdb.BytesRefSerialization;
 import org.mapdb.DBMaker;
 import org.mapdb.Serializer;
 
@@ -52,15 +53,15 @@ public final class CollectionMetrics {
   /**
    * Cache document frequency values.
    */
-  private final Map<ByteArray, Integer> c_df;
+  private final Map<BytesRef, Integer> c_df;
   /**
    * Cache term frequency values.
    */
-  private final Map<ByteArray, Long> c_tf;
+  private final Map<BytesRef, Long> c_tf;
   /**
    * Cache relative term frequency values.
    */
-  private final Map<ByteArray, Double> c_rtf;
+  private final Map<BytesRef, Double> c_rtf;
   /**
    * Cache for created {@link DocumentModel}s.
    */
@@ -107,7 +108,7 @@ public final class CollectionMetrics {
      * Disable caching of term frequency values.
      * @return Self reference
      */
-    public final CollectionMetricsConfiguration noCacheTf() {
+    public CollectionMetricsConfiguration noCacheTf() {
       this.cacheTf = false;
       return this;
     }
@@ -116,7 +117,7 @@ public final class CollectionMetrics {
      * Disable caching of document models.
      * @return Self reference
      */
-    public final CollectionMetricsConfiguration noCacheDocModels() {
+    public CollectionMetricsConfiguration noCacheDocModels() {
       this.cacheDocModels = false;
       return this;
     }
@@ -128,8 +129,7 @@ public final class CollectionMetrics {
    * @param idp DataProvider
    * @throws DataProviderException Forwarded from lower-level
    */
-  public <I extends IndexDataProvider> CollectionMetrics(final I idp)
-      throws DataProviderException {
+  public <I extends IndexDataProvider> CollectionMetrics(final I idp) {
     this(idp, null);
   }
 
@@ -145,13 +145,7 @@ public final class CollectionMetrics {
       @Nullable final CollectionMetricsConfiguration cmConf) {
     this.dataProv = idp;
     // set configuration
-    if (cmConf == null) {
-      // default
-      this.conf = new CollectionMetricsConfiguration();
-    } else {
-      // user supplied
-      this.conf = cmConf;
-    }
+    this.conf = cmConf == null ? new CollectionMetricsConfiguration() : cmConf;
     this.tf = this.dataProv.getTermFrequency();
     this.docCount = BigDecimal.valueOf(this.dataProv.getDocumentCount());
 
@@ -160,7 +154,7 @@ public final class CollectionMetrics {
         .transactionDisable()
         .make()
         .createHashMap("cache")
-        .keySerializer(ByteArray.SERIALIZER)
+        .keySerializer(BytesRefSerialization.SERIALIZER)
         .valueSerializer(Serializer.BASIC)
         .expireStoreSize(1500d)
         .make();
@@ -185,7 +179,7 @@ public final class CollectionMetrics {
           .transactionDisable()
           .make()
           .createHashMap("cache")
-          .keySerializer(ByteArray.SERIALIZER)
+          .keySerializer(BytesRefSerialization.SERIALIZER)
           .valueSerializer(Serializer.INTEGER)
           .expireStoreSize(1500d)
           .make();
@@ -199,7 +193,7 @@ public final class CollectionMetrics {
           .transactionDisable()
           .make()
           .createHashMap("cache")
-          .keySerializer(ByteArray.SERIALIZER)
+          .keySerializer(BytesRefSerialization.SERIALIZER)
           .valueSerializer(Serializer.LONG)
           .expireStoreSize(1500d)
           .make();
@@ -209,33 +203,18 @@ public final class CollectionMetrics {
   }
 
   /**
-   * Get the number of unique terms in the index.
-   *
-   * @return Number of unique terms in index
-   * @throws DataProviderException Thrown on errors retrieving values from the
-   * DataProvider
-   */
-    /*public Long numberOfUniqueTerms()
-        throws DataProviderException {
-      return Metrics.this.dataProv.getUniqueTermsCount();
-    }*/
-
-  /**
    * Get the raw frequency of a given term in the collection.
    *
    * @param term Term to lookup
    * @return Collection frequency of the given term
    */
-  public final Long tf(final ByteArray term) {
+  public long tf(final BytesRef term) {
     if (this.conf.cacheTf) {
       Long result = this.c_tf.get(term);
       if (result == null) {
         // may return null, if term is not known
         result = this.dataProv.getTermFrequency(term);
-        if (result == null) {
-          return 0L;
-        }
-        this.c_tf.put(term, result);
+        this.c_tf.put(BytesRef.deepCopyOf(term), result);
       }
       return result;
     } else {
@@ -244,25 +223,14 @@ public final class CollectionMetrics {
   }
 
   /**
-   * Get the overall raw term frequency of all terms in the index.
-   *
-   * @return Collection term frequency
-   */
-    /*public Long tf()
-        throws DataProviderException {
-      return Metrics.this.dataProv.getTermFrequency();
-    }*/
-
-  /**
    * Get the relative frequency of a term. The relative frequency is the
    * frequency {@code tF} of term {@code t}t divided by the frequency {@code F}
    * of all terms.
    *
    * @param term Term to lookup
    * @return Relative collection frequency of the given term
-   * @throws DataProviderException Forwarded from lower-level
    */
-  public final double relTf(final ByteArray term) {
+  public double relTf(final BytesRef term) {
     Double result = this.c_rtf.get(term);
     if (result == null) {
       final long tf = tf(term);
@@ -271,40 +239,10 @@ public final class CollectionMetrics {
       } else {
         result = (double) tf / (double) this.tf;
       }
-      this.c_rtf.put(term, result);
+      this.c_rtf.put(BytesRef.deepCopyOf(term), result);
     }
     return result;
   }
-
-  /**
-   * Calculate the inverse document frequency (IDF) using a logarithmic base
-   * of 10.
-   *
-   * @param term Term to calculate
-   * @return Inverse document frequency (log10)
-   */
-    /*public BigDecimal idf(final ByteArray term)
-        throws DataProviderException {
-      return idf(term, 10d);
-    }*/
-
-  /**
-   * Calculate the inverse document frequency (IDF) using a custom logarithmic
-   * base value.
-   *
-   * @param term Term to calculate
-   * @param logBase Logarithmic base
-   * @return Inverse document frequency (logN)
-   */
-    /*public BigDecimal idf(final ByteArray term, final double logBase)
-        throws DataProviderException {
-      return
-          BigDecimalMath.log(BigDecimalCache.get(numberOfDocuments())
-              .divide(BigDecimalCache.get(df(term)), MATH_CONTEXT)
-              .add(BigDecimal.ONE, MATH_CONTEXT))
-              .divide(BigDecimalMath.log(BigDecimalCache.get(logBase)),
-                  MATH_CONTEXT);
-    }*/
 
   /**
    * Get the document frequency of a term.
@@ -312,12 +250,12 @@ public final class CollectionMetrics {
    * @param term Term to lookup.
    * @return Document frequency of the given term
    */
-  public final Integer df(final ByteArray term) {
+  public Integer df(final BytesRef term) {
     if (this.conf.cacheDf) {
       Integer result = this.c_df.get(term);
       if (result == null) {
         result = this.dataProv.getDocumentFrequency(term);
-        this.c_df.put(term, result);
+        this.c_df.put(BytesRef.deepCopyOf(term), result);
       }
       return result;
     } else {
@@ -331,7 +269,7 @@ public final class CollectionMetrics {
    * @param term Term to lookup.
    * @return Document frequency of the given term
    */
-  public final BigDecimal relDf(final ByteArray term) {
+  public BigDecimal relDf(final BytesRef term) {
     return BigDecimal.valueOf((long) df(term)).divide(
         this.docCount, MATH_CONTEXT);
   }
@@ -342,7 +280,7 @@ public final class CollectionMetrics {
    * @param documentId Id of the document whose model to get
    * @return Document-model for the given document id
    */
-  public final DocumentModel docData(final int documentId) {
+  public DocumentModel docData(final int documentId) {
     if (this.conf.cacheDocModels) {
       DocumentModel d = this.c_docModel.get(documentId);
       if (d == null) {
@@ -354,36 +292,4 @@ public final class CollectionMetrics {
       return this.dataProv.getDocumentModel(documentId);
     }
   }
-
-  /**
-   * Calculate the Okapi BM25 derivation of the inverse document frequency
-   * (IDF) using a logarithmic base value of 10.
-   *
-   * @param term Term to calculate
-   * @return Inverse document frequency BM25 (logN)
-   */
-    /*public BigDecimal idfBM25(final ByteArray term)
-        throws DataProviderException {
-      return idfBM25(term, 10d);
-    }*/
-
-  /**
-   * Calculate the Okapi BM25 derivation of the inverse document frequency
-   * (IDF) using a custom logarithmic base value.
-   *
-   * @param term Term to calculate
-   * @param logBase Logarithmic base
-   * @return Inverse document frequency BM25 (logN)
-   */
-    /*public BigDecimal idfBM25(final ByteArray term, final double logBase)
-        throws DataProviderException {
-      final int docFreq = df(term);
-
-      return
-          BigDecimalMath.log(
-              BigDecimalCache.get(numberOfDocuments() - docFreq + 0.5)
-                  .divide(BigDecimalCache.get(docFreq + 0.5), MATH_CONTEXT)
-          ).divide(BigDecimalMath.log(BigDecimalCache.get(logBase)),
-              MATH_CONTEXT);
-    }*/
 }

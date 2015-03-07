@@ -106,7 +106,8 @@ public final class StopwordsFileReader {
     }
     if (Format.PLAIN.name().equalsIgnoreCase(format)) {
       return Format.PLAIN;
-    } else if (Format.SNOWBALL.name().equalsIgnoreCase(format)) {
+    }
+    if (Format.SNOWBALL.name().equalsIgnoreCase(format)) {
       return Format.SNOWBALL;
     }
     return null;

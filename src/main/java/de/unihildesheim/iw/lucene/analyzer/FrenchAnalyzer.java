@@ -18,6 +18,7 @@
 package de.unihildesheim.iw.lucene.analyzer;
 
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
+import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
@@ -64,7 +65,8 @@ public final class FrenchAnalyzer
    * given {@link IndexDataProvider}.
    */
   public FrenchAnalyzer(final IndexDataProvider dataProv) {
-    super(new CharArraySet(dataProv.getStopwords(), true));
+    super(new CharArraySet(
+        BytesRefUtils.hashToSet(dataProv.getStopwords()), true));
     this.elisions.addAll(Arrays.asList(DEFAULT_ELISIONS));
     LOG.debug("Stopwords: {}", dataProv.getStopwords());
   }

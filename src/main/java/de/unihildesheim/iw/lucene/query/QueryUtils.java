@@ -16,20 +16,23 @@
  */
 package de.unihildesheim.iw.lucene.query;
 
-import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.index.CollectionMetrics;
-import de.unihildesheim.iw.util.ByteArrayUtils;
+import de.unihildesheim.iw.lucene.util.StreamUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefArray;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.Counter;
+import org.apache.lucene.util.FixedBitSet;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -59,24 +62,26 @@ public final class QueryUtils {
    * @return List of tokens from original query with stop-words removed
    */
   @SuppressWarnings("ObjectAllocationInLoop")
-  public static List<ByteArray> tokenizeQuery(final String query,
+  public static BytesRefArray tokenizeQuery(final String query,
       final Analyzer qAnalyzer, @Nullable final CollectionMetrics cMetrics) {
     @SuppressWarnings("CollectionWithoutInitialCapacity")
-    final List<ByteArray> result = new ArrayList<>();
+    BytesRefArray result = new BytesRefArray(Counter.newCounter(false));
+
     try (TokenStream stream = qAnalyzer.tokenStream(null, query)) {
       stream.reset();
       while (stream.incrementToken()) {
-        final String term = stream.getAttribute(CharTermAttribute.class)
-            .toString();
-        if (!term.isEmpty()) {
-          result.add(new ByteArray(term.getBytes(StandardCharsets.UTF_8)));
+        final BytesRef term = new BytesRef(
+            stream.getAttribute(CharTermAttribute.class));
+        if (term.length > 0) {
+          result.append(term);
+          //result.add(new ByteArray(term.getBytes(StandardCharsets.UTF_8)));
         }
       }
     } catch (final IOException e) {
       // not thrown b/c we're using a string reader
     }
     if (cMetrics != null) {
-      removeUnknownTerms(cMetrics, result);
+      result = removeUnknownTerms(cMetrics, result);
     }
     return result;
   }
@@ -88,24 +93,45 @@ public final class QueryUtils {
    * @param cMetrics Metrics to access term frequency values
    * @param terms Collection of terms to check against the collection
    * CollectionMetrics} fails
+   * @return Passed in terms with non-collection terms removed
    */
-  private static void removeUnknownTerms(final CollectionMetrics
-      cMetrics, final Iterable<ByteArray> terms) {
-    final Iterator<ByteArray> termsIt = terms.iterator();
+  private static BytesRefArray removeUnknownTerms(final CollectionMetrics
+      cMetrics, final BytesRefArray terms) {
     final StringBuilder sb = new StringBuilder(
         "Skipped terms (stopword or not in collection): [");
-    boolean removed = false;
-    while (termsIt.hasNext()) {
-      final ByteArray term = termsIt.next();
-      if (cMetrics.tf(term) != null && cMetrics.tf(term) <= 0L) {
-        sb.append(ByteArrayUtils.utf8ToString(term)).append(' ');
-        termsIt.remove();
-        removed = true;
+    final FixedBitSet bits = new FixedBitSet(terms.size());
+    final BytesRefBuilder spare = new BytesRefBuilder();
+    BytesRef term;
+
+    for (int i = terms.size(); i >= 0; i--) {
+      term = terms.get(spare, i);
+      if (cMetrics.tf(term) <= 0L) {
+        sb.append(term.utf8ToString()).append(' ');
+        bits.set(i);
       }
     }
-    if (removed) {
+
+    if (bits.cardinality() > 0) {
       LOG.warn(sb.toString().trim() + "].");
+      final BytesRefArray cleanTerms = new BytesRefArray(
+          Counter.newCounter(false));
+      for (int i = terms.size(); i >= 0; i--) {
+        if (!bits.get(i)) {
+          term = terms.get(spare, i);
+          cleanTerms.append(term); // copies bytes
+        }
+      }
+      return cleanTerms;
+    } else {
+      return terms;
     }
+  }
+
+  private static Collection<BytesRef> removeUnknownTerms(final CollectionMetrics
+      cMetrics, final Collection<BytesRef> terms) {
+    return terms.stream()
+        .filter(t -> (cMetrics.tf(t) <= 0L))
+        .collect(Collectors.toList());
   }
 
   /**
@@ -136,12 +162,13 @@ public final class QueryUtils {
    */
   public static List<String> tokenizeQueryString(final String query,
       final Analyzer qAnalyzer, @Nullable final CollectionMetrics cMetrics) {
-    final List<ByteArray> tokenizedQuery = tokenizeQuery(query, qAnalyzer,
+    final BytesRefArray tokenizedQuery = tokenizeQuery(query, qAnalyzer,
         cMetrics);
     final List<String> tokenizedQueryStr =
         new ArrayList<>(tokenizedQuery.size());
-    tokenizedQueryStr.addAll(tokenizedQuery.stream()
-        .map(ByteArrayUtils::utf8ToString)
+    tokenizedQueryStr.addAll(
+        StreamUtils.stream(tokenizedQuery)
+        .map(BytesRef::utf8ToString)
         .collect(Collectors.toList()));
     return tokenizedQueryStr;
   }
@@ -156,7 +183,7 @@ public final class QueryUtils {
    * @return mapping of query-term to in-query-frequency
    * @see #tokenizeAndMapQuery(String, Analyzer, CollectionMetrics)
    */
-  public static Map<ByteArray, Integer> tokenizeAndMapQuery(final
+  public static Map<BytesRef, Integer> tokenizeAndMapQuery(final
   String query, final Analyzer qAnalyzer) {
     return tokenizeAndMapQuery(query, qAnalyzer, null);
   }
@@ -175,28 +202,28 @@ public final class QueryUtils {
    * not in the collection skipped
    */
   @SuppressWarnings("ObjectAllocationInLoop")
-  public static Map<ByteArray, Integer> tokenizeAndMapQuery(final
+  public static Map<BytesRef, Integer> tokenizeAndMapQuery(final
   String query, final Analyzer qAnalyzer,
       @Nullable final CollectionMetrics cMetrics) {
     @SuppressWarnings("CollectionWithoutInitialCapacity")
-    final Map<ByteArray, Integer> result = new HashMap<>();
+    final Map<BytesRef, Integer> result = new HashMap<>();
     try (TokenStream stream = qAnalyzer.tokenStream(null, query)) {
       stream.reset();
       while (stream.incrementToken()) {
-        final ByteArray term = new ByteArray(stream.getAttribute
-            (CharTermAttribute.class).toString()
-            .getBytes(StandardCharsets.UTF_8));
+        final BytesRef term = new BytesRef(stream.getAttribute
+            (CharTermAttribute.class));
         if (result.containsKey(term)) {
-          result.put(term, result.get(term) + 1);
+          result.put(BytesRef.deepCopyOf(term), result.get(term) + 1);
         } else {
-          result.put(term, 1);
+          result.put(BytesRef.deepCopyOf(term), 1);
         }
       }
     } catch (final IOException e) {
       // not thrown b/c we're using a string reader
     }
     if (cMetrics != null) {
-      removeUnknownTerms(cMetrics, result.keySet());
+       removeUnknownTerms(cMetrics, result.keySet()).stream()
+           .forEach(result::remove);
     }
     return result;
   }

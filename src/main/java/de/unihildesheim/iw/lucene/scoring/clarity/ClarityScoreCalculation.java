@@ -39,8 +39,7 @@ public interface ClarityScoreCalculation {
    * @throws DataProviderException Forwarded from IndexDataProvider
    */
   ClarityScoreResult calculateClarity(final String query)
-      throws ClarityScoreCalculationException, IOException,
-             DataProviderException;
+      throws ClarityScoreCalculationException;
 
   /**
    * Get a short identifier for this calculation implementation.

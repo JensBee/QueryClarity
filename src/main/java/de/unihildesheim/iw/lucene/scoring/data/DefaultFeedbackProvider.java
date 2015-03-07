@@ -21,11 +21,11 @@ import de.unihildesheim.iw.lucene.document.FeedbackQuery;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import de.unihildesheim.iw.lucene.query.TryExactTermsQuery;
 import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.search.DocIdSet;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Default implementation of a {@link FeedbackProvider} using the {@link
@@ -42,18 +42,10 @@ public class DefaultFeedbackProvider
   }
 
   @Override
-  public Set<Integer> get()
+  public DocIdSet get()
       throws ParseException, IOException, InvocationTargetException,
              NoSuchMethodException, InstantiationException,
              IllegalAccessException {
-    /*
-    final RelaxableQuery qObj =
-        new TryExactTermsQuery(
-            Objects.requireNonNull(this.qAnalyzer, "Analyzer not set."),
-            QueryParserBase.escape(Objects.requireNonNull(this.queryStr,
-                "Query string not set.")),
-            Objects.requireNonNull(this.docFields, "Document fields not set."));
-            */
     final RelaxableQuery qObj = getQueryParserInstance();
     if (this.useFixedAmount) {
       return FeedbackQuery.getFixed(

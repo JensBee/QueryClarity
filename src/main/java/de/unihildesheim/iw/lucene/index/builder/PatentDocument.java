@@ -24,8 +24,9 @@ import org.jetbrains.annotations.Nullable;
  * @author Jens Bertram (code@jens-bertram.net)
  */
 public interface PatentDocument {
+  @SuppressWarnings("PublicInnerClass")
   enum RequiredFields {
-    P_ID, DETD, CLAIMS, IPC;
+    P_ID, DETD, CLAIMS, IPC
   }
 
   String getField(

@@ -115,11 +115,13 @@ public abstract class AbstractIndexDataProviderBuilder<
   /**
    * {@link IndexReader} to use for accessing the Lucene index.
    */
+  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
   @Nullable
   IndexReader idxReader;
   /**
    * {@link Directory} instance pointing at the Lucene index.
    */
+  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
   @Nullable
   private Directory luceneDir;
 

@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -74,10 +75,10 @@ public final class RelaxableCommonTermsQuery
    */
   public RelaxableCommonTermsQuery(final Analyzer analyzer,
       final String queryStr,
-      final Set<String> fields) {
+      final String[] fields) {
     super(analyzer, queryStr, fields);
     Objects.requireNonNull(analyzer, "Analyzer was null.");
-    if (Objects.requireNonNull(fields, "Fields were null.").isEmpty()) {
+    if (Objects.requireNonNull(fields, "Fields were null.").length == 0) {
       throw new IllegalArgumentException("Empty fields list.");
     }
     if (StringUtils.isStrippedEmpty(Objects.requireNonNull(queryStr,
@@ -90,7 +91,7 @@ public final class RelaxableCommonTermsQuery
     // list of unique terms contained in the query (stopped, analyzed)
     this.uniqueQueryTerms = new HashSet<>(this.queryTerms);
 
-    this.numberOfFields = fields.size();
+    this.numberOfFields = fields.length;
     if (this.numberOfFields == 1) {
       // query spans only one field so use simply a single CommonTermsQuery.
 
@@ -101,7 +102,7 @@ public final class RelaxableCommonTermsQuery
       );
 
       // add terms to query
-      final String fld = fields.toArray(new String[1])[0];
+      final String fld = fields[0];
       for (final String term : this.uniqueQueryTerms) {
         ((CommonTermsQuery) this.query).add(new Term(fld, term));
       }
@@ -113,17 +114,18 @@ public final class RelaxableCommonTermsQuery
     } else {
       // generate a CommonTermsQuery for each field
       final Collection<Query> subQueries = new ArrayList<>(this.numberOfFields);
-      for (final String fld : fields) {
+      Arrays.stream(fields).forEach(f -> {
         final CommonTermsQuery ctQ = new CommonTermsQuery(
             Occur.SHOULD,
             CommonTermsDefaults.LFOP_DEFAULT,
             CommonTermsDefaults.MTF_DEFAULT
         );
         for (final String term : this.uniqueQueryTerms) {
-          ctQ.add(new Term(fld, term));
+          ctQ.add(new Term(f, term));
         }
         subQueries.add(ctQ);
-      }
+      });
+
       // create a DisjunctionMaxQuery for all sub queries
       this.query = new DisjunctionMaxQuery(subQueries, 0.1f);
     }

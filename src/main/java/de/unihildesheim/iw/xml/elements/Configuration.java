@@ -41,7 +41,7 @@ public final class Configuration {
      * @return Map of configuration elements
      */
     @Override
-    public final Map<String, String> unmarshal(final ConfElements[] arg0) {
+    public Map<String, String> unmarshal(final ConfElements[] arg0) {
       final Map<String, String> r = new HashMap<>(arg0.length);
       for (final ConfElements mapelement : arg0) {
         r.put(mapelement.key, mapelement.value);
@@ -57,7 +57,7 @@ public final class Configuration {
      */
     @Override
     @SuppressWarnings("ObjectAllocationInLoop")
-    public final ConfElements[] marshal(final Map<String, String> arg0) {
+    public ConfElements[] marshal(final Map<String, String> arg0) {
       final ConfElements[] mapElements = new ConfElements[arg0.size()];
 
       int i = 0;

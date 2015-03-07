@@ -17,7 +17,6 @@
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.Buildable.BuildableException;
-import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.Tuple;
@@ -28,22 +27,32 @@ import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.lucene.scoring.ScoringResult.ScoringResultXml.Keys;
 import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
+import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
+import de.unihildesheim.iw.lucene.util.StreamUtils;
 import de.unihildesheim.iw.util.MathUtils.KlDivergence;
 import de.unihildesheim.iw.util.MathUtils.KlDivergenceLowPrecision;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefArray;
+import org.apache.lucene.util.Counter;
+import org.apache.lucene.util.FixedBitSet;
+import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -74,7 +83,7 @@ public final class ImprovedClarityScore
   /**
    * Default math context for model calculations.
    */
-  private static final MathContext MATH_CONTEXT = new MathContext(
+  static final MathContext MATH_CONTEXT = new MathContext(
       GlobalConfiguration.conf().getString(
           DefaultKeys.MATH_CONTEXT.toString()));
   /**
@@ -107,19 +116,28 @@ public final class ImprovedClarityScore
    * Abstract model class. Shared methods for low/high precision model
    * calculations.
    */
-  private abstract class AbstractModel {
+  private abstract static class AbstractModel {
+    /**
+     * Logger instance for this class.
+     */
+    private static final Logger LOG =
+        LoggerFactory.getLogger(AbstractModel.class);
     /**
      * List of query terms issued.
      */
-    final Collection<ByteArray> queryTerms;
+    final BytesRefArray queryTerms;
     /**
      * List of feedback documents to use.
      */
-    final Collection<Integer> feedbackDocs;
+    final int[] feedbackDocs;
     /**
      * Stores the feedback document models.
      */
     final Map<Integer, DocumentModel> docModels;
+    /**
+     * DataProvider instance from parent class.
+     */
+    final IndexDataProvider dataProv;
 
     /**
      * Initialize the abstract model with a set of query terms and feedback
@@ -127,27 +145,35 @@ public final class ImprovedClarityScore
      *
      * @param qt Query terms
      * @param fb Feedback documents
+     * @throws IOException Thrown on low-level I/O-errors
      */
-    AbstractModel(
-        final Collection<ByteArray> qt, final Collection<Integer> fb) {
+    AbstractModel(IndexDataProvider dataProv,
+        final BytesRefArray qt, final DocIdSet fb)
+        throws IOException {
       LOG.debug("Create runtime cache.");
+      this.dataProv = dataProv;
       // add query terms, skip those not in index
-      this.queryTerms = new ArrayList<>(qt.size());
-      this.queryTerms.addAll(qt.stream().filter(queryTerm ->
-          ImprovedClarityScore.this.dataProv.metrics().tf(queryTerm) > 0L)
-          .collect(Collectors.toList()));
+      this.queryTerms = new BytesRefArray(Counter.newCounter(false));
+      StreamUtils.stream(qt)
+          .filter(queryTerm -> this.dataProv.metrics().tf(queryTerm) > 0L)
+          .forEach(this.queryTerms::append);
 
-      // add feedback documents
-      this.feedbackDocs = new ArrayList<>(fb.size());
-      this.feedbackDocs.addAll(fb);
-
+      // init feedback documents list
+      this.feedbackDocs = new int[DocIdSetUtils.cardinality(fb)];
+      // init store for cached document models
       this.docModels = new ConcurrentHashMap<>((int) (
-          (double) this.feedbackDocs.size() * 1.8));
+          (double) this.feedbackDocs.length * 1.8));
 
       LOG.info("Caching document models");
-      for (final Integer docId : this.feedbackDocs) {
-        this.docModels.put(docId,
-            ImprovedClarityScore.this.dataProv.metrics().docData(docId));
+      final DocIdSetIterator disi = fb.iterator();
+      int cnt = 0;
+      for (int docId = disi.nextDoc();
+           docId != DocIdSetIterator.NO_MORE_DOCS;
+           docId = disi.nextDoc()) {
+        // fill list of feedback documents
+        this.feedbackDocs[cnt++] = docId;
+        // pre-cache document models
+        this.docModels.put(docId, this.dataProv.metrics().docData(docId));
       }
     }
   }
@@ -156,8 +182,13 @@ public final class ImprovedClarityScore
    * Class wrapping all methods needed for calculation needed models. Also holds
    * results of the calculations.
    */
-  private final class Model
+  private static final class ModelHighPrecision
       extends AbstractModel {
+    /**
+     * Logger instance for this class.
+     */
+    private static final Logger LOG =
+        LoggerFactory.getLogger(ModelHighPrecision.class);
     /**
      * Stores the static part of the query model calculation for each document.
      */
@@ -176,17 +207,20 @@ public final class ImprovedClarityScore
     /**
      * Initialize the model calculation object.
      *
+     * @param dataProv DataProvider instance from parent class
      * @param qt Query terms. Query terms not found in the collection (TF=0)
      * will be skipped.
      * @param fb Feedback documents
      * @param dmSmoothing Document model: Smoothing parameter value
      * @param dmBeta Document model: Beta parameter value
      * @param dmLambda Document model: Lambda parameter value
+     * @throws IOException Thrown on low-level I/O-errors
      */
-    private Model(final Collection<ByteArray> qt,
-        final Collection<Integer> fb,
-        final double dmSmoothing, final double dmBeta, final double dmLambda) {
-      super(qt, fb);
+    ModelHighPrecision(final IndexDataProvider dataProv,
+        final BytesRefArray qt, final DocIdSet fb,
+        final double dmSmoothing, final double dmBeta, final double dmLambda)
+        throws IOException {
+      super(dataProv, qt, fb);
 
       this.dmParams = new BigDecimal[]{
           BigDecimal.valueOf(dmSmoothing),
@@ -201,13 +235,13 @@ public final class ImprovedClarityScore
 
       // initialize other properties
       this.staticQueryModelParts = new ConcurrentHashMap<>((int) (
-          (double) this.feedbackDocs.size() * 1.8));
+          (double) this.feedbackDocs.length * 1.8));
       this.staticSmoothingParts = new ConcurrentHashMap<>((int) (
-          (double) this.feedbackDocs.size() * 1.8));
+          (double) this.feedbackDocs.length * 1.8));
 
       LOG.info("Pre-calculating static query model and smoothing values");
       for (final Integer docId : this.feedbackDocs) {
-        final DocumentModel docModel = ImprovedClarityScore.this.dataProv
+        final DocumentModel docModel = this.dataProv
             .metrics().docData(docId);
 
         // smoothing value
@@ -218,11 +252,9 @@ public final class ImprovedClarityScore
         this.staticSmoothingParts.put(docId, sSmooth);
 
         // static query model part (needs smoothing values)
-        BigDecimal staticPart = BigDecimal.ONE;
-        for (final ByteArray queryTerm : this.queryTerms) {
-          staticPart = staticPart.multiply(
-              document(docModel, queryTerm), MATH_CONTEXT);
-        }
+        final BigDecimal staticPart = StreamUtils.stream(this.queryTerms)
+            .map(br -> document(docModel, br))
+            .reduce(BigDecimal.ONE, (r, c) -> r.multiply(c, MATH_CONTEXT));
         this.staticQueryModelParts.put(docId, staticPart);
       }
     }
@@ -234,11 +266,11 @@ public final class ImprovedClarityScore
      * @param term Term to calculate the document model value for
      * @return Document model value
      */
-    final BigDecimal document(
-        final DocumentModel docModel, final ByteArray term) {
+    BigDecimal document(
+        final DocumentModel docModel, final BytesRef term) {
       // collection model of current term
       final BigDecimal cModel = BigDecimal.valueOf(
-          ImprovedClarityScore.this.dataProv.metrics().relTf(term));
+          this.dataProv.metrics().relTf(term));
 
       // smoothed document-term model
       final BigDecimal smoothing = BigDecimal.valueOf(docModel.tf(term))
@@ -260,13 +292,12 @@ public final class ImprovedClarityScore
      * @param term Term to calculate the query model value for
      * @return Query model value for all feedback documents
      */
-    final BigDecimal query(final ByteArray term) {
-      return this.feedbackDocs.stream()
-          .map(d -> document(this.docModels.get(d), term)
+    BigDecimal query(final BytesRef term) {
+      return Arrays.stream(this.feedbackDocs)
+          .mapToObj(d -> document(this.docModels.get(d), term)
               .multiply(this.staticQueryModelParts.get(d),
                   MATH_CONTEXT))
           .reduce(BigDecimal.ZERO, (sum, qm) -> sum.add(qm, MATH_CONTEXT));
-      //.reduce((sum, qm) -> sum.add(qm, MATH_CONTEXT)).get();
     }
   }
 
@@ -274,8 +305,13 @@ public final class ImprovedClarityScore
    * Class wrapping all methods needed for low-precision calculation of model
    * values. Also holds results of the calculations.
    */
-  private final class ModelLowPrecision
+  private static final class ModelLowPrecision
       extends AbstractModel {
+    /**
+     * Logger instance for this class.
+     */
+    private static final org.slf4j.Logger LOG =
+        LoggerFactory.getLogger(ModelLowPrecision.class);
     /**
      * Stores the static part of the query model calculation for each document.
      */
@@ -294,30 +330,33 @@ public final class ImprovedClarityScore
     /**
      * Initialize the model calculation object.
      *
+     * @param dataProv DataProvider instance from parent class
      * @param qt Query terms. Query terms not found in the collection (TF=0)
      * will be skipped.
      * @param fb Feedback documents
      * @param dmSmoothing Document model: Smoothing parameter value
      * @param dmBeta Document model: Beta parameter value
      * @param dmLambda Document model: Lambda parameter value
+     * @throws IOException Thrown on low-level I/O-errors
      */
-    private ModelLowPrecision(final Collection<ByteArray> qt,
-        final Collection<Integer> fb,
-        final double dmSmoothing, final double dmBeta, final double dmLambda) {
-      super(qt, fb);
+    private ModelLowPrecision(final IndexDataProvider dataProv,
+        final BytesRefArray qt, final DocIdSet fb,
+        final double dmSmoothing, final double dmBeta, final double dmLambda)
+        throws IOException {
+      super(dataProv, qt, fb);
 
       this.dmParams = new double[]{dmSmoothing, dmBeta, dmLambda,
-          (1d - dmBeta), (1d - dmLambda) };
+          1d - dmBeta, 1d - dmLambda};
 
       // initialize other properties
       this.staticQueryModelParts = new ConcurrentHashMap<>((int) (
-          (double) this.feedbackDocs.size() * 1.8));
+          (double) this.feedbackDocs.length * 1.8));
       this.staticSmoothingParts = new ConcurrentHashMap<>((int) (
-          (double) this.feedbackDocs.size() * 1.8));
+          (double) this.feedbackDocs.length * 1.8));
 
       LOG.info("Pre-calculating static query model and smoothing values");
       for (final Integer docId : this.feedbackDocs) {
-        final DocumentModel docModel = ImprovedClarityScore.this.dataProv
+        final DocumentModel docModel = this.dataProv
             .metrics().docData(docId);
 
         // smoothing value
@@ -326,10 +365,10 @@ public final class ImprovedClarityScore
         this.staticSmoothingParts.put(docId, sSmooth);
 
         // static query model part (needs smoothing values)
-        double staticPart = 1d;
-        for (final ByteArray queryTerm : this.queryTerms) {
-          staticPart *= document(docModel, queryTerm);
-        }
+        final double staticPart = StreamUtils.stream(this.queryTerms)
+            .map(br -> document(docModel, br))
+            .reduce(1d, (g, c) -> g * c);
+
         this.staticQueryModelParts.put(docId, staticPart);
       }
     }
@@ -341,11 +380,10 @@ public final class ImprovedClarityScore
      * @param term Term to calculate the document model value for
      * @return Document model value
      */
-    final double document(
-        final DocumentModel docModel, final ByteArray term) {
+    double document(
+        final DocumentModel docModel, final BytesRef term) {
       // collection model of current term
-      final double cModel = ImprovedClarityScore.this
-          .dataProv.metrics().relTf(term);
+      final double cModel = this.dataProv.metrics().relTf(term);
 
       // smoothed document-term model
       final double smoothing = (docModel.tf(term) + (this.dmParams[0] *
@@ -362,9 +400,9 @@ public final class ImprovedClarityScore
      * @param term Term to calculate the query model value for
      * @return Query model value for all feedback documents
      */
-    final double query(final ByteArray term) {
-      return this.feedbackDocs.stream()
-          .map(d -> document(this.docModels.get(d), term) *
+    double query(final BytesRef term) {
+      return Arrays.stream(this.feedbackDocs)
+          .mapToObj(d -> document(this.docModels.get(d), term) *
               this.staticQueryModelParts.get(d))
           .reduce(0d, Double::sum);
     }
@@ -430,10 +468,10 @@ public final class ImprovedClarityScore
     // get a normalized unique list of query terms
     // skips stopwords and removes unknown terms (not visible in current
     // fields, etc.)
-    final Collection<ByteArray> queryTerms = QueryUtils.tokenizeQuery(query,
+    final BytesRefArray queryTerms = QueryUtils.tokenizeQuery(query,
         this.analyzer, this.dataProv.metrics());
     // check query term extraction result
-    if (queryTerms.isEmpty()) {
+    if (queryTerms.size() == 0) {
       result.setEmpty("No query terms.");
       return result;
     }
@@ -446,7 +484,8 @@ public final class ImprovedClarityScore
     final TimeMeasure timeMeasure = new TimeMeasure().start();
 
     // set of feedback documents to use for calculation.
-    final Set<Integer> feedbackDocIds;
+    final DocIdSet feedbackDocIds;
+    final int fbDocCount;
     try {
       feedbackDocIds = this.fbProvider
           .query(query)
@@ -455,20 +494,22 @@ public final class ImprovedClarityScore
               this.conf.getMinFeedbackDocumentsCount(),
               this.conf.getMaxFeedbackDocumentsCount())
           .get();
+      fbDocCount = DocIdSetUtils.cardinality(feedbackDocIds);
     } catch (final Exception e) {
       final String msg = "Caught exception while getting feedback documents.";
       LOG.error(msg, e);
       throw new ClarityScoreCalculationException(msg, e);
     }
 
-    if (feedbackDocIds.isEmpty()) {
+    if (fbDocCount == 0) {
       result.setEmpty("No feedback documents.");
       return result;
-    } else if (feedbackDocIds.size() < this.conf
+    }
+    if (fbDocCount < this.conf
         .getMinFeedbackDocumentsCount()) {
       result.setEmpty("Not enough feedback documents. " +
           this.conf.getMinFeedbackDocumentsCount() +
-          " requested, " + feedbackDocIds.size() + " retrieved.");
+          " requested, " + fbDocCount + " retrieved.");
       return result;
     }
     result.setFeedbackDocIds(feedbackDocIds);
@@ -482,56 +523,61 @@ public final class ImprovedClarityScore
         minFreq.doubleValue() * 100d, maxFreq.doubleValue() * 100d);
 
     // feedback terms stream used for calculation
-    final Stream<ByteArray> fbTermStream = this.vocProvider
+    final Stream<BytesRef> fbTermStream = this.vocProvider
         .documentIds(feedbackDocIds)
         .get()
         .filter(t -> {
           final BigDecimal relDf = this.dataProv.metrics().relDf(t);
-          return (relDf.compareTo(minFreq) >= 0
-              && relDf.compareTo(maxFreq) <= 0);
+          return relDf.compareTo(minFreq) >= 0
+              && relDf.compareTo(maxFreq) <= 0;
         });
 
-    if (MATH_LOW_PRECISION) {
-      final ModelLowPrecision model = new ModelLowPrecision(
-          queryTerms, feedbackDocIds,
-          this.conf.getDocumentModelSmoothingParameter(),
-          this.conf.getDocumentModelParamBeta(),
-          this.conf.getDocumentModelParamLambda());
+    try {
+      if (MATH_LOW_PRECISION) {
+        final ModelLowPrecision model = new ModelLowPrecision(
+            this.dataProv, queryTerms, feedbackDocIds,
+            this.conf.getDocumentModelSmoothingParameter(),
+            this.conf.getDocumentModelParamBeta(),
+            this.conf.getDocumentModelParamLambda());
 
-      LOG.info("Calculating query models using feedback vocabulary. " +
-          "(low precision)");
-      final List<Tuple2<Double, Double>> dataSets = fbTermStream
-          .map(term ->
-              Tuple.tuple2(
-                  model.query(term), this.dataProv.metrics().relTf(term)))
-          .collect(Collectors.toList());
+        LOG.info("Calculating query models using feedback vocabulary. " +
+            "(low precision)");
+        final List<Tuple2<Double, Double>> dataSets = fbTermStream
+            .map(term ->
+                Tuple.tuple2(
+                    model.query(term), this.dataProv.metrics().relTf(term)))
+            .collect(Collectors.toList());
 
-      LOG.info("Calculating final score.");
-      result.setScore(
-          KlDivergenceLowPrecision.sumAndCalc(dataSets));
-    } else {
-      final Model model = new Model(queryTerms, feedbackDocIds,
-          this.conf.getDocumentModelSmoothingParameter(),
-          this.conf.getDocumentModelParamBeta(),
-          this.conf.getDocumentModelParamLambda());
+        LOG.info("Calculating final score.");
+        result.setScore(
+            KlDivergenceLowPrecision.sumAndCalc(dataSets));
+      } else {
+        final ModelHighPrecision model = new ModelHighPrecision(
+            this.dataProv, queryTerms, feedbackDocIds,
+            this.conf.getDocumentModelSmoothingParameter(),
+            this.conf.getDocumentModelParamBeta(),
+            this.conf.getDocumentModelParamLambda());
 
-      LOG.info("Calculating query models using feedback vocabulary. " +
-          "(high precision)");
-      final List<Tuple2<BigDecimal, BigDecimal>> dataSets = fbTermStream
-          .map(term ->
-              Tuple.tuple2(
-                  model.query(term), BigDecimal.valueOf(
-                      this.dataProv.metrics().relTf(term))))
-          .collect(Collectors.toList());
+        LOG.info("Calculating query models using feedback vocabulary. " +
+            "(high precision)");
+        final List<Tuple2<BigDecimal, BigDecimal>> dataSets = fbTermStream
+            .map(term ->
+                Tuple.tuple2(
+                    model.query(term), BigDecimal.valueOf(
+                        this.dataProv.metrics().relTf(term))))
+            .collect(Collectors.toList());
 
-      LOG.info("Calculating final score.");
-      result.setScore(
-          KlDivergence.sumAndCalc(dataSets).doubleValue());
+        LOG.info("Calculating final score.");
+        result.setScore(
+            KlDivergence.sumAndCalc(dataSets).doubleValue());
+      }
+    } catch (final IOException e) {
+      throw new UncheckedIOException(e);
     }
 
     LOG.debug("Calculating improved clarity score for query {} "
             + "with {} document models took {}. {}",
-        query, feedbackDocIds.size(),
+        query, fbDocCount,
         timeMeasure.stop().getTimeString(), result.getScore());
 
     return result;
@@ -547,11 +593,13 @@ public final class ImprovedClarityScore
     /**
      * Configuration that was used.
      */
+    @Nullable
     private ImprovedClarityScoreConfiguration conf;
     /**
      * Ids of feedback documents used for calculation.
      */
-    private Set<Integer> feedbackDocIds;
+    @Nullable
+    private FixedBitSet feedbackDocIds;
 
     /**
      * Creates an object wrapping the result with meta information.
@@ -560,7 +608,6 @@ public final class ImprovedClarityScore
      */
     public Result(final Class<? extends ClarityScoreCalculation> cscType) {
       super(cscType);
-      this.feedbackDocIds = Collections.emptySet();
     }
 
     /**
@@ -568,9 +615,14 @@ public final class ImprovedClarityScore
      *
      * @param fbDocIds List of feedback documents
      */
-    void setFeedbackDocIds(final Set<Integer> fbDocIds) {
-      this.feedbackDocIds = Collections.unmodifiableSet(
-          Objects.requireNonNull(fbDocIds, "Feedback documents were null."));
+    void setFeedbackDocIds(@Nullable final DocIdSet fbDocIds) {
+      if (fbDocIds != null) {
+        try {
+          this.feedbackDocIds = DocIdSetUtils.bits(fbDocIds).clone();
+        } catch (final IOException e) {
+          LOG.error("Failed to retrieve ids for feedback documents.", e);
+        }
+      }
     }
 
     /**
@@ -602,22 +654,31 @@ public final class ImprovedClarityScore
 
       getXml(xml);
       // number of feedback documents
-      xml.getItems().put(
-          Keys.FEEDBACK_DOCUMENTS.toString(),
-          Integer.toString(this.feedbackDocIds.size()));
+      if (this.feedbackDocIds == null) {
+        // unknown - maybe an error
+        xml.getItems().put(Keys.FEEDBACK_DOCUMENTS.toString(), "-1");
+      } else {
+        final int fbDocCount = this.feedbackDocIds.cardinality();
+        xml.getItems().put(
+            Keys.FEEDBACK_DOCUMENTS.toString(),
+            Integer.toString(fbDocCount));
 
-      // feedback documents
-      if (GlobalConfiguration.conf()
-          .getAndAddBoolean(CONF_PREFIX + "ListFeedbackDocuments",
-              Boolean.TRUE)) {
-        final List<Tuple2<String, String>> fbDocsList = new ArrayList<>
-            (this.feedbackDocIds.size());
-        for (final Integer docId : this.feedbackDocIds) {
-          fbDocsList.add(Tuple.tuple2(
-              Keys.FEEDBACK_DOCUMENT_KEY.toString(),
-              docId.toString()));
+        // feedback documents
+        if (GlobalConfiguration.conf()
+            .getAndAddBoolean(CONF_PREFIX + "ListFeedbackDocuments",
+                Boolean.TRUE)) {
+          final List<Tuple2<String, String>> fbDocsList =
+              new ArrayList<>(fbDocCount);
+
+          for (int i = this.feedbackDocIds.nextSetBit(0);
+               i != DocIdSetIterator.NO_MORE_DOCS;
+               i = this.feedbackDocIds.nextSetBit(++i)) {
+            fbDocsList.add(Tuple.tuple2(
+                Keys.FEEDBACK_DOCUMENT_KEY.toString(), Integer.toString(i)));
+          }
+          xml.getLists().put(
+              Keys.FEEDBACK_DOCUMENTS.toString(), fbDocsList);
         }
-        xml.getLists().put(Keys.FEEDBACK_DOCUMENTS.toString(), fbDocsList);
       }
 
       return xml;
@@ -630,7 +691,12 @@ public final class ImprovedClarityScore
   @SuppressWarnings("PublicInnerClass")
   public static final class Builder
       extends AbstractBuilder<
-                  ImprovedClarityScore, Builder> {
+      ImprovedClarityScore, Builder> {
+    /**
+     * Logger instance for this class.
+     */
+    private static final Logger LOG =
+        LoggerFactory.getLogger(Builder.class);
 
     @Override
     public Builder getThis() {

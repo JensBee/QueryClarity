@@ -17,7 +17,6 @@
 package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.Buildable;
-import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.IndexUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
@@ -28,6 +27,8 @@ import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.queryparser.classic.QueryParser.Operator;
 import org.apache.lucene.queryparser.flexible.standard.QueryParserUtil;
 import org.apache.lucene.search.Query;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,8 +77,8 @@ public final class SimpleTermsQuery
    * string
    * @see #SimpleTermsQuery(Analyzer, String, Operator, Set)
    */
-  private SimpleTermsQuery(final Builder builder)
-      throws ParseException, DataProviderException {
+  SimpleTermsQuery(final Builder builder)
+      throws ParseException {
     this(
         Objects.requireNonNull(builder, "Builder was null").analyzer,
         builder.query, builder.getOperator(), builder.fields
@@ -94,7 +95,8 @@ public final class SimpleTermsQuery
    * @throws ParseException Thrown if there were errors parsing the query
    * string
    */
-  public SimpleTermsQuery(final Analyzer analyzer, final String query,
+  public SimpleTermsQuery(
+      @NotNull final Analyzer analyzer, final String query,
       final Operator operator, final Set<String> fields)
       throws ParseException {
     Objects.requireNonNull(analyzer, "Analyzer was null.");
@@ -162,6 +164,7 @@ public final class SimpleTermsQuery
      * Analyzer to use for parsing queries.
      */
     @SuppressWarnings("PackageVisibleField")
+    @Nullable
     Analyzer analyzer;
 
     /**
@@ -174,6 +177,7 @@ public final class SimpleTermsQuery
      * Query string.
      */
     @SuppressWarnings("PackageVisibleField")
+    @Nullable
     String query;
 
     /**
@@ -264,7 +268,7 @@ public final class SimpleTermsQuery
       validate();
       try {
         return new SimpleTermsQuery(this);
-      } catch (final ParseException | DataProviderException e) {
+      } catch (final ParseException e) {
         throw new BuildException(e);
       }
     }
@@ -291,7 +295,5 @@ public final class SimpleTermsQuery
     public Operator getOperator() {
       return this.operator;
     }
-
-
   }
 }

@@ -21,7 +21,6 @@ import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
-import org.apache.lucene.util.Version;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -79,13 +78,12 @@ public final class LanguageBasedAnalyzers {
    * Create a new {@link Analyzer} for the provided language.
    *
    * @param lang Language code (two-char)
-   * @param matchVersion Lucene version
    * @param stopWords List of stopwords to initialize the Analyzer with
    * @return New Analyzer instance
    */
   @SuppressWarnings("AssignmentToNull")
   public static Analyzer createInstance(@Nullable final Language lang,
-      final Version matchVersion, final CharArraySet stopWords) {
+      final CharArraySet stopWords) {
     final Analyzer analyzer;
     switch (Objects.requireNonNull(lang, "Language was null.")) {
       case DE:

@@ -64,7 +64,7 @@ public class IndexBuilder
     // get an analyzer for the target language
     final Analyzer analyzer = LanguageBasedAnalyzers.createInstance
         (LanguageBasedAnalyzers.getLanguage(lang.toString()),
-            LuceneDefaults.VERSION, new CharArraySet(stopwords, true));
+            new CharArraySet(stopwords, true));
 
     // Lucene index setup
     final Directory index = FSDirectory.open(target);

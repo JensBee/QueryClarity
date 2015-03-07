@@ -17,10 +17,10 @@
 
 package de.unihildesheim.iw.lucene.scoring.data;
 
-import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.util.BytesRef;
 
-import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -42,7 +42,7 @@ public interface VocabularyProvider {
    * @param documentIds Set of document ids in the Lucene index
    * @return Self reference
    */
-  VocabularyProvider documentIds(final Set<Integer> documentIds);
+  VocabularyProvider documentIds(final DocIdSet documentIds);
 
 
   /**
@@ -50,5 +50,5 @@ public interface VocabularyProvider {
    *
    * @return Vocabulary
    */
-  Stream<ByteArray> get();
+  Stream<BytesRef> get();
 }

@@ -17,7 +17,6 @@
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.Buildable.ConfigurationException;
-import de.unihildesheim.iw.ByteArray;
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.Tuple;
@@ -28,6 +27,7 @@ import de.unihildesheim.iw.util.MathUtils.KlDivergence;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.util.BytesRef;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
@@ -99,14 +99,14 @@ public final class SimplifiedClarityScore
 
     // pre-check query terms
     // mapping of term->in query freq. Does not remove unknown terms
-    final Map<ByteArray, Integer> queryTerms =
+    final Map<BytesRef, Integer> queryTerms =
         QueryUtils.tokenizeAndMapQuery(query, this.analyzer);
 
     if (queryTerms.isEmpty()) {
       result.setEmpty("No query terms.");
       return result;
     }
-    result.setQueryTerms(queryTerms);
+    result.setQueryTerms(queryTerms.keySet());
 
     LOG.info("Calculating clarity score. query={}", query);
     final TimeMeasure timeMeasure = new TimeMeasure().start();
@@ -122,7 +122,7 @@ public final class SimplifiedClarityScore
     // iterate over all unique query terms
     final Collection<Tuple2<BigDecimal, BigDecimal>> dataSet =
         new ArrayList<>(queryTerms.size());
-    for (final Entry<ByteArray, Integer> qTermEntry : queryTerms.entrySet()) {
+    for (final Entry<BytesRef, Integer> qTermEntry : queryTerms.entrySet()) {
       dataSet.add(Tuple.tuple2(
           BigDecimal.valueOf(qTermEntry.getValue())
               .divide(BigDecimal.valueOf(queryLength), MATH_CONTEXT),

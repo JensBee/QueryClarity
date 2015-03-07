@@ -16,9 +16,8 @@
  */
 package de.unihildesheim.iw.lucene.document;
 
-import de.unihildesheim.iw.ByteArray;
+import org.apache.lucene.util.BytesRef;
 
-import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -32,12 +31,7 @@ import java.util.concurrent.ConcurrentMap;
  *
  * @author Jens Bertram
  */
-public final class DocumentModel
-    implements Serializable {
-  /**
-   * Serialization id.
-   */
-  private static final long serialVersionUID = -5258723302171674355L;
+public final class DocumentModel {
   /**
    * Referenced Lucene document id.
    */
@@ -50,7 +44,7 @@ public final class DocumentModel
    * Mapping of {@code Term} to {@code document-frequency} for every known term
    * in the document.
    */
-  private final Map<ByteArray, Long> termFreqMap;
+  private final Map<BytesRef, Long> termFreqMap;
 
   /**
    * Pre-calculated hash code for this object.
@@ -66,11 +60,8 @@ public final class DocumentModel
     assert builder != null;
 
     this.id = builder.docId;
-    long tf = 0L;
-    for (final Long tfVal : builder.termFreqMap.values()) {
-      tf += tfVal;
-    }
-    this.termFrequency = tf;
+    this.termFrequency = builder.termFreqMap.values()
+        .stream().mapToLong(v -> v).sum();
     this.termFreqMap = new HashMap<>(builder.termFreqMap.size());
     this.termFreqMap.putAll(builder.termFreqMap);
     calcHash();
@@ -94,7 +85,7 @@ public final class DocumentModel
    * @param term Term to lookup
    * @return True if it's known
    */
-  public boolean contains(final ByteArray term) {
+  public boolean contains(final BytesRef term) {
     return this.termFreqMap.containsKey(term);
   }
 
@@ -104,7 +95,7 @@ public final class DocumentModel
    * @param term Term to lookup
    * @return Frequency in the associated document or {@code 0}, if unknown
    */
-  public double relTf(final ByteArray term) {
+  public double relTf(final BytesRef term) {
     final Long tFreq = this.termFreqMap.get(term);
     if (tFreq == null) {
       return 0d;
@@ -127,7 +118,7 @@ public final class DocumentModel
    * @param term Term to lookup
    * @return Frequency in the associated document or <tt>0</tt>, if unknown
    */
-  public Long tf(final ByteArray term) {
+  public Long tf(final BytesRef term) {
     final Long tFreq = this.termFreqMap.get(term);
     if (tFreq == null) {
       return 0L;
@@ -144,11 +135,7 @@ public final class DocumentModel
     final int count = this.termFreqMap.size();
     // worst case - we have to calculate the real size
     if (count == Integer.MAX_VALUE) {
-      long manualCount = 0L;
-      for (final ByteArray ignored : this.termFreqMap.keySet()) {
-        manualCount++;
-      }
-      return manualCount;
+      return this.termFreqMap.keySet().stream().count();
     }
     return (long) count;
   }
@@ -178,7 +165,7 @@ public final class DocumentModel
       return false;
     }
 
-    for (final Entry<ByteArray, Long> entry : this.termFreqMap.entrySet()) {
+    for (final Entry<BytesRef, Long> entry : this.termFreqMap.entrySet()) {
       if (entry.getValue().compareTo(other.termFreqMap.get(entry.getKey()))
           != 0) {
         return false;
@@ -193,7 +180,7 @@ public final class DocumentModel
    *
    * @return {@code Term} to {@code document-frequency} mapping (immutable)
    */
-  public Map<ByteArray, Long> getTermFreqMap() {
+  public Map<BytesRef, Long> getTermFreqMap() {
     return Collections.unmodifiableMap(this.termFreqMap);
   }
 
@@ -213,7 +200,7 @@ public final class DocumentModel
      * Term -> frequency mapping for every known term in the document.
      */
     @SuppressWarnings("PackageVisibleField")
-    final ConcurrentMap<ByteArray, Long> termFreqMap;
+    final ConcurrentMap<BytesRef, Long> termFreqMap;
 
     /**
      * Id to identify the corresponding document.
@@ -269,16 +256,15 @@ public final class DocumentModel
      * @return Self reference
      */
     public Builder setTermFrequency(
-        final Map<ByteArray, Long> map) {
-      Objects.requireNonNull(map, "Term frequency map was null.");
-      for (final Entry<ByteArray, Long> entry : map.entrySet()) {
-        this.termFreqMap.put(
-            Objects.requireNonNull(entry.getKey(),
-                "Null as key is not allowed."),
-            Objects.requireNonNull(entry.getValue(),
-                "Null as value is not allowed.")
-        );
-      }
+        final Map<BytesRef, Long> map) {
+      Objects.requireNonNull(map, "Term frequency map was null.")
+          .entrySet().stream()
+          .forEach(e -> this.termFreqMap.put(
+              Objects.requireNonNull(e.getKey(),
+                  "Null as key is not allowed."),
+              Objects.requireNonNull(e.getValue(),
+                  "Null as value is not allowed.")
+          ));
       return this;
     }
 

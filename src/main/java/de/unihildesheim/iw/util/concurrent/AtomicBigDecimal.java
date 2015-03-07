@@ -145,11 +145,7 @@ public class AtomicBigDecimal
     while (true) {
       final BigDecimal origVal = get();
       final BigDecimal newVal;
-      if (mc == null) {
-        newVal = origVal.add(delta);
-      } else {
-        newVal = origVal.add(delta, mc);
-      }
+      newVal = mc == null ? origVal.add(delta) : origVal.add(delta, mc);
       if (compareAndSet(origVal, newVal)) {
         return origVal;
       }
@@ -171,11 +167,7 @@ public class AtomicBigDecimal
     while (true) {
       final BigDecimal origVal = get();
       final BigDecimal newVal;
-      if (mc == null) {
-        newVal = origVal.add(delta);
-      } else {
-        newVal = origVal.add(delta, mc);
-      }
+      newVal = mc == null ? origVal.add(delta) : origVal.add(delta, mc);
       if (compareAndSet(origVal, newVal)) {
         return newVal;
       }
