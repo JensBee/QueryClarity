@@ -42,6 +42,7 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldValueFilter;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
@@ -269,7 +270,6 @@ public final class FilteredDirectoryReader
         @Nullable final Filter qFilter, final TermFilter tFilter)
         throws IOException {
       this.in = Objects.requireNonNull(wrap);
-      LOG.debug("FLR>>");
 
       this.negateFields = negate;
 
@@ -346,9 +346,6 @@ public final class FilteredDirectoryReader
 
       this.fieldsInstance = new FilteredFields(this.flrContext,
           this.in.fields(), this.fields);
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("<<FLR");
-      }
     }
 
     @Override
@@ -551,7 +548,7 @@ public final class FilteredDirectoryReader
 
     @Override
     @Nullable
-    public FixedBitSet getLiveDocs() {
+    public BitSet getLiveDocs() {
       return this.flrContext.docBits;
     }
 
@@ -702,7 +699,6 @@ public final class FilteredDirectoryReader
      * @param wrap Instance to wrap
      */
     public Builder(final DirectoryReader wrap) {
-      LOG.debug("BLDR::new");
       this.in = wrap;
     }
 
@@ -726,11 +722,9 @@ public final class FilteredDirectoryReader
      */
     public Builder fields(
         final Collection<String> vFields) {
-      LOG.debug("BLDR::fields");
       this.f = new HashSet<>(vFields.size());
       this.f.addAll(vFields);
       this.fn = false;
-      LOG.debug("BLDR::fields--");
       return this;
     }
 
@@ -746,11 +740,9 @@ public final class FilteredDirectoryReader
     @SuppressWarnings("BooleanParameter")
     public Builder fields(
         final Collection<String> vFields, final boolean negate) {
-      LOG.debug("BLDR::fields+");
       this.f = new HashSet<>(vFields.size());
       this.f.addAll(vFields);
       this.fn = negate;
-      LOG.debug("BLDR::fields++");
       return this;
     }
 
@@ -771,7 +763,6 @@ public final class FilteredDirectoryReader
      * @return New FilteredDirectoryReader instance
      */
     public FilteredDirectoryReader build() {
-      LOG.debug("build>>");
       if (this.tf == null) {
         this.tf = new AcceptAll();
       }
@@ -779,7 +770,6 @@ public final class FilteredDirectoryReader
         this.f = Collections.emptySet();
       }
 
-      LOG.debug("build.1");
       final SubReaderWrapper srw = new SubReaderWrapper() {
         @Override
         public LeafReader wrap(final LeafReader reader) {
@@ -793,7 +783,6 @@ public final class FilteredDirectoryReader
           }
         }
       };
-      LOG.debug("<<build");
       return new FilteredDirectoryReader(
           this.in, srw, this.f, this.fn, this.qf, this.tf);
     }

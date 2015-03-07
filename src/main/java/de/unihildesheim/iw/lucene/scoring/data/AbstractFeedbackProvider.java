@@ -27,7 +27,6 @@ import org.jetbrains.annotations.Nullable;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Base (no-operation) class for more specific {@link FeedbackProvider}
@@ -146,17 +145,31 @@ public abstract class AbstractFeedbackProvider<T extends FeedbackProvider>
     return getThis();
   }
 
+  /**
+   * Creates a new instance of the currently set {@link RelaxableQuery} class
+   * using reflection.
+   * @return New instance
+   * @throws NoSuchMethodException Thrown, if the required constructor is not
+   * defined.
+   * @throws IllegalAccessException Thrown, if creating the instance failed
+   * @throws InvocationTargetException Thrown, if creating the instance failed
+   * @throws InstantiationException Thrown, if creating the instance failed
+   */
   protected RelaxableQuery getQueryParserInstance()
       throws NoSuchMethodException, IllegalAccessException,
              InvocationTargetException, InstantiationException {
     final Constructor cTor = getQueryParser().getDeclaredConstructor(
-        Analyzer.class, String.class, Set.class);
+        Analyzer.class, String.class, String[].class);
     return (RelaxableQuery)cTor.newInstance(
         Objects.requireNonNull(this.qAnalyzer, "Analyzer not set."),
         Objects.requireNonNull(this.queryStr, "Query string not set."),
         Objects.requireNonNull(this.docFields, "Document fields not set."));
   }
 
+  /**
+   * Get the defined {@link RelaxableQuery} instance that will be used.
+   * @return RelaxableQuery class
+   */
   private Class<? extends RelaxableQuery> getQueryParser() {
     return this.queryParser == null ? TryExactTermsQuery.class :
         this.queryParser;
