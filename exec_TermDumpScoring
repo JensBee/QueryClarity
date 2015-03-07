@@ -26,8 +26,7 @@ mkdir -p $OUT_DIR
 
 OUT=$OUT_DIR/$OUT
 
-CLASS=de.unihildesheim.iw.fiz.cli.ScoreTopicPassages
+CLASS=cli.ScoreTopicPassages
 ARGS="-i ${IN} -o ${OUT} -idx ${IDX} -stop ${STOP_PAT} -stop-format ${STOP_FORMAT} -lang ${SCORE_LANG} -ct-threshold 0.01 "
 
-echo mvn exec:java -Dmaven.repo.local=/home/bertra/.m2/repository -Dexec.mainClass=${CLASS} -Dexec.args="${ARGS} $*" 
-#> ${OUT_DIR}/log.txt
+./run ${CLASS} "${ARGS} $*" > ${OUT_DIR}/log.txt
