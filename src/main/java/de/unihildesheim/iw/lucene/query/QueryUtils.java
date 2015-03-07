@@ -103,26 +103,29 @@ public final class QueryUtils {
     final BytesRefBuilder spare = new BytesRefBuilder();
     BytesRef term;
 
-    for (int i = terms.size(); i >= 0; i--) {
-      term = terms.get(spare, i);
-      if (cMetrics.tf(term) <= 0L) {
-        sb.append(term.utf8ToString()).append(' ');
-        bits.set(i);
-      }
-    }
-
-    if (bits.cardinality() > 0) {
-      LOG.warn(sb.toString().trim() + "].");
-      final BytesRefArray cleanTerms = new BytesRefArray(
-          Counter.newCounter(false));
-      for (int i = terms.size(); i >= 0; i--) {
-        if (!bits.get(i)) {
-          term = terms.get(spare, i);
-          cleanTerms.append(term); // copies bytes
+    if (terms.size() == 0) {
+      return terms;
+    } else {
+      for (int i = terms.size() - 1; i >= 0; i--) {
+        term = terms.get(spare, i);
+        if (cMetrics.tf(term) <= 0L) {
+          sb.append(term.utf8ToString()).append(' ');
+          bits.set(i);
         }
       }
-      return cleanTerms;
-    } else {
+
+      if (bits.cardinality() > 0) {
+        LOG.warn(sb.toString().trim() + "].");
+        final BytesRefArray cleanTerms = new BytesRefArray(
+            Counter.newCounter(false));
+        for (int i = terms.size() - 1; i >= 0; i--) {
+          if (!bits.get(i)) {
+            term = terms.get(spare, i);
+            cleanTerms.append(term); // copies bytes
+          }
+        }
+        return cleanTerms;
+      }
       return terms;
     }
   }
@@ -168,8 +171,8 @@ public final class QueryUtils {
         new ArrayList<>(tokenizedQuery.size());
     tokenizedQueryStr.addAll(
         StreamUtils.stream(tokenizedQuery)
-        .map(BytesRef::utf8ToString)
-        .collect(Collectors.toList()));
+            .map(BytesRef::utf8ToString)
+            .collect(Collectors.toList()));
     return tokenizedQueryStr;
   }
 
@@ -222,8 +225,8 @@ public final class QueryUtils {
       // not thrown b/c we're using a string reader
     }
     if (cMetrics != null) {
-       removeUnknownTerms(cMetrics, result.keySet()).stream()
-           .forEach(result::remove);
+      removeUnknownTerms(cMetrics, result.keySet()).stream()
+          .forEach(result::remove);
     }
     return result;
   }

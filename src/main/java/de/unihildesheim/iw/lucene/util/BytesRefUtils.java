@@ -22,6 +22,7 @@ import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.Counter;
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
@@ -116,29 +117,64 @@ public final class BytesRefUtils {
   /**
    * Collector of {@link BytesRefHash}es for usage in stream expressions.
    */
+  @SuppressWarnings("PublicInnerClass")
   public static final class MergingBytesRefHash {
-    public final BytesRefHash hash;
+    /**
+     * Merged hash.
+     */
+    private final BytesRefHash hash;
 
+    /**
+     * Creates a new instance and initializes the local hash.
+     */
     public MergingBytesRefHash() {
       this.hash = new BytesRefHash();
     }
 
+    /**
+     * Adds a {@link BytesRef} to the local hash.
+     *
+     * @param br BytesRef to add
+     * @return the id the given bytes are hashed if there was no mapping for the
+     * given bytes, otherwise <code>(-(id)-1)</code>. This guarantees that the
+     * return value will always be &gt;= 0 if the given bytes haven't been
+     * hashed before.
+     */
     public int add(final BytesRef br) {
       return this.hash.add(br);
     }
 
+    /**
+     * Adds all {@link BytesRef} instances from the given {@link BytesRefHash}
+     * to the local one.
+     *
+     * @param brh BytesRefHash to merge
+     */
+    @SuppressWarnings("ObjectAllocationInLoop")
     public void addAll(final BytesRefHash brh) {
-      for (int i = brh.size(); i >= 0; i--) {
+      for (int i = brh.size() - 1; i >= 0; i--) {
         add(brh.get(i, new BytesRef()));
       }
     }
 
+    /**
+     * Adds all {@link BytesRef} instances from the given MergingBytesRefHash to
+     * the local one.
+     *
+     * @param brh MergingBytesRefHash to merge
+     */
+    @SuppressWarnings("ObjectAllocationInLoop")
     public void addAll(final MergingBytesRefHash brh) {
-      for (int i = brh.hash.size(); i >= 0; i--) {
+      for (int i = brh.hash.size() - 1; i >= 0; i--) {
         add(brh.hash.get(i, new BytesRef()));
       }
     }
 
+    /**
+     * Stream the {@link BytesRef}s stored in this hash.
+     *
+     * @return Stream of BytesRef stored in the hash
+     */
     public Stream<BytesRef> stream() {
       return streamBytesRefHash(this.hash);
     }
@@ -146,6 +182,7 @@ public final class BytesRefUtils {
 
   /**
    * Stream the contents of a {@link BytesRefHash}.
+   *
    * @param hash Hash
    * @return Stream of hash content
    */
@@ -190,6 +227,7 @@ public final class BytesRefUtils {
 
   /**
    * Stream the contents of a {@link BytesRefArray}.
+   *
    * @param bArr Array
    * @return Array content stream
    */
@@ -201,8 +239,8 @@ public final class BytesRefUtils {
       @Override
       public boolean tryAdvance(final Consumer<? super BytesRef> action) {
         try {
-          final BytesRef term = bri.next();
-          if (bri == null) {
+          @Nullable final BytesRef term = bri.next();
+          if (term == null) {
             return false;
           }
           action.accept(term);
@@ -233,13 +271,14 @@ public final class BytesRefUtils {
 
   /**
    * Convert a {@link BytesRefHash} to a {@link BytesRefArray}.
+   *
    * @param bh Hash
    * @return Array
    */
   public static BytesRefArray hashToArray(final BytesRefHash bh) {
     final BytesRefArray ba = new BytesRefArray(Counter.newCounter(false));
     final BytesRef br = new BytesRef();
-    for (int i = bh.size(); i >=0; i--) {
+    for (int i = bh.size() - 1; i >= 0; i--) {
       ba.append(bh.get(i, br));
     }
     return ba;
@@ -247,16 +286,19 @@ public final class BytesRefUtils {
 
   /**
    * Convert a {@link BytesRefHash} to a Set.
+   *
    * @param bh Hash
    * @return Set
    */
+  @Nullable
+  @Contract("null -> null")
   public static Set<String> hashToSet(@Nullable final BytesRefHash bh) {
     if (bh == null) {
       return null;
     }
     final Set<String> strSet = new HashSet<>(bh.size());
     final BytesRef br = new BytesRef();
-    for (int i = bh.size(); i >=0; i--) {
+    for (int i = bh.size() - 1; i >= 0; i--) {
       strSet.add(bh.get(i, br).utf8ToString());
     }
     return strSet;
