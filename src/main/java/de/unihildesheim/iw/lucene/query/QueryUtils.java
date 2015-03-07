@@ -92,7 +92,6 @@ public final class QueryUtils {
    *
    * @param cMetrics Metrics to access term frequency values
    * @param terms Collection of terms to check against the collection
-   * CollectionMetrics} fails
    * @return Passed in terms with non-collection terms removed
    */
   private static BytesRefArray removeUnknownTerms(final CollectionMetrics
@@ -130,6 +129,14 @@ public final class QueryUtils {
     }
   }
 
+  /**
+   * Remove terms from the given collection, if they are not found in the
+   * collection.
+   *
+   * @param cMetrics Metrics to access term frequency values
+   * @param terms Collection of terms to check against the collection
+   * @return Passed in terms with non-collection terms removed
+   */
   private static Collection<BytesRef> removeUnknownTerms(final CollectionMetrics
       cMetrics, final Collection<BytesRef> terms) {
     return terms.stream()
