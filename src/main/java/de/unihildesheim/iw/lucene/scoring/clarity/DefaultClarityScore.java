@@ -37,10 +37,10 @@ import de.unihildesheim.iw.util.TimeMeasure;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.Counter;
-import org.apache.lucene.util.FixedBitSet;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.LoggerFactory;
 
@@ -525,7 +525,7 @@ public final class DefaultClarityScore
      * Ids of feedback documents used for calculation.
      */
     @Nullable
-    private FixedBitSet feedbackDocIds;
+    private BitSet feedbackDocIds;
     /**
      * Configuration that was used.
      */
@@ -548,7 +548,7 @@ public final class DefaultClarityScore
     void setFeedbackDocIds(@Nullable final DocIdSet fbDocIds) {
       if (fbDocIds != null) {
         try {
-          this.feedbackDocIds = DocIdSetUtils.bits(fbDocIds).clone();
+          this.feedbackDocIds = DocIdSetUtils.bits(fbDocIds);
         } catch (final IOException e) {
           LOG.error("Failed to retrieve ids for feedback documents.", e);
         }

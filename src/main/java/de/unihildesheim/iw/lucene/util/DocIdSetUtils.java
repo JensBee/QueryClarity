@@ -19,14 +19,13 @@ package de.unihildesheim.iw.lucene.util;
 
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
-import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RoaringDocIdSet;
+import org.apache.lucene.util.SparseFixedBitSet;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
@@ -35,6 +34,7 @@ public final class DocIdSetUtils {
 
   /**
    * Get the count of documents available in the set.
+   *
    * @param dis Documents id set
    * @return Cardinality
    * @throws IOException Thrown on low-level I/O-errors
@@ -45,7 +45,7 @@ public final class DocIdSetUtils {
       return ((RoaringDocIdSet) dis).cardinality();
     }
 
-    final FixedBitSet bits = BitsUtils.Bits2FixedBitSet(dis.bits());
+    final BitSet bits = bits(dis);
     if (bits != null) {
       return bits.cardinality();
     }
@@ -54,46 +54,91 @@ public final class DocIdSetUtils {
     if (disi == null) {
       return 0; // no matching doc
     }
-    int cardinality = 0;
-    while (true) {
-      final int docId = disi.nextDoc();
-      if (docId == DocIdSetIterator.NO_MORE_DOCS) {
-        break;
-      }
-      cardinality++;
+    return (int) StreamUtils.stream(disi).count();
+  }
+
+  /**
+   * Get the highest document id stored in the {@link DocIdSet}.
+   * @param dis DocIdSet
+   * @return Highest document number
+   * @throws IOException Thrown on low-level i/o-errors
+   */
+  public static int maxDoc(final DocIdSet dis)
+      throws IOException {
+    final DocIdSetIterator disi = dis.iterator();
+    if (disi == null) {
+      return 0;
     }
-    return cardinality;
+
+    BitSet bitSet;
+    bitSet = BitSetIterator.getFixedBitSetOrNull(disi);
+    if (bitSet == null) {
+      bitSet = BitSetIterator.getSparseFixedBitSetOrNull(disi);
+    }
+    if (bitSet == null) {
+      bitSet = BitsUtils.Bits2FixedBitSet(dis.bits());
+    }
+
+    if (bitSet != null) {
+      return bitSet.prevSetBit(bitSet.length() -1);
+    }
+    return StreamUtils.stream(dis).sorted().max().getAsInt();
   }
 
   /**
    * Get a bits instance from a DocIdSet.
+   *
    * @param dis Set whose bits to get
    * @return Bits or null, if no bits are set
    * @throws IOException Thrown on low-level I/O-errors
    */
   @Nullable
-  public static FixedBitSet bits(final DocIdSet dis)
+  public static BitSet bits(final DocIdSet dis)
       throws IOException {
     final DocIdSetIterator disi = dis.iterator();
 
     if (disi == null) {
       return null;
     } else {
-      FixedBitSet bitSet = BitSetIterator.getFixedBitSetOrNull(disi);
+      BitSet bitSet;
+
+      bitSet = BitSetIterator.getFixedBitSetOrNull(disi);
       if (bitSet == null) {
-        final Collection<Integer> docIds = new ArrayList<>();
-        for (int docId = disi.nextDoc();
-             docId != DocIdSetIterator.NO_MORE_DOCS;
-             docId = disi.nextDoc()) {
-          docIds.add(docId);
-        }
-        if (docIds.isEmpty()) {
-          return null;
-        }
-        bitSet = new FixedBitSet(docIds.size());
-        docIds.forEach(bitSet::set);
+        bitSet = BitSetIterator.getSparseFixedBitSetOrNull(disi);
+      }
+      if (bitSet == null) {
+        bitSet = BitsUtils.Bits2FixedBitSet(dis.bits());
+      }
+
+      if (bitSet == null) {
+        bitSet = new SparseFixedBitSet(maxDoc(dis));
+        StreamUtils.stream(disi).forEach(bitSet::set);
       }
       return bitSet;
     }
+  }
+
+  /**
+   * Get the number of documents stored in the {@link DocIdSet}.
+   * @param dis DocIdSet
+   * @return Number of doc-ids stored in the set
+   * @throws IOException Thrown on low-level i/o-errors
+   */
+  public static int size(final DocIdSet dis)
+      throws IOException {
+    int docs = 0;
+    if (RoaringDocIdSet.class.isInstance(dis)) {
+      docs = ((RoaringDocIdSet) dis).cardinality();
+    } else {
+      final DocIdSetIterator disi = dis.iterator();
+      if (disi != null) {
+        for (int docId = disi.nextDoc();
+             docId != DocIdSetIterator.NO_MORE_DOCS;
+             docId = disi.nextDoc()) {
+          docs++;
+        }
+      }
+    }
+    return docs;
   }
 }

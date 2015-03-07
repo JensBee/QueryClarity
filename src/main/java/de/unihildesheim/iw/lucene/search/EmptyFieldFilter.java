@@ -27,9 +27,11 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.SparseFixedBitSet;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -96,7 +98,7 @@ public final class EmptyFieldFilter
     final LeafReader reader = context.reader();
     final int maxDoc = reader.maxDoc();
 
-    FixedBitSet finalBits = new FixedBitSet(maxDoc);
+    BitSet finalBits = new SparseFixedBitSet(maxDoc);
     if (acceptDocs == null) {
       checkBits = BitsUtils.Bits2FixedBitSet(reader.getLiveDocs());
       if (checkBits == null) {
@@ -117,7 +119,7 @@ public final class EmptyFieldFilter
       } else if (termsDocCount == maxDoc) {
         // all matching
         finalBits = checkBits;
-      } else if (termsDocCount != maxDoc) {
+      } else {
         final Terms t = reader.terms(this.field);
         DocsEnum de = null;
         final TermsEnum te = t.iterator(null);

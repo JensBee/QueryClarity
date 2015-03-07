@@ -20,6 +20,7 @@ import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import de.unihildesheim.iw.lucene.util.BitsUtils;
 import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
+import de.unihildesheim.iw.lucene.util.StreamUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.TimeMeasure;
 import org.apache.lucene.index.IndexReader;
@@ -30,9 +31,11 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.RoaringDocIdSet.Builder;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -197,7 +200,7 @@ public final class FeedbackQuery {
       }
       if (query.relax()) {
         final int[] docs = getDocs(searcher, q, maxRetDocs);
-        for (int i = docs.length -1; i >= 0; i--) {
+        for (int i = docs.length - 1; i >= 0; i--) {
           bits.set(docs[i]);
           if (bits.cardinality() >= maxDocs) {
             break;
@@ -266,38 +269,64 @@ public final class FeedbackQuery {
         maxDocCount);
   }
 
+  /**
+   * Get random documents from the index.
+   *
+   * @param dataProv DataProvider to request documents from
+   * @param amount Amount of documents to get at total
+   * @param docIds Document-ids already collected. Size must be lower than
+   * {@code amount}.
+   * @return DocIdSet containing all ids from {@code docIds} and a number of
+   * random chosen documents. The size will be {@code amount}, if enough
+   * additional documents are present in the index. Otherwise it may be lower.
+   * @throws IOException Thrown on low-level i/o-errors
+   */
   public static DocIdSet getRandom(final IndexDataProvider dataProv,
       final int amount, final DocIdSet docIds)
       throws IOException {
-    final FixedBitSet docBits = new FixedBitSet(amount);
-    docBits.or(docIds.iterator());
-    int docCount = docBits.cardinality();
+    final int[] results = new int[amount];
+    // collect all provided document-ids, to skip them while choosing random
+    // ones
+    final int[] docIdsArr = StreamUtils.stream(docIds.iterator())
+        .sorted()
+        .toArray();
+    // count collected documents
+    int currentAmount = docIdsArr.length;
+    if (currentAmount > 0) {
+      // copy already provided doc-ids to results
+      System.arraycopy(docIdsArr, 0, results, 0, currentAmount);
+    }
 
     LOG.info("Getting {}/{} random feedback documents. {} documents provided.",
-        (amount - docCount), amount, docCount);
+        amount - currentAmount, amount, currentAmount);
 
     final List<Integer> haveDocs = dataProv
         .getDocumentIds()
-        .filter(id -> !docBits.get(id))
+            // skip ids already provided
+        .filter(id -> Arrays.binarySearch(docIdsArr, id) < 0)
         .boxed()
         .collect(Collectors.toList());
 
     if (haveDocs.isEmpty()) {
       LOG.warn("Giving up. No random documents. Got {} documents.",
-          docCount);
+          currentAmount);
     } else {
-      while (docCount < amount || haveDocs.isEmpty()) {
-        docBits.set(
-            haveDocs.remove(
-                RandomValue.getInteger(0, (haveDocs.size() - 1)))
-        );
-        docCount = docBits.cardinality();
+      // add as many documents as possible, while no adding more than the
+      // amount specified
+      for (int i = Math.min(amount - currentAmount, haveDocs.size());
+           i > 0; i--) {
+        results[currentAmount++] =
+            haveDocs.remove(RandomValue.getInteger(0, haveDocs.size() - 1));
       }
-      if (docCount < amount && haveDocs.isEmpty()) {
+      if (currentAmount < amount && haveDocs.isEmpty()) {
         LOG.warn("Giving up searching for random documents. Got {} documents.",
-            docCount);
+            currentAmount);
       }
     }
-    return new BitDocIdSet(docBits);
+    Arrays.sort(results);
+    LOG.debug("Amount is {} >> {} hi={}", currentAmount, results, results[results.length -1]);
+    final Builder result = new Builder(results[results.length -1]);
+    Arrays.stream(results).forEach(result::add);
+    return result.build();
   }
 }

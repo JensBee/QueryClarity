@@ -19,6 +19,7 @@ package de.unihildesheim.iw.lucene.util;
 
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.SparseFixedBitSet;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
@@ -27,7 +28,6 @@ import java.util.Arrays;
  * @author Jens Bertram (code@jens-bertram.net)
  */
 public final class BitsUtils {
-
   /**
    * Convert plain {@link Bits} instance to a {@link FixedBitSet} instance.
    * @param bits Bits to convert
@@ -37,6 +37,10 @@ public final class BitsUtils {
     if (bits == null) {
       return null;
     }
+    if (FixedBitSet.class.isInstance(bits)) {
+      return (FixedBitSet) bits;
+    }
+
     final int bitCount = bits.length();
     final FixedBitSet fbs = new FixedBitSet(bitCount);
     for (int i =0; i< bitCount; i++) {
@@ -47,7 +51,32 @@ public final class BitsUtils {
     return fbs;
   }
 
-  public static FixedBitSet arrayToBits(final int[] intArr) {
+  /**
+   * Convert plain {@link Bits} instance to a {@link SparseFixedBitSet}
+   * instance.
+   * @param bits Bits to convert
+   * @return New instance or {@code null} if {@code bits} were {@code null}.
+   */
+  public static SparseFixedBitSet Bits2SparseFixedBitSet(
+      @Nullable final Bits bits) {
+    if (bits == null) {
+      return null;
+    }
+    if (SparseFixedBitSet.class.isInstance(bits)) {
+      return (SparseFixedBitSet) bits;
+    }
+
+    final int bitCount = bits.length();
+    final SparseFixedBitSet fbs = new SparseFixedBitSet(bitCount);
+    for (int i =0; i< bitCount; i++) {
+      if (bits.get(i)) {
+        fbs.set(i);
+      }
+    }
+    return fbs;
+  }
+
+  public static FixedBitSet arrayToBits(final int... intArr) {
     final int[] sorted = new int[intArr.length];
     System.arraycopy(intArr, 0, sorted, 0, intArr.length);
     Arrays.sort(sorted);

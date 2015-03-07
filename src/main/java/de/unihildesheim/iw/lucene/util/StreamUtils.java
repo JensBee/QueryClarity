@@ -73,6 +73,22 @@ public class StreamUtils {
     return StreamSupport.intStream(new DocIdSetSpliterator(dis), false);
   }
 
+  /**
+   * Stream contents of a {@link DocIdSetIterator}.
+   *
+   * @param disi DocIdSetIterator
+   * @return Stream of sets content
+   * @throws IOException Thrown on low-level i/o-errors
+   */
+  public static IntStream stream(final DocIdSetIterator disi)
+      throws IOException {
+    if (disi == null) {
+      return IntStream.empty();
+    } else {
+      return StreamSupport.intStream(new DocIdSetSpliterator(disi), false);
+    }
+  }
+
   public static IntStream stream(final FixedBitSet fbs) {
     return StreamSupport.intStream(new FixedBitSetSpliterator(fbs), false);
   }
@@ -151,8 +167,23 @@ public class StreamUtils {
       this.disi = dis.iterator();
     }
 
+    /**
+     * Creates a new {@link Spliterator} using the contents of the provided
+     * {@link DocIdSetIterator}.
+     * @param disi Iteratot to wrap
+     * @throws IOException Thrown on low-level i/o-errors
+     */
+    public DocIdSetSpliterator(final DocIdSetIterator disi)
+        throws IOException {
+      this.disi = disi;
+    }
+
     @Override
     public boolean tryAdvance(final IntConsumer action) {
+      // iterator may be null, if there are no documents
+      if (this.disi == null) {
+        return false;
+      }
       final int doc;
       try {
         doc = this.disi.nextDoc();
