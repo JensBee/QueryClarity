@@ -17,7 +17,6 @@
 
 package de.unihildesheim.iw.fiz.cli;
 
-import de.unihildesheim.iw.fiz.Defaults;
 import de.unihildesheim.iw.fiz.Defaults.ES_CONF;
 import io.searchbox.action.Action;
 import io.searchbox.client.JestClient;
@@ -41,7 +40,7 @@ public final class ESUtils {
 
   /**
    * Runs a REST request against the ES instance. Optionally retrying the
-   * request {@link Defaults.ES_CONF#MAX_RETRY} times, if a request has timed out.
+   * request {@link ES_CONF#MAX_RETRY} times, if a request has timed out.
    * @param action Request action
    * @return Request result
    * @throws Exception Thrown on any error while performing the request

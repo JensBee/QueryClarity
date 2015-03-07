@@ -20,12 +20,12 @@ package de.unihildesheim.iw.fiz.cli;
 import de.unihildesheim.iw.cli.CliBase;
 import de.unihildesheim.iw.cli.CliParams;
 import de.unihildesheim.iw.fiz.Defaults.ES_CONF;
-import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers;
 import de.unihildesheim.iw.lucene.document.FeedbackQuery;
-import de.unihildesheim.iw.lucene.index.builder.IndexBuilder;
+import de.unihildesheim.iw.lucene.index.builder.IndexBuilder.LUCENE_CONF;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.lucene.query.TryExactTermsQuery;
+import de.unihildesheim.iw.lucene.util.StreamUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.xml.TopicsXMLWriter;
@@ -45,6 +45,7 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.jetbrains.annotations.Nullable;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 import org.slf4j.Logger;
@@ -65,7 +66,7 @@ import java.util.stream.Collectors;
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class ScoreTermSentenceExtractor
+public final class ScoreTermSentenceExtractor
     extends CliBase {
 
   /**
@@ -80,15 +81,16 @@ public class ScoreTermSentenceExtractor
   /**
    * Provides access to the topicsXML file.
    */
+  @Nullable
   private TopicsXMLWriter topicsXML;
+  @Nullable
   private TopicsXMLWriter topicsTargetXML;
+  @Nullable
   private Analyzer analyzer;
+  @Nullable
   private IndexSearcher searcher;
+  @Nullable
   private SentenceDetector sentDec;
-  /**
-   * Client to ElasticSearch instance.
-   */
-  private JestClient client;
 
   /**
    * Default private constructor passing a description to {@link CliBase}.
@@ -137,8 +139,7 @@ public class ScoreTermSentenceExtractor
           "No analyzer for language '" + this.cliParams.lang + "'.");
     }
     this.analyzer = LanguageBasedAnalyzers.createInstance(LanguageBasedAnalyzers
-            .getLanguage(this.cliParams.lang), LuceneDefaults.VERSION,
-        CharArraySet.EMPTY_SET);
+            .getLanguage(this.cliParams.lang), CharArraySet.EMPTY_SET);
 
     // lucene searcher
     this.searcher = new IndexSearcher(this.cliParams.idxReader);
@@ -147,7 +148,10 @@ public class ScoreTermSentenceExtractor
     final JestClientFactory factory = new JestClientFactory();
     factory.setHttpClientConfig(new Builder(ES_CONF.URL)
         .multiThreaded(true).build());
-    this.client = factory.getObject();
+    /*
+    Client to ElasticSearch instance.
+   */
+    JestClient client = factory.getObject();
 
     // sentence detector (NLP)
     InputStream modelIn = null;
@@ -222,8 +226,7 @@ public class ScoreTermSentenceExtractor
   }
 
   private String getRandomSentence(final List<String> refs,
-      final String lang, final Field f, final String term)
-      throws Exception {
+      final String lang, final Field f, final String term) {
 
     throw new UnsupportedOperationException("Currently broken.");
 //    final String ref;
@@ -299,13 +302,10 @@ public class ScoreTermSentenceExtractor
 //    return pickSentence(analyzeSentence(sentence, term));
   }
 
+  private final SentenceComparator sentenceComparator =
+      new SentenceComparator();
   private String pickSentence(final List<String> sentences) {
-    sentences.sort(new Comparator<String>() {
-      @Override
-      public int compare(final String o1, final String o2) {
-        return Integer.compare(o1.split(" ").length, o2.split(" ").length);
-      }
-    });
+    sentences.sort(this.sentenceComparator);
 
     final int items = sentences.size();
 
@@ -327,7 +327,7 @@ public class ScoreTermSentenceExtractor
   }
 
   private List<String> analyzeSentence(
-      final String content, final String term) {
+      final String content, final CharSequence term) {
     final String[] sentences = this.sentDec.sentDetect(
         content
             .replaceAll("(\\t|\\r|\\n)", " ")
@@ -350,19 +350,18 @@ public class ScoreTermSentenceExtractor
 
   private List<String> getMatchingDocs(final String q, final String fld)
       throws ParseException, IOException {
-    return FeedbackQuery.getMinMax(
-        this.searcher,
-        new TryExactTermsQuery(this.analyzer, q, Collections.singleton(fld)),
-        1, 500).stream()
-        .map(id -> {
+    return StreamUtils.stream(
+        FeedbackQuery.getMinMax(this.searcher, new TryExactTermsQuery(
+                this.analyzer, q, fld), 1, 500))
+        .mapToObj(id -> {
           try {
             return this.cliParams.idxReader.document(id,
-                Collections.singleton(IndexBuilder.LUCENE_CONF.FLD_PAT_ID));
+                Collections.singleton(LUCENE_CONF.FLD_PAT_ID));
           } catch (final IOException e) {
             throw new UncheckedIOException(e);
           }
         })
-        .map(doc -> doc.get(IndexBuilder.LUCENE_CONF.FLD_PAT_ID))
+        .map(doc -> doc.get(LUCENE_CONF.FLD_PAT_ID))
         .collect(Collectors.toList());
   }
 
@@ -373,6 +372,7 @@ public class ScoreTermSentenceExtractor
     /**
      * Source file containing extracted claims.
      */
+    @Nullable
     @SuppressWarnings("PackageVisibleField")
     @Option(name = "-i", metaVar = "FILE", required = true,
         usage = "Input file containing extracted passages")
@@ -380,6 +380,7 @@ public class ScoreTermSentenceExtractor
     /**
      * Target file file for writing scored claims.
      */
+    @Nullable
     @SuppressWarnings("PackageVisibleField")
     @Option(name = "-o", metaVar = "FILE", required = true,
         usage = "Output file for writing scored passages")
@@ -387,6 +388,7 @@ public class ScoreTermSentenceExtractor
     /**
      * Directory containing the target Lucene index.
      */
+    @Nullable
     @SuppressWarnings("PackageVisibleField")
     @Option(name = CliParams.INDEX_DIR_P, metaVar = CliParams.INDEX_DIR_M,
         required = true, usage = CliParams.INDEX_DIR_U)
@@ -394,6 +396,7 @@ public class ScoreTermSentenceExtractor
     /**
      * Single language.
      */
+    @Nullable
     @SuppressWarnings("PackageVisibleField")
     @Option(name = "-lang", metaVar = "language", required = true,
         usage = "Process for the defined language.")
@@ -401,11 +404,13 @@ public class ScoreTermSentenceExtractor
     /**
      * {@link Directory} instance pointing at the Lucene index.
      */
+    @Nullable
     private Directory luceneDir;
     /**
      * {@link IndexReader} to use for accessing the Lucene index.
      */
     @SuppressWarnings("PackageVisibleField")
+    @Nullable
     IndexReader idxReader;
 
     /**
@@ -444,6 +449,14 @@ public class ScoreTermSentenceExtractor
         LOG.error("Index directory'" + this.idxDir + "' does not exist.");
         System.exit(-1);
       }
+    }
+  }
+
+  private static class SentenceComparator
+      implements Comparator<String> {
+    @Override
+    public int compare(final String o1, final String o2) {
+      return Integer.compare(o1.split(" ").length, o2.split(" ").length);
     }
   }
 }

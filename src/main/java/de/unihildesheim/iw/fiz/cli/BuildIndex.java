@@ -56,7 +56,7 @@ import java.util.Random;
  *
  * @author Jens Bertram (code@jens-bertram.net)
  */
-class BuildIndex
+final class BuildIndex
     extends CliBase {
   /**
    * Logger instance for this class.
@@ -458,7 +458,7 @@ class BuildIndex
     /**
      * Stopwords file format.
      */
-    @SuppressWarnings({"PackageVisibleField"})
+    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-stop-format", metaVar = "(plain|snowball)",
         required = false, depends = "-stop",
         usage = "Format of the stopwords file. 'plain' for a simple list of " +

@@ -22,6 +22,7 @@ import de.unihildesheim.iw.cli.CliBase;
 import de.unihildesheim.iw.xml.elements.Passage;
 import de.unihildesheim.iw.xml.elements.PassagesGroup;
 import de.unihildesheim.iw.xml.elements.TopicPassages;
+import org.jetbrains.annotations.Nullable;
 import org.kohsuke.args4j.Option;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -131,6 +132,7 @@ public final class TermDumpToScoringXml extends CliBase {
     /**
      * Target file for extracted claims.
      */
+    @Nullable
     @SuppressWarnings("PackageVisibleField")
     @Option(name = "-out", aliases = "-o", usage = "Output file",
         metaVar = "FILE", required = true)
@@ -138,6 +140,7 @@ public final class TermDumpToScoringXml extends CliBase {
     /**
      * Topics file.
      */
+    @Nullable
     @Option(name = "-csvfile", metaVar = "FILE",
         required = true,
         usage = "CSV file containing the dumped term list")
@@ -145,6 +148,7 @@ public final class TermDumpToScoringXml extends CliBase {
     /**
      * Language.
      */
+    @Nullable
     @Option(name = "-lang", metaVar = "language",
         required = true,
         usage = "CSV file terms language (2 char code)")

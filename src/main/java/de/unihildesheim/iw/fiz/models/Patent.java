@@ -50,14 +50,17 @@ public final class Patent
   /**
    * Claims by language.
    */
+  @Nullable
   private Map<Language, String> claimsByLanguage;
   /**
    * Detailed descriptions by language.
    */
+  @Nullable
   private Map<Language, String> detdByLanguage;
   /**
    * List of ipcs.
    */
+  @Nullable
   private Set<String> ipcs;
   /**
    * Patent identifier.
@@ -65,7 +68,7 @@ public final class Patent
   @Nullable
   private String patId;
 
-  public static Patent fromJson(final JsonObject json) {
+  public static PatentDocument fromJson(final JsonObject json) {
     Objects.requireNonNull(json);
     final Patent p = new Patent();
 
@@ -114,6 +117,7 @@ public final class Patent
     return p;
   }
 
+  @SuppressWarnings("TypeMayBeWeakened")
   public static String joinJsonArray(final JsonArray jArr) {
     return StreamSupport.stream(jArr.spliterator(), false)
         .map(JsonElement::toString)
