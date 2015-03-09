@@ -346,7 +346,7 @@ public final class FDRIndexDataProvider
 
       LOG.info("Collecting all ({}) documents from index.", numDocs);
       final Query q = new MatchAllDocsQuery();
-      final IndexSearcher searcher = new IndexSearcher(this.reader);
+      final IndexSearcher searcher = IndexUtils.getSearcher(this.reader);
       final TopDocs matches = searcher.search(q, numDocs);
 
       if (LOG.isDebugEnabled()) {
