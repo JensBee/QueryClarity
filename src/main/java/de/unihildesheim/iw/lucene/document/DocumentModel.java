@@ -16,14 +16,21 @@
  */
 package de.unihildesheim.iw.lucene.document;
 
+import org.apache.lucene.util.ByteBlockPool;
+import org.apache.lucene.util.ByteBlockPool.DirectAllocator;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefHash;
+import org.apache.lucene.util.BytesRefHash.DirectBytesStartArray;
 
-import java.util.Collections;
-import java.util.HashMap;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -31,7 +38,13 @@ import java.util.concurrent.ConcurrentMap;
  *
  * @author Jens Bertram
  */
-public final class DocumentModel {
+public final class DocumentModel
+    implements Serializable {
+  /**
+   * Serialization id.
+   */
+  private static final long serialVersionUID = -7661310855831860522L;
+
   /**
    * Referenced Lucene document id.
    */
@@ -39,12 +52,16 @@ public final class DocumentModel {
   /**
    * Overall frequency of all terms in the document.
    */
-  private final long termFrequency;
+  private final transient long termFrequency;
   /**
-   * Mapping of {@code Term} to {@code document-frequency} for every known term
-   * in the document.
+   * Terms stored in this model.
    */
-  private final Map<BytesRef, Long> termFreqMap;
+  private final BytesRefHash terms;
+  /**
+   * Frequencies of all terms stored in this model. The array index is
+   * related to the term index in {@link #terms}.
+   */
+  private final long[] freqs;
 
   /**
    * Pre-calculated hash code for this object.
@@ -56,15 +73,68 @@ public final class DocumentModel {
    *
    * @param builder Builder to use
    */
-  private DocumentModel(final Builder builder) {
-    assert builder != null;
-
+  DocumentModel(final Builder builder) {
     this.id = builder.docId;
-    this.termFrequency = builder.termFreqMap.values()
-        .stream().mapToLong(v -> v).sum();
-    this.termFreqMap = new HashMap<>(builder.termFreqMap.size());
-    this.termFreqMap.putAll(builder.termFreqMap);
+    this.terms = builder.terms;
+    this.freqs = builder.freqs.stream().mapToLong(l -> l).toArray();
+    this.termFrequency = builder.freqs.stream().mapToLong(l -> l).sum();
     calcHash();
+  }
+
+  /**
+   * Create a new model with data from the provided builder.
+   *
+   * @param builder Builder to use
+   */
+  DocumentModel(final SerializationBuilder builder) {
+    this.id = builder.docId;
+
+    this.terms = builder.terms;
+    this.freqs = builder.freqs;
+    this.termFrequency = Arrays.stream(this.freqs).sum();
+    calcHash();
+  }
+
+  /**
+   * POJO serialization. Customized to handle serialization of the {@link
+   * #terms terms list}.
+   * @param out Stream
+   * @throws IOException Thrown on low-level i/o-errors
+   */
+  private void writeObject(final ObjectOutputStream out)
+      throws IOException {
+    out.defaultWriteObject();
+    final int size = this.terms.size();
+    out.write(size);
+    final BytesRef spare = new BytesRef();
+    for (int i = 0; i < size; i++) {
+      this.terms.get(i, spare);
+      out.write(spare.length);
+      out.write(spare.bytes, spare.offset, spare.length);
+    }
+  }
+
+  /**
+   * POJO serialization. Customized to handle de-serialization of the {@link
+   * #terms terms list}.
+   * @param in Stream
+   * @throws IOException Thrown on low-level i/o-errors
+   * @throws ClassNotFoundException Thrown if de-serialization of the
+   * term-frw-map failed.
+   */
+  @SuppressWarnings("ObjectAllocationInLoop")
+  private void readObject(final ObjectInputStream in)
+      throws IOException, ClassNotFoundException {
+    in.defaultReadObject();
+    final int size = in.readInt();
+    final BytesRef spare = new BytesRef();
+    for (int i = 0; i < size; i++) {
+      spare.bytes = new byte[in.readInt()];
+      spare.length = spare.bytes.length;
+      spare.offset = 0;
+      in.read(spare.bytes);
+      this.terms.add(spare);
+    }
   }
 
   /**
@@ -76,17 +146,7 @@ public final class DocumentModel {
     this.hashCode = 19 * this.hashCode + (int) (this.termFrequency
         ^ (this.termFrequency
         >>> 32));
-    this.hashCode = 19 * this.hashCode * this.termFreqMap.size();
-  }
-
-  /**
-   * Checks, if a term is known for this document.
-   *
-   * @param term Term to lookup
-   * @return True if it's known
-   */
-  public boolean contains(final BytesRef term) {
-    return this.termFreqMap.containsKey(term);
+    this.hashCode = 19 * this.hashCode * this.terms.size();
   }
 
   /**
@@ -96,11 +156,15 @@ public final class DocumentModel {
    * @return Frequency in the associated document or {@code 0}, if unknown
    */
   public double relTf(final BytesRef term) {
-    final Long tFreq = this.termFreqMap.get(term);
-    if (tFreq == null) {
+    final int idx = this.terms.find(term);
+    if (idx == -1) {
       return 0d;
     }
-    return tFreq.doubleValue() / (double) this.termFrequency;
+    final long tf = this.freqs[idx];
+    if (tf == 0L) {
+      return 0d;
+    }
+    return (double) tf / (double) this.termFrequency;
   }
 
   /**
@@ -108,7 +172,7 @@ public final class DocumentModel {
    *
    * @return Summed frequency of all terms in document
    */
-  public Long tf() {
+  public long tf() {
     return this.termFrequency;
   }
 
@@ -118,12 +182,9 @@ public final class DocumentModel {
    * @param term Term to lookup
    * @return Frequency in the associated document or <tt>0</tt>, if unknown
    */
-  public Long tf(final BytesRef term) {
-    final Long tFreq = this.termFreqMap.get(term);
-    if (tFreq == null) {
-      return 0L;
-    }
-    return tFreq;
+  public long tf(final BytesRef term) {
+    final int idx = this.terms.find(term);
+    return idx == -1 ? 0 : this.freqs[idx];
   }
 
   /**
@@ -131,13 +192,8 @@ public final class DocumentModel {
    *
    * @return Number of unique terms in document
    */
-  public long termCount() {
-    final int count = this.termFreqMap.size();
-    // worst case - we have to calculate the real size
-    if (count == Integer.MAX_VALUE) {
-      return this.termFreqMap.keySet().stream().count();
-    }
-    return (long) count;
+  public int termCount() {
+    return this.terms.size();
   }
 
   @Override
@@ -156,32 +212,32 @@ public final class DocumentModel {
 
     final DocumentModel other = (DocumentModel) o;
 
-    if (this.id != other.id || this.termFrequency != other.termFrequency
-        || this.termFreqMap.size() != other.termFreqMap.size()) {
+    if (this.id != other.id
+        || this.termFrequency != other.termFrequency
+        || this.terms.size() != other.terms.size()) {
       return false;
     }
 
-    if (!other.termFreqMap.keySet().containsAll(this.termFreqMap.keySet())) {
+    if (!Arrays.equals(this.freqs, other.freqs)) {
       return false;
     }
 
-    for (final Entry<BytesRef, Long> entry : this.termFreqMap.entrySet()) {
-      if (entry.getValue().compareTo(other.termFreqMap.get(entry.getKey()))
-          != 0) {
+    final BytesRef spare = new BytesRef();
+    for (int i = this.terms.size() -1; i>=0; i--) {
+      if (other.terms.find(this.terms.get(i, spare)) != i) {
         return false;
       }
     }
+
     return true;
   }
 
-  /**
-   * Get a mapping of {@code Term} to {@code document-frequency} for every known
-   * term in the document. The returned Map is immutable.
-   *
-   * @return {@code Term} to {@code document-frequency} mapping (immutable)
-   */
-  public Map<BytesRef, Long> getTermFreqMap() {
-    return Collections.unmodifiableMap(this.termFreqMap);
+  public BytesRefHash getTermsForSerialization() {
+    return this.terms;
+  }
+
+  public long[] getFreqsForSerialization() {
+    return this.freqs;
   }
 
   /**
@@ -197,16 +253,21 @@ public final class DocumentModel {
     private static final int DEFAULT_TERMS_COUNT = 100;
 
     /**
-     * Term -> frequency mapping for every known term in the document.
-     */
-    @SuppressWarnings("PackageVisibleField")
-    final ConcurrentMap<BytesRef, Long> termFreqMap;
-
-    /**
      * Id to identify the corresponding document.
      */
     @SuppressWarnings("PackageVisibleField")
     final int docId;
+
+    /**
+     * Terms contained in the new model.
+     */
+    @SuppressWarnings("PackageVisibleField")
+    final BytesRefHash terms;
+    /**
+     * Frequency values for all terms in the new model.
+     */
+    @SuppressWarnings("PackageVisibleField")
+    final List<Long> freqs;
 
     /**
      * Initializes the Builder with the given document-id.
@@ -215,36 +276,8 @@ public final class DocumentModel {
      */
     public Builder(final int documentId) {
       this.docId = documentId;
-      this.termFreqMap = new ConcurrentHashMap<>(DEFAULT_TERMS_COUNT);
-    }
-
-    /**
-     * Builds a new {@link DocumentModel} based on an already existing one. The
-     * document-id and term-frequency map are copied to the new model.
-     *
-     * @param docModel Model to copy the data from
-     */
-    public Builder(final DocumentModel docModel) {
-      Objects.requireNonNull(docModel, "DocumentModel was null.");
-
-      this.docId = docModel.id;
-      this.termFreqMap = new ConcurrentHashMap<>(
-          docModel.getTermFreqMap().size());
-      this.termFreqMap.putAll(docModel.getTermFreqMap());
-    }
-
-    /**
-     * Builds a new {@link DocumentModel} with the given document-id and the
-     * expected amount of terms for this document. <br> The amount of terms is
-     * used to initialize data structures.
-     *
-     * @param documentId Referenced document id
-     * @param termsCount Expected number of terms
-     */
-    public Builder(final int documentId,
-        final int termsCount) {
-      this.docId = documentId;
-      this.termFreqMap = new ConcurrentHashMap<>(termsCount);
+      this.terms = new BytesRefHash();
+      this.freqs = new ArrayList<>(DEFAULT_TERMS_COUNT);
     }
 
     /**
@@ -255,17 +288,90 @@ public final class DocumentModel {
      * @param map Map containing {@code term} to  {@code frequency} mappings
      * @return Self reference
      */
-    public Builder setTermFrequency(
-        final Map<BytesRef, Long> map) {
+    public Builder setTermFrequency(final Map<BytesRef, Long> map) {
       Objects.requireNonNull(map, "Term frequency map was null.")
           .entrySet().stream()
-          .forEach(e -> this.termFreqMap.put(
-              Objects.requireNonNull(e.getKey(),
-                  "Null as key is not allowed."),
-              Objects.requireNonNull(e.getValue(),
-                  "Null as value is not allowed.")
-          ));
+          .forEach(e -> setTermFrequency(e.getKey(), e.getValue()));
       return this;
+    }
+
+    /**
+     * Set the term frequency value for a single term.
+     * @param term Term
+     * @param freq Frequency
+     * @return Self reference
+     */
+    public Builder setTermFrequency(final BytesRef term, final long freq) {
+      final int idx = this.terms.add(term);
+      if (idx > 0) {
+        // pad long array size, if needed
+        if (idx >= this.freqs.size()) {
+          while (this.freqs.size() <= idx) {
+            this.freqs.add(0L);
+          }
+        }
+        this.freqs.add(idx, freq);
+      }
+      return this;
+    }
+
+    /**
+     * Builds the {@link DocumentModel} using the current data.
+     *
+     * @return New document model with the data of this builder set
+     */
+    public DocumentModel getModel() {
+      return new DocumentModel(this);
+    }
+  }
+
+  /**
+   * Builder used for creating a model from serialization data.
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public static final class SerializationBuilder {
+    /**
+     * Id to identify the corresponding document.
+     */
+    @SuppressWarnings("PackageVisibleField")
+    final int docId;
+
+    /**
+     * Terms contained in the new model.
+     */
+    @SuppressWarnings("PackageVisibleField")
+    final BytesRefHash terms;
+    /**
+     * Frequency values for all terms in the new model.
+     */
+    @SuppressWarnings("PackageVisibleField")
+    final long[] freqs;
+
+    /**
+     * Initialize the builder with all base data.
+     * @param docId Document-id
+     * @param termCount Number of terms in the model
+     * @param termFreqs Frequency values for all terms added later. Order of
+     * terms added by using {@link #addTerm(BytesRef)} must match this order.
+     */
+    @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
+    public SerializationBuilder(
+        final int docId, final int termCount, final long... termFreqs) {
+      this.docId = docId;
+      this.freqs = termFreqs;
+      this.terms = new BytesRefHash(
+          new ByteBlockPool(new DirectAllocator()),
+          termCount,
+          new DirectBytesStartArray(termCount)
+      );
+    }
+
+    /**
+     * Add a term to the documents terms list.
+     * @param term Term
+     */
+    public void addTerm(final BytesRef term) {
+      this.terms.add(term);
     }
 
     /**

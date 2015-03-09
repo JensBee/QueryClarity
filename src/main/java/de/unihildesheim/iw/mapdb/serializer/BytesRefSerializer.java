@@ -15,10 +15,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package org.mapdb;
+package de.unihildesheim.iw.mapdb.serializer;
 
 import de.unihildesheim.iw.ByteArray;
 import org.apache.lucene.util.BytesRef;
+import org.mapdb.BTreeKeySerializer;
+import org.mapdb.BTreeMap;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -29,20 +31,17 @@ import java.util.Comparator;
 
 /**
  * MapDB serializers, comparators, etc. for {@link BytesRef} objects.
+ *
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public final class BytesRefSerialization {
+public final class BytesRefSerializer {
   /**
-   * Serialization id.
+   * MapDB {@link Serializer} for {@link BytesRef} objects.
    */
-  private static final long serialVersionUID = -302418892162242172L;
+  public static final org.mapdb.Serializer<BytesRef> SERIALIZER = new
+      Serializer();
   /**
-   * MapDB {@link Serializer}.
-   */
-  public static final Serializer<BytesRef> SERIALIZER = new
-      BytesRefSerializer();
-  /**
-   * MapDB {@link BTreeKeySerializer} for this class instances.
+   * MapDB {@link BTreeKeySerializer} for {@link BytesRef} objects.
    */
   public static final BytesRefKeySerializer SERIALIZER_BTREE =
       new BytesRefKeySerializer();
@@ -57,7 +56,7 @@ public final class BytesRefSerialization {
    * handle n{@code null} values.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static final class BytesRefSerializer
+  public static final class Serializer
       implements org.mapdb.Serializer<BytesRef>, Serializable {
     /**
      * Serialization id.
@@ -69,13 +68,14 @@ public final class BytesRefSerialization {
         throws IOException {
       final byte[] bytes = Arrays
           .copyOfRange(value.bytes, value.offset, value.offset + value.length);
-      Serializer.BYTE_ARRAY.serialize(out, bytes);
+      org.mapdb.Serializer.BYTE_ARRAY.serialize(out, bytes);
     }
 
     @Override
     public BytesRef deserialize(final DataInput in, final int available)
         throws IOException {
-      final byte[] value = Serializer.BYTE_ARRAY.deserialize(in, available);
+      final byte[] value = org.mapdb.Serializer.BYTE_ARRAY
+          .deserialize(in, available);
       return new BytesRef(value);
     }
 

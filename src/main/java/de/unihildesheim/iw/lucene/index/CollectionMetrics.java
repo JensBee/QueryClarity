@@ -20,10 +20,11 @@ package de.unihildesheim.iw.lucene.index;
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
+import de.unihildesheim.iw.mapdb.serializer.DocumentModelSerializer;
 import org.apache.lucene.util.BytesRef;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.mapdb.BytesRefSerialization;
+import de.unihildesheim.iw.mapdb.serializer.BytesRefSerializer;
 import org.mapdb.DBMaker;
 import org.mapdb.Serializer;
 
@@ -154,7 +155,7 @@ public final class CollectionMetrics {
         .transactionDisable()
         .make()
         .createHashMap("cache")
-        .keySerializer(BytesRefSerialization.SERIALIZER)
+        .keySerializer(BytesRefSerializer.SERIALIZER)
         .valueSerializer(Serializer.BASIC)
         .expireStoreSize(1500d)
         .make();
@@ -166,7 +167,7 @@ public final class CollectionMetrics {
           .make()
           .createHashMap("cache")
           .keySerializer(Serializer.INTEGER)
-          .valueSerializer(Serializer.JAVA)
+          .valueSerializer(DocumentModelSerializer.SERIALIZER)
           .expireStoreSize(1000d)
           .make();
     } else {
@@ -179,7 +180,7 @@ public final class CollectionMetrics {
           .transactionDisable()
           .make()
           .createHashMap("cache")
-          .keySerializer(BytesRefSerialization.SERIALIZER)
+          .keySerializer(BytesRefSerializer.SERIALIZER)
           .valueSerializer(Serializer.INTEGER)
           .expireStoreSize(1500d)
           .make();
@@ -193,7 +194,7 @@ public final class CollectionMetrics {
           .transactionDisable()
           .make()
           .createHashMap("cache")
-          .keySerializer(BytesRefSerialization.SERIALIZER)
+          .keySerializer(BytesRefSerializer.SERIALIZER)
           .valueSerializer(Serializer.LONG)
           .expireStoreSize(1500d)
           .make();
