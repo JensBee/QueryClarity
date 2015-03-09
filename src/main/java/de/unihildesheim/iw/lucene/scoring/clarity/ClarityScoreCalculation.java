@@ -19,6 +19,7 @@ package de.unihildesheim.iw.lucene.scoring.clarity;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 
 /**
  * Generic interface for various clarity score calculation implementations.
@@ -71,6 +72,55 @@ public interface ClarityScoreCalculation {
     public ClarityScoreCalculationException(final String msg, final Throwable
         ex) {
       super(msg, ex);
+    }
+  }
+
+  /**
+   * Store low-precision model calculation results.
+   */
+  public static final class ScoreTupleLowPrecision {
+    /**
+     * Query model value.
+     */
+    public final double qModel;
+    /**
+     * Collection model value.
+     */
+    public final double cModel;
+
+    /**
+     * Store low-precision model calculation results.
+     * @param qModel Query model value
+     * @param cModel Collection model value
+     */
+    public ScoreTupleLowPrecision(final double qModel, final double cModel) {
+      this.qModel = qModel;
+      this.cModel = cModel;
+    }
+  }
+
+  /**
+   * Store high-precision model calculation results.
+   */
+  public static final class ScoreTupleHighPrecision {
+    /**
+     * Query model value.
+     */
+    public final BigDecimal qModel;
+    /**
+     * Collection model value.
+     */
+    public final BigDecimal cModel;
+
+    /**
+     * Store high-precision model calculation results.
+     * @param qModel Query model value
+     * @param cModel Collection model value
+     */
+    public ScoreTupleHighPrecision(
+        final BigDecimal qModel, final BigDecimal cModel) {
+      this.qModel = qModel;
+      this.cModel = cModel;
     }
   }
 }
