@@ -20,12 +20,17 @@ import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.Tuple.Tuple2;
+import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation
+    .ScoreTupleHighPrecision;
+import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation
+    .ScoreTupleLowPrecision;
 import de.unihildesheim.iw.util.concurrent.AtomicBigDecimal;
 import org.nevec.rjm.BigDecimalMath;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
+import java.util.Arrays;
 import java.util.Collection;
 
 /**
@@ -36,8 +41,8 @@ public final class MathUtils {
    * Constant value of log2.
    */
   private static final double LOG2 = Math.log(2d);
-  private static final BigDecimal BD_LOG2 = BigDecimal.valueOf(Math.log(2d));
-  private static final MathContext MATH_CONTEXT = new MathContext(
+  static final BigDecimal BD_LOG2 = BigDecimal.valueOf(Math.log(2d));
+  static final MathContext MATH_CONTEXT = new MathContext(
       GlobalConfiguration.conf().getString(
           DefaultKeys.MATH_CONTEXT.toString()));
   /**
@@ -86,6 +91,74 @@ public final class MathUtils {
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class KlDivergence {
+    /**
+     * Logger instance for this class.
+     */
+    private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
+        KlDivergence.class);
+
+    public static BigDecimal sumAndCalc(
+        final ScoreTupleHighPrecision... dataSet) {
+      return calc(dataSet, sumValues(dataSet));
+    }
+
+    public static ScoreTupleHighPrecision sumValues(
+        final ScoreTupleHighPrecision... dataSet) {
+      final AtomicBigDecimal sumQModel = new AtomicBigDecimal();
+      final AtomicBigDecimal sumCModel = new AtomicBigDecimal();
+
+      Arrays.stream(dataSet)
+          .filter(ds ->
+              // a null value is not allowed here
+              ds != null && ds.qModel != null && ds.cModel != null &&
+                  // both values will be zero if t2.b is zero
+                  // t2.b == 0 implies t2.a == 0
+                  ds.cModel.compareTo(BigDecimal.ZERO) != 0)
+          .forEach(ds -> {
+                sumQModel.addAndGet(ds.qModel, MATH_CONTEXT);
+                sumCModel.addAndGet(ds.cModel, MATH_CONTEXT);
+              }
+          );
+
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("pcSum={} pqSum={}",
+            sumQModel.doubleValue(), sumCModel.doubleValue());
+      }
+      return new ScoreTupleHighPrecision(sumQModel.get(), sumCModel.get());
+    }
+
+    private static BigDecimal calc(
+        final ScoreTupleHighPrecision[] dataSet,
+        final ScoreTupleHighPrecision sums) {
+
+      final AtomicBigDecimal result = new AtomicBigDecimal();
+
+      Arrays.stream(dataSet)
+          .filter(ds ->
+              // a null value is not allowed here
+              ds != null && ds.qModel != null && ds.cModel != null &&
+                  // t2.a will be zero if t2.b is zero:
+                  // t2.b == 0 implies t2.a == 0
+                  ds.cModel.compareTo(BigDecimal.ZERO) != 0 &&
+                  // dividing zero is always zero, so skip here
+                  ds.qModel.compareTo(BigDecimal.ZERO) != 0)
+          .map(ds -> {
+            // scale value of t2.a & t2.b to [0,1]
+            final BigDecimal qScaled =
+                ds.qModel.divide(sums.qModel, MATH_CONTEXT);
+            // r += (t2.a/sums.a) * log((t2.a/sums.a) / (t2.b/sums.b))
+            return qScaled.multiply(
+                BigDecimalMath.log(
+                    qScaled.divide(
+                        ds.cModel.divide(sums.cModel, MATH_CONTEXT),
+                        MATH_CONTEXT)), MATH_CONTEXT);
+          })
+          .forEach(s -> result.addAndGet(s, MATH_CONTEXT));
+
+      return result.get().divide(BD_LOG2, MATH_CONTEXT);
+    }
+
+
     public static BigDecimal sumAndCalc(
         final Collection<Tuple2<BigDecimal, BigDecimal>> dataSet) {
       return calc(dataSet, sumValues(dataSet));
@@ -149,6 +222,51 @@ public final class MathUtils {
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class KlDivergenceLowPrecision {
+    /**
+     * Logger instance for this class.
+     */
+    private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
+        KlDivergenceLowPrecision.class);
+
+    public static double sumAndCalc(final ScoreTupleLowPrecision... dataSet) {
+      return calc(dataSet, sumValues(dataSet));
+    }
+
+    static ScoreTupleLowPrecision sumValues(
+        final ScoreTupleLowPrecision... dataSet) {
+      final double[] sums = Arrays.stream(dataSet)
+          // both values will be zero if cModel is zero
+          // cModel == 0 implies qModel == 0
+          .filter(ds -> ds != null && ds.cModel > 0)
+          .map(ds -> new double[]{ds.qModel, ds.cModel})
+          .reduce(new double[]{0, 0},
+              (sum, curr) -> new double[]{sum[0] + curr[0], sum[1] + curr[1]});
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("pqSum={} pcSum={}", sums[0], sums[1]);
+      }
+      return new ScoreTupleLowPrecision(sums[0], sums[1]);
+    }
+
+    static double calc(final ScoreTupleLowPrecision[] dataSet,
+        final ScoreTupleLowPrecision sums) {
+      return Arrays.stream(dataSet)
+          .filter(ds ->
+              // a null value is not allowed here
+              ds != null &&
+                  // ds.qModel will be zero if ds.cModel is zero:
+                  // ds.cModel == 0 implies ds.qModel == 0
+                  ds.cModel != 0d &&
+                  // dividing zero is always zero, so skip here
+                  ds.qModel != 0d)
+          .mapToDouble(ds -> {
+            // scale value of ds.qModel & ds.cModel to [0,1]
+            final double qScaled = ds.qModel / sums.qModel;
+            // r += (ds.cModel/sums[cModel]) *
+            // log((ds.cModel/sums[cModel]) / (ds.qModel/sums[qModel]))
+            return qScaled * Math.log(qScaled / (ds.cModel / sums.cModel));
+          }).sum();
+    }
+
     public static double sumAndCalc(
         final Collection<Tuple2<Double, Double>> dataSet) {
       return calc(dataSet, sumValues(dataSet));
