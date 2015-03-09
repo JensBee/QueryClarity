@@ -212,6 +212,7 @@ public final class DefaultClarityScore
      * Initialize the model calculation object.
      *
      * @param dataProv DataProvider instance from parent class
+     * @param docLangModelWeight Language model weighting value
      * @param qt Query terms. Query terms not found in the collection (TF=0)
      * will be skipped.
      * @param fb Feedback documents
@@ -303,6 +304,7 @@ public final class DefaultClarityScore
      * Initialize the model calculation object.
      *
      * @param dataProv DataProvider instance from parent class
+     * @param docLangModelWeight Language model weighting value
      * @param qt Query terms. Query terms not found in the collection (TF=0)
      * will be skipped.
      * @param fb Feedback documents
@@ -325,7 +327,7 @@ public final class DefaultClarityScore
       Arrays.stream(this.feedbackDocs).forEach(docId -> {
         final double staticPart =
             StreamUtils.stream(this.queryTerms)
-                .map(br -> document(this.cMetrics.docData(docId), br))
+                .mapToDouble(br -> document(this.cMetrics.docData(docId), br))
                 .reduce(1d, (g, c) -> g * c);
 
         this.staticQueryModelParts.put(docId, staticPart);
@@ -353,9 +355,8 @@ public final class DefaultClarityScore
      */
     double query(final BytesRef term) {
       return Arrays.stream(this.feedbackDocs)
-          .mapToObj(d -> document(this.docModels.get(d), term) *
-              this.staticQueryModelParts.get(d))
-          .reduce(0d, Double::sum);
+          .mapToDouble(d -> document(this.docModels.get(d), term) *
+              this.staticQueryModelParts.get(d)).sum();
     }
   }
 
@@ -488,20 +489,15 @@ public final class DefaultClarityScore
 
       LOG.info("Calculating query models using feedback vocabulary. " +
           "(low precision)");
-      TimeMeasure tm = new TimeMeasure().start();
       // calculate query models
-      final List<Tuple2<Double, Double>> dataSets = this.vocProvider
+      final ScoreTupleLowPrecision[] dataSets = this.vocProvider
           .documentIds(feedbackDocIds).get()
-          .map(term ->
-              Tuple.tuple2(
-                  model.query(term), cMetrics.relTf(term)))
-          .collect(Collectors.toList());
-      LOG.debug(">> took {}", tm.stop().getTimeString());
+          .map(term -> new ScoreTupleLowPrecision(
+              model.query(term), cMetrics.relTf(term)))
+          .toArray(ScoreTupleLowPrecision[]::new);
 
       LOG.info("Calculating final score.");
-      tm.start();
       result.setScore(KlDivergenceLowPrecision.sumAndCalc(dataSets));
-      LOG.debug(">> took {}", tm.stop().getTimeString());
     } else {
       // high precision math
       final ModelHighPrecision model = new ModelHighPrecision(this.dataProv,
