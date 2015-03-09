@@ -18,12 +18,8 @@ package de.unihildesheim.iw.util;
 
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
-import de.unihildesheim.iw.Tuple;
-import de.unihildesheim.iw.Tuple.Tuple2;
-import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation
-    .ScoreTupleHighPrecision;
-import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation
-    .ScoreTupleLowPrecision;
+import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation.ScoreTupleHighPrecision;
+import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation.ScoreTupleLowPrecision;
 import de.unihildesheim.iw.util.concurrent.AtomicBigDecimal;
 import org.nevec.rjm.BigDecimalMath;
 import org.slf4j.LoggerFactory;
@@ -31,7 +27,6 @@ import org.slf4j.LoggerFactory;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.util.Arrays;
-import java.util.Collection;
 
 /**
  * Collection of simple calculation utilities.
@@ -157,64 +152,6 @@ public final class MathUtils {
 
       return result.get().divide(BD_LOG2, MATH_CONTEXT);
     }
-
-
-    public static BigDecimal sumAndCalc(
-        final Collection<Tuple2<BigDecimal, BigDecimal>> dataSet) {
-      return calc(dataSet, sumValues(dataSet));
-    }
-
-    public static Tuple2<BigDecimal, BigDecimal> sumValues(
-        final Collection<Tuple2<BigDecimal, BigDecimal>> dataSet) {
-      final AtomicBigDecimal sumA = new AtomicBigDecimal();
-      final AtomicBigDecimal sumB = new AtomicBigDecimal();
-
-      dataSet.stream()
-          .filter(t2 ->
-              // a null value is not allowed here
-              t2 != null && t2.a != null && t2.b != null &&
-                  // both values will be zero if t2.b is zero
-                  // t2.b == 0 implies t2.a == 0
-                  t2.b.compareTo(BigDecimal.ZERO) != 0)
-          .forEach(t -> {
-                sumA.addAndGet(t.a, MATH_CONTEXT);
-                sumB.addAndGet(t.b, MATH_CONTEXT);
-              }
-          );
-
-      LOG.debug("pcSum={} pqSum={}", sumA.doubleValue(), sumB.doubleValue());
-      return Tuple.tuple2(sumA.get(), sumB.get());
-    }
-
-    public static BigDecimal calc(
-        final Collection<Tuple2<BigDecimal, BigDecimal>> values,
-        final Tuple2<BigDecimal, BigDecimal> sums) {
-
-      final AtomicBigDecimal result = new AtomicBigDecimal();
-
-      values.stream()
-          .filter(t2 ->
-              // a null value is not allowed here
-              t2 != null && t2.a != null && t2.b != null &&
-                  // t2.a will be zero if t2.b is zero:
-                  // t2.b == 0 implies t2.a == 0
-                  t2.b.compareTo(BigDecimal.ZERO) != 0 &&
-                  // dividing zero is always zero, so skip here
-                  t2.a.compareTo(BigDecimal.ZERO) != 0)
-          .map(t2 -> {
-            // scale value of t2.a & t2.b to [0,1]
-            final BigDecimal aScaled = t2.a.divide(sums.a, MATH_CONTEXT);
-            // r += (t2.a/sums.a) * log((t2.a/sums.a) / (t2.b/sums.b))
-            return aScaled.multiply(
-                BigDecimalMath.log(
-                    aScaled.divide(
-                        t2.b.divide(sums.b, MATH_CONTEXT),
-                        MATH_CONTEXT)), MATH_CONTEXT);
-          })
-          .forEach(s -> result.addAndGet(s, MATH_CONTEXT));
-
-      return result.get().divide(BD_LOG2, MATH_CONTEXT);
-    }
   }
 
   /**
@@ -265,51 +202,6 @@ public final class MathUtils {
             // log((ds.cModel/sums[cModel]) / (ds.qModel/sums[qModel]))
             return qScaled * Math.log(qScaled / (ds.cModel / sums.cModel));
           }).sum();
-    }
-
-    public static double sumAndCalc(
-        final Collection<Tuple2<Double, Double>> dataSet) {
-      return calc(dataSet, sumValues(dataSet));
-    }
-
-    public static Tuple2<Double, Double> sumValues(
-        final Collection<Tuple2<Double, Double>> dataSet) {
-      final Tuple2<Double, Double> result = dataSet.stream()
-          .filter(t2 ->
-              // a null value is not allowed here
-              t2 != null && t2.a != null && t2.b != null &&
-                  // both values will be zero if t2.b is zero
-                  // t2.b == 0 implies t2.a == 0
-                  t2.b != 0d)
-          .reduce(Tuple.tuple2(0d, 0d),
-              (x, y) -> Tuple.tuple2(x.a + y.a, x.b + y.b));
-
-      LOG.debug("pqSum={} pcSum={}", result.a, result.b);
-      return result;
-    }
-
-    public static double calc(
-        final Collection<Tuple2<Double, Double>> values,
-        final Tuple2<Double, Double> sums) {
-      final double result = values.stream()
-          .filter(t2 ->
-              // a null value is not allowed here
-              t2 != null && t2.a != null && t2.b != null &&
-                  // t2.a will be zero if t2.b is zero:
-                  // t2.b == 0 implies t2.a == 0
-                  t2.b != 0d &&
-                  // dividing zero is always zero, so skip here
-                  t2.a != 0d)
-          .map(t2 -> {
-            // scale value of t2.a & t2.b to [0,1]
-            final double aScaled = t2.a / sums.a;
-            // r += (t2.a/sums.a) * log((t2.a/sums.a) / (t2.b/sums.b))
-            return aScaled * Math.log(aScaled / (t2.b / sums.b));
-          })
-          .reduce(0d, Double::sum);
-
-      // FIXME: may hit dev/0 if something goes wrong
-      return result / Math.log(2d);
     }
   }
 }

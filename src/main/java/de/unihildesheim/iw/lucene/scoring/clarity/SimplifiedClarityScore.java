@@ -19,8 +19,6 @@ package de.unihildesheim.iw.lucene.scoring.clarity;
 import de.unihildesheim.iw.Buildable.ConfigurationException;
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
-import de.unihildesheim.iw.Tuple;
-import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.util.MathUtils.KlDivergence;
@@ -32,8 +30,6 @@ import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -80,7 +76,7 @@ public final class SimplifiedClarityScore
    *
    * @param builder Builder to use for constructing the instance
    */
-  private SimplifiedClarityScore(final Builder builder) {
+  SimplifiedClarityScore(final Builder builder) {
     super(IDENTIFIER);
     Objects.requireNonNull(builder, "Builder was null.");
 
@@ -120,17 +116,18 @@ public final class SimplifiedClarityScore
     // calculate max likelihood of the query model for each term in the
     // query
     // iterate over all unique query terms
-    final Collection<Tuple2<BigDecimal, BigDecimal>> dataSet =
-        new ArrayList<>(queryTerms.size());
+    final ScoreTupleHighPrecision[] dataSets = new
+        ScoreTupleHighPrecision[queryTerms.size()];
+    int idx = 0;
     for (final Entry<BytesRef, Integer> qTermEntry : queryTerms.entrySet()) {
-      dataSet.add(Tuple.tuple2(
+      dataSets[idx++] = new ScoreTupleHighPrecision(
           BigDecimal.valueOf(qTermEntry.getValue())
               .divide(BigDecimal.valueOf(queryLength), MATH_CONTEXT),
-          BigDecimal.valueOf(this.dataProv.metrics().relTf(qTermEntry.getKey
-              ()))));
+          BigDecimal.valueOf(this.dataProv.metrics()
+              .relTf(qTermEntry.getKey()))
+      );
     }
-
-    final double score = KlDivergence.sumAndCalc(dataSet).doubleValue();
+    final double score = KlDivergence.sumAndCalc(dataSets).doubleValue();
 
     LOG.debug("Calculation results: query={} score={}.", query, score);
 

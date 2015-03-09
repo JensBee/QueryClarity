@@ -22,6 +22,7 @@ import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
+import de.unihildesheim.iw.lucene.index.CollectionMetrics;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.lucene.scoring.ScoringResult.ScoringResultXml.Keys;
@@ -40,6 +41,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.Counter;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,7 +56,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -138,24 +139,30 @@ public final class ImprovedClarityScore
      * DataProvider instance from parent class.
      */
     final IndexDataProvider dataProv;
+    /**
+     * Collection metrics instance.
+     */
+    final CollectionMetrics cMetrics;
 
     /**
      * Initialize the abstract model with a set of query terms and feedback
      * documents.
      *
+     * @param dataProv DataProvider
      * @param qt Query terms
      * @param fb Feedback documents
      * @throws IOException Thrown on low-level I/O-errors
      */
-    AbstractModel(IndexDataProvider dataProv,
+    AbstractModel(final IndexDataProvider dataProv,
         final BytesRefArray qt, final DocIdSet fb)
         throws IOException {
       LOG.debug("Create runtime cache.");
       this.dataProv = dataProv;
+      this.cMetrics = dataProv.metrics();
       // add query terms, skip those not in index
       this.queryTerms = new BytesRefArray(Counter.newCounter(false));
       StreamUtils.stream(qt)
-          .filter(queryTerm -> this.dataProv.metrics().tf(queryTerm) > 0L)
+          .filter(queryTerm -> this.cMetrics.tf(queryTerm) > 0L)
           .forEach(this.queryTerms::append);
 
       // init feedback documents list
@@ -173,7 +180,7 @@ public final class ImprovedClarityScore
         // fill list of feedback documents
         this.feedbackDocs[cnt++] = docId;
         // pre-cache document models
-        this.docModels.put(docId, this.dataProv.metrics().docData(docId));
+        this.docModels.put(docId, this.cMetrics.docData(docId));
       }
     }
   }
@@ -241,13 +248,12 @@ public final class ImprovedClarityScore
 
       LOG.info("Pre-calculating static query model and smoothing values");
       for (final Integer docId : this.feedbackDocs) {
-        final DocumentModel docModel = this.dataProv
-            .metrics().docData(docId);
+        final DocumentModel docModel = this.cMetrics.docData(docId);
 
         // smoothing value
         final BigDecimal sSmooth = BigDecimal.valueOf(docModel.tf())
             .add(this.dmParams[0]
-                .multiply(BigDecimal.valueOf(docModel.termCount()),
+                .multiply(BigDecimal.valueOf((long) docModel.termCount()),
                     MATH_CONTEXT), MATH_CONTEXT);
         this.staticSmoothingParts.put(docId, sSmooth);
 
@@ -270,7 +276,7 @@ public final class ImprovedClarityScore
         final DocumentModel docModel, final BytesRef term) {
       // collection model of current term
       final BigDecimal cModel = BigDecimal.valueOf(
-          this.dataProv.metrics().relTf(term));
+          this.cMetrics.relTf(term));
 
       // smoothed document-term model
       final BigDecimal smoothing = BigDecimal.valueOf(docModel.tf(term))
@@ -339,7 +345,7 @@ public final class ImprovedClarityScore
      * @param dmLambda Document model: Lambda parameter value
      * @throws IOException Thrown on low-level I/O-errors
      */
-    private ModelLowPrecision(final IndexDataProvider dataProv,
+    ModelLowPrecision(final IndexDataProvider dataProv,
         final BytesRefArray qt, final DocIdSet fb,
         final double dmSmoothing, final double dmBeta, final double dmLambda)
         throws IOException {
@@ -356,17 +362,16 @@ public final class ImprovedClarityScore
 
       LOG.info("Pre-calculating static query model and smoothing values");
       for (final Integer docId : this.feedbackDocs) {
-        final DocumentModel docModel = this.dataProv
-            .metrics().docData(docId);
+        final DocumentModel docModel = this.cMetrics.docData(docId);
 
         // smoothing value
-        final double sSmooth = docModel.tf() +
+        final double sSmooth = (double) docModel.tf() +
             (this.dmParams[0] * (double) docModel.termCount());
         this.staticSmoothingParts.put(docId, sSmooth);
 
         // static query model part (needs smoothing values)
         final double staticPart = StreamUtils.stream(this.queryTerms)
-            .map(br -> document(docModel, br))
+            .mapToDouble(br -> document(docModel, br))
             .reduce(1d, (g, c) -> g * c);
 
         this.staticQueryModelParts.put(docId, staticPart);
@@ -383,10 +388,10 @@ public final class ImprovedClarityScore
     double document(
         final DocumentModel docModel, final BytesRef term) {
       // collection model of current term
-      final double cModel = this.dataProv.metrics().relTf(term);
+      final double cModel = this.cMetrics.relTf(term);
 
       // smoothed document-term model
-      final double smoothing = (docModel.tf(term) + (this.dmParams[0] *
+      final double smoothing = ((double) docModel.tf(term) + (this.dmParams[0] *
           cModel)) / this.staticSmoothingParts.get(docModel.id);
 
       // final model calculation
@@ -402,9 +407,8 @@ public final class ImprovedClarityScore
      */
     double query(final BytesRef term) {
       return Arrays.stream(this.feedbackDocs)
-          .mapToObj(d -> document(this.docModels.get(d), term) *
-              this.staticQueryModelParts.get(d))
-          .reduce(0d, Double::sum);
+          .mapToDouble(d -> document(this.docModels.get(d), term) *
+              this.staticQueryModelParts.get(d)).sum();
     }
   }
 
@@ -413,7 +417,7 @@ public final class ImprovedClarityScore
    *
    * @param builder Builder to use for constructing the instance
    */
-  private ImprovedClarityScore(final Builder builder) {
+  ImprovedClarityScore(final Builder builder) {
     super(IDENTIFIER);
     Objects.requireNonNull(builder, "Builder was null.");
 
@@ -428,7 +432,7 @@ public final class ImprovedClarityScore
           "Required minimum number of feedback documents ("
               + this.conf.getMinFeedbackDocumentsCount() + ") is larger "
               + "or equal compared to the total amount of indexed documents "
-              + "(" + this.dataProv.getDocumentCount()
+              + '(' + this.dataProv.getDocumentCount()
               + "). Unable to provide feedback."
       );
     }
@@ -465,11 +469,14 @@ public final class ImprovedClarityScore
     // result object
     final Result result = new Result(this.getClass());
 
+    // cache metrics instance getting used frequently
+    final CollectionMetrics cMetrics = this.dataProv.metrics();
+
     // get a normalized unique list of query terms
     // skips stopwords and removes unknown terms (not visible in current
     // fields, etc.)
     final BytesRefArray queryTerms = QueryUtils.tokenizeQuery(query,
-        this.analyzer, this.dataProv.metrics());
+        this.analyzer, cMetrics);
     // check query term extraction result
     if (queryTerms.size() == 0) {
       result.setEmpty("No query terms.");
@@ -519,15 +526,17 @@ public final class ImprovedClarityScore
         .getMinFeedbackTermSelectionThreshold());
     final BigDecimal maxFreq = BigDecimal.valueOf(this.conf
         .getMaxFeedbackTermSelectionThreshold());
-    LOG.debug("Feedback term Document frequency threshold: {}%-{}%",
-        minFreq.doubleValue() * 100d, maxFreq.doubleValue() * 100d);
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Feedback term Document frequency threshold: {}%-{}%",
+          minFreq.doubleValue() * 100d, maxFreq.doubleValue() * 100d);
+    }
 
     // feedback terms stream used for calculation
     final Stream<BytesRef> fbTermStream = this.vocProvider
         .documentIds(feedbackDocIds)
         .get()
         .filter(t -> {
-          final BigDecimal relDf = this.dataProv.metrics().relDf(t);
+          final BigDecimal relDf = cMetrics.relDf(t);
           return relDf.compareTo(minFreq) >= 0
               && relDf.compareTo(maxFreq) <= 0;
         });
@@ -542,11 +551,10 @@ public final class ImprovedClarityScore
 
         LOG.info("Calculating query models using feedback vocabulary. " +
             "(low precision)");
-        final List<Tuple2<Double, Double>> dataSets = fbTermStream
-            .map(term ->
-                Tuple.tuple2(
-                    model.query(term), this.dataProv.metrics().relTf(term)))
-            .collect(Collectors.toList());
+        final ScoreTupleLowPrecision[] dataSets = fbTermStream
+            .map(term -> new ScoreTupleLowPrecision(
+                model.query(term), cMetrics.relTf(term)))
+            .toArray(ScoreTupleLowPrecision[]::new);
 
         LOG.info("Calculating final score.");
         result.setScore(
@@ -560,12 +568,10 @@ public final class ImprovedClarityScore
 
         LOG.info("Calculating query models using feedback vocabulary. " +
             "(high precision)");
-        final List<Tuple2<BigDecimal, BigDecimal>> dataSets = fbTermStream
-            .map(term ->
-                Tuple.tuple2(
-                    model.query(term), BigDecimal.valueOf(
-                        this.dataProv.metrics().relTf(term))))
-            .collect(Collectors.toList());
+        final ScoreTupleHighPrecision[] dataSets = fbTermStream
+            .map(term -> new ScoreTupleHighPrecision(
+                model.query(term), BigDecimal.valueOf(cMetrics.relTf(term))))
+            .toArray(ScoreTupleHighPrecision[]::new);
 
         LOG.info("Calculating final score.");
         result.setScore(
@@ -575,10 +581,12 @@ public final class ImprovedClarityScore
       throw new UncheckedIOException(e);
     }
 
-    LOG.debug("Calculating improved clarity score for query {} "
-            + "with {} document models took {}. {}",
-        query, fbDocCount,
-        timeMeasure.stop().getTimeString(), result.getScore());
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Calculating improved clarity score for query {} "
+              + "with {} document models took {}. {}",
+          query, fbDocCount,
+          timeMeasure.stop().getTimeString(), result.getScore());
+    }
 
     return result;
   }
@@ -620,7 +628,7 @@ public final class ImprovedClarityScore
         try {
           this.feedbackDocIds = DocIdSetUtils.bits(fbDocIds);
         } catch (final IOException e) {
-          LOG.error("Failed to retrieve ids for feedback documents.", e);
+          throw new UncheckedIOException(e);
         }
       }
     }
@@ -630,7 +638,7 @@ public final class ImprovedClarityScore
      *
      * @param newConf Configuration used
      */
-    void setConf(final ImprovedClarityScoreConfiguration newConf) {
+    void setConf(@NotNull final ImprovedClarityScoreConfiguration newConf) {
       this.conf = Objects.requireNonNull(newConf, "Configuration was null.");
     }
 
@@ -639,6 +647,7 @@ public final class ImprovedClarityScore
      *
      * @return Configuration used for this calculation result
      */
+    @Nullable
     public ImprovedClarityScoreConfiguration getConfiguration() {
       return this.conf;
     }

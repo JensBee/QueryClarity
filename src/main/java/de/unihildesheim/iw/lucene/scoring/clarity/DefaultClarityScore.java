@@ -54,7 +54,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 /**
  * Default Clarity Score implementation as described by Cronen-Townsend, Steve,
@@ -507,12 +506,11 @@ public final class DefaultClarityScore
       LOG.info("Calculating query models using feedback vocabulary. " +
           "(high precision)");
       // calculate query models
-      final List<Tuple2<BigDecimal, BigDecimal>> dataSets = this.vocProvider
+      final ScoreTupleHighPrecision[] dataSets = this.vocProvider
           .documentIds(feedbackDocIds).get()
-          .map(term ->
-              Tuple.tuple2(
-                  model.query(term), BigDecimal.valueOf(cMetrics.relTf(term))))
-          .collect(Collectors.toList());
+          .map(term -> new ScoreTupleHighPrecision(
+              model.query(term), BigDecimal.valueOf(cMetrics.relTf(term))))
+              .toArray(ScoreTupleHighPrecision[]::new);
 
       LOG.info("Calculating final score.");
       result.setScore(KlDivergence.sumAndCalc(dataSets).doubleValue());
