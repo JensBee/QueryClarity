@@ -480,6 +480,7 @@ public final class DefaultClarityScore
 
       LOG.info("Calculating query models using feedback vocabulary. " +
           "(low precision)");
+      TimeMeasure tm = new TimeMeasure().start();
       // calculate query models
       final List<Tuple2<Double, Double>> dataSets = this.vocProvider
           .documentIds(feedbackDocIds).get()
@@ -487,9 +488,12 @@ public final class DefaultClarityScore
               Tuple.tuple2(
                   model.query(term), this.dataProv.metrics().relTf(term)))
           .collect(Collectors.toList());
+      LOG.debug(">> took {}", tm.stop().getTimeString());
 
       LOG.info("Calculating final score.");
+      tm.start();
       result.setScore(KlDivergenceLowPrecision.sumAndCalc(dataSets));
+      LOG.debug(">> took {}", tm.stop().getTimeString());
     } else {
       // high precision math
       final ModelHighPrecision model = new ModelHighPrecision(this.dataProv,

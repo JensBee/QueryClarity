@@ -16,9 +16,11 @@
  */
 package de.unihildesheim.iw.lucene.index;
 
+import de.unihildesheim.iw.lucene.search.FDRDefaultSimilarity;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.FSDirectory;
 
 import java.io.File;
@@ -103,5 +105,21 @@ public final class IndexUtils {
           .getCanonicalPath() + "'.");
     }
     return DirectoryReader.open(luceneDir);
+  }
+
+  /**
+   * Get an {@link IndexSearcher} instance. If the reader is an instance of
+   * {@link FilteredDirectoryReader} the {@link FDRDefaultSimilarity}
+   * will be used.
+   * @param reader Reader to use
+   * @return Searcher instance
+   */
+  public static IndexSearcher getSearcher(final IndexReader reader) {
+    final IndexSearcher searcher = new IndexSearcher(reader);
+    if (FilteredDirectoryReader.class.isInstance(reader) ||
+        FilteredDirectoryReader.FilteredLeafReader.class.isInstance(reader)) {
+      searcher.setSimilarity(new FDRDefaultSimilarity());
+    }
+    return searcher;
   }
 }

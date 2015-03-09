@@ -17,6 +17,7 @@
 package de.unihildesheim.iw.lucene.document;
 
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
+import de.unihildesheim.iw.lucene.index.IndexUtils;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import de.unihildesheim.iw.lucene.util.BitsUtils;
 import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
@@ -113,10 +114,14 @@ public final class FeedbackQuery {
       final TotalHitCountCollector coll = new TotalHitCountCollector();
       searcher.search(query, coll);
       final int expResults = coll.getTotalHits();
-      LOG.debug("Running post query expecting {} results.", expResults);
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Running post query expecting {} results.", expResults);
+      }
       results = searcher.search(query, expResults);
       fbDocCnt = results.totalHits;
-      LOG.debug("Post query returned {} feedback documents.", fbDocCnt);
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Post query returned {} feedback documents.", fbDocCnt);
+      }
     } else {
       results = searcher.search(query, maxDocCount);
       fbDocCnt = Math.min(results.totalHits, maxDocCount);
@@ -182,8 +187,6 @@ public final class FeedbackQuery {
     final Query q = query.getQueryObj();
     final FixedBitSet bits = new FixedBitSet(maxDocCount);
     bits.or(BitsUtils.arrayToBits(getDocs(searcher, q, maxRetDocs)));
-//    final Set<Integer> docIds = new HashSet<>(maxDocCount);
-//    Arrays.stream(getDocs(searcher, q, maxRetDocs)).forEach(docIds::add);
 
     int docsToGet;
     while (bits.cardinality() < minDocs) {
@@ -242,7 +245,7 @@ public final class FeedbackQuery {
       final RelaxableQuery query, final int docCount)
       throws IOException {
     DocIdSet docIds = getMinMax(
-        new IndexSearcher(reader), query, docCount, docCount);
+        IndexUtils.getSearcher(reader), query, docCount, docCount);
     if (DocIdSetUtils.cardinality(docIds) < docCount) {
       docIds = getRandom(dataProv, docCount, docIds);
     }
@@ -265,7 +268,7 @@ public final class FeedbackQuery {
   public static DocIdSet getMinMax(final IndexReader reader,
       final RelaxableQuery query, final int minDocCount, final int maxDocCount)
       throws IOException {
-    return getMinMax(new IndexSearcher(reader), query, minDocCount,
+    return getMinMax(IndexUtils.getSearcher(reader), query, minDocCount,
         maxDocCount);
   }
 

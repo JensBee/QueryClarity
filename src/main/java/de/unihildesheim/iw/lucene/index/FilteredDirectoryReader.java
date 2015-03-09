@@ -215,8 +215,7 @@ public final class FilteredDirectoryReader
    * Filtered {@link LeafReader} that wraps another AtomicReader and provides
    * filtering functions.
    */
-  @SuppressWarnings("PackageVisibleInnerClass")
-  static final class FilteredLeafReader
+  public static final class FilteredLeafReader
       extends LeafReader {
     /**
      * Logger instance for this class.
