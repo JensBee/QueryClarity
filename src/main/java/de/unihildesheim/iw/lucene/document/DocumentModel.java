@@ -232,10 +232,19 @@ public final class DocumentModel
     return true;
   }
 
+  /**
+   * Get the term values for serialization.
+   * @return Current term values
+   */
   public BytesRefHash getTermsForSerialization() {
     return this.terms;
   }
 
+  /**
+   * Get the frequency values for serialization.
+   * @return Current frequency values
+   */
+  @SuppressWarnings("ReturnOfCollectionOrArrayField")
   public long[] getFreqsForSerialization() {
     return this.freqs;
   }
