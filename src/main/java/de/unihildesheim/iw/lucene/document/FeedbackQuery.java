@@ -324,7 +324,6 @@ public final class FeedbackQuery {
       }
     }
     Arrays.sort(results);
-    LOG.debug("Amount is {} >> {} hi={}", currentAmount, results, results[results.length -1]);
     final Builder result = new Builder(results[results.length -1]);
     Arrays.stream(results).forEach(result::add);
     return result.build();
