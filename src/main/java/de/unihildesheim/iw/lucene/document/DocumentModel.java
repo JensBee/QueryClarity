@@ -143,10 +143,8 @@ public final class DocumentModel
   private void calcHash() {
     this.hashCode = 7;
     this.hashCode = 19 * this.hashCode + this.id;
-    this.hashCode = 19 * this.hashCode + (int) (this.termFrequency
-        ^ (this.termFrequency
-        >>> 32));
-    this.hashCode = 19 * this.hashCode * this.terms.size();
+    this.hashCode = 19 * this.hashCode + this.terms.hashCode();
+    this.hashCode = 19 * this.hashCode + Arrays.hashCode(this.freqs);
   }
 
   /**
