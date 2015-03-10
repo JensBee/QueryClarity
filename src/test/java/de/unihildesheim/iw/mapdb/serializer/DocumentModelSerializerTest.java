@@ -116,14 +116,14 @@ public class DocumentModelSerializerTest
     Assert.assertEquals("Term frequency value differs.",
         32L, dom.tf(new BytesRef("baz")));
 
+    Assert.assertEquals("Total term frequency differs.", dom_tf, dom.tf());
+
     Assert.assertEquals("Relative term frequency value differs.",
         (double) 12L / (double) dom_tf, dom.relTf(new BytesRef("foo")), 0d);
     Assert.assertEquals("Relative term frequency value differs.",
         (double) 4L / (double) dom_tf, dom.relTf(new BytesRef("bar")), 0d);
     Assert.assertEquals("Relative term frequency value differs.",
         (double) 32L / (double) dom_tf, dom.relTf(new BytesRef("baz")), 0d);
-
-    Assert.assertEquals("Total term frequency differs.", dom_tf, dom.tf());
 
     Assert.assertEquals("Equals returns false.", ref, dom);
   }
