@@ -19,15 +19,9 @@ package de.unihildesheim.iw.lucene.document;
 
 import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.lucene.document.DocumentModel.Builder;
-import de.unihildesheim.iw.lucene.util.StreamUtils;
 import org.apache.lucene.util.BytesRef;
 import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
-import org.junit.rules.TestWatcher;
-import org.junit.runner.Description;
-import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
@@ -76,6 +70,22 @@ public class DocumentModelTest
     try {
       builder.setTermFrequency(new BytesRef("foo"), 22L);
       Assert.fail("Non unique term was successful added. " +
+          "Expected an exception to be thrown.");
+    } catch (final IllegalArgumentException e) {
+      // pass
+    }
+  }
+
+  @SuppressWarnings("ConstantConditions")
+  @Test
+  public void builder_testSetTermFrequency_null()
+      throws Exception {
+    final int dom_id = 1;
+    final Builder builder = new Builder(dom_id);
+    builder.setTermFrequency(new BytesRef("foo"), 12L);
+    try {
+      builder.setTermFrequency(null, 10L);
+      Assert.fail("Null term value was successful added. " +
           "Expected an exception to be thrown.");
     } catch (final IllegalArgumentException e) {
       // pass
@@ -230,6 +240,42 @@ public class DocumentModelTest
     }
   }
 
+  @Test
+  public void builder_testSetTermFrequencyMap_nullValue()
+      throws Exception {
+    final int dom_id = 1;
+    final Builder builder = new Builder(dom_id);
+
+    final Map<BytesRef, Long> tfMap = new HashMap<>(6);
+    tfMap.put(new BytesRef("foo"), 12L);
+    tfMap.put(null, 10L);
+    tfMap.put(new BytesRef("baz"), -3L);
+
+    try {
+      builder.setTermFrequency(tfMap);
+      Assert.fail("Null term was successful added. " +
+          "Expected an exception to be thrown.");
+    } catch (final IllegalArgumentException e) {
+      // pass
+    }
+  }
+
+  @SuppressWarnings("ConstantConditions")
+  @Test
+  public void builder_testSetTermFrequencyMap_null()
+      throws Exception {
+    final int dom_id = 1;
+    final Builder builder = new Builder(dom_id);
+
+    try {
+      builder.setTermFrequency(null);
+      Assert.fail("Null tf-map was successful added. " +
+          "Expected an exception to be thrown.");
+    } catch (final IllegalArgumentException e) {
+      // pass
+    }
+  }
+
   @SuppressWarnings("ImplicitNumericConversion")
   @Test
   public void builder_testGetModel()
@@ -323,8 +369,8 @@ public class DocumentModelTest
     final Builder builder = new Builder(dom_id);
     try {
       builder.setTermFrequency(null);
-      Assert.fail("No NullpointerException thrown.");
-    } catch (final NullPointerException e) {
+      Assert.fail("Expected IllegalArgumentException to be thrown.");
+    } catch (final IllegalArgumentException e) {
       // pass
     }
   }
