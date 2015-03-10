@@ -55,6 +55,9 @@ public final class DocumentModelSerializer {
     @Override
     public void serialize(final DataOutput out, final DocumentModel dm)
         throws IOException {
+      if (dm == null) {
+        throw new NullPointerException("Model was null.");
+      }
       // write document-id
       DataOutput2.packInt(out, dm.id);
       // write number of unique terms
