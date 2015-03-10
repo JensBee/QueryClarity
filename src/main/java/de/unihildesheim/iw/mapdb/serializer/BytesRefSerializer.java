@@ -17,7 +17,6 @@
 
 package de.unihildesheim.iw.mapdb.serializer;
 
-import de.unihildesheim.iw.ByteArray;
 import org.apache.lucene.util.BytesRef;
 import org.mapdb.BTreeKeySerializer;
 import org.mapdb.BTreeMap;
@@ -89,7 +88,7 @@ public final class BytesRefSerializer {
   }
 
   /**
-   * Custom MapDB {@link BTreeKeySerializer} for {@link ByteArray} objects.
+   * Custom MapDB {@link BTreeKeySerializer} for {@link BytesRef} objects.
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class BytesRefKeySerializer

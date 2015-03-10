@@ -16,7 +16,6 @@
  */
 package de.unihildesheim.iw.lucene.util;
 
-import de.unihildesheim.iw.ByteArray;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefHash;
@@ -29,7 +28,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.function.Consumer;
@@ -51,19 +49,6 @@ public final class BytesRefUtils {
   }
 
   /**
-   * Create a {@link ByteArray} by copying the bytes from the given {@link
-   * BytesRef}.
-   *
-   * @param br {@link BytesRef} to copy from
-   * @return New {@link ByteArray} instance with bytes copied from the {@link
-   * BytesRef}
-   */
-  public static ByteArray toByteArray(final BytesRef br) {
-    Objects.requireNonNull(br, "BytesRef was null.");
-    return new ByteArray(br.bytes, br.offset, br.length);
-  }
-
-  /**
    * Return a copy of the bytes.
    *
    * @param br {@link BytesRef} to copy bytes from
@@ -71,47 +56,6 @@ public final class BytesRefUtils {
    */
   public static byte[] copyBytes(final BytesRef br) {
     return Arrays.copyOfRange(br.bytes, br.offset, br.length);
-  }
-
-  /**
-   * Creates a new {@link BytesRef} instance by cloning the bytes from the given
-   * {@link BytesRef}.
-   *
-   * @param ba ByteArray to copy bytes from
-   * @return New BytesRef with bytes from provided ByteArray
-   */
-  public static BytesRef fromByteArray(final ByteArray ba) {
-    Objects.requireNonNull(ba, "ByteArray was null.");
-    return new BytesRef(ba.bytes.clone());
-  }
-
-  /**
-   * Creates a new {@link BytesRef} instance by referencing the bytes from the
-   * given {@link BytesRef}.
-   *
-   * @param ba ByteArray to reference bytes from
-   * @return New BytesRef with bytes from provided ByteArray referenced
-   */
-  public static BytesRef refFromByteArray(final ByteArray ba) {
-    Objects.requireNonNull(ba, "ByteArray was null.");
-    return new BytesRef(ba.bytes);
-  }
-
-  /**
-   * Compares the bytes contained in the {@link BytesRef} to those stored in the
-   * {@link ByteArray}.
-   *
-   * @param br {@link BytesRef} to compare
-   * @param ba {@link ByteArray} to compare
-   * @return True, if both byte arrays are equal
-   */
-  @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
-  public static boolean bytesEquals(final BytesRef br, final ByteArray ba) {
-    Objects.requireNonNull(br, "BytesRef was null.");
-    Objects.requireNonNull(ba, "ByteArray was null.");
-
-    return ba.compareBytes(Arrays.copyOfRange(br.bytes, br.offset,
-        br.length)) == 0;
   }
 
   /**
