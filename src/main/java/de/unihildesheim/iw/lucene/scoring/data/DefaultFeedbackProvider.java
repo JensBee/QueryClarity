@@ -18,10 +18,14 @@
 package de.unihildesheim.iw.lucene.scoring.data;
 
 import de.unihildesheim.iw.lucene.document.FeedbackQuery;
+import de.unihildesheim.iw.lucene.index.IndexUtils;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import de.unihildesheim.iw.lucene.query.TryExactTermsQuery;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.IndexSearcher;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -35,6 +39,14 @@ import java.util.Objects;
  */
 public class DefaultFeedbackProvider
     extends AbstractFeedbackProvider<DefaultFeedbackProvider> {
+  @Nullable
+  private IndexSearcher searcher;
+
+  public DefaultFeedbackProvider indexReader(final IndexReader indexReader) {
+    super.indexReader(indexReader);
+    this.searcher = IndexUtils.getSearcher(indexReader);
+    return this;
+  }
 
   @Override
   public DefaultFeedbackProvider getThis() {
@@ -49,12 +61,14 @@ public class DefaultFeedbackProvider
     final RelaxableQuery qObj = getQueryParserInstance();
     if (this.useFixedAmount) {
       return FeedbackQuery.getFixed(
-          Objects.requireNonNull(this.idxReader, "IndexReader not set."),
+          Objects.requireNonNull(this.searcher,
+              "IndexReader (Searcher) not set."),
           Objects.requireNonNull(this.dataProv, "IndexDataProvider not set."),
           qObj, this.fixedAmount);
     }
     return FeedbackQuery.getMinMax(
-        Objects.requireNonNull(this.idxReader, "IndexReader not set."),
+        Objects.requireNonNull(this.searcher,
+            "IndexReader (Searcher) not set."),
         qObj, this.minAmount, this.maxAmount);
   }
 }

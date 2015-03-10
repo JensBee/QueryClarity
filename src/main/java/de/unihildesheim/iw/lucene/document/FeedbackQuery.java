@@ -17,7 +17,6 @@
 package de.unihildesheim.iw.lucene.document;
 
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
-import de.unihildesheim.iw.lucene.index.IndexUtils;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import de.unihildesheim.iw.lucene.util.BitsUtils;
 import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
@@ -231,7 +230,7 @@ public final class FeedbackQuery {
    * matching. Creates a new {@link IndexSearcher} from the provided {@link
    * IndexReader}.
    *
-   * @param reader Reader to access the Lucene index
+   * @param searcher Searcher to search the Lucene index
    * @param dataProv DataProvider
    * @param query Relaxable query to get matching documents
    * @param docCount Number of documents to try to reach. Results may be lower,
@@ -240,36 +239,15 @@ public final class FeedbackQuery {
    * not preserved!
    * @throws IOException Thrown on low-level I/O errors
    */
-  public static DocIdSet getFixed(final IndexReader reader,
+  public static DocIdSet getFixed(final IndexSearcher searcher,
       final IndexDataProvider dataProv,
       final RelaxableQuery query, final int docCount)
       throws IOException {
-    DocIdSet docIds = getMinMax(
-        IndexUtils.getSearcher(reader), query, docCount, docCount);
+    DocIdSet docIds = getMinMax(searcher, query, docCount, docCount);
     if (DocIdSetUtils.cardinality(docIds) < docCount) {
       docIds = getRandom(dataProv, docCount, docIds);
     }
     return docIds;
-  }
-
-  /**
-   * Same as {@link #getMinMax(IndexSearcher, RelaxableQuery, int, int)}, but
-   * creates a new {@link IndexSearcher} from the provided {@link IndexReader}.
-   *
-   * @param reader Reader to access the Lucene index
-   * @param query Relaxable query to get matching documents
-   * @param minDocCount Minimum number of documents to get. Must be greater than
-   * zero.
-   * @param maxDocCount Maximum number o documents to get. {@code -1} for
-   * unlimited or greater than zero.
-   * @return List of documents matching the (relaxed) query
-   * @throws IOException Thrown on low-level I/O errors
-   */
-  public static DocIdSet getMinMax(final IndexReader reader,
-      final RelaxableQuery query, final int minDocCount, final int maxDocCount)
-      throws IOException {
-    return getMinMax(IndexUtils.getSearcher(reader), query, minDocCount,
-        maxDocCount);
   }
 
   /**
@@ -290,9 +268,7 @@ public final class FeedbackQuery {
     final int[] results = new int[amount];
     // collect all provided document-ids, to skip them while choosing random
     // ones
-    final int[] docIdsArr = StreamUtils.stream(docIds.iterator())
-        .sorted()
-        .toArray();
+    final int[] docIdsArr = StreamUtils.stream(docIds).sorted().toArray();
     // count collected documents
     int currentAmount = docIdsArr.length;
     if (currentAmount > 0) {
