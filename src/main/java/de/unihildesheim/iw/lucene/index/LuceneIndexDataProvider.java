@@ -26,6 +26,7 @@ import de.unihildesheim.iw.lucene.index.CollectionMetrics.CollectionMetricsConfi
 import de.unihildesheim.iw.lucene.search.EmptyFieldFilter;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
+import de.unihildesheim.iw.lucene.util.StreamUtils;
 import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
@@ -415,7 +416,7 @@ public abstract class LuceneIndexDataProvider
           }
         }
       }
-      return BytesRefUtils.streamBytesRefHash(terms);
+      return StreamUtils.stream(terms);
     } catch (final IOException e) {
       throw new IllegalStateException("Error accessing Lucene index.", e);
     }

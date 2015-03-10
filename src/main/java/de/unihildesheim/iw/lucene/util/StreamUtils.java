@@ -23,6 +23,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
+import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.jetbrains.annotations.Nullable;
@@ -67,6 +68,19 @@ public final class StreamUtils {
       throw new IllegalArgumentException("TermsEnum was null.");
     }
     return StreamSupport.stream(new TermsEnumSpliterator(te), false);
+  }
+
+  /**
+   * Stream contents of a {@link BytesRefHash}.
+   *
+   * @param brh Hash
+   * @return Stream of hashs content
+   */
+  public static Stream<BytesRef> stream(final BytesRefHash brh) {
+    if (brh == null) {
+      throw new IllegalArgumentException("BytesRefHash was null.");
+    }
+    return StreamSupport.stream(new BytesRefHashSpliterator(brh), false);
   }
 
   /**
@@ -345,6 +359,62 @@ public final class StreamUtils {
     public int characteristics() {
       return Spliterator.DISTINCT | Spliterator.IMMUTABLE |
           Spliterator.NONNULL | Spliterator.ORDERED;
+    }
+  }
+
+  /**
+   * Stream contents of a {@link BytesRefHash}.
+   */
+  public static class BytesRefHashSpliterator
+  implements Spliterator<BytesRef> {
+    /**
+     * Wrapped {@link BytesRefHash} instance.
+     */
+    private final BytesRefHash brh;
+    /**
+     * Size of the wrapped hash
+     */
+    private final int size;
+    /**
+     * Current index to hash.
+     */
+    private int idx;
+
+    /**
+     * Creates a new {@link Spliterator} over the contents of a {@link
+     * BytesRefHash}.
+     * @param brh Hash to spliterate
+     */
+    public BytesRefHashSpliterator(final BytesRefHash brh) {
+      this.brh = brh;
+      this.size = brh.size();
+    }
+
+    @Override
+    public boolean tryAdvance(final Consumer<? super BytesRef> action) {
+      if (this.idx == this.size) {
+        return false;
+      }
+      final BytesRef term = this.brh.get(this.idx++, new BytesRef());
+      action.accept(term);
+      return true;
+    }
+
+    @Nullable
+    @Override
+    public Spliterator<BytesRef> trySplit() {
+      return null; // cannot be split
+    }
+
+    @Override
+    public long estimateSize() {
+      return (long) this.size;
+    }
+
+    @Override
+    public int characteristics() {
+      return Spliterator.DISTINCT | Spliterator.IMMUTABLE |
+          Spliterator.NONNULL | Spliterator.SIZED;
     }
   }
 }
