@@ -17,12 +17,14 @@
 
 package de.unihildesheim.iw.mapdb.serializer;
 
+import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.document.DocumentModel.Builder;
 import de.unihildesheim.iw.mapdb.serializer.DocumentModelSerializer.Serializer;
 import org.apache.lucene.util.BytesRef;
 import org.junit.Assert;
 import org.junit.Test;
+import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -31,8 +33,17 @@ import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.util.Arrays;
 
+/**
+ * Test for {@link DocumentModelSerializer}.
+ *
+ * @author Jens Bertram
+ */
 @SuppressWarnings("JavaDoc")
-public class DocumentModelSerializerTest {
+public class DocumentModelSerializerTest
+    extends TestCase {
+  public DocumentModelSerializerTest() {
+    super(LoggerFactory.getLogger(DocumentModelSerializerTest.class));
+  }
 
   @Test
   public void testSerialize()

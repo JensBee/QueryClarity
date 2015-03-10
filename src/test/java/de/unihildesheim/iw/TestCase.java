@@ -17,18 +17,40 @@
 package de.unihildesheim.iw;
 
 import org.junit.Rule;
+import org.junit.rules.TestRule;
+import org.junit.rules.TestWatcher;
+import org.junit.runner.Description;
+import org.slf4j.Logger;
 
 /**
  * Generic test case template.
  *
  * @author Jens Bertram
  */
-public class TestCase {
+public abstract class TestCase {
+  /**
+   * Logger instance.
+   */
+  private final Logger log;
 
   /**
-   * Log test methods.
+   * Init test-case and set the Logger instance.
+   * @param l Logger instance
    */
-  @SuppressWarnings("PublicField")
+  public TestCase(final Logger l) {
+    this.log = l;
+  }
+
+  @SuppressWarnings(
+      {"PackageVisibleField", "AnonymousInnerClassMayBeStatic", "PublicField"})
   @Rule
-  public final TestMethodInfo watcher = new TestMethodInfo();
+  /**
+   * Print current test method.
+   */
+  public TestRule watcher = new TestWatcher() {
+    @Override
+    protected void starting(final Description description) {
+      log.info("{} being run...", description.getMethodName());
+    }
+  };
 }

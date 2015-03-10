@@ -20,6 +20,7 @@ package de.unihildesheim.iw;
 import de.unihildesheim.iw.util.ByteArrayUtils;
 import org.junit.Assert;
 import org.junit.Test;
+import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -34,8 +35,13 @@ import java.nio.charset.StandardCharsets;
  *
  * @author Jens Bertram
  */
+@SuppressWarnings("JavaDoc")
 public final class ByteArrayTest
     extends TestCase {
+
+  public ByteArrayTest() {
+    super(LoggerFactory.getLogger(ByteArrayTest.class));
+  }
 
   @SuppressWarnings("ObjectEquality")
   @Test

@@ -17,16 +17,33 @@
 
 package de.unihildesheim.iw.lucene.document;
 
+import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.lucene.document.DocumentModel.Builder;
+import de.unihildesheim.iw.lucene.util.StreamUtils;
 import org.apache.lucene.util.BytesRef;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
+import org.junit.rules.TestWatcher;
+import org.junit.runner.Description;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Test for {@link DocumentModel}.
+ *
+ * @author Jens Bertram
+ */
 @SuppressWarnings("JavaDoc")
-public class DocumentModelTest {
+public class DocumentModelTest
+    extends TestCase {
+  public DocumentModelTest() {
+    super(LoggerFactory.getLogger(DocumentModelTest.class));
+  }
 
   @Test
   public void builder_testSetTermFrequency()
