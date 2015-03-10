@@ -409,7 +409,7 @@ public class StreamUtilsTest
     ;
 
     Assert.assertEquals("Not all terms streamed.",
-        terms.length, StreamUtils.stream(new TEnum()).count());
+        (long) terms.length, StreamUtils.stream(new TEnum()).count());
 
     Assert.assertEquals("Term count mismatch.", 1L,
         StreamUtils.stream(new TEnum())
