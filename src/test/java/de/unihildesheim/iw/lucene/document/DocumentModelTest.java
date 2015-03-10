@@ -24,6 +24,10 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -349,14 +353,14 @@ public class DocumentModelTest
     Assert.assertEquals("Term frequency differs.",
         3L, dom.tf(new BytesRef("baz")));
 
+    Assert.assertEquals("Total term frequency differs.", dom_tf, dom.tf());
+
     Assert.assertEquals("Relative term frequency value differs.",
         (double) 12L / (double) dom_tf, dom.relTf(new BytesRef("foo")), 0d);
     Assert.assertEquals("Relative term frequency value differs.",
         (double) 10L / (double) dom_tf, dom.relTf(new BytesRef("bar")), 0d);
     Assert.assertEquals("Relative term frequency value differs.",
         (double) 3L / (double) dom_tf, dom.relTf(new BytesRef("baz")), 0d);
-
-    Assert.assertEquals("Total term frequency differs.", dom_tf, dom.tf());
   }
 
   @SuppressWarnings("ConstantConditions")
@@ -373,5 +377,75 @@ public class DocumentModelTest
     } catch (final IllegalArgumentException e) {
       // pass
     }
+  }
+
+
+  @Test
+  public void testWriteObject()
+      throws Exception {
+    final ByteArrayOutputStream bouts = new ByteArrayOutputStream();
+    @SuppressWarnings("resource")
+    final ObjectOutputStream out = new ObjectOutputStream(bouts);
+
+    final Builder dmb = new Builder(1);
+    dmb.setTermFrequency(new BytesRef("foo"), 12L);
+    dmb.setTermFrequency(new BytesRef("bar"), 4L);
+    dmb.setTermFrequency(new BytesRef("baz"), 32L);
+    final DocumentModel dm = dmb.getModel();
+    out.writeObject(dm);
+    out.close();
+  }
+
+  @SuppressWarnings("ImplicitNumericConversion")
+  @Test
+  public void testReadObject()
+      throws Exception {
+    final ByteArrayOutputStream bouts = new ByteArrayOutputStream();
+    @SuppressWarnings({"resource", "TypeMayBeWeakened"})
+    final ObjectOutputStream out = new ObjectOutputStream(bouts);
+
+    // document id
+    final int dom_id = 1;
+    // number of unique terms
+    final int dom_termCount = 3;
+    // total term frequency
+    final long dom_tf = 48L;
+
+    final Builder dmb = new Builder(dom_id);
+    dmb.setTermFrequency(new BytesRef("foo"), 12L);
+    dmb.setTermFrequency(new BytesRef("bar"), 4L);
+    dmb.setTermFrequency(new BytesRef("baz"), 32L);
+    final DocumentModel ref = dmb.getModel();
+    out.writeObject(ref);
+    final byte[] bytes = bouts.toByteArray();
+    out.close();
+
+    final ByteArrayInputStream bins = new ByteArrayInputStream(bytes);
+    @SuppressWarnings({"TypeMayBeWeakened", "resource"})
+    final ObjectInputStream in = new ObjectInputStream(bins);
+    final DocumentModel dom = (DocumentModel) in.readObject();
+    in.close();
+
+    Assert.assertEquals("Document id differs.", dom_id, dom.id);
+    Assert.assertEquals("Unique term count differs.",
+        dom_termCount, dom.termCount());
+
+    Assert.assertEquals("Term frequency value differs.",
+        12L, dom.tf(new BytesRef("foo")));
+    Assert.assertEquals("Term frequency value differs.",
+        4L, dom.tf(new BytesRef("bar")));
+    Assert.assertEquals("Term frequency value differs.",
+        32L, dom.tf(new BytesRef("baz")));
+
+    Assert.assertEquals("Total term frequency differs.", dom_tf, dom.tf());
+
+    Assert.assertEquals("Relative term frequency value differs.",
+        (double) 12L / (double) dom_tf, dom.relTf(new BytesRef("foo")), 0d);
+    Assert.assertEquals("Relative term frequency value differs.",
+        (double) 4L / (double) dom_tf, dom.relTf(new BytesRef("bar")), 0d);
+    Assert.assertEquals("Relative term frequency value differs.",
+        (double) 32L / (double) dom_tf, dom.relTf(new BytesRef("baz")), 0d);
+
+    Assert.assertEquals("Equals returns false.", ref, dom);
   }
 }
