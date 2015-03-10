@@ -27,6 +27,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
+import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RoaringDocIdSet.Builder;
@@ -439,5 +440,55 @@ public class StreamUtilsTest
     } catch (final IllegalArgumentException e) {
       // pass
     }
+  }
+
+  @Test
+  public void testStream_bytesRefHash()
+      throws Exception {
+    final BytesRefHash brh = new BytesRefHash();
+    brh.add(new BytesRef("foo"));
+    brh.add(new BytesRef("bar"));
+    brh.add(new BytesRef("baz"));
+
+    Assert.assertEquals("Not all terms streamed.",
+        3L, StreamUtils.stream(brh).count());
+
+    Assert.assertEquals("Term not found.", 1L,
+        StreamUtils.stream(brh)
+            .filter(br -> br.bytesEquals(new BytesRef("foo"))).count());
+    Assert.assertEquals("Term not found.", 1L,
+        StreamUtils.stream(brh)
+            .filter(br -> br.bytesEquals(new BytesRef("bar"))).count());
+    Assert.assertEquals("Term not found.", 1L,
+        StreamUtils.stream(brh)
+            .filter(br -> br.bytesEquals(new BytesRef("baz"))).count());
+
+    Assert.assertEquals("Unknown term found.", 0L,
+        StreamUtils.stream(brh)
+            .filter(t ->
+                    !t.bytesEquals(new BytesRef("foo")) &&
+                        !t.bytesEquals(new BytesRef("bar")) &&
+                        !t.bytesEquals(new BytesRef("baz"))
+            ).count());
+  }
+
+  @SuppressWarnings("ConstantConditions")
+  @Test
+  public void testStream_bytesRefHash_null()
+      throws Exception {
+    try {
+      StreamUtils.stream((BytesRefHash) null);
+      Assert.fail("Expected an IllegalArgumentException to be thrown.");
+    } catch (final IllegalArgumentException e) {
+      // pass
+    }
+  }
+
+  @Test
+  public void testStream_bytesRefHash_empty()
+      throws Exception {
+    final BytesRefHash brh = new BytesRefHash();
+    Assert.assertEquals("Too much document ids streamed.",
+        0L, StreamUtils.stream(brh).count());
   }
 }
