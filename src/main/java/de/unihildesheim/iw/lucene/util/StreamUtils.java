@@ -20,6 +20,7 @@ package de.unihildesheim.iw.lucene.util;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefIterator;
@@ -39,7 +40,7 @@ import java.util.stream.StreamSupport;
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class StreamUtils {
+public final class StreamUtils {
 
   /**
    * Stream contents of a {@link BytesRefArray}.
@@ -89,20 +90,25 @@ public class StreamUtils {
     }
   }
 
-  public static IntStream stream(final FixedBitSet fbs) {
-    return StreamSupport.intStream(new FixedBitSetSpliterator(fbs), false);
+  /**
+   * Stream contents of a {@link BitSet}.
+   * @param bs BitSet
+   * @return Stream of active (set) bits in set
+   */
+  public static IntStream stream(final BitSet bs) {
+    return StreamSupport.intStream(new BitSetSpliterator(bs), false);
   }
 
   /**
    * Spliterator over contents of a {@link FixedBitSet}.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static class FixedBitSetSpliterator
+  public static class BitSetSpliterator
   implements OfInt {
     /**
-     * Wrapped {@link FixedBitSet} instance.
+     * Wrapped {@link BitSet} instance.
      */
-    private final FixedBitSet fbs;
+    private final BitSet bs;
     /**
      * Current index in wrapped instance.
      */
@@ -110,11 +116,11 @@ public class StreamUtils {
 
     /**
      * Creates a new {@link Spliterator} using the contents of the provided
-     * {@link FixedBitSet}. Only set bits will be streamed.
-     * @param fbs Bits to iterate over
+     * {@link BitSet}. Only set bits will be streamed.
+     * @param bs Bits to iterate over
      */
-    public FixedBitSetSpliterator(final FixedBitSet fbs) {
-      this.fbs = fbs;
+    public BitSetSpliterator(final BitSet bs) {
+      this.bs = bs;
     }
 
     @Nullable
@@ -125,7 +131,7 @@ public class StreamUtils {
 
     @Override
     public long estimateSize() {
-      return (long) this.fbs.cardinality();
+      return (long) this.bs.cardinality();
     }
 
     @Override
@@ -136,7 +142,7 @@ public class StreamUtils {
 
     @Override
     public boolean tryAdvance(final IntConsumer action) {
-      this.idx = this.fbs.nextSetBit(++this.idx);
+      this.idx = this.bs.nextSetBit(++this.idx);
       if (this.idx == DocIdSetIterator.NO_MORE_DOCS) {
         return false;
       }
