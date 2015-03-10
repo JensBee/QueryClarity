@@ -406,7 +406,6 @@ public class StreamUtilsTest
         return null;
       }
     }
-    ;
 
     Assert.assertEquals("Not all terms streamed.",
         (long) terms.length, StreamUtils.stream(new TEnum()).count());
