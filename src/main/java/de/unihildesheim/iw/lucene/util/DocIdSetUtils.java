@@ -41,48 +41,66 @@ public final class DocIdSetUtils {
    */
   public static int cardinality(final DocIdSet dis)
       throws IOException {
+    if (dis == null) {
+      throw new IllegalArgumentException("DocIdSet was null.");
+    }
+    final int cardinality;
+
     if (RoaringDocIdSet.class.isInstance(dis)) {
-      return ((RoaringDocIdSet) dis).cardinality();
+      cardinality = ((RoaringDocIdSet) dis).cardinality();
+    } else {
+      final BitSet bits = bits(dis);
+      if (bits == null) {
+        final DocIdSetIterator disi = dis.iterator();
+        cardinality = disi == null ? 0 : (int) StreamUtils.stream(disi).count();
+      } else {
+        cardinality = bits.cardinality();
+      }
     }
-
-    final BitSet bits = bits(dis);
-    if (bits != null) {
-      return bits.cardinality();
-    }
-
-    final DocIdSetIterator disi = dis.iterator();
-    if (disi == null) {
-      return 0; // no matching doc
-    }
-    return (int) StreamUtils.stream(disi).count();
+    return cardinality < 0 ? 0 : cardinality;
   }
 
   /**
    * Get the highest document id stored in the {@link DocIdSet}.
+   *
    * @param dis DocIdSet
-   * @return Highest document number
+   * @return Highest document number or {@code -1}, if there's no document
    * @throws IOException Thrown on low-level i/o-errors
    */
   public static int maxDoc(final DocIdSet dis)
       throws IOException {
+    if (dis == null) {
+      throw new IllegalArgumentException("DocIdSet was null.");
+    }
+
+    final int maxDoc;
+
     final DocIdSetIterator disi = dis.iterator();
     if (disi == null) {
-      return 0;
-    }
+      maxDoc = 0;
+    } else {
+      BitSet bitSet;
+      bitSet = BitSetIterator.getFixedBitSetOrNull(disi);
+      if (bitSet == null) {
+        bitSet = BitSetIterator.getSparseFixedBitSetOrNull(disi);
+      }
+      if (bitSet == null) {
+        bitSet = BitsUtils.Bits2FixedBitSet(dis.bits());
+      }
 
-    BitSet bitSet;
-    bitSet = BitSetIterator.getFixedBitSetOrNull(disi);
-    if (bitSet == null) {
-      bitSet = BitSetIterator.getSparseFixedBitSetOrNull(disi);
+      if (bitSet == null) {
+        maxDoc = StreamUtils.stream(dis).sorted().max().getAsInt();
+      } else {
+        if (bitSet.length() == 0) {
+          maxDoc = -1;
+        } else if (bitSet.length() == 1) {
+          maxDoc = bitSet.get(0) ? 0 : -1;
+        } else {
+          maxDoc = bitSet.prevSetBit(bitSet.length() - 1);
+        }
+      }
     }
-    if (bitSet == null) {
-      bitSet = BitsUtils.Bits2FixedBitSet(dis.bits());
-    }
-
-    if (bitSet != null) {
-      return bitSet.prevSetBit(bitSet.length() -1);
-    }
-    return StreamUtils.stream(dis).sorted().max().getAsInt();
+    return maxDoc;
   }
 
   /**
@@ -95,6 +113,10 @@ public final class DocIdSetUtils {
   @Nullable
   public static BitSet bits(final DocIdSet dis)
       throws IOException {
+    if (dis == null) {
+      throw new IllegalArgumentException("DocIdSet was null.");
+    }
+
     final DocIdSetIterator disi = dis.iterator();
 
     if (disi == null) {
