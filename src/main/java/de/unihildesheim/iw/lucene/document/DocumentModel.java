@@ -58,8 +58,8 @@ public final class DocumentModel
    */
   private final BytesRefHash terms;
   /**
-   * Frequencies of all terms stored in this model. The array index is
-   * related to the term index in {@link #terms}.
+   * Frequencies of all terms stored in this model. The array index is related
+   * to the term index in {@link #terms}.
    */
   private final long[] freqs;
 
@@ -90,14 +90,15 @@ public final class DocumentModel
     this.id = builder.docId;
 
     this.terms = builder.terms;
-    this.freqs = builder.freqs;
+    this.freqs = builder.freqs.clone();
     this.termFrequency = Arrays.stream(this.freqs).sum();
     calcHash();
   }
 
   /**
-   * POJO serialization. Customized to handle serialization of the {@link
-   * #terms terms list}.
+   * POJO serialization. Customized to handle serialization of the {@link #terms
+   * terms list}.
+   *
    * @param out Stream
    * @throws IOException Thrown on low-level i/o-errors
    */
@@ -117,12 +118,13 @@ public final class DocumentModel
   /**
    * POJO serialization. Customized to handle de-serialization of the {@link
    * #terms terms list}.
+   *
    * @param in Stream
    * @throws IOException Thrown on low-level i/o-errors
    * @throws ClassNotFoundException Thrown if de-serialization of the
    * term-frw-map failed.
    */
-  @SuppressWarnings("ObjectAllocationInLoop")
+  @SuppressWarnings({"ObjectAllocationInLoop", "ResultOfMethodCallIgnored"})
   private void readObject(final ObjectInputStream in)
       throws IOException, ClassNotFoundException {
     in.defaultReadObject();
@@ -182,7 +184,7 @@ public final class DocumentModel
    */
   public long tf(final BytesRef term) {
     final int idx = this.terms.find(term);
-    return idx == -1 ? 0 : this.freqs[idx];
+    return idx == -1 ? 0L : this.freqs[idx];
   }
 
   /**
@@ -221,7 +223,7 @@ public final class DocumentModel
     }
 
     final BytesRef spare = new BytesRef();
-    for (int i = this.terms.size() -1; i>=0; i--) {
+    for (int i = this.terms.size() - 1; i >= 0; i--) {
       if (other.terms.find(this.terms.get(i, spare)) != i) {
         return false;
       }
@@ -232,6 +234,7 @@ public final class DocumentModel
 
   /**
    * Get the term values for serialization.
+   *
    * @return Current term values
    */
   public BytesRefHash getTermsForSerialization() {
@@ -240,6 +243,7 @@ public final class DocumentModel
 
   /**
    * Get the frequency values for serialization.
+   *
    * @return Current frequency values
    */
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
@@ -292,7 +296,8 @@ public final class DocumentModel
      * thread safe as only {@link ConcurrentMap#put(Object, Object)} is called
      * for each entry..
      *
-     * @param map Map containing {@code term} to  {@code frequency} mappings
+     * @param map Map containing {@code term} to  {@code frequency} mappings.
+     * Frequency values must be >=0.
      * @return Self reference
      */
     public Builder setTermFrequency(final Map<BytesRef, Long> map) {
@@ -303,21 +308,38 @@ public final class DocumentModel
     }
 
     /**
-     * Set the term frequency value for a single term.
-     * @param term Term
-     * @param freq Frequency
+     * Set the term frequency value for a single term. Terms must be unique.
+     *
+     * @param term Non null Term
+     * @param freq Frequency. Must be >=0.
      * @return Self reference
      */
     public Builder setTermFrequency(final BytesRef term, final long freq) {
-      final int idx = this.terms.add(term);
-      if (idx > 0) {
-        // pad long array size, if needed
-        if (idx >= this.freqs.size()) {
-          while (this.freqs.size() <= idx) {
-            this.freqs.add(0L);
+      if (freq < 0L) {
+        throw new IllegalArgumentException("Frequency values must be >=0. " +
+            "Got '" + freq + '\'');
+      }
+      if (freq > 0) { // skip empty terms
+        final int idx = this.terms.add(term);
+        if (idx >= 0) {
+          if (this.freqs.isEmpty()) {
+            this.freqs.add(freq);
+          } else {
+            // pad long array size, if needed
+            final int diff = idx - (this.freqs.size() - 1);
+            if (diff > 0) {
+              for (int i = 0; i < diff; i++) {
+                this.freqs.add(0L);
+              }
+            }
+            this.freqs.add(idx, freq);
           }
+        } else {
+          // terms must be unique
+          throw new IllegalArgumentException(
+              "Terms must be unique. Term '" + term.utf8ToString() +
+                  "' is already present.");
         }
-        this.freqs.add(idx, freq);
       }
       return this;
     }
@@ -356,6 +378,7 @@ public final class DocumentModel
 
     /**
      * Initialize the builder with all base data.
+     *
      * @param docId Document-id
      * @param termCount Number of terms in the model
      * @param termFreqs Frequency values for all terms added later. Order of
@@ -375,6 +398,7 @@ public final class DocumentModel
 
     /**
      * Add a term to the documents terms list.
+     *
      * @param term Term
      */
     public void addTerm(final BytesRef term) {
