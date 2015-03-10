@@ -18,8 +18,10 @@ package de.unihildesheim.iw.util;
 
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
-import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation.ScoreTupleHighPrecision;
-import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation.ScoreTupleLowPrecision;
+import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation
+    .ScoreTupleHighPrecision;
+import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation
+    .ScoreTupleLowPrecision;
 import de.unihildesheim.iw.util.concurrent.AtomicBigDecimal;
 import org.nevec.rjm.BigDecimalMath;
 import org.slf4j.LoggerFactory;
@@ -103,12 +105,33 @@ public final class MathUtils {
       final AtomicBigDecimal sumCModel = new AtomicBigDecimal();
 
       Arrays.stream(dataSet)
-          .filter(ds ->
-              // a null value is not allowed here
-              ds != null && ds.qModel != null && ds.cModel != null &&
-                  // both values will be zero if t2.b is zero
-                  // t2.b == 0 implies t2.a == 0
-                  ds.cModel.compareTo(BigDecimal.ZERO) != 0)
+          .filter(ds -> {
+            // null values are not allowed
+            if (ds == null) {
+              throw new IllegalArgumentException(
+                  "Null entries are not allowed in dataSet.");
+            }
+            if (ds.qModel == null) {
+              throw new IllegalArgumentException(
+                  "Null as query-model value is not allowed.");
+            }
+            if (ds.cModel == null) {
+              throw new IllegalArgumentException(
+                  "Null as collection-model value is not allowed.");
+            }
+            if (ds.qModel.compareTo(BigDecimal.ZERO) < 0) {
+              throw new IllegalArgumentException(
+                  "Values <0 as query-model value is not allowed.");
+            }
+            final int cModelState = ds.cModel.compareTo(BigDecimal.ZERO);
+            if (cModelState < 0) {
+              throw new IllegalArgumentException(
+                  "Values <0 as collection-model value is not allowed.");
+            }
+            // both values will be zero if t2.b is zero
+            // t2.b == 0 implies t2.a == 0
+            return cModelState > 0;
+          })
           .forEach(ds -> {
                 sumQModel.addAndGet(ds.qModel, MATH_CONTEXT);
                 sumCModel.addAndGet(ds.cModel, MATH_CONTEXT);
@@ -129,19 +152,40 @@ public final class MathUtils {
       final AtomicBigDecimal result = new AtomicBigDecimal();
 
       Arrays.stream(dataSet)
-          .filter(ds ->
-              // a null value is not allowed here
-              ds != null && ds.qModel != null && ds.cModel != null &&
-                  // t2.a will be zero if t2.b is zero:
-                  // t2.b == 0 implies t2.a == 0
-                  ds.cModel.compareTo(BigDecimal.ZERO) != 0 &&
-                  // dividing zero is always zero, so skip here
-                  ds.qModel.compareTo(BigDecimal.ZERO) != 0)
+          .filter(ds -> {
+            // null values are not allowed
+            if (ds == null) {
+              throw new IllegalArgumentException(
+                  "Null entries are not allowed in dataSet.");
+            }
+            if (ds.qModel == null) {
+              throw new IllegalArgumentException(
+                  "Null as query-model value is not allowed.");
+            }
+            if (ds.cModel == null) {
+              throw new IllegalArgumentException(
+                  "Null as collection-model value are not allowed.");
+            }
+            final int qModelState = ds.qModel.compareTo(BigDecimal.ZERO);
+            if (qModelState < 0) {
+              throw new IllegalArgumentException(
+                  "Values <0 as query-model value are not allowed.");
+            }
+            final int cModelState = ds.cModel.compareTo(BigDecimal.ZERO);
+            if (cModelState < 0) {
+              throw new IllegalArgumentException(
+                  "Values <0 as collection-model value are not allowed.");
+            }
+            // both values will be zero if t2.b is zero
+            // cModel == 0 implies qModel == 0
+            return cModelState > 0 && qModelState > 0;
+          })
           .map(ds -> {
-            // scale value of t2.a & t2.b to [0,1]
+            // scale value of qModel & cModel to [0,1]
             final BigDecimal qScaled =
                 ds.qModel.divide(sums.qModel, MATH_CONTEXT);
-            // r += (t2.a/sums.a) * log((t2.a/sums.a) / (t2.b/sums.b))
+            // r += (qModel/sums[qModel]) * log((qModel/sums[qModel]) /
+            // (cModel /sums[cModel]))
             return qScaled.multiply(
                 BigDecimalMath.log(
                     qScaled.divide(
@@ -172,9 +216,20 @@ public final class MathUtils {
     static ScoreTupleLowPrecision sumValues(
         final ScoreTupleLowPrecision... dataSet) {
       final double[] sums = Arrays.stream(dataSet)
-          // both values will be zero if cModel is zero
-          // cModel == 0 implies qModel == 0
-          .filter(ds -> ds != null && ds.cModel > 0)
+          .filter(ds -> {
+            // null values are not allowed
+            if (ds == null) {
+              throw new IllegalArgumentException(
+                  "Null entries are not allowed in dataSet.");
+            }
+            if (ds.cModel < 0d) {
+              throw new IllegalArgumentException(
+                  "Values <0 as collection-model value are not allowed.");
+            }
+            // both values will be zero if cModel is zero
+            // cModel == 0 implies qModel == 0
+            return ds.cModel > 0d;
+          })
           .map(ds -> new double[]{ds.qModel, ds.cModel})
           .reduce(new double[]{0, 0},
               (sum, curr) -> new double[]{sum[0] + curr[0], sum[1] + curr[1]});
@@ -187,14 +242,25 @@ public final class MathUtils {
     static double calc(final ScoreTupleLowPrecision[] dataSet,
         final ScoreTupleLowPrecision sums) {
       return Arrays.stream(dataSet)
-          .filter(ds ->
-              // a null value is not allowed here
-              ds != null &&
-                  // ds.qModel will be zero if ds.cModel is zero:
-                  // ds.cModel == 0 implies ds.qModel == 0
-                  ds.cModel != 0d &&
-                  // dividing zero is always zero, so skip here
-                  ds.qModel != 0d)
+          .filter(ds -> {
+            // null values are not allowed
+            if (ds == null) {
+              throw new IllegalArgumentException(
+                  "Null entries are not allowed in dataSet.");
+            }
+            if (ds.cModel < 0d) {
+              throw new IllegalArgumentException(
+                  "Values <0 as collection-model value are not allowed.");
+            }
+            if (ds.qModel < 0d) {
+              throw new IllegalArgumentException(
+                  "Values <0 as query-model value are not allowed.");
+            }
+            // ds.qModel will be zero if ds.cModel is zero:
+            // ds.cModel == 0 implies ds.qModel == 0
+            // dividing zero is always zero, so skip if qModel == 0
+            return ds.cModel > 0d && ds.qModel > 0d;
+          })
           .mapToDouble(ds -> {
             // scale value of ds.qModel & ds.cModel to [0,1]
             final double qScaled = ds.qModel / sums.qModel;
