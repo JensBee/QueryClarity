@@ -19,7 +19,9 @@ package de.unihildesheim.iw.lucene.util;
 
 import de.unihildesheim.iw.TestCase;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RoaringDocIdSet.Builder;
 import org.junit.Assert;
 import org.junit.Test;
@@ -53,6 +55,27 @@ public class DocIdSetUtilsTest
   }
 
   @Test
+  public void testCardinality_empty()
+      throws Exception {
+    final BitSet bits = new FixedBitSet(10);
+
+    Assert.assertEquals("Cardinality mismatch",
+        0L, (long) DocIdSetUtils.cardinality(new BitDocIdSet(bits)));
+  }
+
+  @SuppressWarnings("ConstantConditions")
+  @Test
+  public void testCardinality_null()
+      throws Exception {
+    try {
+      DocIdSetUtils.cardinality(null);
+      Assert.fail("Expected an IllegalArgumentException to be thrown.");
+    } catch (final IllegalArgumentException e) {
+      // pass
+    }
+  }
+
+  @Test
   public void testMaxDoc()
       throws Exception {
     final DocIdSet dis = new Builder(9)
@@ -66,6 +89,37 @@ public class DocIdSetUtilsTest
         8L, (long) DocIdSetUtils.maxDoc(dis));
   }
 
+  @SuppressWarnings("ConstantConditions")
+  @Test
+  public void testMaxDoc_null()
+      throws Exception {
+    try {
+      DocIdSetUtils.maxDoc(null);
+      Assert.fail("Expected an IllegalArgumentException to be thrown.");
+    } catch (final IllegalArgumentException e) {
+      // pass
+    }
+  }
+
+  @Test
+  public void testMaxDoc_empty()
+      throws Exception {
+    final BitSet bits = new FixedBitSet(10);
+
+    Assert.assertEquals("Cardinality mismatch",
+        -1L, (long) DocIdSetUtils.maxDoc(new BitDocIdSet(bits)));
+  }
+
+  @Test
+  public void testMaxDoc_first()
+      throws Exception {
+    final BitSet bits = new FixedBitSet(10);
+    bits.set(0);
+
+    Assert.assertEquals("Cardinality mismatch",
+        0L, (long) DocIdSetUtils.maxDoc(new BitDocIdSet(bits)));
+  }
+
   @Test
   public void testBits()
       throws Exception {
@@ -77,6 +131,7 @@ public class DocIdSetUtilsTest
         .add(8).build();
 
     final BitSet bits = DocIdSetUtils.bits(dis);
+    Assert.assertNotNull("Bits were null.", bits);
 
     final boolean allMatched = bits.get(1) && bits.get(3) && bits.get(6) &&
         bits.get(7) && bits.get(8);
@@ -84,5 +139,27 @@ public class DocIdSetUtilsTest
 
     final boolean failMatched = bits.get(2) || bits.get(4) || bits.get(5);
     Assert.assertFalse("Wrong bits set.", failMatched);
+  }
+
+  @SuppressWarnings("ConstantConditions")
+  @Test
+  public void testBits_null()
+      throws Exception {
+    try {
+      DocIdSetUtils.bits(null);
+      Assert.fail("Expected an IllegalArgumentException to be thrown.");
+    } catch (final IllegalArgumentException e) {
+      // pass
+    }
+  }
+
+  @SuppressWarnings("ConstantConditions")
+  @Test
+  public void testBits_empty()
+      throws Exception {
+    final BitSet bits = new FixedBitSet(10);
+
+    Assert.assertEquals("Cardinality mismatch",
+        0L, (long) DocIdSetUtils.bits(new BitDocIdSet(bits)).cardinality());
   }
 }
