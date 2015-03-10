@@ -111,34 +111,10 @@ public final class DocIdSetUtils {
       }
 
       if (bitSet == null) {
-        bitSet = new SparseFixedBitSet(maxDoc(dis));
+        bitSet = new SparseFixedBitSet(maxDoc(dis) + 1);
         StreamUtils.stream(disi).forEach(bitSet::set);
       }
       return bitSet;
     }
-  }
-
-  /**
-   * Get the number of documents stored in the {@link DocIdSet}.
-   * @param dis DocIdSet
-   * @return Number of doc-ids stored in the set
-   * @throws IOException Thrown on low-level i/o-errors
-   */
-  public static int size(final DocIdSet dis)
-      throws IOException {
-    int docs = 0;
-    if (RoaringDocIdSet.class.isInstance(dis)) {
-      docs = ((RoaringDocIdSet) dis).cardinality();
-    } else {
-      final DocIdSetIterator disi = dis.iterator();
-      if (disi != null) {
-        for (int docId = disi.nextDoc();
-             docId != DocIdSetIterator.NO_MORE_DOCS;
-             docId = disi.nextDoc()) {
-          docs++;
-        }
-      }
-    }
-    return docs;
   }
 }
