@@ -30,7 +30,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -52,11 +51,11 @@ public final class DocumentModel
   /**
    * Overall frequency of all terms in the document.
    */
-  private final transient long termFrequency;
+  private transient long termFrequency;
   /**
    * Terms stored in this model.
    */
-  private final BytesRefHash terms;
+  private transient BytesRefHash terms;
   /**
    * Frequencies of all terms stored in this model. The array index is related
    * to the term index in {@link #terms}.
@@ -88,9 +87,8 @@ public final class DocumentModel
    */
   DocumentModel(final SerializationBuilder builder) {
     this.id = builder.docId;
-
     this.terms = builder.terms;
-    this.freqs = builder.freqs.clone();
+    this.freqs = builder.freqs;
     this.termFrequency = Arrays.stream(this.freqs).sum();
     calcHash();
   }
@@ -106,11 +104,11 @@ public final class DocumentModel
       throws IOException {
     out.defaultWriteObject();
     final int size = this.terms.size();
-    out.write(size);
+    out.writeInt(size);
     final BytesRef spare = new BytesRef();
     for (int i = 0; i < size; i++) {
       this.terms.get(i, spare);
-      out.write(spare.length);
+      out.writeInt(spare.length);
       out.write(spare.bytes, spare.offset, spare.length);
     }
   }
@@ -128,8 +126,11 @@ public final class DocumentModel
   private void readObject(final ObjectInputStream in)
       throws IOException, ClassNotFoundException {
     in.defaultReadObject();
+    this.terms = new BytesRefHash();
+
     final int size = in.readInt();
     final BytesRef spare = new BytesRef();
+
     for (int i = 0; i < size; i++) {
       spare.bytes = new byte[in.readInt()];
       spare.length = spare.bytes.length;
@@ -137,6 +138,8 @@ public final class DocumentModel
       in.read(spare.bytes);
       this.terms.add(spare);
     }
+
+    this.termFrequency = Arrays.stream(this.freqs).sum();
   }
 
   /**
