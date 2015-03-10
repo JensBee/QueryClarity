@@ -21,7 +21,6 @@ import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils.MergingBytesRefHash;
-import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
 import de.unihildesheim.iw.lucene.util.StreamUtils;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
@@ -32,7 +31,6 @@ import org.apache.lucene.index.ReaderSlice;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -219,16 +217,17 @@ public final class FDRIndexDataProvider
   @Override
   public Stream<BytesRef> getDocumentsTerms(final DocIdSet docIds) {
     try {
-      final int[] docIdList = new int[DocIdSetUtils.cardinality(docIds)];
-      final DocIdSetIterator disi = docIds.iterator();
-      int idx = 0;
-      for (int docId = disi.nextDoc();
-           docId != DocIdSetIterator.NO_MORE_DOCS;
-           docId = disi.nextDoc()) {
-        docIdList[idx++] = docId;
-      }
+//      final int[] docIdList = new int[DocIdSetUtils.cardinality(docIds)];
+//      final DocIdSetIterator disi = docIds.iterator();
+//      int idx = 0;
+//      for (int docId = disi.nextDoc();
+//           docId != DocIdSetIterator.NO_MORE_DOCS;
+//           docId = disi.nextDoc()) {
+//        docIdList[idx++] = docId;
+//      }
 
-      return Arrays.stream(docIdList)
+//      return Arrays.stream(docIdList)
+      return StreamUtils.stream(docIds)
           .mapToObj(docId -> {
             try {
               return this.index.reader.getTermVectors(docId);

@@ -171,10 +171,8 @@ public class StreamUtils {
      * Creates a new {@link Spliterator} using the contents of the provided
      * {@link DocIdSetIterator}.
      * @param disi Iteratot to wrap
-     * @throws IOException Thrown on low-level i/o-errors
      */
-    public DocIdSetSpliterator(final DocIdSetIterator disi)
-        throws IOException {
+    public DocIdSetSpliterator(final DocIdSetIterator disi) {
       this.disi = disi;
     }
 

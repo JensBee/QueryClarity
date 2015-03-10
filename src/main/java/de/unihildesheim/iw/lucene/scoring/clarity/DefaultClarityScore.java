@@ -164,22 +164,28 @@ public final class DefaultClarityScore
           .forEach(this.queryTerms::append);
 
       // init feedback documents list
-      this.feedbackDocs = new int[DocIdSetUtils.cardinality(fb)];
+//      this.feedbackDocs = new int[DocIdSetUtils.cardinality(fb)];
       // init store for cached document models
+//      this.docModels = new ConcurrentHashMap<>((int) (
+//          (double) this.feedbackDocs.length * 1.8));
       this.docModels = new ConcurrentHashMap<>((int) (
-          (double) this.feedbackDocs.length * 1.8));
+          (double) DocIdSetUtils.cardinality(fb) * 1.8));
 
       LOG.info("Caching document models");
-      final DocIdSetIterator disi = fb.iterator();
-      int cnt = 0;
-      for (int docId = disi.nextDoc();
-           docId != DocIdSetIterator.NO_MORE_DOCS;
-           docId = disi.nextDoc()) {
-        // fill list of feedback documents
-        this.feedbackDocs[cnt++] = docId;
-        // pre-cache document models
-        this.docModels.put(docId, this.cMetrics.docData(docId));
-      }
+      this.feedbackDocs = StreamUtils.stream(fb)
+          .peek(docId -> this.docModels.put(docId,
+              this.cMetrics.docData(docId)))
+          .toArray();
+//      final DocIdSetIterator disi = fb.iterator();
+//      int cnt = 0;
+//      for (int docId = disi.nextDoc();
+//           docId != DocIdSetIterator.NO_MORE_DOCS;
+//           docId = disi.nextDoc()) {
+//        // fill list of feedback documents
+//        this.feedbackDocs[cnt++] = docId;
+//        // pre-cache document models
+//        this.docModels.put(docId, this.cMetrics.docData(docId));
+//      }
     }
   }
 

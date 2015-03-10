@@ -20,6 +20,8 @@ package de.unihildesheim.iw.lucene.index;
 import de.unihildesheim.iw.lucene.index.TermFilter.AcceptAll;
 import de.unihildesheim.iw.lucene.search.EmptyFieldFilter;
 import de.unihildesheim.iw.lucene.util.BitsUtils;
+import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
+import de.unihildesheim.iw.lucene.util.StreamUtils;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocsAndPositionsEnum;
@@ -384,15 +386,16 @@ public final class FilteredDirectoryReader
         // may be null, if no document matches
         if (docsWithField != null) {
           finalFields.add(field);
-          final DocIdSetIterator docsWithFieldIt = docsWithField.iterator();
-          // may also be null, if no document matches
-          if (docsWithFieldIt != null) {
-            int docId;
-            while ((docId = docsWithFieldIt.nextDoc()) !=
-                DocIdSetIterator.NO_MORE_DOCS) {
-              filterBits.set(docId);
-            }
-          }
+          StreamUtils.stream(docsWithField).forEach(filterBits::set);
+//          final DocIdSetIterator docsWithFieldIt = docsWithField.iterator();
+//          // may also be null, if no document matches
+//          if (docsWithFieldIt != null) {
+//            int docId;
+//            while ((docId = docsWithFieldIt.nextDoc()) !=
+//                DocIdSetIterator.NO_MORE_DOCS) {
+//              filterBits.set(docId);
+//            }
+//          }
         }
       }
 
@@ -429,20 +432,28 @@ public final class FilteredDirectoryReader
      */
     private void applyDocFilter(final Filter aFilter)
         throws IOException {
-      final DocIdSetIterator keepDocs = aFilter.getDocIdSet(
-          this.in.getContext(), this.flrContext.docBits).iterator();
+
       // Bit-set indicating valid documents (after filtering).
       // A document whose bit is on is valid.
       final FixedBitSet filterBits = new FixedBitSet(this.in.maxDoc());
+      StreamUtils.stream(aFilter.getDocIdSet(
+          this.in.getContext(), this.flrContext.docBits))
+          .forEach(filterBits::set);
 
-      if (keepDocs != null) {
-        // re-enable only those documents allowed by the filter
-        int docId;
-        while ((docId = keepDocs.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-          // turn bit on, document is valid
-          filterBits.set(docId);
-        }
-      }
+//      final DocIdSetIterator keepDocs = aFilter.getDocIdSet(
+//          this.in.getContext(), this.flrContext.docBits).iterator();
+//      // Bit-set indicating valid documents (after filtering).
+//      // A document whose bit is on is valid.
+//      final FixedBitSet filterBits = new FixedBitSet(this.in.maxDoc());
+//
+//      if (keepDocs != null) {
+//        // re-enable only those documents allowed by the filter
+//        int docId;
+//        while ((docId = keepDocs.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+//          // turn bit on, document is valid
+//          filterBits.set(docId);
+//        }
+//      }
 
       if (LOG.isDebugEnabled()) {
         if (this.flrContext.docBits != null) {
@@ -1419,13 +1430,14 @@ public final class FilteredDirectoryReader
 
       int count = 0;
       if (docsWithField != null) {
-        final DocIdSetIterator docsWithFieldIt = docsWithField.iterator();
 
-        if (docsWithFieldIt != null) {
-          while (docsWithFieldIt.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-            count++;
-          }
-        }
+        count = DocIdSetUtils.cardinality(docsWithField);
+//        final DocIdSetIterator docsWithFieldIt = docsWithField.iterator();
+//        if (docsWithFieldIt != null) {
+//          while (docsWithFieldIt.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+//            count++;
+//          }
+//        }
       }
       return count;
     }
