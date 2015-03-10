@@ -307,7 +307,7 @@ public class StreamUtilsTest
 
       @Override
       public long ramBytesUsed() {
-        return 0;
+        return 0L;
       }
 
       @Override
