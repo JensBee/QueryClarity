@@ -50,6 +50,9 @@ public final class StreamUtils {
    * @return Stream of array content
    */
   public static Stream<BytesRef> stream(final BytesRefArray bra) {
+    if (bra == null) {
+      throw new IllegalArgumentException("BytesRefArray was null.");
+    }
     return StreamSupport.stream(new BytesRefArraySpliterator(bra), false);
   }
 
@@ -60,9 +63,10 @@ public final class StreamUtils {
    * @return Stream of enums content
    */
   public static Stream<BytesRef> stream(final TermsEnum te) {
-    return StreamSupport.stream(
-        new TermsEnumSpliterator(
-            Objects.requireNonNull(te, "TermsEnum was null.")), false);
+    if (te == null) {
+      throw new IllegalArgumentException("TermsEnum was null.");
+    }
+    return StreamSupport.stream(new TermsEnumSpliterator(te), false);
   }
 
   /**
@@ -74,9 +78,10 @@ public final class StreamUtils {
    */
   public static IntStream stream(final DocIdSet dis)
       throws IOException {
-    return StreamSupport.intStream(
-        new DocIdSetSpliterator(
-            Objects.requireNonNull(dis, "DocIdSet was null.")), false);
+    if (dis == null) {
+      throw new IllegalArgumentException("DocIdSet was null.");
+    }
+    return StreamSupport.intStream(new DocIdSetSpliterator(dis), false);
   }
 
   /**
@@ -101,9 +106,10 @@ public final class StreamUtils {
    * @return Stream of active (set) bits in set
    */
   public static IntStream stream(final BitSet bs) {
-    return StreamSupport.intStream(
-        new BitSetSpliterator(
-            Objects.requireNonNull(bs, "BitSet was null")), false);
+    if (bs == null) {
+      throw new IllegalArgumentException("BitSet was null");
+    }
+    return StreamSupport.intStream(new BitSetSpliterator(bs), false);
   }
 
   /**

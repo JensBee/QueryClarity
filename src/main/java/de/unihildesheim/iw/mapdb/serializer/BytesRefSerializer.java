@@ -66,6 +66,9 @@ public final class BytesRefSerializer {
     @Override
     public void serialize(final DataOutput out, final BytesRef value)
         throws IOException {
+      if (value == null) {
+        throw new NullPointerException("BytesRef was null.");
+      }
       final byte[] bytes = Arrays
           .copyOfRange(value.bytes, value.offset, value.offset + value.length);
       org.mapdb.Serializer.BYTE_ARRAY.serialize(out, bytes);

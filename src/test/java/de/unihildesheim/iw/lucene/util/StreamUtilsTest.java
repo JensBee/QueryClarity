@@ -125,8 +125,8 @@ public class StreamUtilsTest
       throws Exception {
     try {
       StreamUtils.stream((BytesRefArray) null);
-      Assert.fail("Expected an exception to be thrown.");
-    } catch (final NullPointerException e) {
+      Assert.fail("Expected an IllegalArgumentException to be thrown.");
+    } catch (final IllegalArgumentException e) {
       // pass
     }
   }
@@ -172,8 +172,8 @@ public class StreamUtilsTest
       throws Exception {
     try {
       StreamUtils.stream((DocIdSet) null);
-      Assert.fail("Expected an exception to be thrown.");
-    } catch (final NullPointerException e) {
+      Assert.fail("Expected an IllegalArgumentException to be thrown.");
+    } catch (final IllegalArgumentException e) {
       // pass
     }
   }
@@ -336,8 +336,8 @@ public class StreamUtilsTest
       throws Exception {
     try {
       StreamUtils.stream((BitSet) null);
-      Assert.fail("Expected an exception to be thrown.");
-    } catch (final NullPointerException e) {
+      Assert.fail("Expected an IllegalArgumentException to be thrown.");
+    } catch (final IllegalArgumentException e) {
       // pass
     }
   }
@@ -427,5 +427,17 @@ public class StreamUtilsTest
                         !t.bytesEquals(new BytesRef("bar")) &&
                         !t.bytesEquals(new BytesRef("baz"))
             ).count());
+  }
+
+  @SuppressWarnings("ConstantConditions")
+  @Test
+  public void testStream_termsEnum_null()
+      throws Exception {
+    try {
+      StreamUtils.stream((TermsEnum) null);
+      Assert.fail("Expected an IllegalArgumentException to be thrown.");
+    } catch (final IllegalArgumentException e) {
+      // pass
+    }
   }
 }

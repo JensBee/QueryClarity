@@ -31,7 +31,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutput;
 import java.io.DataOutputStream;
-import java.util.Arrays;
 
 /**
  * Test for {@link DocumentModelSerializer}.
@@ -69,13 +68,13 @@ public class DocumentModelSerializerTest
     final DataOutput out = new DataOutputStream(bouts);
     try {
       ser.serialize(out, null);
-      Assert.fail("No NullpointerException thrown.");
-    } catch (final NullPointerException e) {
+      Assert.fail("Expected IllegalArgumentException to be thrown.");
+    } catch (final IllegalArgumentException e) {
       // pass
     }
   }
 
-  @SuppressWarnings({"ImplicitNumericConversion"})
+  @SuppressWarnings("ImplicitNumericConversion")
   @Test
   public void testDeserialize()
       throws Exception {
@@ -105,8 +104,6 @@ public class DocumentModelSerializerTest
     @SuppressWarnings({"TypeMayBeWeakened", "resource"})
     final DataInputStream in = new DataInputStream(bins);
     dom = ser.deserialize(in, bytes.length);
-
-    System.out.println(Arrays.toString(dom.getFreqsForSerialization()));
 
     Assert.assertEquals("Document id differs.", dom_id, dom.id);
     Assert.assertEquals("Unique term count differs.",

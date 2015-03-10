@@ -56,7 +56,7 @@ public final class DocumentModelSerializer {
     public void serialize(final DataOutput out, final DocumentModel dm)
         throws IOException {
       if (dm == null) {
-        throw new NullPointerException("Model was null.");
+        throw new IllegalArgumentException("Model was null.");
       }
       // write document-id
       DataOutput2.packInt(out, dm.id);

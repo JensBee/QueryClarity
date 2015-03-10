@@ -301,8 +301,10 @@ public final class DocumentModel
      * @return Self reference
      */
     public Builder setTermFrequency(final Map<BytesRef, Long> map) {
-      Objects.requireNonNull(map, "Term frequency map was null.")
-          .entrySet().stream()
+      if (map == null) {
+        throw new IllegalArgumentException("Term frequency map was null.");
+      }
+      map.entrySet().stream()
           .forEach(e -> setTermFrequency(e.getKey(), e.getValue()));
       return this;
     }
@@ -318,6 +320,9 @@ public final class DocumentModel
       if (freq < 0L) {
         throw new IllegalArgumentException("Frequency values must be >=0. " +
             "Got '" + freq + '\'');
+      }
+      if (term == null) {
+        throw new IllegalArgumentException("Term was null.");
       }
       if (freq > 0) { // skip empty terms
         final int idx = this.terms.add(term);
