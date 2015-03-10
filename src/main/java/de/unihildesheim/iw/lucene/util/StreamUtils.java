@@ -29,6 +29,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Objects;
 import java.util.Spliterator;
 import java.util.Spliterator.OfInt;
 import java.util.function.Consumer;
@@ -43,7 +44,7 @@ import java.util.stream.StreamSupport;
 public final class StreamUtils {
 
   /**
-   * Stream contents of a {@link BytesRefArray}.
+   * Stream contents of a {@link BytesRefArray}. Item order is not preserved.
    *
    * @param bra BytesRefArray
    * @return Stream of array content
@@ -59,7 +60,9 @@ public final class StreamUtils {
    * @return Stream of enums content
    */
   public static Stream<BytesRef> stream(final TermsEnum te) {
-    return StreamSupport.stream(new TermsEnumSpliterator(te), false);
+    return StreamSupport.stream(
+        new TermsEnumSpliterator(
+            Objects.requireNonNull(te, "TermsEnum was null.")), false);
   }
 
   /**
@@ -71,7 +74,9 @@ public final class StreamUtils {
    */
   public static IntStream stream(final DocIdSet dis)
       throws IOException {
-    return StreamSupport.intStream(new DocIdSetSpliterator(dis), false);
+    return StreamSupport.intStream(
+        new DocIdSetSpliterator(
+            Objects.requireNonNull(dis, "DocIdSet was null.")), false);
   }
 
   /**
@@ -96,7 +101,9 @@ public final class StreamUtils {
    * @return Stream of active (set) bits in set
    */
   public static IntStream stream(final BitSet bs) {
-    return StreamSupport.intStream(new BitSetSpliterator(bs), false);
+    return StreamSupport.intStream(
+        new BitSetSpliterator(
+            Objects.requireNonNull(bs, "BitSet was null")), false);
   }
 
   /**
@@ -137,12 +144,15 @@ public final class StreamUtils {
     @Override
     public int characteristics() {
       return Spliterator.DISTINCT | Spliterator.IMMUTABLE |
-          Spliterator.NONNULL | Spliterator.SIZED;
+          Spliterator.NONNULL | Spliterator.SIZED | Spliterator.ORDERED;
     }
 
     @Override
     public boolean tryAdvance(final IntConsumer action) {
-      this.idx = this.bs.nextSetBit(++this.idx);
+      if (++this.idx >= this.bs.length()) {
+        return false;
+      }
+      this.idx = this.bs.nextSetBit(this.idx);
       if (this.idx == DocIdSetIterator.NO_MORE_DOCS) {
         return false;
       }
@@ -216,7 +226,8 @@ public final class StreamUtils {
 
     @Override
     public int characteristics() {
-      return Spliterator.DISTINCT | Spliterator.IMMUTABLE | Spliterator.NONNULL;
+      return Spliterator.DISTINCT | Spliterator.IMMUTABLE | Spliterator
+          .NONNULL;
     }
   }
 
@@ -241,7 +252,7 @@ public final class StreamUtils {
      * @param bra ByteRefs to iterate over
      */
     public BytesRefArraySpliterator(final BytesRefArray bra) {
-      this.size = bra.size();
+      this.size = Objects.requireNonNull(bra, "Array was null.").size();
       this.bri = bra.iterator();
     }
 
@@ -301,7 +312,7 @@ public final class StreamUtils {
     public boolean tryAdvance(
         final Consumer<? super BytesRef> action) {
       try {
-        final BytesRef nextTerm = te.next();
+        final BytesRef nextTerm = this.te.next();
         if (nextTerm == null) {
           return false;
         } else {
@@ -326,7 +337,8 @@ public final class StreamUtils {
 
     @Override
     public int characteristics() {
-      return IMMUTABLE; // not mutable
+      return Spliterator.DISTINCT | Spliterator.IMMUTABLE |
+          Spliterator.NONNULL | Spliterator.ORDERED;
     }
   }
 }
