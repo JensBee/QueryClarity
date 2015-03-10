@@ -86,15 +86,15 @@ public final class CollectionMetrics {
     /**
      * Should document frequency values be cached?
      */
-    private boolean cacheDf = true;
+    boolean cacheDf = true;
     /**
      * Should term frequency values be cached?
      */
-    private boolean cacheTf = true;
+    boolean cacheTf = true;
     /**
      * Should document models be cached?
      */
-    private boolean cacheDocModels = true;
+    boolean cacheDocModels = true;
 
     /**
      * Disable caching of document frequency values.
@@ -128,7 +128,6 @@ public final class CollectionMetrics {
    * Initialize the collection data provider using a default configuration.
    *
    * @param idp DataProvider
-   * @throws DataProviderException Forwarded from lower-level
    */
   public <I extends IndexDataProvider> CollectionMetrics(final I idp) {
     this(idp, null);
