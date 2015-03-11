@@ -87,12 +87,12 @@ public final class MathUtils {
    * Methods for calculating the Kullback-Leibler divergence.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static final class KlDivergence {
+  public static final class KlDivergenceHighPrecision {
     /**
      * Logger instance for this class.
      */
     private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
-        KlDivergence.class);
+        KlDivergenceHighPrecision.class);
 
     public static BigDecimal sumAndCalc(
         final ScoreTupleHighPrecision... dataSet) {

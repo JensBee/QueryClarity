@@ -30,7 +30,7 @@ import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
 import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
 import de.unihildesheim.iw.lucene.util.StreamUtils;
-import de.unihildesheim.iw.util.MathUtils.KlDivergence;
+import de.unihildesheim.iw.util.MathUtils.KlDivergenceHighPrecision;
 import de.unihildesheim.iw.util.MathUtils.KlDivergenceLowPrecision;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
@@ -582,7 +582,7 @@ public final class ImprovedClarityScore
 
         LOG.info("Calculating final score.");
         result.setScore(
-            KlDivergence.sumAndCalc(dataSets).doubleValue());
+            KlDivergenceHighPrecision.sumAndCalc(dataSets).doubleValue());
       }
     } catch (final IOException e) {
       throw new UncheckedIOException(e);
