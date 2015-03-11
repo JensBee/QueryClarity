@@ -17,14 +17,24 @@
 
 package de.unihildesheim.iw.util;
 
-import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation
-    .ScoreTupleLowPrecision;
+import de.unihildesheim.iw.TestCase;
+import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation.ScoreTupleLowPrecision;
 import de.unihildesheim.iw.util.MathUtils.KlDivergenceLowPrecision;
 import org.junit.Assert;
 import org.junit.Test;
+import org.slf4j.LoggerFactory;
 
+/**
+ * Test for {@link KlDivergenceLowPrecision}.
+ *
+ * @author Jens Bertram
+ */
 @SuppressWarnings("JavaDoc")
-public class KlDivergenceLowPrecisionTest {
+public class KlDivergenceLowPrecisionTest
+    extends TestCase {
+  public KlDivergenceLowPrecisionTest() {
+    super(LoggerFactory.getLogger(KlDivergenceLowPrecisionTest.class));
+  }
 
   @Test
   public void testSumAndCalc()
@@ -37,10 +47,11 @@ public class KlDivergenceLowPrecisionTest {
     }; // sum: q:3d, c:14d
     // r += (qModel/sums[qModel]) * log((qModel/sums[qModel]) /
     // (cModel/sums[cModel]))
+    final double oneDivThree = 1d / 3d;
     final double expected =
-        (1d / 3d) * Math.log((1d / 3d) / (3d / 14d)) +
-            (1d / 3d) * Math.log((1d / 3d) / (10d / 14d)) +
-            (1d / 3d) * Math.log((1d / 3d) / (1d / 14d));
+        oneDivThree * Math.log(oneDivThree / (3d / 14d)) +
+            oneDivThree * Math.log(oneDivThree / (10d / 14d)) +
+            oneDivThree * Math.log(oneDivThree / (1d / 14d));
     final double result = KlDivergenceLowPrecision.sumAndCalc(dataSet);
 
     Assert.assertEquals("Score value differs", expected, result, 0d);
