@@ -18,6 +18,7 @@
 package de.unihildesheim.iw.lucene.util;
 
 import de.unihildesheim.iw.TestCase;
+import de.unihildesheim.iw.lucene.EmptyBitSet;
 import org.apache.lucene.index.DocsAndPositionsEnum;
 import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.TermsEnum;
@@ -48,6 +49,11 @@ public class StreamUtilsTest
   public StreamUtilsTest() {
     super(LoggerFactory.getLogger(StreamUtilsTest.class));
   }
+
+  /**
+   * An empty {@link BitSet} implementation without any functionality.
+   */
+  private static final BitSet EMPTY_BITSET = new EmptyBitSet();
 
   @Test
   public void testStream_bytesRefArray()
@@ -279,56 +285,8 @@ public class StreamUtilsTest
   @Test
   public void testStream_bitSet_empty()
       throws Exception {
-    @SuppressWarnings("AnonymousInnerClassMayBeStatic")
-    final BitSet bits = new BitSet() {
-      @Override
-      public void set(final int i) {
-        // NOP
-      }
-
-      @Override
-      public void clear(final int startIndex, final int endIndex) {
-        // NOP
-      }
-
-      @Override
-      public int cardinality() {
-        return 0;
-      }
-
-      @Override
-      public int prevSetBit(final int index) {
-        return 0;
-      }
-
-      @Override
-      public int nextSetBit(final int index) {
-        return 0;
-      }
-
-      @Override
-      public long ramBytesUsed() {
-        return 0L;
-      }
-
-      @Override
-      public void clear(final int index) {
-        // NOP
-      }
-
-      @Override
-      public boolean get(final int index) {
-        return false;
-      }
-
-      @Override
-      public int length() {
-        return 0;
-      }
-    };
-
     Assert.assertEquals("Too much bits streamed.",
-        0L, StreamUtils.stream(bits).count());
+        0L, StreamUtils.stream(EMPTY_BITSET).count());
   }
 
   @SuppressWarnings("ConstantConditions")
@@ -491,4 +449,57 @@ public class StreamUtilsTest
     Assert.assertEquals("Too much document ids streamed.",
         0L, StreamUtils.stream(brh).count());
   }
+
+  @Test
+  public void testStream_bits()
+      throws Exception {
+    final FixedBitSet fbs = new FixedBitSet(11);
+    fbs.set(1);
+    fbs.set(3);
+    fbs.set(6);
+    fbs.set(7);
+    fbs.set(8);
+    fbs.set(10);
+    final Bits bits = fbs;
+
+    Assert.assertEquals("Not all bits streamed.",
+        6L, StreamUtils.stream(bits).count());
+
+    Assert.assertEquals("Bit not found.", 1L,
+        StreamUtils.stream(bits).filter(id -> id == 1).count());
+    Assert.assertEquals("Bit not found.", 1L,
+        StreamUtils.stream(bits).filter(id -> id == 3).count());
+    Assert.assertEquals("Bit not found.", 1L,
+        StreamUtils.stream(bits).filter(id -> id == 6).count());
+    Assert.assertEquals("Bit not found.", 1L,
+        StreamUtils.stream(bits).filter(id -> id == 7).count());
+    Assert.assertEquals("Bit not found.", 1L,
+        StreamUtils.stream(bits).filter(id -> id == 8).count());
+    Assert.assertEquals("Bit not found.", 1L,
+        StreamUtils.stream(bits).filter(id -> id == 10).count());
+
+    Assert.assertEquals("Unknown document id found.", 0L,
+        StreamUtils.stream(bits).filter(id ->
+                id != 1 && id != 3 && id != 6 && id != 7 && id != 8 && id != 10
+        ).count());
+  }
+
+  @Test
+  public void testStream_bits_empty()
+      throws Exception {
+    Assert.assertEquals("Too much bits streamed.",
+        0L, StreamUtils.stream((Bits) EMPTY_BITSET).count());
+  }
+
+  @Test
+  public void testStream_bits_null()
+      throws Exception {
+    try {
+      StreamUtils.stream((Bits) null);
+      Assert.fail("Expected an IllegalArgumentException to be thrown.");
+    } catch (final IllegalArgumentException e) {
+      // pass
+    }
+  }
+
 }

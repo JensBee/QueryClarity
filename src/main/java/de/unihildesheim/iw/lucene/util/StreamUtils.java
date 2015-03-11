@@ -21,6 +21,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefHash;
@@ -103,10 +104,8 @@ public final class StreamUtils {
    *
    * @param disi DocIdSetIterator
    * @return Stream of sets content
-   * @throws IOException Thrown on low-level i/o-errors
    */
-  public static IntStream stream(final DocIdSetIterator disi)
-      throws IOException {
+  public static IntStream stream(final DocIdSetIterator disi) {
     if (disi == null) {
       return IntStream.empty();
     } else {
@@ -124,6 +123,18 @@ public final class StreamUtils {
       throw new IllegalArgumentException("BitSet was null");
     }
     return StreamSupport.intStream(new BitSetSpliterator(bs), false);
+  }
+
+  /**
+   * Stream contents of a {@link Bits} instance.
+   * @param b Bits
+   * @return Stream of active (set) bits
+   */
+  public static IntStream stream(final Bits b) {
+    if (b == null) {
+      throw new IllegalArgumentException("Bits were null");
+    }
+    return StreamSupport.intStream(new BitsSpliterator(b), false);
   }
 
   /**
@@ -365,6 +376,7 @@ public final class StreamUtils {
   /**
    * Stream contents of a {@link BytesRefHash}.
    */
+  @SuppressWarnings("PublicInnerClass")
   public static class BytesRefHashSpliterator
   implements Spliterator<BytesRef> {
     /**
@@ -415,6 +427,59 @@ public final class StreamUtils {
     public int characteristics() {
       return Spliterator.DISTINCT | Spliterator.IMMUTABLE |
           Spliterator.NONNULL | Spliterator.SIZED;
+    }
+  }
+
+  /**
+   * Spliterator over contents of a {@link FixedBitSet}.
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public static class BitsSpliterator
+      implements OfInt {
+    /**
+     * Current index in wrapped instance.
+     */
+    private int idx = -1;
+    /**
+     * Wrapped {@link Bits} instance.
+     */
+    private final Bits bits;
+
+    /**
+     * Creates a new {@link Spliterator} using the contents of the provided
+     * {@link Bits} instance. Only set bits will be streamed.
+     * @param b Bits to iterate over
+     */
+    public BitsSpliterator(final Bits b) {
+      this.bits = b;
+    }
+
+    @Nullable
+    @Override
+    public OfInt trySplit() {
+      return null; // cannot be split
+    }
+
+    @Override
+    public long estimateSize() {
+      return Long.MAX_VALUE; // we don't know
+    }
+
+    @Override
+    public int characteristics() {
+      return Spliterator.DISTINCT | Spliterator.IMMUTABLE |
+          Spliterator.NONNULL | Spliterator.SIZED | Spliterator.ORDERED;
+    }
+
+    @Override
+    public boolean tryAdvance(final IntConsumer action) {
+      while (++this.idx < this.bits.length()) {
+        if (this.bits.get(this.idx)) {
+          action.accept(this.idx);
+          return true;
+        }
+      }
+      return false;
     }
   }
 }
