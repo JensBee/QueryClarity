@@ -175,7 +175,7 @@ public final class FilteredDirectoryReader
   }
 
   @Override
-  protected DirectoryReader doWrapDirectoryReader(
+  protected FilteredDirectoryReader doWrapDirectoryReader(
       final DirectoryReader dirReader) {
     return new FilteredDirectoryReader(dirReader, this.subWrapper,
         this.fields, this.negateFields, this.filter, this.termFilter);
@@ -217,6 +217,7 @@ public final class FilteredDirectoryReader
    * Filtered {@link LeafReader} that wraps another AtomicReader and provides
    * filtering functions.
    */
+  @SuppressWarnings("PublicInnerClass")
   public static final class FilteredLeafReader
       extends LeafReader {
     /**
@@ -292,7 +293,8 @@ public final class FilteredDirectoryReader
       if (vFields.isEmpty()) {
         // all fields are visible
         this.fieldInfos = this.in.getFieldInfos();
-        this.fields = NO_FIELDS;
+        this.fields = StreamSupport.stream(
+            this.in.fields().spliterator(), false).toArray(String[]::new);
       } else {
         // fields are now filtered, now enable documents only that have any
         // of the remaining fields
