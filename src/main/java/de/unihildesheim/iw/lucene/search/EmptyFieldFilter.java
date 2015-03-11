@@ -94,20 +94,20 @@ public final class EmptyFieldFilter
   public DocIdSet getDocIdSet(
       final LeafReaderContext context, @Nullable final Bits acceptDocs)
       throws IOException {
-    FixedBitSet checkBits;
+    BitSet checkBits;
     final LeafReader reader = context.reader();
     final int maxDoc = reader.maxDoc();
 
     BitSet finalBits = new SparseFixedBitSet(maxDoc);
     if (acceptDocs == null) {
-      checkBits = BitsUtils.Bits2FixedBitSet(reader.getLiveDocs());
+      checkBits = BitsUtils.bits2BitSet(reader.getLiveDocs());
       if (checkBits == null) {
         // all live
         checkBits = new FixedBitSet(maxDoc);
-        checkBits.set(0, checkBits.length());
+        ((FixedBitSet) checkBits).set(0, checkBits.length());
       }
     } else {
-      checkBits = BitsUtils.Bits2FixedBitSet(acceptDocs);
+      checkBits = BitsUtils.bits2BitSet(acceptDocs);
     }
 
     final Terms terms = reader.terms(this.field);

@@ -198,7 +198,7 @@ public abstract class TermFilter {
           .filter(r -> r.numDocs() > 0)
           .toArray(LeafReader[]::new);
       this.subReaderCount = this.subReaders.length;
-      this.checkBits = BitsUtils.Bits2FixedBitSet(
+      this.checkBits = BitsUtils.bits2FixedBitSet(
           MultiFields.getLiveDocs(this.topReader));
       if (this.checkBits == null) {
         // all documents are live
@@ -223,11 +223,13 @@ public abstract class TermFilter {
 
       DocsEnum de = null;
       TermsEnum te = null;
+      assert this.checkBits != null;
       final FixedBitSet hitBits = new FixedBitSet(this.checkBits.length());
       final FixedBitSet checkBits = this.checkBits.clone();
       int count = this.limit;
 
       for (int i = this.subReaderCount - 1; i >= 0; i--) {
+        assert this.subReaders != null;
         final FilteredFields ffields = (FilteredFields)
             this.subReaders[i].fields();
         final String[] fields = ffields.getFields();

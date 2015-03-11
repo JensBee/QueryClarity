@@ -449,7 +449,8 @@ public final class FilteredDirectoryReader
 //      if (keepDocs != null) {
 //        // re-enable only those documents allowed by the filter
 //        int docId;
-//        while ((docId = keepDocs.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+//        while ((docId = keepDocs.nextDoc()) != DocIdSetIterator
+// .NO_MORE_DOCS) {
 //          // turn bit on, document is valid
 //          filterBits.set(docId);
 //        }
@@ -519,7 +520,7 @@ public final class FilteredDirectoryReader
 
     @Override
     @Nullable
-    public FixedBitSet getDocsWithField(final String field)
+    public BitSet getDocsWithField(final String field)
         throws IOException {
       if (!hasField(field)) {
         return null;
@@ -527,14 +528,28 @@ public final class FilteredDirectoryReader
 
       // get a bit-set of matching docs from the original reader..
       // AND them with the allowed documents to get only visible matches
-      final FixedBitSet filteredDocs = BitsUtils.Bits2FixedBitSet(
-          this.in.getDocsWithField(field));
-      if (filteredDocs == null) {
-        return null;
+      final BitSet filteredDocs;
+      if (this.flrContext.docBits == null) {
+        filteredDocs = BitsUtils.bits2BitSet(this.in.getDocsWithField(field));
+        if (filteredDocs == null) {
+          return null;
+        }
+      } else {
+        filteredDocs = BitsUtils.bits2FixedBitSet(
+            this.in.getDocsWithField(field));
+        if (filteredDocs == null) {
+          return null;
+        }
+        ((FixedBitSet)filteredDocs).and(this.flrContext.docBits);
       }
-      if (this.flrContext.docBits != null) {
-        filteredDocs.and(this.flrContext.docBits);
-      }
+//      final FixedBitSet filteredDocs = BitsUtils.bits2FixedBitSet(
+//          this.in.getDocsWithField(field));
+//      if (filteredDocs == null) {
+//        return null;
+//      }
+//      if (this.flrContext.docBits != null) {
+//        filteredDocs.and(this.flrContext.docBits);
+//      }
       return filteredDocs;
     }
 
@@ -1169,7 +1184,7 @@ public final class FilteredDirectoryReader
           return this.in.docs(liveDocs, reuse, flags);
         }
         final FixedBitSet liveBits = this.ctx.docBits.clone();
-        liveBits.and(BitsUtils.Bits2FixedBitSet(liveDocs));
+        liveBits.and(BitsUtils.bits2FixedBitSet(liveDocs));
         return this.in.docs(liveBits, reuse, flags);
       }
     }
@@ -1193,7 +1208,7 @@ public final class FilteredDirectoryReader
           dape = this.in.docsAndPositions(liveDocs, reuse, flags);
         } else {
           final FixedBitSet liveBits = this.ctx.docBits.clone();
-          liveBits.and(BitsUtils.Bits2FixedBitSet(liveDocs));
+          liveBits.and(BitsUtils.bits2FixedBitSet(liveDocs));
           dape = this.in.docsAndPositions(liveBits, reuse, flags);
         }
       }

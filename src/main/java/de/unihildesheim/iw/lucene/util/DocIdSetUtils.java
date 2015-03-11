@@ -85,7 +85,7 @@ public final class DocIdSetUtils {
         bitSet = BitSetIterator.getSparseFixedBitSetOrNull(disi);
       }
       if (bitSet == null) {
-        bitSet = BitsUtils.Bits2FixedBitSet(dis.bits());
+        bitSet = BitsUtils.bits2BitSet(dis.bits());
       }
 
       if (bitSet == null) {
@@ -129,7 +129,7 @@ public final class DocIdSetUtils {
         bitSet = BitSetIterator.getSparseFixedBitSetOrNull(disi);
       }
       if (bitSet == null) {
-        bitSet = BitsUtils.Bits2FixedBitSet(dis.bits());
+        bitSet = BitsUtils.bits2BitSet(dis.bits());
       }
 
       if (bitSet == null) {
