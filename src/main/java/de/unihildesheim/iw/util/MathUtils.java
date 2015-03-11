@@ -38,15 +38,16 @@ public final class MathUtils {
    * Constant value of log2.
    */
   private static final double LOG2 = Math.log(2d);
+  /**
+   * Pre-calculated BigDecimal LOG2 value.
+   */
   static final BigDecimal BD_LOG2 = BigDecimal.valueOf(Math.log(2d));
+  /**
+   * Math-context to use for high-precision calculations.
+   */
   static final MathContext MATH_CONTEXT = new MathContext(
       GlobalConfiguration.conf().getString(
           DefaultKeys.MATH_CONTEXT.toString()));
-  /**
-   * Logger instance for this class.
-   */
-  private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
-      MathUtils.class);
 
   /**
    * Private empty constructor for utility class.
@@ -94,11 +95,21 @@ public final class MathUtils {
     private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
         KlDivergenceHighPrecision.class);
 
+    /**
+     * Runs summing and calculation of the KL-Divergence in one step.
+     * @param dataSet Data-set
+     * @return KL-Divergence value
+     */
     public static BigDecimal sumAndCalc(
         final ScoreTupleHighPrecision... dataSet) {
       return calc(dataSet, sumValues(dataSet));
     }
 
+    /**
+     * Sum values for a given data-set.
+     * @param dataSet Data-set to sum
+     * @return Sums for values in the given data-set
+     */
     public static ScoreTupleHighPrecision sumValues(
         final ScoreTupleHighPrecision... dataSet) {
       final AtomicBigDecimal sumQModel = new AtomicBigDecimal();
@@ -145,6 +156,12 @@ public final class MathUtils {
       return new ScoreTupleHighPrecision(sumQModel.get(), sumCModel.get());
     }
 
+    /**
+     * Calculate the KL-Divergence value.
+     * @param dataSet DataSet used for calculation
+     * @param sums Sums of the {@code dataSet}
+     * @return KL-Divergence value
+     */
     static BigDecimal calc(
         final ScoreTupleHighPrecision[] dataSet,
         final ScoreTupleHighPrecision sums) {
@@ -209,10 +226,20 @@ public final class MathUtils {
     private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
         KlDivergenceLowPrecision.class);
 
+    /**
+     * Runs summing and calculation of the KL-Divergence in one step.
+     * @param dataSet Data-set
+     * @return KL-Divergence value
+     */
     public static double sumAndCalc(final ScoreTupleLowPrecision... dataSet) {
       return calc(dataSet, sumValues(dataSet));
     }
 
+    /**
+     * Sum values for a given data-set.
+     * @param dataSet Data-set to sum
+     * @return Sums for values in the given data-set
+     */
     static ScoreTupleLowPrecision sumValues(
         final ScoreTupleLowPrecision... dataSet) {
       final double[] sums = Arrays.stream(dataSet)
@@ -231,7 +258,7 @@ public final class MathUtils {
             return ds.cModel > 0d;
           })
           .map(ds -> new double[]{ds.qModel, ds.cModel})
-          .reduce(new double[]{0, 0},
+          .reduce(new double[]{0d, 0d},
               (sum, curr) -> new double[]{sum[0] + curr[0], sum[1] + curr[1]});
       if (LOG.isDebugEnabled()) {
         LOG.debug("pqSum={} pcSum={}", sums[0], sums[1]);
@@ -239,6 +266,12 @@ public final class MathUtils {
       return new ScoreTupleLowPrecision(sums[0], sums[1]);
     }
 
+    /**
+     * Calculate the KL-Divergence value.
+     * @param dataSet DataSet used for calculation
+     * @param sums Sums of the {@code dataSet}
+     * @return KL-Divergence value
+     */
     static double calc(final ScoreTupleLowPrecision[] dataSet,
         final ScoreTupleLowPrecision sums) {
       return Arrays.stream(dataSet)
