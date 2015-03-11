@@ -145,7 +145,7 @@ public final class MathUtils {
       return new ScoreTupleHighPrecision(sumQModel.get(), sumCModel.get());
     }
 
-    private static BigDecimal calc(
+    static BigDecimal calc(
         final ScoreTupleHighPrecision[] dataSet,
         final ScoreTupleHighPrecision sums) {
 
