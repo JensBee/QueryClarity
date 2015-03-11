@@ -49,7 +49,10 @@ public final class BytesRefUtils {
    * @return Copy of bytes from {@link BytesRef}
    */
   public static byte[] copyBytes(final BytesRef br) {
-    return Arrays.copyOfRange(br.bytes, br.offset, br.length);
+    if (br == null) {
+      throw new IllegalArgumentException("BytesRef was null.");
+    }
+    return Arrays.copyOfRange(br.bytes, br.offset, br.offset + br.length);
   }
 
   /**
@@ -125,6 +128,9 @@ public final class BytesRefUtils {
    * @return Array
    */
   public static BytesRefArray hashToArray(final BytesRefHash bh) {
+    if (bh == null) {
+      throw new IllegalArgumentException("BytesRefHash was null.");
+    }
     final BytesRefArray ba = new BytesRefArray(Counter.newCounter(false));
     final BytesRef br = new BytesRef();
     for (int i = bh.size() - 1; i >= 0; i--) {
@@ -137,7 +143,7 @@ public final class BytesRefUtils {
    * Convert a {@link BytesRefHash} to a Set.
    *
    * @param bh Hash
-   * @return Set
+   * @return Set or {@code null}, if {@code bh} was null
    */
   @Nullable
   @Contract("null -> null")
