@@ -17,14 +17,21 @@
 
 package de.unihildesheim.iw.util;
 
+import de.unihildesheim.iw.TestCase;
 import org.junit.Test;
+import org.slf4j.LoggerFactory;
 
 /**
  * Test for {@link ConfigurationFile}.
  *
  * @author Jens Bertram
  */
-public final class ConfigurationFileTest {
+@SuppressWarnings("JavaDoc")
+public class ConfigurationFileTest
+    extends TestCase {
+  public ConfigurationFileTest() {
+    super(LoggerFactory.getLogger(ConfigurationFileTest.class));
+  }
 
   @Test
   public void testSave()
