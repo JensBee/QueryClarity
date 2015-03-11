@@ -135,16 +135,4 @@ public class BitsUtilsTest
     final FixedBitSet result = BitsUtils.arrayToBits(new int[]{});
     Assert.assertTrue("BitSets not equal.", fbs.equals(result));
   }
-
-  @SuppressWarnings({"ConstantConditions", "NullArgumentToVariableArgMethod"})
-  @Test
-  public void testArrayToBits_null()
-      throws Exception {
-    try {
-      BitsUtils.arrayToBits(null);
-      Assert.fail("Expected an IllegalArgumentException to be thrown.");
-    } catch (final IllegalArgumentException e) {
-      // pass
-    }
-  }
 }

@@ -32,12 +32,12 @@ import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RoaringDocIdSet.Builder;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -162,12 +162,11 @@ public final class FeedbackQuery {
    * not preserved!
    * @throws IOException Thrown on low-level I/O errors
    */
-  public static DocIdSet getMinMax(final IndexSearcher searcher,
-      final RelaxableQuery query, final int minDocs, final int maxDocCount)
+  public static DocIdSet getMinMax(
+      @NotNull final IndexSearcher searcher,
+      @NotNull final RelaxableQuery query,
+      final int minDocs, final int maxDocCount)
       throws IOException {
-    Objects.requireNonNull(searcher, "IndexSearcher was null.");
-    Objects.requireNonNull(query, "Query was null.");
-
     final int maxDocs;
     if (maxDocCount == -1) {
       maxDocs = Integer.MAX_VALUE;

@@ -21,11 +21,11 @@ import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * @author Jens Bertram
@@ -81,11 +81,12 @@ public final class LanguageBasedAnalyzers {
    * @param stopWords List of stopwords to initialize the Analyzer with
    * @return New Analyzer instance
    */
-  @SuppressWarnings("AssignmentToNull")
-  public static Analyzer createInstance(@Nullable final Language lang,
-      final CharArraySet stopWords) {
+  @SuppressWarnings({"AssignmentToNull", "resource"})
+  public static Analyzer createInstance(
+      @NotNull final Language lang,
+      @NotNull final CharArraySet stopWords) {
     final Analyzer analyzer;
-    switch (Objects.requireNonNull(lang, "Language was null.")) {
+    switch (lang) {
       case DE:
         analyzer = new GermanAnalyzer(stopWords);
         break;
@@ -111,11 +112,12 @@ public final class LanguageBasedAnalyzers {
    * @param dataProv Provider with stopwords
    * @return New Analyzer instance
    */
+  @SuppressWarnings("resource")
   public static Analyzer createInstance(
-      @Nullable final Language lang,
-      final IndexDataProvider dataProv) {
+      @NotNull final Language lang,
+      @NotNull final IndexDataProvider dataProv) {
     @Nullable final Analyzer analyzer;
-    switch (Objects.requireNonNull(lang, "Language was null.")) {
+    switch (lang) {
       case DE:
         analyzer = new GermanAnalyzer(dataProv);
         break;

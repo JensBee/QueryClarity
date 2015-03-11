@@ -36,7 +36,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -77,12 +76,10 @@ public final class SimpleTermsQuery
    * string
    * @see #SimpleTermsQuery(Analyzer, String, Operator, Set)
    */
-  SimpleTermsQuery(final Builder builder)
+  SimpleTermsQuery(@NotNull final Builder builder)
       throws ParseException {
     this(
-        Objects.requireNonNull(builder, "Builder was null").analyzer,
-        builder.query, builder.getOperator(), builder.fields
-    );
+        builder.analyzer, builder.query, builder.getOperator(), builder.fields);
   }
 
   /**
@@ -96,16 +93,15 @@ public final class SimpleTermsQuery
    * string
    */
   public SimpleTermsQuery(
-      @NotNull final Analyzer analyzer, final String query,
-      final Operator operator, final Set<String> fields)
+      @NotNull final Analyzer analyzer,
+      @NotNull final String query,
+      @NotNull final Operator operator,
+      @NotNull final Set<String> fields)
       throws ParseException {
-    Objects.requireNonNull(analyzer, "Analyzer was null.");
-    Objects.requireNonNull(operator, "Operator was null.");
-    if (Objects.requireNonNull(fields, "Fields were null.").isEmpty()) {
+    if (fields.isEmpty()) {
       throw new IllegalArgumentException("Empty fields list.");
     }
-    if (StringUtils.isStrippedEmpty(
-        Objects.requireNonNull(query, "Query was null."))) {
+    if (StringUtils.isStrippedEmpty(query)) {
       throw new IllegalArgumentException("Empty query.");
     }
 
@@ -186,10 +182,10 @@ public final class SimpleTermsQuery
      * @param reader IndexReader to access the Lucene index
      * @param newFields List of document fields to query
      */
-    public Builder(final IndexReader reader,
-        final Set<String> newFields) {
-      Objects.requireNonNull(reader, "IndexReader was null.");
-      if (Objects.requireNonNull(newFields, "Fields were null.").isEmpty()) {
+    public Builder(
+        @NotNull final IndexReader reader,
+        @NotNull final Set<String> newFields) {
+      if (newFields.isEmpty()) {
         throw new IllegalArgumentException("Empty fields.");
       }
       this.idxReader = reader;
@@ -213,8 +209,9 @@ public final class SimpleTermsQuery
      * @param newFields List of fields to query
      * @return Self reference
      */
-    public Builder fields(final Set<String> newFields) {
-      if (Objects.requireNonNull(newFields, "Fields were null.").isEmpty()) {
+    public Builder fields(
+        @NotNull final Set<String> newFields) {
+      if (newFields.isEmpty()) {
         throw new IllegalArgumentException("Empty fields.");
       }
       IndexUtils.checkFields(this.idxReader, newFields);
@@ -233,9 +230,8 @@ public final class SimpleTermsQuery
      * @param newOperator Boolean operator
      * @return Self reference
      */
-    public Builder boolOperator(
-        final Operator newOperator) {
-      this.operator = Objects.requireNonNull(newOperator, "Operator was null.");
+    public Builder boolOperator(@NotNull final Operator newOperator) {
+      this.operator = newOperator;
       return this;
     }
 
@@ -245,9 +241,8 @@ public final class SimpleTermsQuery
      * @param queryStr Query string
      * @return Self reference
      */
-    public Builder query(final String queryStr) {
-      if (Objects.requireNonNull(queryStr, "Query string was null.").trim()
-          .isEmpty()) {
+    public Builder query(@NotNull final String queryStr) {
+      if (queryStr.trim().isEmpty()) {
         throw new IllegalArgumentException("Empty query string.");
       }
       this.query = queryStr;

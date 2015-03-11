@@ -18,6 +18,7 @@ package de.unihildesheim.iw.util;
 
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.Tuple.Tuple2;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,9 +66,9 @@ public class Configuration {
    *
    * @param initial Initial set of configuration options
    */
-  protected Configuration(final Map<String, String> initial) {
+  protected Configuration(@NotNull final Map<String, String> initial) {
     this();
-    addAll(Objects.requireNonNull(initial, "Initial map was null."));
+    addAll(initial);
   }
 
   /**
@@ -82,8 +83,7 @@ public class Configuration {
    *
    * @param config Map with configuration settings
    */
-  public final void addAll(final Map<String, String> config) {
-    Objects.requireNonNull(config, "Configuration map was null.");
+  public final void addAll(@NotNull final Map<String, String> config) {
     for (final Entry<String, String> confEntry : config.entrySet()) {
       this.data.setProperty(confEntry.getKey(), confEntry.getValue());
     }
@@ -123,13 +123,15 @@ public class Configuration {
    * was none
    * @see #getString(String, String)
    */
-  public final String getAndAddString(final String key,
-      final String defaultValue) {
+  public final String getAndAddString(
+      @NotNull final String key,
+      @NotNull final String defaultValue) {
     final String value = getString(key, defaultValue);
     if (defaultValue.equals(value)) {
       add(key, defaultValue);
       return defaultValue;
     }
+    assert value != null;
     return value;
   }
 
@@ -142,10 +144,11 @@ public class Configuration {
    * @return String value assigned to the key, or {@code defaultValue} if there
    * was none
    */
-  public final String getString(final String key,
+  @Nullable
+  public final String getString(
+      @NotNull final String key,
       @Nullable final String defaultValue) {
-    if (StringUtils.isStrippedEmpty(
-        Objects.requireNonNull(key, "Key was null."))) {
+    if (StringUtils.isStrippedEmpty(key)) {
       throw new IllegalArgumentException("Key was empty.");
     }
     return this.data.getProperty(key, defaultValue);
@@ -157,23 +160,23 @@ public class Configuration {
    * @param key Key to use for storing
    * @param value Value to store
    */
-  public final void add(final String key, final String value) {
-    checkKeyValue(key, value);
-    this.data.setProperty(key, value);
+  public final void add(
+      @NotNull final String key,
+      @NotNull final String value) {
+    this.data.setProperty(checkKey(key), value);
   }
 
   /**
-   * Checks if key and value are valid (i.e. not {@code null}).
+   * Checks if key is valid (i.e. not empty).
    *
    * @param key Key
-   * @param value Value
+   * @return Passed in key
    */
-  protected static void checkKeyValue(final String key, final Object value) {
-    if (StringUtils.isStrippedEmpty(
-        Objects.requireNonNull(key, "Key was null."))) {
+  protected static String checkKey(@NotNull final String key) {
+    if (StringUtils.isStrippedEmpty(key)) {
       throw new IllegalArgumentException("Key was empty.");
     }
-    Objects.requireNonNull(value, "Value was null.");
+    return key;
   }
 
   /**
@@ -186,28 +189,36 @@ public class Configuration {
    * found
    * @return Boolean value assigned to the key, or {@code defaultValue} if there
    * was none
-   * @see #getBoolean(String, boolean)
+   * @see #getBoolean(String, Boolean)
    */
-  public final Boolean getAndAddBoolean(final String key,
-      final Boolean defaultValue) {
+  @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
+  public final Boolean getAndAddBoolean(
+      @NotNull final String key,
+      @NotNull final Boolean defaultValue) {
     final String value = getString(key, defaultValue.toString());
     if (defaultValue.toString().equalsIgnoreCase(value)) {
       add(key, defaultValue.toString());
       return defaultValue;
     }
-    return getBoolean(key, defaultValue);
+    final Boolean result = getBoolean(key, defaultValue);
+    assert result != null;
+    return result;
   }
 
   /**
    * Tries to get a boolean value associated with the given key.
    *
    * @param key Configuration item key
+   * @param defaultValue Default value, if none already set
    * @return Boolean value assigned to the key, or {@code null} if there was
    * none
    */
-  @SuppressWarnings("BooleanParameter")
-  public final Boolean getBoolean(final String key,
-      final boolean defaultValue) {
+  @SuppressWarnings({"BooleanParameter",
+      "BooleanMethodNameMustStartWithQuestion"})
+  @Nullable
+  public final Boolean getBoolean(
+      @NotNull final String key,
+      @Nullable final Boolean defaultValue) {
     if (StringUtils.isStrippedEmpty(
         Objects.requireNonNull(key, "Key was null."))) {
       throw new IllegalArgumentException("Key was empty.");
@@ -231,6 +242,7 @@ public class Configuration {
    * @return String value assigned to the key, or {@code null} if there was none
    * or there was an error interpreting the value as integer
    */
+  @Nullable
   public final String getString(final String key) {
     return getString(key, null);
   }
@@ -242,6 +254,7 @@ public class Configuration {
    * @return Integer value assigned to the key, or {@code null} if there was
    * none or there was an error interpreting the value as integer
    */
+  @Nullable
   public final Integer getInteger(final String key) {
     return getInteger(key, null);
   }
@@ -256,8 +269,10 @@ public class Configuration {
    * was none or there was an error interpreting the value as integer
    */
   @Nullable
-  public final Integer getInteger(final String key,
+  public final Integer getInteger(
+      @NotNull final String key,
       @Nullable final Integer defaultValue) {
+    @Nullable
     final String value = getString(key);
     if (value == null) {
       return defaultValue;
@@ -282,14 +297,19 @@ public class Configuration {
    * was none or there was an error interpreting the value as integer
    * @see #getInteger(String, Integer)
    */
-  public final Integer getAndAddInteger(final String key,
-      final Integer defaultValue) {
+  public final Integer getAndAddInteger(
+      @NotNull final String key,
+      @NotNull final Integer defaultValue) {
     if (getString(key) == null) {
-      LOG.debug("No config-data for {}.", key);
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("No config-data for {}.", key);
+      }
       add(key, defaultValue);
       return defaultValue;
     }
-    return getInteger(key, defaultValue);
+    final Integer result = getInteger(key, defaultValue);
+    assert result != null;
+    return result;
   }
 
   /**
@@ -298,9 +318,10 @@ public class Configuration {
    * @param key Key to use for storing
    * @param value Value to store
    */
-  public final void add(final String key, final Integer value) {
-    checkKeyValue(key, value);
-    this.data.setProperty(key, value.toString());
+  public final void add(
+      @NotNull final String key,
+      @NotNull final Integer value) {
+    this.data.setProperty(checkKey(key), value.toString());
   }
 
   /**
@@ -310,6 +331,7 @@ public class Configuration {
    * @return Double value assigned to the key, or {@code null} if there was none
    * or there was an error interpreting the value as double
    */
+  @Nullable
   public final Double getDouble(final String key) {
     return getDouble(key, null);
   }
@@ -324,7 +346,8 @@ public class Configuration {
    * was none or there was an error interpreting the value as double
    */
   @Nullable
-  public final Double getDouble(final String key,
+  public final Double getDouble(
+      @NotNull final String key,
       @Nullable final Double defaultValue) {
     final String value = getString(key);
     if (value == null) {
@@ -350,13 +373,16 @@ public class Configuration {
    * was none or there was an error interpreting the value as double
    * @see #getDouble(String, Double)
    */
-  public final Double getAndAddDouble(final String key,
-      final Double defaultValue) {
+  public final Double getAndAddDouble(
+      @NotNull final String key,
+      @NotNull final Double defaultValue) {
     if (getString(key) == null) {
       add(key, defaultValue);
       return defaultValue;
     }
-    return getDouble(key, defaultValue);
+    final Double result = getDouble(key, defaultValue);
+    assert result != null;
+    return result;
   }
 
   /**
@@ -366,8 +392,7 @@ public class Configuration {
    * @param value Value to store
    */
   public final void add(final String key, final Double value) {
-    checkKeyValue(key, value);
-    this.data.setProperty(key, value.toString());
+    this.data.setProperty(checkKey(key), value.toString());
   }
 
   /**

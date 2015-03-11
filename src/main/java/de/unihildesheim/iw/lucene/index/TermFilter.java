@@ -53,7 +53,8 @@ public abstract class TermFilter {
    * @throws IOException Thrown on low-level I/O-errors
    */
   public abstract boolean isAccepted(
-      @Nullable final TermsEnum termsEnum, final BytesRef term)
+      @Nullable final TermsEnum termsEnum,
+      @NotNull final BytesRef term)
       throws IOException;
 
   /**
@@ -61,6 +62,7 @@ public abstract class TermFilter {
    *
    * @param reader Top-reader
    */
+  @SuppressWarnings("NullableProblems")
   protected void setTopReader(@NotNull final FilteredDirectoryReader reader) {
     this.topReader = reader;
   }
@@ -88,7 +90,8 @@ public abstract class TermFilter {
      */
     @SuppressWarnings("ObjectAllocationInLoop")
     public StopwordWrapper(
-        final Iterable<String> words, final TermFilter wrap) {
+        @NotNull final Iterable<String> words,
+        @NotNull final TermFilter wrap) {
       this.in = wrap;
       this.sWords = new BytesRefHash();
       for (final String sw : words) {
@@ -98,7 +101,8 @@ public abstract class TermFilter {
 
     @Override
     public boolean isAccepted(
-        @Nullable final TermsEnum termsEnum, final BytesRef term)
+        @Nullable final TermsEnum termsEnum,
+        @NotNull final BytesRef term)
         throws IOException {
       return this.sWords.find(term) <= -1 && this.in.isAccepted(termsEnum,
           term);
@@ -210,7 +214,8 @@ public abstract class TermFilter {
 
     @Override
     public boolean isAccepted(
-        @Nullable final TermsEnum termsEnum, final BytesRef term)
+        @Nullable final TermsEnum termsEnum,
+        @NotNull final BytesRef term)
         throws IOException {
       if (this.topReader == null) {
         // pass through all terms at initialization time
@@ -235,7 +240,7 @@ public abstract class TermFilter {
         final String[] fields = ffields.getFields();
         final int fieldCount = fields.length;
         for (int j = fieldCount - 1; j >= 0; j--) {
-          final Terms t = ffields.originalTerms(fields[j]);
+          @Nullable final Terms t = ffields.originalTerms(fields[j]);
 
           if (t != null) {
             te = t.iterator(te);
@@ -284,7 +289,9 @@ public abstract class TermFilter {
       extends TermFilter {
 
     @Override
-    public boolean isAccepted(final TermsEnum termsEnum, final BytesRef term) {
+    public boolean isAccepted(
+        @NotNull final TermsEnum termsEnum,
+        @NotNull final BytesRef term) {
       return true;
     }
   }

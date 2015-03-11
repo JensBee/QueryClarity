@@ -126,18 +126,6 @@ public class StreamUtilsTest
         0L, StreamUtils.stream(bArr).count());
   }
 
-  @SuppressWarnings("ConstantConditions")
-  @Test
-  public void testStream_bytesRefArray_null()
-      throws Exception {
-    try {
-      StreamUtils.stream((BytesRefArray) null);
-      Assert.fail("Expected an IllegalArgumentException to be thrown.");
-    } catch (final IllegalArgumentException e) {
-      // pass
-    }
-  }
-
   @Test
   public void testStream_docIdSet()
       throws Exception {
@@ -171,18 +159,6 @@ public class StreamUtilsTest
         StreamUtils.stream(dis).filter(id ->
                 id != 1 && id != 3 && id != 6 && id != 7 && id != 8 && id != 10
         ).count());
-  }
-
-  @SuppressWarnings("ConstantConditions")
-  @Test
-  public void testStream_docIdSet_null()
-      throws Exception {
-    try {
-      StreamUtils.stream((DocIdSet) null);
-      Assert.fail("Expected an IllegalArgumentException to be thrown.");
-    } catch (final IllegalArgumentException e) {
-      // pass
-    }
   }
 
   @Test
@@ -230,15 +206,6 @@ public class StreamUtilsTest
         ).count());
   }
 
-  @SuppressWarnings("ConstantConditions")
-  @Test
-  public void testStream_docIdSetIterator_null()
-      throws Exception {
-    // expect an empty stream
-    Assert.assertEquals("Too much document ids streamed.",
-        0L, StreamUtils.stream((DocIdSetIterator) null).count());
-  }
-
   @Test
   public void testStream_docIdSetIterator_empty()
       throws Exception {
@@ -247,6 +214,15 @@ public class StreamUtilsTest
 
     Assert.assertEquals("Too much document ids streamed.",
         0L, StreamUtils.stream(dis.iterator()).count());
+  }
+
+  @SuppressWarnings("ConstantConditions")
+  @Test
+  public void testStream_docIdSetIterator_null()
+      throws Exception {
+    // expect an empty stream
+    Assert.assertEquals("Too much document ids streamed.",
+        0L, StreamUtils.stream((DocIdSetIterator) null).count());
   }
 
   @Test
@@ -287,18 +263,6 @@ public class StreamUtilsTest
       throws Exception {
     Assert.assertEquals("Too much bits streamed.",
         0L, StreamUtils.stream(EMPTY_BITSET).count());
-  }
-
-  @SuppressWarnings("ConstantConditions")
-  @Test
-  public void testStream_bitSet_null()
-      throws Exception {
-    try {
-      StreamUtils.stream((BitSet) null);
-      Assert.fail("Expected an IllegalArgumentException to be thrown.");
-    } catch (final IllegalArgumentException e) {
-      // pass
-    }
   }
 
   @Test
@@ -388,18 +352,6 @@ public class StreamUtilsTest
             ).count());
   }
 
-  @SuppressWarnings("ConstantConditions")
-  @Test
-  public void testStream_termsEnum_null()
-      throws Exception {
-    try {
-      StreamUtils.stream((TermsEnum) null);
-      Assert.fail("Expected an IllegalArgumentException to be thrown.");
-    } catch (final IllegalArgumentException e) {
-      // pass
-    }
-  }
-
   @Test
   public void testStream_bytesRefHash()
       throws Exception {
@@ -428,18 +380,6 @@ public class StreamUtilsTest
                         !t.bytesEquals(new BytesRef("bar")) &&
                         !t.bytesEquals(new BytesRef("baz"))
             ).count());
-  }
-
-  @SuppressWarnings("ConstantConditions")
-  @Test
-  public void testStream_bytesRefHash_null()
-      throws Exception {
-    try {
-      StreamUtils.stream((BytesRefHash) null);
-      Assert.fail("Expected an IllegalArgumentException to be thrown.");
-    } catch (final IllegalArgumentException e) {
-      // pass
-    }
   }
 
   @Test
@@ -490,16 +430,4 @@ public class StreamUtilsTest
     Assert.assertEquals("Too much bits streamed.",
         0L, StreamUtils.stream((Bits) EMPTY_BITSET).count());
   }
-
-  @Test
-  public void testStream_bits_null()
-      throws Exception {
-    try {
-      StreamUtils.stream((Bits) null);
-      Assert.fail("Expected an IllegalArgumentException to be thrown.");
-    } catch (final IllegalArgumentException e) {
-      // pass
-    }
-  }
-
 }

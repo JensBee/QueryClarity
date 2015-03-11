@@ -23,13 +23,13 @@ import de.unihildesheim.iw.lucene.util.StreamUtils;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.Counter;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -68,9 +68,9 @@ public abstract class ClarityScoreResult
    *
    * @param cscType Class implementing {@link ClarityScoreCalculation}
    */
-  ClarityScoreResult(final Class<? extends ClarityScoreCalculation>
-      cscType) {
-    this.type = Objects.requireNonNull(cscType, "Score type was null.");
+  ClarityScoreResult(
+      @NotNull final Class<? extends ClarityScoreCalculation> cscType) {
+    this.type = cscType;
   }
 
   /**
@@ -121,8 +121,7 @@ public abstract class ClarityScoreResult
    *
    * @param qTerms Query terms
    */
-  final void setQueryTerms(final BytesRefArray qTerms) {
-    Objects.requireNonNull(qTerms);
+  final void setQueryTerms(@NotNull final BytesRefArray qTerms) {
     this.queryTerms = qTerms;
   }
 
@@ -131,8 +130,7 @@ public abstract class ClarityScoreResult
    *
    * @param qTerms Query terms
    */
-  final void setQueryTerms(final Collection<BytesRef> qTerms) {
-    Objects.requireNonNull(qTerms);
+  final void setQueryTerms(@NotNull final Collection<BytesRef> qTerms) {
     this.queryTerms = new BytesRefArray(Counter.newCounter(false));
     qTerms.stream().forEach(this.queryTerms::append);
   }

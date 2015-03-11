@@ -21,6 +21,7 @@ import org.apache.lucene.util.ByteBlockPool.DirectAllocator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.BytesRefHash.DirectBytesStartArray;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -72,7 +73,7 @@ public final class DocumentModel
    *
    * @param builder Builder to use
    */
-  DocumentModel(final Builder builder) {
+  DocumentModel(@NotNull final Builder builder) {
     this.id = builder.docId;
     this.terms = builder.terms;
     this.freqs = builder.freqs.stream().mapToLong(l -> l).toArray();
@@ -85,7 +86,7 @@ public final class DocumentModel
    *
    * @param builder Builder to use
    */
-  DocumentModel(final SerializationBuilder builder) {
+  DocumentModel(@NotNull final SerializationBuilder builder) {
     this.id = builder.docId;
     this.terms = builder.terms;
     this.freqs = builder.freqs;
@@ -158,7 +159,7 @@ public final class DocumentModel
    * @param term Term to lookup
    * @return Frequency in the associated document or {@code 0}, if unknown
    */
-  public double relTf(final BytesRef term) {
+  public double relTf(@NotNull final BytesRef term) {
     final int idx = this.terms.find(term);
     if (idx == -1) {
       return 0d;
@@ -185,7 +186,7 @@ public final class DocumentModel
    * @param term Term to lookup
    * @return Frequency in the associated document or <tt>0</tt>, if unknown
    */
-  public long tf(final BytesRef term) {
+  public long tf(@NotNull final BytesRef term) {
     final int idx = this.terms.find(term);
     return idx == -1 ? 0L : this.freqs[idx];
   }
@@ -303,11 +304,13 @@ public final class DocumentModel
      * Frequency values must be >=0.
      * @return Self reference
      */
-    public Builder setTermFrequency(final Map<BytesRef, Long> map) {
-      if (map == null) {
-        throw new IllegalArgumentException("Term frequency map was null.");
-      }
+    public Builder setTermFrequency(@NotNull final Map<BytesRef, Long> map) {
       map.entrySet().stream()
+          .peek(e -> {
+            if (e.getValue() == null || e.getKey() == null) {
+              throw new IllegalArgumentException("Null entries not allowed.");
+            }
+          })
           .forEach(e -> setTermFrequency(e.getKey(), e.getValue()));
       return this;
     }
@@ -319,13 +322,11 @@ public final class DocumentModel
      * @param freq Frequency. Must be >=0.
      * @return Self reference
      */
-    public Builder setTermFrequency(final BytesRef term, final long freq) {
+    public Builder setTermFrequency(
+        @NotNull final BytesRef term, final long freq) {
       if (freq < 0L) {
         throw new IllegalArgumentException("Frequency values must be >=0. " +
             "Got '" + freq + '\'');
-      }
-      if (term == null) {
-        throw new IllegalArgumentException("Term was null.");
       }
       if (freq > 0) { // skip empty terms
         final int idx = this.terms.add(term);
@@ -394,7 +395,8 @@ public final class DocumentModel
      */
     @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
     public SerializationBuilder(
-        final int docId, final int termCount, final long... termFreqs) {
+        final int docId, final int termCount,
+        @NotNull final long... termFreqs) {
       this.docId = docId;
       this.freqs = termFreqs;
       this.terms = new BytesRefHash(
@@ -409,7 +411,7 @@ public final class DocumentModel
      *
      * @param term Term
      */
-    public void addTerm(final BytesRef term) {
+    public void addTerm(@NotNull final BytesRef term) {
       this.terms.add(term);
     }
 

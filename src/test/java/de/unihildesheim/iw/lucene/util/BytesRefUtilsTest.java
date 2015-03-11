@@ -58,18 +58,6 @@ public class BytesRefUtilsTest
     Assert.assertTrue("Bytes mismatch.", br.bytesEquals(result));
   }
 
-  @SuppressWarnings("ConstantConditions")
-  @Test
-  public void testCopyBytes_null()
-      throws Exception {
-    try {
-      BytesRefUtils.copyBytes(null);
-      Assert.fail("Expected an IllegalArgumentException to be thrown.");
-    } catch (final IllegalArgumentException e) {
-      // pass
-    }
-  }
-
   @SuppressWarnings("ImplicitNumericConversion")
   @Test
   public void testHashToArray()
@@ -102,18 +90,6 @@ public class BytesRefUtilsTest
     Assert.assertEquals("Expected an empty BytesRefArray.", 0, bra.size());
   }
 
-  @SuppressWarnings("ConstantConditions")
-  @Test
-  public void testHashToArray_null()
-      throws Exception {
-    try {
-      BytesRefUtils.hashToArray(null);
-      Assert.fail("Expected an IllegalArgumentException to be thrown.");
-    } catch (final IllegalArgumentException e) {
-      // pass
-    }
-  }
-
   @SuppressWarnings("ImplicitNumericConversion")
   @Test
   public void testHashToSet()
@@ -142,13 +118,5 @@ public class BytesRefUtilsTest
     final Set<String> result = BytesRefUtils.hashToSet(brh);
     Assert.assertNotNull("Result was null.", result);
     Assert.assertTrue("Expected an empty Set.", result.isEmpty());
-  }
-
-  @SuppressWarnings("ConstantConditions")
-  @Test
-  public void testHashToSet_null()
-      throws Exception {
-      final Set<String> result = BytesRefUtils.hashToSet(null);
-      Assert.assertNull("Expected result to be null.", result);
   }
 }

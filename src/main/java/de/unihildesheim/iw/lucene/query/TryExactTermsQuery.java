@@ -27,13 +27,13 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -76,16 +76,16 @@ public final class TryExactTermsQuery
    * @param fields Fields to query
    * @throws ParseException Thrown, if the query could not be parsed
    */
-  public TryExactTermsQuery(final Analyzer analyzer, final String queryStr,
-      final String... fields)
+  public TryExactTermsQuery(
+      @NotNull final Analyzer analyzer,
+      @NotNull final String queryStr,
+      @NotNull final String... fields)
       throws ParseException {
     super(analyzer, queryStr, fields);
-    Objects.requireNonNull(analyzer, "Analyzer was null.");
-    if (Objects.requireNonNull(fields, "Fields were null.").length == 0) {
+    if (fields.length == 0) {
       throw new IllegalArgumentException("Empty fields list.");
     }
-    if (StringUtils.isStrippedEmpty(Objects.requireNonNull(queryStr,
-        "Query was null."))) {
+    if (StringUtils.isStrippedEmpty(queryStr)) {
       throw new IllegalArgumentException("Empty query.");
     }
 
@@ -104,7 +104,9 @@ public final class TryExactTermsQuery
       this.query.add(bc);
     }
     this.query.setMinimumNumberShouldMatch(this.uniqueQueryTerms.size());
-    LOG.debug("TEQ {} uQt={}", this.query, this.uniqueQueryTerms);
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("TEQ {} uQt={}", this.query, this.uniqueQueryTerms);
+    }
   }
 
   /**

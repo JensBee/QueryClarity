@@ -466,10 +466,9 @@ public final class ImprovedClarityScore
    * @return Clarity score result object
    */
   @Override
-  public Result calculateClarity(final String query)
+  public Result calculateClarity(@NotNull final String query)
       throws ClarityScoreCalculationException {
-    if (StringUtils.isStrippedEmpty(
-        Objects.requireNonNull(query, "Query was null."))) {
+    if (StringUtils.isStrippedEmpty(query)) {
       throw new IllegalArgumentException("Query was empty.");
     }
 
@@ -646,7 +645,7 @@ public final class ImprovedClarityScore
      * @param newConf Configuration used
      */
     void setConf(@NotNull final ImprovedClarityScoreConfiguration newConf) {
-      this.conf = Objects.requireNonNull(newConf, "Configuration was null.");
+      this.conf = newConf;
     }
 
     /**

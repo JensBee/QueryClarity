@@ -80,22 +80,6 @@ public class DocumentModelTest
     }
   }
 
-  @SuppressWarnings("ConstantConditions")
-  @Test
-  public void builder_testSetTermFrequency_null()
-      throws Exception {
-    final int dom_id = 1;
-    final Builder builder = new Builder(dom_id);
-    builder.setTermFrequency(new BytesRef("foo"), 12L);
-    try {
-      builder.setTermFrequency(null, 10L);
-      Assert.fail("Null term value was successful added. " +
-          "Expected an exception to be thrown.");
-    } catch (final IllegalArgumentException e) {
-      // pass
-    }
-  }
-
   @Test
   public void builder_testSetTermFrequency_lt0()
       throws Exception {
@@ -264,22 +248,6 @@ public class DocumentModelTest
     }
   }
 
-  @SuppressWarnings("ConstantConditions")
-  @Test
-  public void builder_testSetTermFrequencyMap_null()
-      throws Exception {
-    final int dom_id = 1;
-    final Builder builder = new Builder(dom_id);
-
-    try {
-      builder.setTermFrequency(null);
-      Assert.fail("Null tf-map was successful added. " +
-          "Expected an exception to be thrown.");
-    } catch (final IllegalArgumentException e) {
-      // pass
-    }
-  }
-
   @SuppressWarnings("ImplicitNumericConversion")
   @Test
   public void builder_testGetModel()
@@ -362,23 +330,6 @@ public class DocumentModelTest
     Assert.assertEquals("Relative term frequency value differs.",
         (double) 3L / (double) dom_tf, dom.relTf(new BytesRef("baz")), 0d);
   }
-
-  @SuppressWarnings("ConstantConditions")
-  @Test
-  public void builder_testGetModelMap_null()
-      throws Exception {
-    // document id
-    final int dom_id = 1;
-
-    final Builder builder = new Builder(dom_id);
-    try {
-      builder.setTermFrequency(null);
-      Assert.fail("Expected IllegalArgumentException to be thrown.");
-    } catch (final IllegalArgumentException e) {
-      // pass
-    }
-  }
-
 
   @Test
   public void testWriteObject()

@@ -26,6 +26,7 @@ import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.FixedBitSet;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.LoggerFactory;
 
@@ -62,8 +63,10 @@ public final class QueryUtils {
    * @return List of tokens from original query with stop-words removed
    */
   @SuppressWarnings("ObjectAllocationInLoop")
-  public static BytesRefArray tokenizeQuery(final String query,
-      final Analyzer qAnalyzer, @Nullable final CollectionMetrics cMetrics) {
+  public static BytesRefArray tokenizeQuery(
+      @NotNull final String query,
+      @NotNull final Analyzer qAnalyzer,
+      @Nullable final CollectionMetrics cMetrics) {
     @SuppressWarnings("CollectionWithoutInitialCapacity")
     BytesRefArray result = new BytesRefArray(Counter.newCounter(false));
 
@@ -153,8 +156,9 @@ public final class QueryUtils {
    * @return Tokenized query string with stop-words removed CollectionMetrics}
    * fails
    */
-  public static List<String> tokenizeQueryString(final String query,
-      final Analyzer qAnalyzer) {
+  public static List<String> tokenizeQueryString(
+      @NotNull final String query,
+      @NotNull final Analyzer qAnalyzer) {
     return tokenizeQueryString(query, qAnalyzer, null);
   }
 
@@ -170,10 +174,12 @@ public final class QueryUtils {
    * @return List of tokens from original query with stop-words removed
    * @see #tokenizeQuery(String, Analyzer, CollectionMetrics)
    */
-  public static List<String> tokenizeQueryString(final String query,
-      final Analyzer qAnalyzer, @Nullable final CollectionMetrics cMetrics) {
-    final BytesRefArray tokenizedQuery = tokenizeQuery(query, qAnalyzer,
-        cMetrics);
+  public static List<String> tokenizeQueryString(
+      @NotNull final String query,
+      @NotNull final Analyzer qAnalyzer,
+      @Nullable final CollectionMetrics cMetrics) {
+    final BytesRefArray tokenizedQuery =
+        tokenizeQuery(query, qAnalyzer, cMetrics);
     final List<String> tokenizedQueryStr =
         new ArrayList<>(tokenizedQuery.size());
     tokenizedQueryStr.addAll(
@@ -193,8 +199,9 @@ public final class QueryUtils {
    * @return mapping of query-term to in-query-frequency
    * @see #tokenizeAndMapQuery(String, Analyzer, CollectionMetrics)
    */
-  public static Map<BytesRef, Integer> tokenizeAndMapQuery(final
-  String query, final Analyzer qAnalyzer) {
+  public static Map<BytesRef, Integer> tokenizeAndMapQuery(
+      @NotNull final String query,
+      @NotNull final Analyzer qAnalyzer) {
     return tokenizeAndMapQuery(query, qAnalyzer, null);
   }
 
@@ -208,12 +215,13 @@ public final class QueryUtils {
    * @param qAnalyzer Analyzer used to parse the query String
    * @param cMetrics Collection metrics to skip terms not in the collection. If
    * null all terms wll be included.
-   * @return mapping of query-term to in-query-frequency with optonally terms
+   * @return mapping of query-term to in-query-frequency with optionally terms
    * not in the collection skipped
    */
   @SuppressWarnings("ObjectAllocationInLoop")
-  public static Map<BytesRef, Integer> tokenizeAndMapQuery(final
-  String query, final Analyzer qAnalyzer,
+  public static Map<BytesRef, Integer> tokenizeAndMapQuery(
+      @NotNull final String query,
+      @NotNull final Analyzer qAnalyzer,
       @Nullable final CollectionMetrics cMetrics) {
     @SuppressWarnings("CollectionWithoutInitialCapacity")
     final Map<BytesRef, Integer> result = new HashMap<>();

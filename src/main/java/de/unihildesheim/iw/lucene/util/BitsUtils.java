@@ -35,7 +35,7 @@ public final class BitsUtils {
    * @param bits Bits to convert
    * @return New instance or {@code null} if {@code bits} were {@code null}.
    */
-  @Contract("null -> null")
+  @Contract("null -> null; !null -> !null")
   @Nullable
   public static BitSet bits2BitSet(@Nullable final Bits bits) {
     if (bits == null) {
@@ -58,7 +58,7 @@ public final class BitsUtils {
    * @param bits Bits to convert
    * @return New instance or {@code null} if {@code bits} were {@code null}.
    */
-  @Contract("null -> null")
+  @Contract("null -> null; !null -> !null")
   @Nullable
   public static FixedBitSet bits2FixedBitSet(@Nullable final Bits bits) {
     if (bits == null) {

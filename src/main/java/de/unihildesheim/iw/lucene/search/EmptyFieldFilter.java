@@ -110,7 +110,7 @@ public final class EmptyFieldFilter
       checkBits = BitsUtils.bits2BitSet(acceptDocs);
     }
 
-    final Terms terms = reader.terms(this.field);
+    @Nullable final Terms terms = reader.terms(this.field);
     if (terms != null) {
       final int termsDocCount = terms.getDocCount();
 
@@ -120,23 +120,25 @@ public final class EmptyFieldFilter
         // all matching
         finalBits = checkBits;
       } else {
-        final Terms t = reader.terms(this.field);
-        DocsEnum de = null;
-        final TermsEnum te = t.iterator(null);
-        while (true) {
-          final BytesRef term = te.next();
-          if (term == null) {
-            break;
-          }
-          de = te.docs(checkBits, de, DocsEnum.FLAG_NONE);
+        @Nullable final Terms t = reader.terms(this.field);
+        if (t != null) {
+          DocsEnum de = null;
+          final TermsEnum te = t.iterator(null);
           while (true) {
-            final int docId = de.nextDoc();
-            if (docId == DocIdSetIterator.NO_MORE_DOCS) {
+            @Nullable final BytesRef term = te.next();
+            if (term == null) {
               break;
             }
-            if (checkBits.get(docId)) {
-              finalBits.set(docId);
-              checkBits.clear(docId);
+            de = te.docs(checkBits, de, DocsEnum.FLAG_NONE);
+            while (true) {
+              final int docId = de.nextDoc();
+              if (docId == DocIdSetIterator.NO_MORE_DOCS) {
+                break;
+              }
+              if (checkBits.get(docId)) {
+                finalBits.set(docId);
+                checkBits.clear(docId);
+              }
             }
           }
         }
@@ -171,6 +173,6 @@ public final class EmptyFieldFilter
   @Override
   public String toString() {
     return "EmptyFieldFilter [field=" + this.field +
-        ", negate=" + this.negate + "]";
+        ", negate=" + this.negate + ']';
   }
 }

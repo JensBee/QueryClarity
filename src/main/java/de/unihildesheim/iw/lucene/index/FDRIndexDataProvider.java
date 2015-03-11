@@ -38,6 +38,8 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.FixedBitSet;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,6 +77,9 @@ public final class FDRIndexDataProvider
    * Collection metrics instance for this DataProvider.
    */
   private final CollectionMetrics metrics;
+  /**
+   * Static empty stopwords hash.
+   */
   private static final BytesRefHash EMPTY_STOPWORDS = new BytesRefHash();
 
   /**
@@ -108,7 +113,7 @@ public final class FDRIndexDataProvider
   }
 
   @Override
-  public long getTermFrequency(final BytesRef term) {
+  public long getTermFrequency(@NotNull final BytesRef term) {
     return this.index.reader.leaves().stream()
         .map(LeafReaderContext::reader)
         .filter(r -> r.numDocs() > 0)
@@ -117,7 +122,7 @@ public final class FDRIndexDataProvider
             return StreamSupport.stream(r.fields().spliterator(), false)
                 .mapToLong(f -> {
                   try {
-                    final Terms terms = r.terms(f);
+                    @Nullable final Terms terms = r.terms(f);
                     if (terms == null) {
                       return 0L;
                     }
@@ -136,7 +141,7 @@ public final class FDRIndexDataProvider
   }
 
   @Override
-  public int getDocumentFrequency(final BytesRef term) {
+  public int getDocumentFrequency(@NotNull final BytesRef term) {
     return this.index.reader.leaves().stream()
         .map(LeafReaderContext::reader)
         .filter(r -> r.numDocs() > 0)
@@ -145,7 +150,7 @@ public final class FDRIndexDataProvider
             return StreamSupport.stream(r.fields().spliterator(), false)
                 .mapToInt(f -> {
                   try {
-                    final Terms terms = r.terms(f);
+                    @Nullable final Terms terms = r.terms(f);
                     if (terms == null) {
                       return 0;
                     }
@@ -184,7 +189,8 @@ public final class FDRIndexDataProvider
     return Arrays.stream(this.index.fields)
         .flatMap(f -> {
           try {
-            final Terms terms = this.index.reader.getTermVector(docId, f);
+            @Nullable final Terms terms =
+                this.index.reader.getTermVector(docId, f);
             if (terms == null) {
               LOG.warn("No Term Vectors for field {} in document {}.",
                   f, docId);
@@ -215,18 +221,8 @@ public final class FDRIndexDataProvider
   }
 
   @Override
-  public Stream<BytesRef> getDocumentsTerms(final DocIdSet docIds) {
+  public Stream<BytesRef> getDocumentsTerms(@NotNull final DocIdSet docIds) {
     try {
-//      final int[] docIdList = new int[DocIdSetUtils.cardinality(docIds)];
-//      final DocIdSetIterator disi = docIds.iterator();
-//      int idx = 0;
-//      for (int docId = disi.nextDoc();
-//           docId != DocIdSetIterator.NO_MORE_DOCS;
-//           docId = disi.nextDoc()) {
-//        docIdList[idx++] = docId;
-//      }
-
-//      return Arrays.stream(docIdList)
       return StreamUtils.stream(docIds)
           .mapToObj(docId -> {
             try {
@@ -333,7 +329,7 @@ public final class FDRIndexDataProvider
      * @param r IndexReader
      * @throws IOException Thrown on low-level I/O-errors
      */
-    LuceneIndex(final FilteredDirectoryReader r)
+    LuceneIndex(@NotNull final FilteredDirectoryReader r)
         throws IOException {
       this.reader = r;
 
@@ -359,13 +355,15 @@ public final class FDRIndexDataProvider
       Arrays.stream(docIds)
           .forEach(this.docIds::set);
       this.docCount = this.docIds.cardinality();
-      LOG.debug("DocIds c={}", this.docCount);
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("DocIds c={}", this.docCount);
+      }
       // both counts should be equal, since there are no deletions
       assert this.docCount == numDocs;
 
       // collect summed total term frequency of all terms in the index
       LOG.info("Collecting term counts (TTF)");
-      final Fields fields = MultiFields.getFields(this.reader);
+      @Nullable final Fields fields = MultiFields.getFields(this.reader);
       if (fields == null) {
         LOG.warn("Reader does not contain any postings.");
         this.ttf = 0L;
@@ -447,56 +445,6 @@ public final class FDRIndexDataProvider
                 throw new UncheckedIOException(e);
               }
             }).distinct().count();
-
-//        ReaderSlice[] rSlices = this.reader.leaves().stream()
-//            .filter(arc -> arc.reader().numDocs() > 0)
-//            .map(arc -> new ReaderSlice(
-//                arc.docBase, arc.reader().maxDoc(), fields.size() - 1))
-//            .toArray(ReaderSlice[]::new);
-
-
-//        this.uniqueTerms = this.fields.stream()
-//            .flatMap(f -> {
-//              try {
-//                final TermsEnum te = MultiFields.getTerms(this.reader, f)
-//                    .iterator(null);
-//                return StreamSupport.stream(new Spliterator<BytesRef>() {
-//                  @Override
-//                  public boolean tryAdvance(
-//                      final Consumer<? super BytesRef> action) {
-//                    try {
-//                      final BytesRef nextTerm = te.next();
-//                      if (nextTerm == null) {
-//                        return false;
-//                      } else {
-//                        action.isAccepted(nextTerm);
-//                        return true;
-//                      }
-//                    } catch (final IOException e) {
-//                      throw new UncheckedIOException(e);
-//                    }
-//                  }
-//
-//                  @Override
-//                  @Nullable
-//                  public Spliterator<BytesRef> trySplit() {
-//                    return null; // no split support
-//                  }
-//
-//                  @Override
-//                  public long estimateSize() {
-//                    return Long.MAX_VALUE; // we don't know
-//                  }
-//
-//                  @Override
-//                  public int characteristics() {
-//                    return IMMUTABLE; // not mutable
-//                  }
-//                }, false);
-//              } catch (final IOException e) {
-//                throw new UncheckedIOException(e);
-//              }
-//            }).distinct().count();
       }
     }
   }

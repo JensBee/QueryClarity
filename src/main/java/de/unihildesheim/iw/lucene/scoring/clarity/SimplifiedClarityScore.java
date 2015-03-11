@@ -26,13 +26,13 @@ import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
 
 /**
  * Simplified Clarity Score implementation as described by He, Ben, and Iadh
@@ -76,9 +76,8 @@ public final class SimplifiedClarityScore
    *
    * @param builder Builder to use for constructing the instance
    */
-  SimplifiedClarityScore(final Builder builder) {
+  SimplifiedClarityScore(@NotNull final Builder builder) {
     super(IDENTIFIER);
-    Objects.requireNonNull(builder, "Builder was null.");
 
     // set configuration
     this.dataProv = builder.getIndexDataProvider();
@@ -86,9 +85,8 @@ public final class SimplifiedClarityScore
   }
 
   @Override
-  public Result calculateClarity(final String query) {
-    if (StringUtils.isStrippedEmpty(
-        Objects.requireNonNull(query, "Query was null."))) {
+  public Result calculateClarity(@NotNull final String query) {
+    if (StringUtils.isStrippedEmpty(query)) {
       throw new IllegalArgumentException("Query was empty.");
     }
     final Result result = new Result();

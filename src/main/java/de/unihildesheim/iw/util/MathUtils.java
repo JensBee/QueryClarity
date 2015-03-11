@@ -23,6 +23,7 @@ import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation
     .ScoreTupleLowPrecision;
 import de.unihildesheim.iw.util.concurrent.AtomicBigDecimal;
+import org.jetbrains.annotations.NotNull;
 import org.nevec.rjm.BigDecimalMath;
 import org.slf4j.LoggerFactory;
 
@@ -97,21 +98,23 @@ public final class MathUtils {
 
     /**
      * Runs summing and calculation of the KL-Divergence in one step.
+     *
      * @param dataSet Data-set
      * @return KL-Divergence value
      */
     public static BigDecimal sumAndCalc(
-        final ScoreTupleHighPrecision... dataSet) {
+        @NotNull final ScoreTupleHighPrecision... dataSet) {
       return calc(dataSet, sumValues(dataSet));
     }
 
     /**
      * Sum values for a given data-set.
+     *
      * @param dataSet Data-set to sum
      * @return Sums for values in the given data-set
      */
     public static ScoreTupleHighPrecision sumValues(
-        final ScoreTupleHighPrecision... dataSet) {
+        @NotNull final ScoreTupleHighPrecision... dataSet) {
       final AtomicBigDecimal sumQModel = new AtomicBigDecimal();
       final AtomicBigDecimal sumCModel = new AtomicBigDecimal();
 
@@ -130,7 +133,8 @@ public final class MathUtils {
               throw new IllegalArgumentException(
                   "Null as collection-model value is not allowed.");
             }
-            if (ds.qModel.compareTo(BigDecimal.ZERO) < 0) {
+            final int qModelState = ds.qModel.compareTo(BigDecimal.ZERO);
+            if (qModelState < 0) {
               throw new IllegalArgumentException(
                   "Values <0 as query-model value is not allowed.");
             }
@@ -139,9 +143,10 @@ public final class MathUtils {
               throw new IllegalArgumentException(
                   "Values <0 as collection-model value is not allowed.");
             }
-            // both values will be zero if t2.b is zero
-            // t2.b == 0 implies t2.a == 0
-            return cModelState > 0;
+            // both values will be zero if cModel is zero
+            // cModel == 0 implies qModel == 0
+            // dividing zero is always zero, so skip if qModel == 0
+            return cModelState > 0 && qModelState > 0;
           })
           .forEach(ds -> {
                 sumQModel.addAndGet(ds.qModel, MATH_CONTEXT);
@@ -158,14 +163,14 @@ public final class MathUtils {
 
     /**
      * Calculate the KL-Divergence value.
+     *
      * @param dataSet DataSet used for calculation
      * @param sums Sums of the {@code dataSet}
      * @return KL-Divergence value
      */
     static BigDecimal calc(
-        final ScoreTupleHighPrecision[] dataSet,
-        final ScoreTupleHighPrecision sums) {
-
+        @NotNull final ScoreTupleHighPrecision[] dataSet,
+        @NotNull final ScoreTupleHighPrecision sums) {
       final AtomicBigDecimal result = new AtomicBigDecimal();
 
       Arrays.stream(dataSet)
@@ -228,20 +233,23 @@ public final class MathUtils {
 
     /**
      * Runs summing and calculation of the KL-Divergence in one step.
+     *
      * @param dataSet Data-set
      * @return KL-Divergence value
      */
-    public static double sumAndCalc(final ScoreTupleLowPrecision... dataSet) {
+    public static double sumAndCalc(
+        @NotNull final ScoreTupleLowPrecision... dataSet) {
       return calc(dataSet, sumValues(dataSet));
     }
 
     /**
      * Sum values for a given data-set.
+     *
      * @param dataSet Data-set to sum
      * @return Sums for values in the given data-set
      */
     static ScoreTupleLowPrecision sumValues(
-        final ScoreTupleLowPrecision... dataSet) {
+        @NotNull final ScoreTupleLowPrecision... dataSet) {
       final double[] sums = Arrays.stream(dataSet)
           .filter(ds -> {
             // null values are not allowed
@@ -253,9 +261,14 @@ public final class MathUtils {
               throw new IllegalArgumentException(
                   "Values <0 as collection-model value are not allowed.");
             }
+            if (ds.qModel < 0d) {
+              throw new IllegalArgumentException(
+                  "Values <0 as query-model value are not allowed.");
+            }
             // both values will be zero if cModel is zero
             // cModel == 0 implies qModel == 0
-            return ds.cModel > 0d;
+            // dividing zero is always zero, so skip if qModel == 0
+            return ds.cModel > 0d && ds.qModel > 0d;
           })
           .map(ds -> new double[]{ds.qModel, ds.cModel})
           .reduce(new double[]{0d, 0d},
@@ -268,12 +281,14 @@ public final class MathUtils {
 
     /**
      * Calculate the KL-Divergence value.
+     *
      * @param dataSet DataSet used for calculation
      * @param sums Sums of the {@code dataSet}
      * @return KL-Divergence value
      */
-    static double calc(final ScoreTupleLowPrecision[] dataSet,
-        final ScoreTupleLowPrecision sums) {
+    static double calc(
+        @NotNull final ScoreTupleLowPrecision[] dataSet,
+        @NotNull final ScoreTupleLowPrecision sums) {
       return Arrays.stream(dataSet)
           .filter(ds -> {
             // null values are not allowed

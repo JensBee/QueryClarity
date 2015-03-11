@@ -27,11 +27,11 @@ import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.FixedBitSet;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Objects;
 import java.util.Spliterator;
 import java.util.Spliterator.OfInt;
 import java.util.function.Consumer;
@@ -51,10 +51,7 @@ public final class StreamUtils {
    * @param bra BytesRefArray
    * @return Stream of array content
    */
-  public static Stream<BytesRef> stream(final BytesRefArray bra) {
-    if (bra == null) {
-      throw new IllegalArgumentException("BytesRefArray was null.");
-    }
+  public static Stream<BytesRef> stream(@NotNull final BytesRefArray bra) {
     return StreamSupport.stream(new BytesRefArraySpliterator(bra), false);
   }
 
@@ -64,10 +61,7 @@ public final class StreamUtils {
    * @param te TermsEnum
    * @return Stream of enums content
    */
-  public static Stream<BytesRef> stream(final TermsEnum te) {
-    if (te == null) {
-      throw new IllegalArgumentException("TermsEnum was null.");
-    }
+  public static Stream<BytesRef> stream(@NotNull final TermsEnum te) {
     return StreamSupport.stream(new TermsEnumSpliterator(te), false);
   }
 
@@ -77,10 +71,7 @@ public final class StreamUtils {
    * @param brh Hash
    * @return Stream of hashs content
    */
-  public static Stream<BytesRef> stream(final BytesRefHash brh) {
-    if (brh == null) {
-      throw new IllegalArgumentException("BytesRefHash was null.");
-    }
+  public static Stream<BytesRef> stream(@NotNull final BytesRefHash brh) {
     return StreamSupport.stream(new BytesRefHashSpliterator(brh), false);
   }
 
@@ -91,12 +82,9 @@ public final class StreamUtils {
    * @return Stream of sets content
    * @throws IOException Thrown on low-level i/o-errors
    */
-  public static IntStream stream(final DocIdSet dis)
+  public static IntStream stream(@NotNull final DocIdSet dis)
       throws IOException {
-    if (dis == null) {
-      throw new IllegalArgumentException("DocIdSet was null.");
-    }
-    return StreamSupport.intStream(new DocIdSetSpliterator(dis), false);
+    return stream(dis.iterator());
   }
 
   /**
@@ -105,7 +93,7 @@ public final class StreamUtils {
    * @param disi DocIdSetIterator
    * @return Stream of sets content
    */
-  public static IntStream stream(final DocIdSetIterator disi) {
+  public static IntStream stream(@Nullable final DocIdSetIterator disi) {
     if (disi == null) {
       return IntStream.empty();
     } else {
@@ -118,10 +106,7 @@ public final class StreamUtils {
    * @param bs BitSet
    * @return Stream of active (set) bits in set
    */
-  public static IntStream stream(final BitSet bs) {
-    if (bs == null) {
-      throw new IllegalArgumentException("BitSet was null");
-    }
+  public static IntStream stream(@NotNull final BitSet bs) {
     return StreamSupport.intStream(new BitSetSpliterator(bs), false);
   }
 
@@ -130,10 +115,7 @@ public final class StreamUtils {
    * @param b Bits
    * @return Stream of active (set) bits
    */
-  public static IntStream stream(final Bits b) {
-    if (b == null) {
-      throw new IllegalArgumentException("Bits were null");
-    }
+  public static IntStream stream(@NotNull final Bits b) {
     return StreamSupport.intStream(new BitsSpliterator(b), false);
   }
 
@@ -205,30 +187,16 @@ public final class StreamUtils {
 
     /**
      * Creates a new {@link Spliterator} using the contents of the provided
-     * {@link DocIdSet}.
-     * @param dis Doc-Ids to iterate over
-     * @throws IOException Thrown on low-level i/o-errors
-     */
-    public DocIdSetSpliterator(final DocIdSet dis)
-        throws IOException {
-      this.disi = dis.iterator();
-    }
-
-    /**
-     * Creates a new {@link Spliterator} using the contents of the provided
      * {@link DocIdSetIterator}.
      * @param disi Iteratot to wrap
      */
-    public DocIdSetSpliterator(final DocIdSetIterator disi) {
+    public DocIdSetSpliterator(@NotNull final DocIdSetIterator disi) {
       this.disi = disi;
     }
 
     @Override
     public boolean tryAdvance(final IntConsumer action) {
       // iterator may be null, if there are no documents
-      if (this.disi == null) {
-        return false;
-      }
       final int doc;
       try {
         doc = this.disi.nextDoc();
@@ -282,15 +250,15 @@ public final class StreamUtils {
      * {@link BytesRefArray}.
      * @param bra ByteRefs to iterate over
      */
-    public BytesRefArraySpliterator(final BytesRefArray bra) {
-      this.size = Objects.requireNonNull(bra, "Array was null.").size();
+    public BytesRefArraySpliterator(@NotNull final BytesRefArray bra) {
+      this.size = bra.size();
       this.bri = bra.iterator();
     }
 
     @Override
     public boolean tryAdvance(final Consumer<? super BytesRef> action) {
       try {
-        final BytesRef term = this.bri.next();
+        @Nullable final BytesRef term = this.bri.next();
         if (term == null) {
           return false;
         }
@@ -343,7 +311,7 @@ public final class StreamUtils {
     public boolean tryAdvance(
         final Consumer<? super BytesRef> action) {
       try {
-        final BytesRef nextTerm = this.te.next();
+        @Nullable final BytesRef nextTerm = this.te.next();
         if (nextTerm == null) {
           return false;
         } else {

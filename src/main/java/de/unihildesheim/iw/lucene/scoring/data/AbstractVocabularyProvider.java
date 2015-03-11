@@ -19,9 +19,8 @@ package de.unihildesheim.iw.lucene.scoring.data;
 
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import org.apache.lucene.search.DocIdSet;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-
-import java.util.Objects;
 
 /**
  * Base (no-operation) class for more specific {@link VocabularyProvider}
@@ -46,8 +45,9 @@ public abstract class AbstractVocabularyProvider<T extends VocabularyProvider>
   DocIdSet docIds;
 
   @Override
-  public T indexDataProvider(final IndexDataProvider indexDataProvider) {
-    this.dataProv = Objects.requireNonNull(indexDataProvider);
+  public T indexDataProvider(
+      @NotNull final IndexDataProvider indexDataProvider) {
+    this.dataProv = indexDataProvider;
     return getThis();
   }
 
@@ -59,8 +59,8 @@ public abstract class AbstractVocabularyProvider<T extends VocabularyProvider>
   protected abstract T getThis();
 
   @Override
-  public T documentIds(final DocIdSet documentIds) {
-    this.docIds = Objects.requireNonNull(documentIds);
+  public T documentIds(@NotNull final DocIdSet documentIds) {
+    this.docIds = documentIds;
     return getThis();
   }
 }

@@ -23,6 +23,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,7 +34,6 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -138,8 +138,8 @@ public abstract class AbstractIndexDataProviderBuilder<
    * @param words List of stopwords. May be empty.
    * @return self reference
    */
-  public final B stopwords(final Set<String> words) {
-    this.stopwords = Objects.requireNonNull(words);
+  public final B stopwords(@NotNull final Set<String> words) {
+    this.stopwords = words;
     return getThis();
   }
 
@@ -149,9 +149,7 @@ public abstract class AbstractIndexDataProviderBuilder<
    * @param fields List of field names. May be empty.
    * @return self reference
    */
-  public final B documentFields(
-      final Set<String> fields) {
-    Objects.requireNonNull(fields, "Field were null.");
+  public final B documentFields(@NotNull final Set<String> fields) {
     this.documentFields = new HashSet<>(fields);
     return getThis();
   }
@@ -170,10 +168,9 @@ public abstract class AbstractIndexDataProviderBuilder<
    * was found in the directory or if reading from this directory is not
    * allowed.
    */
-  public final B indexPath(final String filePath)
+  public final B indexPath(@NotNull final String filePath)
       throws IOException {
-    if (StringUtils.isStrippedEmpty(
-        Objects.requireNonNull(filePath, "Index path was null"))) {
+    if (StringUtils.isStrippedEmpty(filePath)) {
       throw new IllegalArgumentException("Index path was empty.");
     }
 

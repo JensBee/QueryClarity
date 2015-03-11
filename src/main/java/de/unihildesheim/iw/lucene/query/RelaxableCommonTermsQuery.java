@@ -25,6 +25,7 @@ import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,7 +34,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -73,16 +73,15 @@ public final class RelaxableCommonTermsQuery
    * @param queryStr Query string
    * @param fields Fields to query
    */
-  public RelaxableCommonTermsQuery(final Analyzer analyzer,
-      final String queryStr,
-      final String[] fields) {
+  public RelaxableCommonTermsQuery(
+      @NotNull final Analyzer analyzer,
+      @NotNull final String queryStr,
+      @NotNull final String[] fields) {
     super(analyzer, queryStr, fields);
-    Objects.requireNonNull(analyzer, "Analyzer was null.");
-    if (Objects.requireNonNull(fields, "Fields were null.").length == 0) {
+    if (fields.length == 0) {
       throw new IllegalArgumentException("Empty fields list.");
     }
-    if (StringUtils.isStrippedEmpty(Objects.requireNonNull(queryStr,
-        "Query was null."))) {
+    if (StringUtils.isStrippedEmpty(queryStr)) {
       throw new IllegalArgumentException("Empty query.");
     }
 

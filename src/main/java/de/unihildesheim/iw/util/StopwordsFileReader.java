@@ -17,6 +17,7 @@
 
 package de.unihildesheim.iw.util;
 
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.BufferedReader;
@@ -56,12 +57,12 @@ public final class StopwordsFileReader {
    * @return Set of stopwords extracted from the given file
    * @throws IOException Thrown on  low-level I/O errors
    */
-  public static Set<String> readWords(final Format format,
-      final String source, final Charset cs)
+  public static Set<String> readWords(
+      @NotNull final Format format,
+      @NotNull final String source,
+      @NotNull final Charset cs)
       throws IOException {
-    Objects.requireNonNull(format, "Format was null.");
-    if (StringUtils.isStrippedEmpty(
-        Objects.requireNonNull(source, "Source was null."))) {
+    if (StringUtils.isStrippedEmpty(source)) {
       throw new IllegalArgumentException("Empty source.");
     }
 

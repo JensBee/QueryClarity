@@ -23,6 +23,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.RoaringDocIdSet;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
@@ -39,19 +40,16 @@ public final class DocIdSetUtils {
    * @return Cardinality
    * @throws IOException Thrown on low-level I/O-errors
    */
-  public static int cardinality(final DocIdSet dis)
+  public static int cardinality(@NotNull final DocIdSet dis)
       throws IOException {
-    if (dis == null) {
-      throw new IllegalArgumentException("DocIdSet was null.");
-    }
     final int cardinality;
 
     if (RoaringDocIdSet.class.isInstance(dis)) {
       cardinality = ((RoaringDocIdSet) dis).cardinality();
     } else {
-      final BitSet bits = bits(dis);
+      @Nullable final BitSet bits = bits(dis);
       if (bits == null) {
-        final DocIdSetIterator disi = dis.iterator();
+        @Nullable final DocIdSetIterator disi = dis.iterator();
         cardinality = disi == null ? 0 : (int) StreamUtils.stream(disi).count();
       } else {
         cardinality = bits.cardinality();
@@ -67,19 +65,15 @@ public final class DocIdSetUtils {
    * @return Highest document number or {@code -1}, if there's no document
    * @throws IOException Thrown on low-level i/o-errors
    */
-  public static int maxDoc(final DocIdSet dis)
+  public static int maxDoc(@NotNull final DocIdSet dis)
       throws IOException {
-    if (dis == null) {
-      throw new IllegalArgumentException("DocIdSet was null.");
-    }
-
     final int maxDoc;
 
-    final DocIdSetIterator disi = dis.iterator();
+    @Nullable final DocIdSetIterator disi = dis.iterator();
     if (disi == null) {
       maxDoc = 0;
     } else {
-      BitSet bitSet;
+      @Nullable BitSet bitSet;
       bitSet = BitSetIterator.getFixedBitSetOrNull(disi);
       if (bitSet == null) {
         bitSet = BitSetIterator.getSparseFixedBitSetOrNull(disi);
@@ -111,18 +105,14 @@ public final class DocIdSetUtils {
    * @throws IOException Thrown on low-level I/O-errors
    */
   @Nullable
-  public static BitSet bits(final DocIdSet dis)
+  public static BitSet bits(@NotNull final DocIdSet dis)
       throws IOException {
-    if (dis == null) {
-      throw new IllegalArgumentException("DocIdSet was null.");
-    }
-
-    final DocIdSetIterator disi = dis.iterator();
+    @Nullable final DocIdSetIterator disi = dis.iterator();
 
     if (disi == null) {
       return null;
     } else {
-      BitSet bitSet;
+      @Nullable BitSet bitSet;
 
       bitSet = BitSetIterator.getFixedBitSetOrNull(disi);
       if (bitSet == null) {

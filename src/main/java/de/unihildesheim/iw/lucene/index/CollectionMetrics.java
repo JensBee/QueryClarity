@@ -141,7 +141,7 @@ public final class CollectionMetrics {
    * @param cmConf Configuration
    */
   public <I extends IndexDataProvider> CollectionMetrics(
-      final I idp,
+      @NotNull final I idp,
       @Nullable final CollectionMetricsConfiguration cmConf) {
     this.dataProv = idp;
     // set configuration
@@ -210,7 +210,7 @@ public final class CollectionMetrics {
    */
   public long tf(final BytesRef term) {
     if (this.conf.cacheTf) {
-      Long result = this.c_tf.get(term);
+      @Nullable Long result = this.c_tf.get(term);
       if (result == null) {
         // may return null, if term is not known
         result = this.dataProv.getTermFrequency(term);
@@ -231,7 +231,7 @@ public final class CollectionMetrics {
    * @return Relative collection frequency of the given term
    */
   public double relTf(final BytesRef term) {
-    Double result = this.c_rtf.get(term);
+    @Nullable Double result = this.c_rtf.get(term);
     if (result == null) {
       final long tf = tf(term);
       if (tf == 0L) {
@@ -252,7 +252,7 @@ public final class CollectionMetrics {
    */
   public Integer df(final BytesRef term) {
     if (this.conf.cacheDf) {
-      Integer result = this.c_df.get(term);
+      @Nullable Integer result = this.c_df.get(term);
       if (result == null) {
         result = this.dataProv.getDocumentFrequency(term);
         this.c_df.put(BytesRef.deepCopyOf(term), result);
@@ -282,7 +282,7 @@ public final class CollectionMetrics {
    */
   public DocumentModel docData(final int documentId) {
     if (this.conf.cacheDocModels) {
-      DocumentModel d = this.c_docModel.get(documentId);
+      @Nullable DocumentModel d = this.c_docModel.get(documentId);
       if (d == null) {
         d = this.dataProv.getDocumentModel(documentId);
         this.c_docModel.put(documentId, d);

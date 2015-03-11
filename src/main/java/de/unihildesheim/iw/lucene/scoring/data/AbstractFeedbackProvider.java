@@ -22,6 +22,7 @@ import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import de.unihildesheim.iw.lucene.query.TryExactTermsQuery;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.Constructor;
@@ -95,8 +96,8 @@ public abstract class AbstractFeedbackProvider<T extends FeedbackProvider>
   Class<? extends RelaxableQuery> queryParser;
 
   @Override
-  public T query(final String query) {
-    this.queryStr = Objects.requireNonNull(query);
+  public T query(@NotNull final String query) {
+    this.queryStr = query;
     return getThis();
   }
 
@@ -116,32 +117,32 @@ public abstract class AbstractFeedbackProvider<T extends FeedbackProvider>
   }
 
   @Override
-  public T indexReader(final IndexReader indexReader) {
-    this.idxReader = Objects.requireNonNull(indexReader);
+  public T indexReader(@NotNull final IndexReader indexReader) {
+    this.idxReader = indexReader;
     return getThis();
   }
 
   @Override
-  public T analyzer(final Analyzer analyzer) {
-    this.qAnalyzer = Objects.requireNonNull(analyzer);
+  public T analyzer(@NotNull final Analyzer analyzer) {
+    this.qAnalyzer = analyzer;
     return getThis();
   }
 
   @Override
-  public T dataProvider(final IndexDataProvider dp) {
-    this.dataProv = Objects.requireNonNull(dp);
+  public T dataProvider(@NotNull final IndexDataProvider dp) {
+    this.dataProv = dp;
     return getThis();
   }
 
   @Override
-  public T fields(final String[] fields) {
-    this.docFields = Objects.requireNonNull(fields);
+  public T fields(@NotNull final String[] fields) {
+    this.docFields = fields;
     return getThis();
   }
 
   @Override
-  public T queryParser(final Class<? extends RelaxableQuery> rtq) {
-    this.queryParser = Objects.requireNonNull(rtq);
+  public T queryParser(@NotNull final Class<? extends RelaxableQuery> rtq) {
+    this.queryParser = rtq;
     return getThis();
   }
 

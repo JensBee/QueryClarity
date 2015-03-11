@@ -19,6 +19,7 @@ package de.unihildesheim.iw.cli;
 
 import de.unihildesheim.iw.util.StopwordsFileReader;
 import de.unihildesheim.iw.util.StopwordsFileReader.Format;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,10 +53,10 @@ public final class CliCommon {
       throws IOException {
     Set<String> sWords = Collections.emptySet();
     // read stopwords
-    final Format stopFileFormat =
+    @Nullable final Format stopFileFormat =
         StopwordsFileReader.getFormatFromString(format);
     if (stopFileFormat != null) {
-      final File stopFile = new File(pattern + "_" +
+      final File stopFile = new File(pattern + '_' +
           lang + ".txt");
       if (stopFile.exists() && stopFile.isFile()) {
         final Set<String> newWords = StopwordsFileReader.readWords

@@ -22,13 +22,13 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.FSDirectory;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -51,8 +51,8 @@ public final class IndexUtils {
    * @param reader Reader to access Lucene index
    * @return Fields list
    */
-  public static Collection<String> getFields(final IndexReader reader) {
-    Objects.requireNonNull(reader, "IndexReader was null.");
+  public static Collection<String> getFields(
+      @NotNull final IndexReader reader) {
     return MultiFields.getIndexedFields(reader);
   }
 
@@ -63,10 +63,10 @@ public final class IndexUtils {
    * @param reader IndexReader to use
    * @param fields Fields to check
    */
-  public static void checkFields(final IndexReader reader,
-      final Set<String> fields) {
-    Objects.requireNonNull(reader, "IndexReader was null.");
-    if (Objects.requireNonNull(fields, "Fields were null.").isEmpty()) {
+  public static void checkFields(
+      @NotNull final IndexReader reader,
+      @NotNull final Set<String> fields) {
+    if (fields.isEmpty()) {
       throw new IllegalArgumentException("No fields specified.");
     }
 

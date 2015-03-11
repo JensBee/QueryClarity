@@ -20,6 +20,7 @@ package de.unihildesheim.iw.xml.adapters;
 import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.xml.adapters.Entries.StringValueEntry;
 import de.unihildesheim.iw.xml.adapters.Entries.Tuple2ListEntry;
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,13 +51,13 @@ public final class MapAdapter {
 
     @Nullable
     @Override
+    @Contract("null -> null")
     public Map<String, List<Tuple2<String, String>>> unmarshal(
         final Tuple2ListEntry[] value)
         throws Exception {
       if (null == value) {
         return null;
       }
-      LOG.debug("Tuple2ListValue unmarshal {} entries.", value.length);
       final Map<String, List<Tuple2<String, String>>> retMap =
           new HashMap<>(value.length);
       for (final Tuple2ListEntry t2Val : value) {

@@ -21,6 +21,7 @@ import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.Counter;
 import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
@@ -48,10 +49,7 @@ public final class BytesRefUtils {
    * @param br {@link BytesRef} to copy bytes from
    * @return Copy of bytes from {@link BytesRef}
    */
-  public static byte[] copyBytes(final BytesRef br) {
-    if (br == null) {
-      throw new IllegalArgumentException("BytesRef was null.");
-    }
+  public static byte[] copyBytes(@NotNull final BytesRef br) {
     return Arrays.copyOfRange(br.bytes, br.offset, br.offset + br.length);
   }
 
@@ -127,10 +125,7 @@ public final class BytesRefUtils {
    * @param bh Hash
    * @return Array
    */
-  public static BytesRefArray hashToArray(final BytesRefHash bh) {
-    if (bh == null) {
-      throw new IllegalArgumentException("BytesRefHash was null.");
-    }
+  public static BytesRefArray hashToArray(@NotNull final BytesRefHash bh) {
     final BytesRefArray ba = new BytesRefArray(Counter.newCounter(false));
     final BytesRef br = new BytesRef();
     for (int i = bh.size() - 1; i >= 0; i--) {

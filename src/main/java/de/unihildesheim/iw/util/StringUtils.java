@@ -16,6 +16,10 @@
  */
 package de.unihildesheim.iw.util;
 
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 import java.text.BreakIterator;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,7 +29,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Utility class for string operations.
@@ -46,10 +49,9 @@ public final class StringUtils {
    * @param separator Separator char
    * @return Joined string
    */
-  public static String join(final String[] strings, final String separator) {
-    Objects.requireNonNull(strings, "Strings were null.");
-    Objects.requireNonNull(separator, "Separator was null.");
-
+  public static String join(
+      @NotNull final String[] strings,
+      @NotNull final String separator) {
     // estimate final length
     int approxLength = 0;
     for (final String s : strings) {
@@ -74,11 +76,9 @@ public final class StringUtils {
    * @param separator Separator char
    * @return Joined string
    */
-  public static String join(final Collection<String> strings,
-      final String separator) {
-    Objects.requireNonNull(separator, "Separator was null.");
-    Objects.requireNonNull(strings, "Strings were null.");
-
+  public static String join(
+      @NotNull final Collection<String> strings,
+      @NotNull final String separator) {
     // short circuit, if list is empty
     if (strings.isEmpty()) {
       return "";
@@ -109,11 +109,9 @@ public final class StringUtils {
    * @param separator Separator to use for splitting
    * @return Collection of splitted string parts
    */
-  public static Collection<String> split(final String str,
-      final String separator) {
-    Objects.requireNonNull(str, "String was null.");
-    Objects.requireNonNull(separator, "Separator was null.");
-
+  public static Collection<String> split(
+      @NotNull final String str,
+      @NotNull final String separator) {
     if (str.isEmpty() || str.length() <= 1) {
       return Collections.singletonList(str);
     }
@@ -127,9 +125,7 @@ public final class StringUtils {
    * @param input String to convert to all lower-case
    * @return Lower-cased input String or plain input String, if empty
    */
-  public static String upperCase(final String input) {
-    Objects.requireNonNull(input, "String was null.");
-
+  public static String upperCase(@NotNull final String input) {
     if (isStrippedEmpty(input) || isAllUpper(input)) {
       return input;
     }
@@ -204,11 +200,9 @@ public final class StringUtils {
    * @param locale Locale to use
    * @return Mapping of (all lower-cased) string and count
    */
-  public static Map<String, Integer> countWords(final String text,
-      final Locale locale) {
-    Objects.requireNonNull(text, "String was null.");
-    Objects.requireNonNull(locale, "Locale was null.");
-
+  public static Map<String, Integer> countWords(
+      @NotNull final String text,
+      @NotNull final Locale locale) {
     @SuppressWarnings("CollectionWithoutInitialCapacity")
     final Map<String, Integer> wordCounts = new HashMap<>();
 
@@ -226,7 +220,7 @@ public final class StringUtils {
       final String word = lowerCase(text.substring(prevIndex,
           wordBoundaryIndex));
       if (isWord(word)) {
-        Integer wordCount = wordCounts.get(word);
+        @Nullable Integer wordCount = wordCounts.get(word);
         if (wordCount == null) {
           wordCount = 0;
         }
@@ -247,9 +241,7 @@ public final class StringUtils {
    * @param input String to convert to all lower-case
    * @return Lower-cased input string
    */
-  public static String lowerCase(final String input) {
-    Objects.requireNonNull(input, "String was null.");
-
+  public static String lowerCase(@NotNull final String input) {
     if (isStrippedEmpty(input) || isAllLower(input)) {
       return input;
     }
@@ -269,7 +261,8 @@ public final class StringUtils {
    * @param word Word to check
    * @return True, if it's a character or number
    */
-  private static boolean isWord(final String word) {
+  @Contract("null -> false")
+  private static boolean isWord(@Nullable final String word) {
     if (word == null) {
       return false;
     }

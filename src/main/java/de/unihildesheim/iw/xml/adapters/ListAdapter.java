@@ -20,6 +20,7 @@ package de.unihildesheim.iw.xml.adapters;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.xml.adapters.Entries.StringValueEntry;
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +46,7 @@ final class ListAdapter {
       XmlAdapter<StringValueEntry[], List<Tuple2<String,
           String>>> {
 
+    @Contract("null -> null")
     @Nullable
     @Override
     public List<Tuple2<String, String>> unmarshal(
@@ -53,8 +55,6 @@ final class ListAdapter {
       if (null == value) {
         return null;
       }
-      LOG.debug("Tuple2ListValue unmarshal {} entries.",
-          value.length);
       final List<Tuple2<String, String>> retList =
           new ArrayList<>(value.length);
       for (final StringValueEntry sVal : value) {

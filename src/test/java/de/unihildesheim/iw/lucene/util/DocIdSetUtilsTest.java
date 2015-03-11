@@ -63,18 +63,6 @@ public class DocIdSetUtilsTest
         0L, (long) DocIdSetUtils.cardinality(new BitDocIdSet(bits)));
   }
 
-  @SuppressWarnings("ConstantConditions")
-  @Test
-  public void testCardinality_null()
-      throws Exception {
-    try {
-      DocIdSetUtils.cardinality(null);
-      Assert.fail("Expected an IllegalArgumentException to be thrown.");
-    } catch (final IllegalArgumentException e) {
-      // pass
-    }
-  }
-
   @Test
   public void testMaxDoc()
       throws Exception {
@@ -87,18 +75,6 @@ public class DocIdSetUtilsTest
 
     Assert.assertEquals("MaxDoc mismatch",
         8L, (long) DocIdSetUtils.maxDoc(dis));
-  }
-
-  @SuppressWarnings("ConstantConditions")
-  @Test
-  public void testMaxDoc_null()
-      throws Exception {
-    try {
-      DocIdSetUtils.maxDoc(null);
-      Assert.fail("Expected an IllegalArgumentException to be thrown.");
-    } catch (final IllegalArgumentException e) {
-      // pass
-    }
   }
 
   @Test
@@ -139,18 +115,6 @@ public class DocIdSetUtilsTest
 
     final boolean failMatched = bits.get(2) || bits.get(4) || bits.get(5);
     Assert.assertFalse("Wrong bits set.", failMatched);
-  }
-
-  @SuppressWarnings("ConstantConditions")
-  @Test
-  public void testBits_null()
-      throws Exception {
-    try {
-      DocIdSetUtils.bits(null);
-      Assert.fail("Expected an IllegalArgumentException to be thrown.");
-    } catch (final IllegalArgumentException e) {
-      // pass
-    }
   }
 
   @SuppressWarnings("ConstantConditions")

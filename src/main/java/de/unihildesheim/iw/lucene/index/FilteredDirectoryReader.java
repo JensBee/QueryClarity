@@ -48,6 +48,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,7 +64,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.Spliterator.OfLong;
 import java.util.function.LongConsumer;
@@ -266,11 +266,14 @@ public final class FilteredDirectoryReader
      * @param tFilter Term-filter
      * @throws IOException Thrown on low-level I/O-errors
      */
-    FilteredLeafReader(final LeafReader wrap,
-        final Collection<String> vFields, final boolean negate,
-        @Nullable final Filter qFilter, final TermFilter tFilter)
+    FilteredLeafReader(
+        @NotNull final LeafReader wrap,
+        @NotNull final Collection<String> vFields,
+        final boolean negate,
+        @Nullable final Filter qFilter,
+        @NotNull final TermFilter tFilter)
         throws IOException {
-      this.in = Objects.requireNonNull(wrap);
+      this.in = wrap;
 
       this.negateFields = negate;
 
@@ -375,27 +378,18 @@ public final class FilteredDirectoryReader
       // A document whose bit is on is valid.
       final FixedBitSet filterBits = new FixedBitSet(this.in.maxDoc());
       for (final String field : fields) {
-        Filter f = this.flrContext.cachedFieldValueFilters.get(field);
+        @Nullable Filter f = this.flrContext.cachedFieldValueFilters.get(field);
         if (f == null) {
           f = new CachingWrapperFilter(new EmptyFieldFilter(field));
           this.flrContext.cachedFieldValueFilters.put(field, f);
         }
-        final DocIdSet docsWithField = f.getDocIdSet(
+        @Nullable final DocIdSet docsWithField = f.getDocIdSet(
             this.in.getContext(), null); // isAccepted all docs, no deletions
 
         // may be null, if no document matches
         if (docsWithField != null) {
           finalFields.add(field);
           StreamUtils.stream(docsWithField).forEach(filterBits::set);
-//          final DocIdSetIterator docsWithFieldIt = docsWithField.iterator();
-//          // may also be null, if no document matches
-//          if (docsWithFieldIt != null) {
-//            int docId;
-//            while ((docId = docsWithFieldIt.nextDoc()) !=
-//                DocIdSetIterator.NO_MORE_DOCS) {
-//              filterBits.set(docId);
-//            }
-//          }
         }
       }
 
@@ -520,7 +514,7 @@ public final class FilteredDirectoryReader
 
     @Override
     @Nullable
-    public BitSet getDocsWithField(final String field)
+    public BitSet getDocsWithField(@NotNull final String field)
         throws IOException {
       if (!hasField(field)) {
         return null;
@@ -528,9 +522,10 @@ public final class FilteredDirectoryReader
 
       // get a bit-set of matching docs from the original reader..
       // AND them with the allowed documents to get only visible matches
-      final BitSet filteredDocs;
+      @Nullable final BitSet filteredDocs;
       if (this.flrContext.docBits == null) {
-        filteredDocs = BitsUtils.bits2BitSet(this.in.getDocsWithField(field));
+        filteredDocs = BitsUtils.bits2BitSet(this.in.getDocsWithField
+            (field));
         if (filteredDocs == null) {
           return null;
         }
@@ -540,7 +535,7 @@ public final class FilteredDirectoryReader
         if (filteredDocs == null) {
           return null;
         }
-        ((FixedBitSet)filteredDocs).and(this.flrContext.docBits);
+        ((FixedBitSet) filteredDocs).and(this.flrContext.docBits);
       }
 //      final FixedBitSet filteredDocs = BitsUtils.bits2FixedBitSet(
 //          this.in.getDocsWithField(field));
@@ -588,7 +583,7 @@ public final class FilteredDirectoryReader
     @Nullable
     public Fields getTermVectors(final int docID)
         throws IOException {
-      Fields f = this.in.getTermVectors(docID);
+      @Nullable Fields f = this.in.getTermVectors(docID);
       if (f == null) {
         return null;
       }
@@ -852,9 +847,6 @@ public final class FilteredDirectoryReader
     FilteredFields(
         final FLRContext flr, final Fields wrap, final String... fld) {
       this.in = wrap;
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("@FilteredFields t={}", Thread.currentThread().getName());
-      }
       this.ctx = flr;
       this.fieldTermsSumCache = Collections.synchronizedMap(
           new HashMap<>(fld.length << 1));
@@ -869,10 +861,6 @@ public final class FilteredDirectoryReader
      * @return List of available document fields
      */
     private String[] getFields(final String... fld) {
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("@FilteredFields::getFields() t={}",
-            Thread.currentThread().getName());
-      }
       return StreamSupport.stream(this.in.spliterator(), false)
           .filter(f -> {
             try {
@@ -904,10 +892,6 @@ public final class FilteredDirectoryReader
 
     @Override
     public Iterator<String> iterator() {
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("@FilteredFields::iterator() t={}",
-            Thread.currentThread().getName());
-      }
       return Arrays.stream(this.fields).iterator();
     }
 
@@ -915,20 +899,12 @@ public final class FilteredDirectoryReader
     @Nullable
     public Terms terms(final String field)
         throws IOException {
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("@FilteredFields::terms() t={}",
-            Thread.currentThread().getName());
-      }
       return Arrays.binarySearch(this.fields, field) >= 0 ?
           new FilteredTerms(this.ctx, this, this.in.terms(field), field) : null;
     }
 
     @Override
     public int size() {
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("@FilteredFields::size() t={}",
-            Thread.currentThread().getName());
-      }
       return this.fields.length;
     }
 
@@ -942,10 +918,6 @@ public final class FilteredDirectoryReader
     @Nullable
     public Terms originalTerms(final String field)
         throws IOException {
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("@FilteredFields::originalTerms() t={}",
-            Thread.currentThread().getName());
-      }
       return this.in.terms(field);
     }
   }
@@ -1036,12 +1008,10 @@ public final class FilteredDirectoryReader
      * @param flr Context information for FilteredLeafReader
      * @param wrap the underlying TermsEnum instance
      */
-    FilteredTermsEnum(final FLRContext flr, final TermsEnum wrap) {
-      this.in = Objects.requireNonNull(wrap);
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("@FilteredTermsEnum::new t={}",
-            Thread.currentThread().getName());
-      }
+    FilteredTermsEnum(
+        @NotNull final FLRContext flr,
+        @NotNull final TermsEnum wrap) {
+      this.in = wrap;
       this.ctx = flr;
     }
 
@@ -1053,10 +1023,6 @@ public final class FilteredDirectoryReader
     @Override
     public SeekStatus seekCeil(final BytesRef term)
         throws IOException {
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("@FilteredTermsEnum::seekCeil t={}",
-            Thread.currentThread().getName());
-      }
       // try seek to term
       SeekStatus status = this.in.seekCeil(term);
 
@@ -1129,10 +1095,6 @@ public final class FilteredDirectoryReader
     @Override
     public int docFreq()
         throws IOException {
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("@FilteredTermsEnum::docFreq() t={}",
-            Thread.currentThread().getName());
-      }
       return (int) (this.freqs == null ? freqs()[0] : this.freqs[0]);
     }
 
@@ -1162,21 +1124,15 @@ public final class FilteredDirectoryReader
     @Override
     public long totalTermFreq()
         throws IOException {
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("@FilteredTermsEnum::totalTermFreq() t={}",
-            Thread.currentThread().getName());
-      }
       return this.freqs == null ? freqs()[1] : this.freqs[1];
     }
 
     @Override
-    public DocsEnum docs(@Nullable final Bits liveDocs,
-        @Nullable final DocsEnum reuse, final int flags)
+    public DocsEnum docs(
+        @Nullable final Bits liveDocs,
+        @Nullable final DocsEnum reuse,
+        final int flags)
         throws IOException {
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("@FilteredTermsEnum::docs() t={}",
-            Thread.currentThread().getName());
-      }
       if (liveDocs == null) {
         return this.in.docs(this.ctx.docBits, reuse, flags);
       } else {
@@ -1194,11 +1150,6 @@ public final class FilteredDirectoryReader
         @Nullable final Bits liveDocs,
         @Nullable final DocsAndPositionsEnum reuse, final int flags)
         throws IOException {
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("@FilteredTermsEnum::docsAndPositions() t={}",
-            Thread.currentThread().getName());
-      }
-
       final DocsAndPositionsEnum dape;
 
       if (liveDocs == null) {
@@ -1254,18 +1205,17 @@ public final class FilteredDirectoryReader
      * @param flr Context information for FilteredLeafReader
      * @param ffInstance FilteredFields instance, if not initialized already
      */
-    FilteredTerms(final FLRContext flr, final FilteredFields ffInstance,
-        final Terms wrap, final String fld) {
-      this.in = Objects.requireNonNull(wrap);
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("@FilteredTerms::new t={}",
-            Thread.currentThread().getName());
-      }
+    FilteredTerms(
+        @NotNull final FLRContext flr,
+        @NotNull final FilteredFields ffInstance,
+        @NotNull final Terms wrap,
+        @NotNull final String fld) {
+      this.in = wrap;
       this.ctx = flr;
       this.field = fld;
 
       // initialized cached frequency values
-      long[] sumFreqs = ffInstance.fieldTermsSumCache.get(this.field);
+      @Nullable long[] sumFreqs = ffInstance.fieldTermsSumCache.get(this.field);
       if (sumFreqs == null) {
         sumFreqs = new long[]{-1L, -1L};
         ffInstance.fieldTermsSumCache.put(this.field, sumFreqs);
@@ -1281,10 +1231,6 @@ public final class FilteredDirectoryReader
      */
     public boolean hasDoc()
         throws IOException {
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("@FilteredTerms::hasDoc() t={}",
-            Thread.currentThread().getName());
-      }
       final TermsEnum termsEnum = iterator(null);
       DocsEnum docsEnum = null;
 
@@ -1306,31 +1252,17 @@ public final class FilteredDirectoryReader
     @Override
     public TermsEnum iterator(@Nullable final TermsEnum reuse)
         throws IOException {
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("@FilteredTerms::iterator() t={}",
-            Thread.currentThread().getName());
-      }
       return new FilteredTermsEnum(this.ctx, this.in.iterator(reuse));
     }
 
     @Override
     public long size() {
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("@FilteredTerms::size() t={} -- NOT IMPLEMENTED",
-            Thread.currentThread().getName());
-      }
       return -1L;
     }
 
     @Override
     public synchronized long getSumTotalTermFreq()
         throws IOException {
-      if (LOG.isTraceEnabled()) {
-        //noinspection CallToNativeMethodWhileLocked
-        LOG.trace("@FilteredTerms::getSumTotalTermFreq() t={}",
-            Thread.currentThread().getName());
-      }
-
       if (this.sumFreqs[1] < 0L) {
         final TermsEnum te = iterator(null);
         this.sumFreqs[1] = StreamSupport.longStream(new OfLong() {
@@ -1377,12 +1309,6 @@ public final class FilteredDirectoryReader
     @Override
     public synchronized long getSumDocFreq()
         throws IOException {
-      if (LOG.isTraceEnabled()) {
-        //noinspection CallToNativeMethodWhileLocked
-        LOG.trace("@FilteredTerms::getSumDocFreq() t={}",
-            Thread.currentThread().getName());
-      }
-
       if (this.sumFreqs[0] < 0L) {
         final TermsEnum te = iterator(null);
         this.sumFreqs[0] = StreamSupport.longStream(new OfLong() {
@@ -1429,30 +1355,19 @@ public final class FilteredDirectoryReader
     @Override
     public int getDocCount()
         throws IOException {
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("@FilteredTerms::getDocCount() t={}",
-            Thread.currentThread().getName());
-      }
-      Filter f = this.ctx.cachedFieldValueFilters.get(this.field);
+      @Nullable Filter f = this.ctx.cachedFieldValueFilters.get(this.field);
 
       if (f == null) {
         f = new CachingWrapperFilter(new FieldValueFilter(this.field));
         this.ctx.cachedFieldValueFilters.put(this.field, f);
       }
 
-      final DocIdSet docsWithField = f.getDocIdSet(
+      @Nullable final DocIdSet docsWithField = f.getDocIdSet(
           this.ctx.originContext, this.ctx.docBits);
 
       int count = 0;
       if (docsWithField != null) {
-
         count = DocIdSetUtils.cardinality(docsWithField);
-//        final DocIdSetIterator docsWithFieldIt = docsWithField.iterator();
-//        if (docsWithFieldIt != null) {
-//          while (docsWithFieldIt.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-//            count++;
-//          }
-//        }
       }
       return count;
     }
@@ -1486,10 +1401,6 @@ public final class FilteredDirectoryReader
      */
     public TermsEnum unfilteredIterator(@Nullable final TermsEnum reuse)
         throws IOException {
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("@FilteredTerms::unfilteredIterator() t={}",
-            Thread.currentThread().getName());
-      }
       return this.in.iterator(reuse);
     }
   }

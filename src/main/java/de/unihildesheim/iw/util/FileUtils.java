@@ -17,9 +17,10 @@
 
 package de.unihildesheim.iw.util;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.io.File;
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * @author Jens Bertram
@@ -40,9 +41,8 @@ public final class FileUtils {
    * @return Path as string
    * @throws IOException Thrown on low-level I/O errors
    */
-  public static String getPath(final File file)
+  public static String getPath(@NotNull final File file)
       throws IOException {
-    Objects.requireNonNull(file, "File was null.");
     return makePath(file.getCanonicalPath());
   }
 
@@ -52,9 +52,8 @@ public final class FileUtils {
    * @param path File path string
    * @return Given path with a trailing separator char
    */
-  public static String makePath(final String path) {
-    if (StringUtils.isStrippedEmpty(
-        Objects.requireNonNull(path, "Path was null."))) {
+  public static String makePath(@NotNull final String path) {
+    if (StringUtils.isStrippedEmpty(path)) {
       throw new IllegalArgumentException("Path was empty.");
     }
     if (path.charAt(path.length() - 1) != File.separatorChar) {
@@ -72,10 +71,9 @@ public final class FileUtils {
    * does not exist an could not be created or if reading/writing to this
    * directory is not allowed.
    */
-  public static File tryCreatePath(final String filePath)
+  public static File tryCreatePath(@NotNull final String filePath)
       throws IOException {
-    if (StringUtils.isStrippedEmpty(
-        Objects.requireNonNull(filePath, "Path was null."))) {
+    if (StringUtils.isStrippedEmpty(filePath)) {
       throw new IllegalArgumentException("Data path was empty.");
     }
 

@@ -18,7 +18,8 @@
 package de.unihildesheim.iw.util;
 
 import de.unihildesheim.iw.TestCase;
-import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation.ScoreTupleHighPrecision;
+import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation
+    .ScoreTupleHighPrecision;
 import de.unihildesheim.iw.util.MathUtils.KlDivergenceHighPrecision;
 import org.junit.Assert;
 import org.junit.Test;
@@ -79,6 +80,126 @@ public class KlDivergenceHighPrecisionTest
   }
 
   @Test
+  public void testSumAndCalc_zeroValue_cModel()
+      throws Exception {
+    final ScoreTupleHighPrecision[] dataSet = {
+        // qModel, cModel
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.valueOf(3L)),
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.ZERO),
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.ONE),
+    }; // sum: q:3d, c:14d
+    // r += (qModel/sums[qModel]) * log((qModel/sums[qModel]) /
+    // (cModel/sums[cModel]))
+    final BigDecimal oneDivTwo = BigDecimal.ONE.divide(
+        BigDecimal.valueOf(2L), MathUtils.MATH_CONTEXT);
+    final BigDecimal sumCModel = BigDecimal.valueOf(4L);
+
+    final BigDecimal expected =
+        oneDivTwo.multiply(BigDecimalMath.log(
+            oneDivTwo.divide(
+                BigDecimal.valueOf(3L).divide(sumCModel,
+                    MathUtils.MATH_CONTEXT), MathUtils.MATH_CONTEXT
+            )
+        ), MathUtils.MATH_CONTEXT).add(oneDivTwo.multiply(BigDecimalMath.log(
+            oneDivTwo.divide(
+                BigDecimal.ONE.divide(sumCModel,
+                    MathUtils.MATH_CONTEXT), MathUtils.MATH_CONTEXT
+            )
+        )), MathUtils.MATH_CONTEXT)
+            .divide(MathUtils.BD_LOG2, MathUtils.MATH_CONTEXT);
+
+    final BigDecimal result = KlDivergenceHighPrecision.sumAndCalc(dataSet);
+
+    Assert.assertEquals("Score value differs", expected, result);
+  }
+
+  @Test
+  public void testSumAndCalc_zeroValue_qModel()
+      throws Exception {
+    final ScoreTupleHighPrecision[] dataSet = {
+        // qModel, cModel
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.valueOf(3L)),
+        new ScoreTupleHighPrecision(BigDecimal.ZERO, BigDecimal.ONE),
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.ONE),
+    }; // sum: q:3d, c:14d
+    // r += (qModel/sums[qModel]) * log((qModel/sums[qModel]) /
+    // (cModel/sums[cModel]))
+    final BigDecimal oneDivTwo = BigDecimal.ONE.divide(
+        BigDecimal.valueOf(2L), MathUtils.MATH_CONTEXT);
+    final BigDecimal sumCModel = BigDecimal.valueOf(4L);
+
+    final BigDecimal expected =
+        oneDivTwo.multiply(BigDecimalMath.log(
+            oneDivTwo.divide(
+                BigDecimal.valueOf(3L).divide(sumCModel,
+                    MathUtils.MATH_CONTEXT), MathUtils.MATH_CONTEXT
+            )
+        ), MathUtils.MATH_CONTEXT).add(oneDivTwo.multiply(BigDecimalMath.log(
+            oneDivTwo.divide(
+                BigDecimal.ONE.divide(sumCModel,
+                    MathUtils.MATH_CONTEXT), MathUtils.MATH_CONTEXT
+            )
+        )), MathUtils.MATH_CONTEXT)
+            .divide(MathUtils.BD_LOG2, MathUtils.MATH_CONTEXT);
+
+    final BigDecimal result = KlDivergenceHighPrecision.sumAndCalc(dataSet);
+
+    Assert.assertEquals("Score value differs", expected, result);
+  }
+
+  @SuppressWarnings("ConstantConditions")
+  @Test
+  public void testSumAndCalc_nullElement()
+      throws Exception {
+    final ScoreTupleHighPrecision[] dataSet = {
+        // qModel, cModel
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.valueOf(3L)),
+        null,
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.ONE),
+    };
+    try {
+      KlDivergenceHighPrecision.sumAndCalc(dataSet);
+      Assert.fail("Expected an IllegalArgumentException to be thrown.");
+    } catch (final IllegalArgumentException e) {
+      // pass
+    }
+  }
+
+  @Test
+  public void testSumAndCalc_tooLowValue_cModel()
+      throws Exception {
+    final ScoreTupleHighPrecision[] dataSet = {
+        // qModel, cModel
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.valueOf(3L)),
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.ONE),
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.valueOf(-3L))
+    };
+    try {
+      KlDivergenceHighPrecision.sumAndCalc(dataSet);
+      Assert.fail("Expected an IllegalArgumentException to be thrown.");
+    } catch (final IllegalArgumentException e) {
+      // pass
+    }
+  }
+
+  @Test
+  public void testSumAndCalc_tooLowValue_qModel()
+      throws Exception {
+    final ScoreTupleHighPrecision[] dataSet = {
+        // qModel, cModel
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.valueOf(3L)),
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.ONE),
+        new ScoreTupleHighPrecision(BigDecimal.valueOf(-3L), BigDecimal.ONE)
+    };
+    try {
+      KlDivergenceHighPrecision.sumAndCalc(dataSet);
+      Assert.fail("Expected an IllegalArgumentException to be thrown.");
+    } catch (final IllegalArgumentException e) {
+      // pass
+    }
+  }
+
+  @Test
   public void testSumValues()
       throws Exception {
     final ScoreTupleHighPrecision[] dataSet = {
@@ -98,6 +219,57 @@ public class KlDivergenceHighPrecisionTest
         expected.qModel, result.qModel);
     Assert.assertEquals("Summed cModel value differs",
         expected.cModel, result.cModel);
+  }
+
+  @Test
+  public void testSumValues_nullElement()
+      throws Exception {
+    final ScoreTupleHighPrecision[] dataSet = {
+        // qModel, cModel
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.valueOf(3L)),
+        null,
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.ONE),
+    };
+    try {
+      KlDivergenceHighPrecision.sumValues(dataSet);
+      Assert.fail("Expected an IllegalArgumentException to be thrown.");
+    } catch (final IllegalArgumentException e) {
+      // pass
+    }
+  }
+
+  @Test
+  public void testSumValues_tooLowValue_cModel()
+      throws Exception {
+    final ScoreTupleHighPrecision[] dataSet = {
+        // qModel, cModel
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.valueOf(3L)),
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.ONE),
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.valueOf(-3L))
+    };
+    try {
+      KlDivergenceHighPrecision.sumValues(dataSet);
+      Assert.fail("Expected an IllegalArgumentException to be thrown.");
+    } catch (final IllegalArgumentException e) {
+      // pass
+    }
+  }
+
+  @Test
+  public void testSumValues_tooLowValue_qModel()
+      throws Exception {
+    final ScoreTupleHighPrecision[] dataSet = {
+        // qModel, cModel
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.valueOf(3L)),
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.ONE),
+        new ScoreTupleHighPrecision(BigDecimal.valueOf(-3L), BigDecimal.ONE)
+    };
+    try {
+      KlDivergenceHighPrecision.sumValues(dataSet);
+      Assert.fail("Expected an IllegalArgumentException to be thrown.");
+    } catch (final IllegalArgumentException e) {
+      // pass
+    }
   }
 
   @Test
@@ -138,5 +310,125 @@ public class KlDivergenceHighPrecisionTest
 
     final BigDecimal result = KlDivergenceHighPrecision.calc(dataSet, sums);
     Assert.assertEquals("Score value differs", expected, result);
+  }
+
+  @SuppressWarnings("ConstantConditions")
+  @Test
+  public void testCalc_nullElement_set_qModel()
+      throws Exception {
+    final ScoreTupleHighPrecision[] dataSet = {
+        // qModel, cModel
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.valueOf(3L)),
+        new ScoreTupleHighPrecision(null, BigDecimal.valueOf(10L)),
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.ONE),
+    };
+    final ScoreTupleHighPrecision
+        sums = new ScoreTupleHighPrecision(
+        BigDecimal.valueOf(3L), BigDecimal.valueOf(14L));
+    try {
+      KlDivergenceHighPrecision.calc(dataSet, sums);
+      Assert.fail("Expected an IllegalArgumentException to be thrown.");
+    } catch (final IllegalArgumentException e) {
+      // pass
+    }
+  }
+
+  @SuppressWarnings("ConstantConditions")
+  @Test
+  public void testCalc_nullElement_set_cModel()
+      throws Exception {
+    final ScoreTupleHighPrecision[] dataSet = {
+        // qModel, cModel
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.valueOf(3L)),
+        new ScoreTupleHighPrecision(BigDecimal.ONE, null),
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.ONE),
+    };
+    final ScoreTupleHighPrecision
+        sums = new ScoreTupleHighPrecision(
+        BigDecimal.valueOf(3L), BigDecimal.valueOf(14L));
+    try {
+      KlDivergenceHighPrecision.calc(dataSet, sums);
+      Assert.fail("Expected an IllegalArgumentException to be thrown.");
+    } catch (final IllegalArgumentException e) {
+      // pass
+    }
+  }
+
+  @SuppressWarnings("ConstantConditions")
+  @Test
+  public void testCalc_nullElement_sums_cModel()
+      throws Exception {
+    final ScoreTupleHighPrecision[] dataSet = {
+        // qModel, cModel
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.valueOf(3L)),
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.ONE),
+    };
+    final ScoreTupleHighPrecision
+        sums = new ScoreTupleHighPrecision(BigDecimal.valueOf(3L), null);
+    try {
+      KlDivergenceHighPrecision.calc(dataSet, sums);
+      Assert.fail("Expected an NullPointerException to be thrown.");
+    } catch (final NullPointerException e) {
+      // pass
+    }
+  }
+
+  @SuppressWarnings("ConstantConditions")
+  @Test
+  public void testCalc_nullElement_sums_qModel()
+      throws Exception {
+    final ScoreTupleHighPrecision[] dataSet = {
+        // qModel, cModel
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.valueOf(3L)),
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.ONE),
+    };
+    final ScoreTupleHighPrecision
+        sums = new ScoreTupleHighPrecision(null, BigDecimal.valueOf(3L));
+    try {
+      KlDivergenceHighPrecision.calc(dataSet, sums);
+      Assert.fail("Expected an NullPointerException to be thrown.");
+    } catch (final NullPointerException e) {
+      // pass
+    }
+  }
+
+  @Test
+  public void testSumValues_zeroValue_cModel()
+      throws Exception {
+    final ScoreTupleHighPrecision[] dataSet = {
+        // qModel, cModel
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.valueOf(3L)),
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.ZERO),
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.ONE),
+    };
+    final ScoreTupleHighPrecision expected = new ScoreTupleHighPrecision(
+        BigDecimal.valueOf(2L), BigDecimal.valueOf(4L));
+    final ScoreTupleHighPrecision result = KlDivergenceHighPrecision
+        .sumValues(dataSet);
+
+    Assert.assertEquals("Summed qModel value differs",
+        expected.qModel, result.qModel);
+    Assert.assertEquals("Summed cModel value differs",
+        expected.cModel, result.cModel);
+  }
+
+  @Test
+  public void testSumValues_zeroValue_qModel()
+      throws Exception {
+    final ScoreTupleHighPrecision[] dataSet = {
+        // qModel, cModel
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.valueOf(3L)),
+        new ScoreTupleHighPrecision(BigDecimal.ZERO, BigDecimal.ONE),
+        new ScoreTupleHighPrecision(BigDecimal.ONE, BigDecimal.ONE),
+    };
+    final ScoreTupleHighPrecision expected = new ScoreTupleHighPrecision(
+        BigDecimal.valueOf(2L), BigDecimal.valueOf(4L));
+    final ScoreTupleHighPrecision result = KlDivergenceHighPrecision
+        .sumValues(dataSet);
+
+    Assert.assertEquals("Summed qModel value differs",
+        expected.qModel, result.qModel);
+    Assert.assertEquals("Summed cModel value differs",
+        expected.cModel, result.cModel);
   }
 }
