@@ -67,63 +67,6 @@ public class FilteredDirectoryReaderTest
   }
 
   /**
-   * Class gathering all instance test methods to ensure no important method
-   * gets missed.
-   */
-  private abstract static class LeafReaderInstanceTest {
-    @SuppressWarnings({"AbstractMethodCallInConstructor",
-        "OverridableMethodCallDuringObjectConstruction",
-        "OverriddenMethodCallDuringObjectConstruction"})
-    LeafReaderInstanceTest()
-        throws Exception {
-      testHasDeletions();
-      testFieldCount();
-      testFieldNames();
-      testTotalTermFreq();
-      testSumTotalTermFreq();
-      testDocCount();
-      testDocFreq();
-      testSumDocFreq();
-      testTermVectors();
-      testNumDocs();
-      testMaxDoc();
-    }
-
-    abstract void testHasDeletions()
-        throws Exception;
-
-    abstract void testFieldCount()
-        throws Exception;
-
-    abstract void testFieldNames()
-        throws Exception;
-
-    abstract void testTotalTermFreq()
-        throws Exception;
-
-    abstract void testSumTotalTermFreq()
-        throws Exception;
-
-    abstract void testDocCount()
-        throws Exception;
-
-    abstract void testDocFreq()
-        throws Exception;
-
-    abstract void testSumDocFreq()
-        throws Exception;
-
-    abstract void testTermVectors()
-        throws Exception;
-
-    abstract void testNumDocs()
-        throws Exception;
-
-    abstract void testMaxDoc()
-        throws Exception;
-  }
-
-  /**
    * Test the plain builder.
    *
    * @throws Exception
@@ -576,10 +519,8 @@ public class FilteredDirectoryReaderTest
         @Override
         void testDocCount()
             throws Exception {
-          for (final String f : idx.flds) {
-            Assert.assertEquals("Doc count mismatch for visible field.",
-                idx.docs, fReader.getDocCount("f2"));
-          }
+          Assert.assertEquals("Doc count mismatch for visible field.",
+              idx.docs, fReader.getDocCount("f2"));
         }
 
         @SuppressWarnings("ObjectAllocationInLoop")
@@ -1025,7 +966,6 @@ public class FilteredDirectoryReaderTest
   public void testBuilder_termFilter_allTerms()
       throws Exception {
     try (TestMemIndex idx = new TestMemIndex(Index.PLAIN)) {
-      final String skipTerm = "first";
       final DirectoryReader reader = DirectoryReader.open(idx.dir);
       final FilteredDirectoryReader fReader = new Builder(reader)
           .termFilter(new TermFilter() {
@@ -1423,8 +1363,8 @@ public class FilteredDirectoryReaderTest
               6L, fReader.getSumTotalTermFreq("f1"));
           Assert.assertEquals("SumTotalTermFreq mismatch for visible field.",
               6L, fReader.getSumTotalTermFreq("f3"));
-              Assert.assertEquals("SumTotalTermFreq mismatch for hidden field.",
-                  0L, fReader.getSumTotalTermFreq("f2"));
+          Assert.assertEquals("SumTotalTermFreq mismatch for hidden field.",
+              0L, fReader.getSumTotalTermFreq("f2"));
         }
 
         @Override
@@ -1435,8 +1375,8 @@ public class FilteredDirectoryReaderTest
           Assert.assertEquals("Doc count mismatch for visible field.",
               1L, fReader.getDocCount("f3"));
           // check visibility of all docs without visible fields
-              Assert.assertEquals("Document visible with hidden field.",
-                  0L, fReader.getDocCount("f2"));
+          Assert.assertEquals("Document visible with hidden field.",
+              0L, fReader.getDocCount("f2"));
         }
 
         @Override
@@ -1457,8 +1397,8 @@ public class FilteredDirectoryReaderTest
               6L, fReader.getSumDocFreq("f1"));
           Assert.assertEquals("SumDocFreq mismatch for visible field.",
               6L, fReader.getSumDocFreq("f3"));
-              Assert.assertEquals("SumDocFreq has result for hidden field.",
-                  0L, fReader.getSumDocFreq("f2"));
+          Assert.assertEquals("SumDocFreq has result for hidden field.",
+              0L, fReader.getSumDocFreq("f2"));
         }
 
         @Override
@@ -1699,6 +1639,63 @@ public class FilteredDirectoryReaderTest
   }
 
   /**
+   * Class gathering all instance test methods to ensure no important method
+   * gets missed.
+   */
+  private abstract static class LeafReaderInstanceTest {
+    @SuppressWarnings({"AbstractMethodCallInConstructor",
+        "OverridableMethodCallDuringObjectConstruction",
+        "OverriddenMethodCallDuringObjectConstruction"})
+    LeafReaderInstanceTest()
+        throws Exception {
+      testHasDeletions();
+      testFieldCount();
+      testFieldNames();
+      testTotalTermFreq();
+      testSumTotalTermFreq();
+      testDocCount();
+      testDocFreq();
+      testSumDocFreq();
+      testTermVectors();
+      testNumDocs();
+      testMaxDoc();
+    }
+
+    abstract void testHasDeletions()
+        throws Exception;
+
+    abstract void testFieldCount()
+        throws Exception;
+
+    abstract void testFieldNames()
+        throws Exception;
+
+    abstract void testTotalTermFreq()
+        throws Exception;
+
+    abstract void testSumTotalTermFreq()
+        throws Exception;
+
+    abstract void testDocCount()
+        throws Exception;
+
+    abstract void testDocFreq()
+        throws Exception;
+
+    abstract void testSumDocFreq()
+        throws Exception;
+
+    abstract void testTermVectors()
+        throws Exception;
+
+    abstract void testNumDocs()
+        throws Exception;
+
+    abstract void testMaxDoc()
+        throws Exception;
+  }
+
+  /**
    * Simple static memory index for testing.
    *
    * @author Jens Bertram (code@jens-bertram.net)
@@ -1736,24 +1733,6 @@ public class FilteredDirectoryReaderTest
       wrtr.close();
     }
 
-    Iterable<Document> getNoTVIndexDocs() {
-      this.flds = Arrays.asList("f1", "f2", "f3");
-
-      final Collection<Document> docs = new ArrayList<>(1);
-
-      final Document doc1 = new Document();
-      doc1.add(new TextField("f1",
-          "first field value document1 field1 document1field1", Store.NO));
-      doc1.add(new TextField("f2",
-          "second field value document1 field2 document1field2", Store.NO));
-      doc1.add(new TextField("f3",
-          "third field value document1 field3 document1field3", Store.NO));
-      docs.add(doc1);
-
-      this.docs = docs.size();
-      return docs;
-    }
-
     Iterable<Document> getAllFieldsIndexDocs() {
       this.flds = Arrays.asList("f1", "f2", "f3");
 
@@ -1785,6 +1764,24 @@ public class FilteredDirectoryReaderTest
       doc3.add(new VecTextField("f3",
           "third field value document3 field3 document3field3", Store.NO));
       docs.add(doc3);
+
+      this.docs = docs.size();
+      return docs;
+    }
+
+    Iterable<Document> getNoTVIndexDocs() {
+      this.flds = Arrays.asList("f1", "f2", "f3");
+
+      final Collection<Document> docs = new ArrayList<>(1);
+
+      final Document doc1 = new Document();
+      doc1.add(new TextField("f1",
+          "first field value document1 field1 document1field1", Store.NO));
+      doc1.add(new TextField("f2",
+          "second field value document1 field2 document1field2", Store.NO));
+      doc1.add(new TextField("f3",
+          "third field value document1 field3 document1field3", Store.NO));
+      docs.add(doc1);
 
       this.docs = docs.size();
       return docs;
