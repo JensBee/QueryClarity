@@ -42,7 +42,6 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.CachingWrapperFilter;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.FieldValueFilter;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
@@ -59,13 +58,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Spliterator.OfLong;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -230,11 +229,17 @@ public final class FilteredDirectoryReader
      */
     private static final String[] NO_FIELDS = new String[0];
     /**
+     * Constant value if no fieldsInfos are available.
+     */
+    private static final FieldInfos NO_FIELDINFOS =
+        new FieldInfos(new FieldInfo[0]);
+    /**
      * Fields instance.
      */
     private final FilteredFields fieldsInstance;
     /**
-     * Set of field names visible.
+     * Set of field names visible. Must be sorted to use {@link
+     * Arrays#binarySearch(Object[], Object)}.
      */
     private final String[] fields;
     /**
@@ -294,15 +299,16 @@ public final class FilteredDirectoryReader
         // all fields are visible
         this.fieldInfos = this.in.getFieldInfos();
         this.fields = StreamSupport.stream(
-            this.in.fields().spliterator(), false).toArray(String[]::new);
+            this.in.fields().spliterator(), false)
+            // array needs to be sorted for binarySearch
+            .sorted().toArray(String[]::new);
       } else {
-        // fields are now filtered, now enable documents only that have any
-        // of the remaining fields
         this.fields = applyFieldFilter(vFields, negate);
-        this.fieldInfos = new FieldInfos(StreamSupport.stream(
-            this.in.getFieldInfos().spliterator(), false)
-            .filter(fi -> hasField(fi.name))
-            .toArray(FieldInfo[]::new));
+        this.fieldInfos = this.fields.length == 0 ? NO_FIELDINFOS :
+            new FieldInfos(StreamSupport.stream(
+                this.in.getFieldInfos().spliterator(), false)
+                .filter(fi -> hasField(fi.name))
+                .toArray(FieldInfo[]::new));
       }
 
       if (qFilter != null) {
@@ -310,39 +316,24 @@ public final class FilteredDirectoryReader
         applyDocFilter(qFilter);
       }
 
-      // set maxDoc value
-      if (this.fields.length == 0 && qFilter == null) {
-        // documents are unchanged
-        this.flrContext.maxDoc = this.in.maxDoc();
+      // find max value
+      final int maxBit = this.flrContext.docBits.length() - 1;
+      if (this.flrContext.docBits.get(maxBit)) {
+        // highest bit is set
+        this.flrContext.maxDoc = maxBit + 1;
       } else {
-        // find max value
-        final int maxBit = this.flrContext.docBits.length() - 1;
-        if (this.flrContext.docBits.get(maxBit)) {
-          // highest bit is set
-          this.flrContext.maxDoc = maxBit + 1;
-        } else {
-          // get the first bit set starting from the highest one
-          final int maxDoc = this.flrContext.docBits.prevSetBit(maxBit);
-          this.flrContext.maxDoc = maxDoc >= 0 ? maxDoc + 1 : 1;
-        }
+        // get the first bit set starting from the highest one
+        final int maxDoc = this.flrContext.docBits.prevSetBit(maxBit);
+        this.flrContext.maxDoc = maxDoc >= 0 ? maxDoc + 1 : 1;
       }
 
       // number of documents enabled after filtering
       this.flrContext.numDocs = this.flrContext.docBits.cardinality();
 
-      // check, if still all documents are live
-      if (this.flrContext.numDocs == this.flrContext.maxDoc) {
-        this.flrContext.docBits = null; // all live
-      }
-
       if (LOG.isDebugEnabled()) {
-        final Collection<String> fields =
-            new ArrayList<>(this.fieldInfos.size());
-        for (final FieldInfo fi : this.fieldInfos) {
-          fields.add(fi.name);
-        }
         LOG.debug("Final state: numDocs={} maxDoc={} fields={}",
-            this.flrContext.numDocs, this.flrContext.maxDoc, fields);
+            this.flrContext.numDocs, this.flrContext.maxDoc,
+            Arrays.toString(this.fields));
       }
 
       // create context
@@ -370,44 +361,55 @@ public final class FilteredDirectoryReader
         final Collection<String> vFields, final boolean negate)
         throws IOException {
 
-      final String[] fields = StreamSupport.stream(
+      String[] fields = StreamSupport.stream(
           this.in.fields().spliterator(), false)
           .filter(f -> negate ^ vFields.contains(f))
           .toArray(String[]::new);
-      final List<String> finalFields = new ArrayList<>(this.in.fields().size());
 
       // Bit-set indicating valid documents (after filtering).
       // A document whose bit is on is valid.
       final FixedBitSet filterBits = new FixedBitSet(this.in.maxDoc());
-      for (final String field : fields) {
-        @Nullable Filter f = this.flrContext.cachedFieldValueFilters.get(field);
-        if (f == null) {
-          f = new CachingWrapperFilter(new EmptyFieldFilter(field));
-          this.flrContext.cachedFieldValueFilters.put(field, f);
-        }
-        @Nullable final DocIdSet docsWithField = f.getDocIdSet(
-            this.in.getContext(), null); // isAccepted all docs, no deletions
 
-        // may be null, if no document matches
-        if (docsWithField != null) {
-          finalFields.add(field);
-          StreamUtils.stream(docsWithField).forEach(filterBits::set);
+      if (fields.length == 0) {
+        fields = NO_FIELDS;
+      } else {
+        final List<String> finalFields =
+            new ArrayList<>(this.in.fields().size());
+        for (final String field : fields) {
+          @Nullable Filter f =
+              this.flrContext.cachedFieldValueFilters.get(field);
+          if (f == null) {
+            f = new CachingWrapperFilter(new EmptyFieldFilter(field));
+            this.flrContext.cachedFieldValueFilters.put(field, f);
+          }
+          @Nullable final DocIdSet docsWithField = f.getDocIdSet(
+              this.in.getContext(), null); // isAccepted all docs, no deletions
+
+          // may be null, if no document matches
+          if (docsWithField != null) {
+            finalFields.add(field);
+            StreamUtils.stream(docsWithField).forEach(filterBits::set);
+          }
         }
+
+        fields = finalFields.isEmpty() ? NO_FIELDS :
+            finalFields.toArray(new String[finalFields.size()]);
       }
 
-      if (LOG.isDebugEnabled()) {
-        if (this.flrContext.docBits != null) {
-          LOG.debug("Filter (fields): {} -> {}",
-              this.flrContext.docBits.cardinality(), filterBits.cardinality());
-        } else {
-          LOG.debug("Filter (fields): {} -> {}",
-              this.flrContext.maxDoc, filterBits.cardinality());
-        }
-      }
+      // update visible documents bits
       this.flrContext.docBits = filterBits;
 
-      return finalFields.isEmpty() ? NO_FIELDS :
-          finalFields.toArray(new String[finalFields.size()]);
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Filter (fields): {} -> {}",
+            this.flrContext.docBits.cardinality(),
+            filterBits.cardinality());
+      }
+
+      if (fields.length > 0) {
+        // array needs to be sorted for binarySearch
+        Arrays.sort(fields);
+      }
+      return fields;
     }
 
     /**
@@ -417,9 +419,8 @@ public final class FilteredDirectoryReader
      * @return True, if valid (visible), false otherwise
      */
     boolean hasField(final String field) {
-      return this.fields.length == 0 ||
-          //this.negateFields ^ this.fields.contains(field);
-          this.negateFields ^ (Arrays.binarySearch(this.fields, field) >= 0);
+      return this.fields.length != 0 &&
+          Arrays.binarySearch(this.fields, field) >= 0;
     }
 
     /**
@@ -435,22 +436,6 @@ public final class FilteredDirectoryReader
       StreamUtils.stream(aFilter.getDocIdSet(
           this.in.getContext(), this.flrContext.docBits))
           .forEach(filterBits::set);
-
-//      final DocIdSetIterator keepDocs = aFilter.getDocIdSet(
-//          this.in.getContext(), this.flrContext.docBits).iterator();
-//      // Bit-set indicating valid documents (after filtering).
-//      // A document whose bit is on is valid.
-//      final FixedBitSet filterBits = new FixedBitSet(this.in.maxDoc());
-//
-//      if (keepDocs != null) {
-//        // re-enable only those documents allowed by the filter
-//        int docId;
-//        while ((docId = keepDocs.nextDoc()) != DocIdSetIterator
-// .NO_MORE_DOCS) {
-//          // turn bit on, document is valid
-//          filterBits.set(docId);
-//        }
-//      }
 
       if (LOG.isDebugEnabled()) {
         if (this.flrContext.docBits != null) {
@@ -589,7 +574,9 @@ public final class FilteredDirectoryReader
       if (f == null) {
         return null;
       }
-      f = new FilteredFields(this.flrContext, f, this.fields);
+      // skip doc check in filtered fields, since
+      // this fields is a single doc instance
+      f = new FilteredFields(this.flrContext, f, true, this.fields);
       return f.iterator().hasNext() ? f : null;
     }
 
@@ -838,6 +825,34 @@ public final class FilteredDirectoryReader
      * The underlying Fields instance.
      */
     private final Fields in;
+    /**
+     * Static value for empty field list.
+     */
+    private static final String[] NO_FIELDS = {};
+
+    /**
+     * Creates a new FilterFields.
+     *
+     * @param flr Filtered reader context
+     * @param wrap Original Fields instance
+     * @param skipDocCheck Skips the check, if a doc exists with a given field.
+     * Useful in comination with Field instances from TermVectors.
+     * @param fld Visible fields
+     */
+    FilteredFields(
+        final FLRContext flr, final Fields wrap, final boolean skipDocCheck,
+        final String... fld) {
+      this.in = wrap;
+      this.ctx = flr;
+      if (fld.length == 0) {
+        this.fieldTermsSumCache = Collections.emptyMap();
+        this.fields = NO_FIELDS;
+      } else {
+        this.fieldTermsSumCache = new ConcurrentHashMap<>(fld.length << 1);
+        // collect visible document fields
+        this.fields = getFields(skipDocCheck, fld);
+      }
+    }
 
     /**
      * Creates a new FilterFields.
@@ -848,27 +863,25 @@ public final class FilteredDirectoryReader
      */
     FilteredFields(
         final FLRContext flr, final Fields wrap, final String... fld) {
-      this.in = wrap;
-      this.ctx = flr;
-      this.fieldTermsSumCache = Collections.synchronizedMap(
-          new HashMap<>(fld.length << 1));
-      // collect visible document fields
-      this.fields = getFields(fld);
+      this(flr, wrap, false, fld);
     }
 
     /**
      * Get a list of all visible document fields that have any content.
      *
+     * @param skipDocCheck Skip check, if a document exists with a given
+     * field. Usable with TermVector Fields instances.
      * @param fld Field initially set visible
      * @return List of available document fields
      */
-    private String[] getFields(final String... fld) {
+    private String[] getFields(
+        final boolean skipDocCheck, final String... fld) {
       return StreamSupport.stream(this.in.spliterator(), false)
           .filter(f -> {
             try {
               return (Arrays.binarySearch(fld, f) >= 0) &&
-                  new FilteredTerms(this.ctx, this,
-                      this.in.terms(f), f).hasDoc();
+                  (skipDocCheck || new FilteredTerms(
+                      this.ctx, this, this.in.terms(f), f).hasDoc());
             } catch (final IOException e) {
               LOG.error("Error parsing terms in field '{}'.", f, e);
               throw new UncheckedIOException(e);
@@ -930,7 +943,7 @@ public final class FilteredDirectoryReader
   @SuppressWarnings({"PackageVisibleInnerClass", "PackageVisibleField"})
   static final class FLRContext {
     /**
-     * Store cached results of {@link FieldValueFilter}s.
+     * Store cached results of {@link EmptyFieldFilter}s.
      */
     final Map<String, Filter> cachedFieldValueFilters;
     /**
@@ -966,8 +979,7 @@ public final class FilteredDirectoryReader
      * Context object constructor.
      */
     FLRContext() {
-      this.cachedFieldValueFilters = Collections.synchronizedMap(
-          new HashMap<>(15));
+      this.cachedFieldValueFilters = new ConcurrentHashMap<>(15);
     }
   }
 
@@ -1025,16 +1037,18 @@ public final class FilteredDirectoryReader
     @Override
     public SeekStatus seekCeil(final BytesRef term)
         throws IOException {
+      this.freqs = null;
       // try seek to term
       SeekStatus status = this.in.seekCeil(term);
 
       // check, if we hit the end of the term list
       // or term is contained in any visible document
-      if (status != SeekStatus.END) {
-        if (!hasDoc()) {
-          // get next term, document visibility checked in next() method
-          status = next() == null ? SeekStatus.END : SeekStatus.NOT_FOUND;
+      while (status != SeekStatus.END) {
+        if (hasDoc() && (this.ctx.termFilter == null ||
+            this.ctx.termFilter.isAccepted(this.in, term))) {
+          return status;
         }
+        status = next() == null ? SeekStatus.END : SeekStatus.NOT_FOUND;
       }
       return status;
     }
@@ -1064,6 +1078,7 @@ public final class FilteredDirectoryReader
     @Nullable
     public BytesRef next()
         throws IOException {
+      this.freqs = null;
       BytesRef term;
 
       while ((term = this.in.next()) != null) {
@@ -1079,6 +1094,7 @@ public final class FilteredDirectoryReader
     @Override
     public void seekExact(final long ord)
         throws IOException {
+      this.freqs = null;
       this.in.seekExact(ord);
     }
 
@@ -1360,7 +1376,7 @@ public final class FilteredDirectoryReader
       @Nullable Filter f = this.ctx.cachedFieldValueFilters.get(this.field);
 
       if (f == null) {
-        f = new CachingWrapperFilter(new FieldValueFilter(this.field));
+        f = new CachingWrapperFilter(new EmptyFieldFilter(this.field));
         this.ctx.cachedFieldValueFilters.put(this.field, f);
       }
 
