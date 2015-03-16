@@ -47,8 +47,9 @@ public final class MathUtils {
    * Math-context to use for high-precision calculations.
    */
   static final MathContext MATH_CONTEXT = new MathContext(
-      GlobalConfiguration.conf().getString(
-          DefaultKeys.MATH_CONTEXT.toString()));
+      GlobalConfiguration.conf()
+          .getString(DefaultKeys.MATH_CONTEXT.toString(),
+              GlobalConfiguration.DEFAULT_MATH_CONTEXT));
 
   /**
    * Private empty constructor for utility class.

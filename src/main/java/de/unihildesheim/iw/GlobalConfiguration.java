@@ -31,10 +31,14 @@ public final class GlobalConfiguration
     extends ConfigurationFile {
 
   /**
+   * Default math context to use for high precision calculations.
+   */
+  public static final String DEFAULT_MATH_CONTEXT =
+      MathContext.DECIMAL64.toString();
+  /**
    * File name of the global configuration.
    */
   private static final String FILE_NAME = "configuration.properties";
-
   /**
    * Singleton instance reference.
    */
@@ -63,6 +67,24 @@ public final class GlobalConfiguration
   }
 
   /**
+   * Set default configuration values.
+   */
+  private void setDefaults() {
+    this.getAndAddString(DefaultKeys.MATH_CONTEXT.toString(),
+        DEFAULT_MATH_CONTEXT);
+    this.getAndAddBoolean(DefaultKeys.MATH_LOW_PRECISION.toString(), false);
+  }
+
+  /**
+   * Get the singleton instance.
+   *
+   * @return Instance
+   */
+  public static GlobalConfiguration conf() {
+    return INSTANCE;
+  }
+
+  /**
    * Default settings keys. Used by {@link #setDefaults()}
    */
   @SuppressWarnings("PublicInnerClass")
@@ -75,31 +97,5 @@ public final class GlobalConfiguration
      * Boolean flag. If true, low precision math is used.
      */
     MATH_LOW_PRECISION
-  }
-
-  private void setDefaults() {
-    this.getAndAddString(DefaultKeys.MATH_CONTEXT.toString(),
-        MathContext.DECIMAL64.toString());
-    this.getAndAddBoolean(DefaultKeys.MATH_LOW_PRECISION.toString(),
-        false);
-  }
-
-  /**
-   * Create a filename prefix from the provided identifier.
-   *
-   * @param identifier Identifier
-   * @return Filename prefix using the identifier string
-   */
-  public static String mkPrefix(final String identifier) {
-    return identifier + "_";
-  }
-
-  /**
-   * Get the singleton instance.
-   *
-   * @return Instance
-   */
-  public static GlobalConfiguration conf() {
-    return INSTANCE;
   }
 }

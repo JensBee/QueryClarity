@@ -18,9 +18,6 @@ package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.util.Configuration;
 
-import java.util.HashMap;
-import java.util.Map;
-
 /**
  * Configuration for {@link ImprovedClarityScore}.
  */
@@ -28,24 +25,75 @@ public final class ImprovedClarityScoreConfiguration
     extends Configuration {
 
   /**
-   * Default initial configuration.
+   * Lambda value for calculating document models.
+   * <br>
+   * Hauff, Murdock & Baeza-Yates used the value 1 for their tests.
    */
-  private static final Map<String, String> DEFAULTS;
-
+  private static final double DEFAULT_DOCMODEL_PARAM_LAMBDA = 1d;
   /**
-   * Create a new configuration object with a default configuration set.
+   * Beta value for calculating document models. This is related to the
+   * lambda value used in the original Clarity Score.
+   * <br>
+   * Cronen-Townsend, Steve, Yun Zhou, and W. Bruce Croft used 0.6 for this
+   * parameter.
    */
-  public ImprovedClarityScoreConfiguration() {
-    super(DEFAULTS);
-  }
+  private static final double DEFAULT_DOCMODEL_PARAM_BETA = 0.6;
+  /**
+   * Smoothing parameter (mu) for document model calculation.
+   * <br>
+   * Hauff, Murdock & Baeza-Yates used the values 100, 500, 1000, 1500,
+   * 2000, 2500, 3000 and 5000 for their tests.
+   */
+  private static final double DEFAULT_DOCMODEL_SMOOTHING = 100d;
+  /**
+   * Minimum number of feedback documents to retrieve. If the amount of
+   * feedback documents retrieved is lower than this value, the query will
+   * be simplified to retrieve more results.
+   * <br>
+   * Hauff, Murdock & Baeza-Yates: every document must match all query
+   * terms, if this is not the case, the query should be relaxed to get at
+   * least one match.
+   */
+  private static final int DEFAULT_FB_DOCS_MIN = 1;
+  /**
+   * Maximum number of feedback documents to use. A positive Integer or
+   * {@code -1} to set this to all matching documents.
+   * <br>
+   * Hauff, Murdock & Baeza-Yates evaluated with 10, 50, 100. 250, 500, 700,
+   * 1000 documents.
+   */
+  private static final int DEFAULT_FB_DOCS_MAX = 500;
+  /**
+   * Threshold to select terms from feedback documents. A term from a
+   * feedback document must occur in min n% of the documents
+   * in the index. If it's not the case it will be ignored.
+   * <br>
+   * A value of {@code 0} sets the minimum number of documents that must
+   * match to {@code 1}.
+   * <br>
+   * Hauff, Murdock & Baeza-Yates evaluated n with 1% (0.01), 10% (0.1),
+   * 100% (1).
+   */
+  @SuppressWarnings("ConstantNamingConvention")
+  private static final double DEFAULT_TERM_SELECTION_THRESHOLD_MIN = 0d;
+  /**
+   * Threshold to select terms from feedback documents. A term from a
+   * feedback document must occur in max n% of the documents
+   * in the index. If it's not the case it will be ignored.
+   * <br>
+   * Hauff, Murdock & Baeza-Yates evaluated n with 1% (0.01), 10% (0.1),
+   * 100% (1).
+   */
+  @SuppressWarnings("ConstantNamingConvention")
+  private static final double DEFAULT_TERM_SELECTION_THRESHOLD_MAX = 0.1;
 
   /**
    * Get the maximum number of feedback documents that will be used.
    *
    * @return Maximum number of feedback documents to get
    */
-  public Integer getMaxFeedbackDocumentsCount() {
-    return getInteger(Keys.FB_DOCS_MAX.name());
+  public int getMaxFeedbackDocumentsCount() {
+    return getInteger(Keys.FB_DOCS_MAX.name(), DEFAULT_FB_DOCS_MAX);
   }
 
   /**
@@ -62,8 +110,8 @@ public final class ImprovedClarityScoreConfiguration
    *
    * @return Minimum number of feedback documents to get
    */
-  public Integer getMinFeedbackDocumentsCount() {
-    return getInteger(Keys.FB_DOCS_MIN.name());
+  public int getMinFeedbackDocumentsCount() {
+    return getInteger(Keys.FB_DOCS_MIN.name(), DEFAULT_FB_DOCS_MIN);
   }
 
   /**
@@ -80,8 +128,9 @@ public final class ImprovedClarityScoreConfiguration
    *
    * @return Smoothing parameter value
    */
-  public Double getDocumentModelSmoothingParameter() {
-    return getDouble(Keys.DOC_MODEL_SMOOTHING.name());
+  public double getDocumentModelSmoothingParameter() {
+    return getDouble(
+        Keys.DOCMODEL_SMOOTHING.name(), DEFAULT_DOCMODEL_SMOOTHING);
   }
 
   /**
@@ -90,7 +139,7 @@ public final class ImprovedClarityScoreConfiguration
    * @param param Smoothing parameter value
    */
   public void setDocumentModelSmoothingParameter(final double param) {
-    add(Keys.DOC_MODEL_SMOOTHING.name(), param);
+    add(Keys.DOCMODEL_SMOOTHING.name(), param);
   }
 
   /**
@@ -98,8 +147,9 @@ public final class ImprovedClarityScoreConfiguration
    *
    * @return Threshold value
    */
-  public Double getMinFeedbackTermSelectionThreshold() {
-    return getDouble(Keys.TERM_SELECTION_THRESHOLD_MIN.name());
+  public double getMinFeedbackTermSelectionThreshold() {
+    return getDouble(Keys.TERM_SELECTION_THRESHOLD_MIN.name(),
+        DEFAULT_TERM_SELECTION_THRESHOLD_MIN);
   }
 
   /**
@@ -107,15 +157,17 @@ public final class ImprovedClarityScoreConfiguration
    *
    * @return Threshold value
    */
-  public Double getMaxFeedbackTermSelectionThreshold() {
-    return getDouble(Keys.TERM_SELECTION_THRESHOLD_MAX.name());
+  public double getMaxFeedbackTermSelectionThreshold() {
+    return getDouble(Keys.TERM_SELECTION_THRESHOLD_MAX.name(),
+        DEFAULT_TERM_SELECTION_THRESHOLD_MAX);
   }
 
   /**
    * Set the threshold used to select terms from feedback documents. If a term
    * occurs in lower than threshold% documents in index, it will be ignored.
    *
-   * @param thresholdMin Threshold % expressed as double value
+   * @param thresholdMin Minimum threshold % expressed as double value
+   * @param thresholdMax Maximum threshold % expressed as double value
    */
   public void setFeedbackTermSelectionThreshold(final double thresholdMin,
       final double thresholdMax) {
@@ -132,8 +184,9 @@ public final class ImprovedClarityScoreConfiguration
    *
    * @return Lambda parameter value used for document model calculation
    */
-  public Double getDocumentModelParamLambda() {
-    return getDouble(Keys.DOC_MODEL_PARAM_LAMBDA.name());
+  public double getDocumentModelParamLambda() {
+    return getDouble(
+        Keys.DOCMODEL_PARAM_LAMBDA.name(), DEFAULT_DOCMODEL_PARAM_LAMBDA);
   }
 
   /**
@@ -143,7 +196,7 @@ public final class ImprovedClarityScoreConfiguration
    * This value should be greater than 0 and lower or equal than/to 1.
    */
   public void setDocumentModelParamLambda(final double lambda) {
-    add(Keys.DOC_MODEL_PARAM_LAMBDA.name(), lambda);
+    add(Keys.DOCMODEL_PARAM_LAMBDA.name(), lambda);
   }
 
   /**
@@ -151,8 +204,9 @@ public final class ImprovedClarityScoreConfiguration
    *
    * @return Beta parameter value used for document model calculation.
    */
-  public Double getDocumentModelParamBeta() {
-    return getDouble(Keys.DOC_MODEL_PARAM_BETA.name());
+  public double getDocumentModelParamBeta() {
+    return getDouble(
+        Keys.DOCMODEL_PARAM_BETA.name(), DEFAULT_DOCMODEL_PARAM_BETA);
   }
 
   /**
@@ -162,7 +216,7 @@ public final class ImprovedClarityScoreConfiguration
    * value should be greater than 0 and lower than 1.
    */
   public void setDocumentModelParamBeta(final double beta) {
-    add(Keys.DOC_MODEL_PARAM_BETA.name(), beta);
+    add(Keys.DOCMODEL_PARAM_BETA.name(), beta);
   }
 
   /**
@@ -173,15 +227,15 @@ public final class ImprovedClarityScoreConfiguration
     /**
      * Document-model calculation alpha parameter.
      */
-    DOC_MODEL_PARAM_LAMBDA,
+    DOCMODEL_PARAM_LAMBDA,
     /**
      * Document-model calculation beta parameter.
      */
-    DOC_MODEL_PARAM_BETA,
+    DOCMODEL_PARAM_BETA,
     /**
      * Smoothing parameter for document model calculation.
      */
-    DOC_MODEL_SMOOTHING,
+    DOCMODEL_SMOOTHING,
     /**
      * Minimum number of feedback documents to retrieve.
      */
@@ -200,70 +254,5 @@ public final class ImprovedClarityScoreConfiguration
      * Maximum value (upper range).
      */
     TERM_SELECTION_THRESHOLD_MAX
-  }
-
-  // initialize defaults map
-  static {
-    DEFAULTS = new HashMap<>(Keys.values().length);
-    /**
-     * Lambda value for calculating document models.
-     * <br>
-     * Hauff, Murdock & Baeza-Yates used the value 1 for their tests.
-     */
-    DEFAULTS.put(Keys.DOC_MODEL_PARAM_LAMBDA.name(), "1");
-    /**
-     * Beta value for calculating document models. This is related to the
-     * lambda value used in the original Clarity Score.
-     * <br>
-     * Cronen-Townsend, Steve, Yun Zhou, and W. Bruce Croft used 0.6 for this
-     * parameter.
-     */
-    DEFAULTS.put(Keys.DOC_MODEL_PARAM_BETA.name(), "0.6");
-    /**
-     * Smoothing parameter (mu) for document model calculation.
-     * <br>
-     * Hauff, Murdock & Baeza-Yates used the values 100, 500, 1000, 1500,
-     * 2000, 2500, 3000 and 5000 for their tests.
-     */
-    DEFAULTS.put(Keys.DOC_MODEL_SMOOTHING.name(), "100");
-    /**
-     * Minimum number of feedback documents to retrieve. If the amount of
-     * feedback documents retrieved is lower than this value, the query will
-     * be simplified to retrieve more results.
-     * <br>
-     * Hauff, Murdock & Baeza-Yates: every document must match all query
-     * terms, if this is not the case, the query should be relaxed to get at
-     * least one match.
-     */
-    DEFAULTS.put(Keys.FB_DOCS_MIN.name(), "1");
-    /**
-     * Maximum number of feedback documents to use. A positive Integer or
-     * {@code -1} to set this to all matching documents.
-     * <br>
-     * Hauff, Murdock & Baeza-Yates evaluated with 10, 50, 100. 250, 500, 700,
-     * 1000 documents.
-     */
-    DEFAULTS.put(Keys.FB_DOCS_MAX.name(), "500");
-    /**
-     * Threshold to select terms from feedback documents. A term from a
-     * feedback document must occur in min n% of the documents
-     * in the index. If it's not the case it will be ignored.
-     * <br>
-     * A value of {@code 0} sets the minimum number of documents that must
-     * match to {@code 1}.
-     * <br>
-     * Hauff, Murdock & Baeza-Yates evaluated n with 1% (0.01), 10% (0.1),
-     * 100% (1).
-     */
-    DEFAULTS.put(Keys.TERM_SELECTION_THRESHOLD_MIN.name(), "0");
-    /**
-     * Threshold to select terms from feedback documents. A term from a
-     * feedback document must occur in max n% of the documents
-     * in the index. If it's not the case it will be ignored.
-     * <br>
-     * Hauff, Murdock & Baeza-Yates evaluated n with 1% (0.01), 10% (0.1),
-     * 100% (1).
-     */
-    DEFAULTS.put(Keys.TERM_SELECTION_THRESHOLD_MAX.name(), "0.1");
   }
 }

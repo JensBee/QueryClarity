@@ -18,9 +18,6 @@ package de.unihildesheim.iw.lucene.scoring.clarity;
 
 import de.unihildesheim.iw.util.Configuration;
 
-import java.util.HashMap;
-import java.util.Map;
-
 /**
  * Configuration for {@link DefaultClarityScore}.
  *
@@ -28,18 +25,18 @@ import java.util.Map;
  */
 public final class DefaultClarityScoreConfiguration
     extends Configuration {
-
   /**
-   * Default initial configuration.
+   * Default multiplier value for relative term frequency inside documents.
+   * Cronen-Townsend, Steve, Yun Zhou, and W. Bruce Croft used 0.6 for this
+   * parameter.
    */
-  private static final Map<String, String> DEFAULTS;
-
+  private static final double DEFAULT_LANG_MODEL_WEIGHT = 0.6;
   /**
-   * Create a new configuration object with a default configuration set.
+   * Number of feedback documents to use.
+   * <br>
+   * Cronen-Townsend et al. recommend 500 documents.
    */
-  public DefaultClarityScoreConfiguration() {
-    super(DEFAULTS);
-  }
+  private static final int DEFAULT_FB_DOC_COUNT = 500;
 
   /**
    * Get the language model weight parameter.
@@ -47,7 +44,7 @@ public final class DefaultClarityScoreConfiguration
    * @return Language model weight parameter value
    */
   public Double getLangModelWeight() {
-    return getDouble(Keys.LANG_MODEL_WEIGHT.name());
+    return getDouble(Keys.LANG_MODEL_WEIGHT.name(), DEFAULT_LANG_MODEL_WEIGHT);
   }
 
   /**
@@ -64,8 +61,8 @@ public final class DefaultClarityScoreConfiguration
    *
    * @return Number of feedback documents
    */
-  public Integer getFeedbackDocCount() {
-    return getInteger(Keys.FB_DOC_COUNT.name());
+  public int getFeedbackDocCount() {
+    return getInteger(Keys.FB_DOC_COUNT.name(), DEFAULT_FB_DOC_COUNT);
   }
 
   /**
@@ -90,23 +87,5 @@ public final class DefaultClarityScoreConfiguration
      * Document-model calculation weighting parameter.
      */
     LANG_MODEL_WEIGHT
-  }
-
-  // initialize defaults map
-  static {
-    DEFAULTS = new HashMap<>(Keys.values().length);
-    /**
-     * Number of feedback documents to use.
-     * <br>
-     * Cronen-Townsend et al. recommend 500 documents.
-     */
-    DEFAULTS.put(Keys.FB_DOC_COUNT.name(), "500");
-    /**
-     * Default multiplier value for relative term frequency inside documents.
-     * <br>
-     * Cronen-Townsend, Steve, Yun Zhou, and W. Bruce Croft used 0.6 for this
-     * parameter.
-     */
-    DEFAULTS.put(Keys.LANG_MODEL_WEIGHT.name(), "0.6");
   }
 }

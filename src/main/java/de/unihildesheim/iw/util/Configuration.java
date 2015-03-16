@@ -43,6 +43,10 @@ public class Configuration {
    */
   private static final Logger LOG = LoggerFactory.getLogger(
       Configuration.class);
+  /**
+   * Default constnt empty string value.
+   */
+  private static final String EMPTY_STRING = "";
 
   /**
    * Configuration properties.
@@ -131,7 +135,6 @@ public class Configuration {
       add(key, defaultValue);
       return defaultValue;
     }
-    assert value != null;
     return value;
   }
 
@@ -141,17 +144,21 @@ public class Configuration {
    * @param key Configuration item key
    * @param defaultValue Default value to use, if no data for the given key was
    * found
-   * @return String value assigned to the key, or {@code defaultValue} if there
-   * was none
+   * @return String value assigned to the key, or {@code #EMPTY_STRING an empty
+   * string} if there was none
    */
-  @Nullable
+  @NotNull
   public final String getString(
       @NotNull final String key,
       @Nullable final String defaultValue) {
-    if (StringUtils.isStrippedEmpty(key)) {
-      throw new IllegalArgumentException("Key was empty.");
+    String value = defaultValue == null ? EMPTY_STRING : defaultValue;
+    if (!StringUtils.isStrippedEmpty(key)) {
+      value = this.data.getProperty(key, defaultValue);
+      if (value == null) {
+        value = EMPTY_STRING;
+      }
     }
-    return this.data.getProperty(key, defaultValue);
+    return value;
   }
 
   /**
@@ -189,19 +196,21 @@ public class Configuration {
    * found
    * @return Boolean value assigned to the key, or {@code defaultValue} if there
    * was none
-   * @see #getBoolean(String, Boolean)
+   * @see #getBoolean(String, boolean)
    */
   @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
-  public final Boolean getAndAddBoolean(
+  public final boolean getAndAddBoolean(
       @NotNull final String key,
-      @NotNull final Boolean defaultValue) {
-    final String value = getString(key, defaultValue.toString());
-    if (defaultValue.toString().equalsIgnoreCase(value)) {
-      add(key, defaultValue.toString());
-      return defaultValue;
+      final boolean defaultValue) {
+    final String valueStr = defaultValue ? "1" : "0";
+    final String value = getString(key, valueStr);
+    final boolean result;
+    if (value.isEmpty()) {
+      add(key, valueStr);
+      result = defaultValue;
+    } else {
+      result = getBoolean(key, defaultValue);
     }
-    final Boolean result = getBoolean(key, defaultValue);
-    assert result != null;
     return result;
   }
 
@@ -215,23 +224,19 @@ public class Configuration {
    */
   @SuppressWarnings({"BooleanParameter",
       "BooleanMethodNameMustStartWithQuestion"})
-  @Nullable
-  public final Boolean getBoolean(
+  public final boolean getBoolean(
       @NotNull final String key,
-      @Nullable final Boolean defaultValue) {
+      final boolean defaultValue) {
     if (StringUtils.isStrippedEmpty(
         Objects.requireNonNull(key, "Key was null."))) {
       throw new IllegalArgumentException("Key was empty.");
     }
     final String value = getString(key);
-    if (value == null) {
+    if (value.isEmpty()) {
       return defaultValue;
     } else {
-      if ("1".equals(value) || "true".equalsIgnoreCase(value) || "yes"
-          .equalsIgnoreCase(value)) {
-        return Boolean.TRUE;
-      }
-      return Boolean.FALSE;
+      return "1".equals(value) || "true".equalsIgnoreCase(value) || "yes"
+          .equalsIgnoreCase(value);
     }
   }
 
@@ -239,24 +244,13 @@ public class Configuration {
    * Tries to get a string value associated with the given key.
    *
    * @param key Configuration item key
-   * @return String value assigned to the key, or {@code null} if there was none
-   * or there was an error interpreting the value as integer
+   * @return String value assigned to the key, or an {@link #EMPTY_STRING empty
+   * String}, if there was none or there was an error interpreting the value as
+   * integer
    */
-  @Nullable
-  public final String getString(final String key) {
-    return getString(key, null);
-  }
-
-  /**
-   * Tries to get an integer value associated with the given key.
-   *
-   * @param key Configuration item key
-   * @return Integer value assigned to the key, or {@code null} if there was
-   * none or there was an error interpreting the value as integer
-   */
-  @Nullable
-  public final Integer getInteger(final String key) {
-    return getInteger(key, null);
+  @NotNull
+  private String getString(@NotNull final String key) {
+    return getString(key, EMPTY_STRING);
   }
 
   /**
@@ -266,24 +260,20 @@ public class Configuration {
    * @param defaultValue Default value to use, if no data for the given key was
    * found
    * @return Integer value assigned to the key, or {@code defaultValue} if there
-   * was none or there was an error interpreting the value as integer
+   * was none
    */
-  @Nullable
-  public final Integer getInteger(
+  public final int getInteger(
       @NotNull final String key,
-      @Nullable final Integer defaultValue) {
+      final int defaultValue) {
     @Nullable
     final String value = getString(key);
-    if (value == null) {
-      return defaultValue;
+    final int result;
+    if (value.isEmpty()) {
+      result = defaultValue;
     } else {
-      try {
-        return Integer.parseInt(value);
-      } catch (final NumberFormatException ex) {
-        LOG.warn("Failed to restore integer value. key={} val={}", key, value);
-        return defaultValue;
-      }
+      result = Integer.parseInt(value);
     }
+    return result;
   }
 
   /**
@@ -295,20 +285,18 @@ public class Configuration {
    * found
    * @return Integer value assigned to the key, or {@code defaultValue} if there
    * was none or there was an error interpreting the value as integer
-   * @see #getInteger(String, Integer)
+   * @see #getInteger(String, int)
    */
   public final Integer getAndAddInteger(
       @NotNull final String key,
-      @NotNull final Integer defaultValue) {
-    if (getString(key) == null) {
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("No config-data for {}.", key);
-      }
+      final int defaultValue) {
+    final int result;
+    if (getString(key).isEmpty()) {
       add(key, defaultValue);
-      return defaultValue;
+      result = defaultValue;
+    } else {
+      result = getInteger(key, defaultValue);
     }
-    final Integer result = getInteger(key, defaultValue);
-    assert result != null;
     return result;
   }
 
@@ -324,17 +312,6 @@ public class Configuration {
     this.data.setProperty(checkKey(key), value.toString());
   }
 
-  /**
-   * Tries to get a double value associated with the given key.
-   *
-   * @param key Configuration item key
-   * @return Double value assigned to the key, or {@code null} if there was none
-   * or there was an error interpreting the value as double
-   */
-  @Nullable
-  public final Double getDouble(final String key) {
-    return getDouble(key, null);
-  }
 
   /**
    * Tries to get a double value associated with the given key.
@@ -343,23 +320,19 @@ public class Configuration {
    * @param defaultValue Default value to use, if no data for the given key was
    * found
    * @return Double value assigned to the key, or <tt>defaultValue</tt> if there
-   * was none or there was an error interpreting the value as double
+   * was none
    */
-  @Nullable
-  public final Double getDouble(
+  public final double getDouble(
       @NotNull final String key,
-      @Nullable final Double defaultValue) {
+      final double defaultValue) {
     final String value = getString(key);
-    if (value == null) {
-      return defaultValue;
+    final double result;
+    if (value.isEmpty()) {
+      result = defaultValue;
     } else {
-      try {
-        return Double.parseDouble(value);
-      } catch (final NumberFormatException ex) {
-        LOG.warn("Failed to restore double value. key={} val={}", key, value);
-        return defaultValue;
-      }
+      result = Double.parseDouble(value);
     }
+    return result;
   }
 
   /**
@@ -371,17 +344,18 @@ public class Configuration {
    * found
    * @return Double value assigned to the key, or <tt>defaultValue</tt> if there
    * was none or there was an error interpreting the value as double
-   * @see #getDouble(String, Double)
+   * @see #getDouble(String, double)
    */
-  public final Double getAndAddDouble(
+  public final double getAndAddDouble(
       @NotNull final String key,
-      @NotNull final Double defaultValue) {
-    if (getString(key) == null) {
+      final double defaultValue) {
+    final double result;
+    if (getString(key).isEmpty()) {
       add(key, defaultValue);
-      return defaultValue;
+      result = defaultValue;
+    } else {
+      result = getDouble(key, defaultValue);
     }
-    final Double result = getDouble(key, defaultValue);
-    assert result != null;
     return result;
   }
 
@@ -420,8 +394,7 @@ public class Configuration {
   /**
    * Creates a list of the current configuration.
    *
-   * @return Configuration values list as key, value {@link Tuple2 tuple}
-   * pairs
+   * @return Configuration values list as key, value {@link Tuple2 tuple} pairs
    */
   public final List<Tuple2<String, String>> entryList() {
     final List<Tuple2<String, String>> entries = new ArrayList<>(

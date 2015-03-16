@@ -54,9 +54,10 @@ public final class SimplifiedClarityScore
   /**
    * Default math context for model calculations.
    */
-  private static final MathContext MATH_CONTEXT = new MathContext(
-      GlobalConfiguration.conf().getString(
-          DefaultKeys.MATH_CONTEXT.toString()));
+  static final MathContext MATH_CONTEXT = new MathContext(
+      GlobalConfiguration.conf()
+          .getString(DefaultKeys.MATH_CONTEXT.toString(),
+              GlobalConfiguration.DEFAULT_MATH_CONTEXT));
   /**
    * Logger instance for this class.
    */

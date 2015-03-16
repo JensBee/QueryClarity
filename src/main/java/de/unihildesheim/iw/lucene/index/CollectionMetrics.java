@@ -37,12 +37,6 @@ import java.util.Map;
  */
 public final class CollectionMetrics {
   /**
-   * Default math context for calculations.
-   */
-  private static final MathContext MATH_CONTEXT = new MathContext(
-      GlobalConfiguration.conf().getString(
-          DefaultKeys.MATH_CONTEXT.toString()));
-  /**
    * Index total term frequency value.
    */
   private final long tf;

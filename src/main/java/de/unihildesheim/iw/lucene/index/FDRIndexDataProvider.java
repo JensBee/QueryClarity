@@ -17,6 +17,7 @@
 
 package de.unihildesheim.iw.lucene.index;
 
+import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
@@ -63,7 +64,8 @@ public final class FDRIndexDataProvider
    */
   static final MathContext MATH_CONTEXT = new MathContext(
       GlobalConfiguration.conf()
-          .getString(DefaultKeys.MATH_CONTEXT.toString()));
+          .getString(DefaultKeys.MATH_CONTEXT.toString(),
+              GlobalConfiguration.DEFAULT_MATH_CONTEXT));
   /**
    * Logger instance for this class.
    */
@@ -94,7 +96,7 @@ public final class FDRIndexDataProvider
     assert builder.idxReader != null;
 
     LOG.info("Initializing index & gathering base data..");
-    this.index = new LuceneIndex((FilteredDirectoryReader) builder.idxReader);
+    this.index = new LuceneIndex(builder.idxReader);
 
     // all data gathered, initialize metrics instance
     this.metrics = new CollectionMetrics(this);
@@ -454,40 +456,53 @@ public final class FDRIndexDataProvider
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class Builder
-      extends AbstractIndexDataProviderBuilder<Builder> {
+      implements Buildable {
+    /**
+     * {@link FilteredDirectoryReader} to use for accessing the Lucene index.
+     */
+    @SuppressWarnings("InstanceVariableMayNotBeInitialized")
+    @Nullable
+    FilteredDirectoryReader idxReader;
 
     /**
-     * Constructor setting the supported features.
+     * Set the {@link FilteredDirectoryReader} to use.
+     *
+     * @param reader {@link FilteredDirectoryReader} instance
+     * @return Self reference
      */
-    public Builder() {
-      super(new Feature[]{
-          Feature.COMMON_TERM_THRESHOLD
-      });
-    }
-
-    @Override
-    Builder getThis() {
+    public Builder indexReader(
+        @NotNull final FilteredDirectoryReader reader) {
+      this.idxReader = reader;
       return this;
     }
 
+    /**
+     * Create a new {@link FDRIndexDataProvider} instance.
+     *
+     * @return new {@link FDRIndexDataProvider} instance
+     * @throws BuildException Thrown on any error during construction
+     * @throws ConfigurationException Thrown on configuration errors
+     */
     @Override
     public FDRIndexDataProvider build()
         throws BuildException, ConfigurationException {
       validate();
-      assert this.idxReader != null;
-      if (!FilteredDirectoryReader.class.isInstance(this.idxReader)) {
-        throw new BuildException(
-            "IndexReader must be an instance of FilteredDirectoryReader.");
-      }
-      if (this.idxReader.hasDeletions()) {
-        throw new BuildException(
-            "Index with deletions is currently not supported.");
-      }
-
       try {
         return new FDRIndexDataProvider(this);
       } catch (final IOException e) {
         throw new BuildException("Failed to create instance.", e);
+      }
+    }
+
+    @Override
+    public void validate()
+        throws ConfigurationException {
+      if (this.idxReader == null) {
+        throw new ConfigurationException("IndexReader not set.");
+      }
+      if (!FilteredDirectoryReader.class.isInstance(this.idxReader)) {
+        throw new ConfigurationException(
+            "IndexReader must be an instance of FilteredDirectoryReader.");
       }
     }
   }

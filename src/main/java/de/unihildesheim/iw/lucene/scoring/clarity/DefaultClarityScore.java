@@ -79,8 +79,9 @@ public final class DefaultClarityScore
    * Context for high precision math calculations.
    */
   static final MathContext MATH_CONTEXT = new MathContext(
-      GlobalConfiguration.conf().getString(
-          DefaultKeys.MATH_CONTEXT.toString()));
+      GlobalConfiguration.conf()
+          .getString(DefaultKeys.MATH_CONTEXT.toString(),
+              GlobalConfiguration.DEFAULT_MATH_CONTEXT));
   /**
    * {@link IndexDataProvider} to use.
    */
@@ -612,8 +613,7 @@ public final class DefaultClarityScore
 
         // feedback documents
         if (GlobalConfiguration.conf()
-            .getAndAddBoolean(CONF_PREFIX + "ListFeedbackDocuments",
-                Boolean.TRUE)) {
+            .getAndAddBoolean(CONF_PREFIX + "ListFeedbackDocuments", true)) {
           final List<Tuple2<String, String>> fbDocsList =
               new ArrayList<>(fbDocCount);
 

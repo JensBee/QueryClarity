@@ -85,8 +85,9 @@ public final class ImprovedClarityScore
    * Default math context for model calculations.
    */
   static final MathContext MATH_CONTEXT = new MathContext(
-      GlobalConfiguration.conf().getString(
-          DefaultKeys.MATH_CONTEXT.toString()));
+      GlobalConfiguration.conf()
+          .getString(DefaultKeys.MATH_CONTEXT.toString(),
+              GlobalConfiguration.DEFAULT_MATH_CONTEXT));
   /**
    * If true, low precision math is used for doing calculations.
    */
@@ -680,8 +681,7 @@ public final class ImprovedClarityScore
 
         // feedback documents
         if (GlobalConfiguration.conf()
-            .getAndAddBoolean(CONF_PREFIX + "ListFeedbackDocuments",
-                Boolean.TRUE)) {
+            .getAndAddBoolean(CONF_PREFIX + "ListFeedbackDocuments", true)) {
           final List<Tuple2<String, String>> fbDocsList =
               new ArrayList<>(fbDocCount);
 
