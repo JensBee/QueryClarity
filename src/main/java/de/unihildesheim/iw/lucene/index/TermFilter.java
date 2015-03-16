@@ -20,7 +20,10 @@ package de.unihildesheim.iw.lucene.index;
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader.FilteredFields;
 import de.unihildesheim.iw.lucene.util.BitsUtils;
 import org.apache.lucene.index.DocsEnum;
+import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -30,9 +33,11 @@ import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.FixedBitSet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.util.stream.StreamSupport;
 
 /**
  * Abstract definition of a TermFilter.
@@ -43,7 +48,7 @@ public abstract class TermFilter {
    */
   @SuppressWarnings("ProtectedField")
   @Nullable
-  protected FilteredDirectoryReader topReader;
+  protected IndexReader topReader;
 
   /**
    * @param termsEnum TermsEnum currently in use. Be careful not to change the
@@ -63,7 +68,7 @@ public abstract class TermFilter {
    * @param reader Top-reader
    */
   @SuppressWarnings("NullableProblems")
-  protected void setTopReader(@NotNull final FilteredDirectoryReader reader) {
+  protected void setTopReader(@NotNull final IndexReader reader) {
     this.topReader = reader;
   }
 
@@ -117,6 +122,11 @@ public abstract class TermFilter {
   public static final class CommonTerms
       extends TermFilter {
     /**
+     * Logger instance for this class.
+     */
+    private static final Logger LOG =
+        LoggerFactory.getLogger(CommonTerms.class);
+    /**
      * Common terms collected so ctx.
      */
     private final BytesRefHash commonTerms = new BytesRefHash();
@@ -124,10 +134,6 @@ public abstract class TermFilter {
      * Document frequency threshold.
      */
     private final double t;
-    /**
-     * Number of documents available in the index.
-     */
-    private int docCount = -1;
     /**
      * Number of documents available in the index.
      */
@@ -151,9 +157,15 @@ public abstract class TermFilter {
      * common.
      */
     private int limit;
+    /**
+     * True, the underlying reader has no postings (is empty).
+     */
+    private boolean isEmpty = false;
 
     /**
-     * New instance using a given threshold.
+     * New instance using a given threshold. The threshold value {@code t} is
+     * calculated by {@code t = document_frequency(term) /
+     * number_of_documents}.
      *
      * @param threshold Document frequency Threshold. If exceeded a term will be
      * marked as being too common.
@@ -167,19 +179,15 @@ public abstract class TermFilter {
      */
     void countDocs() {
       assert this.topReader != null;
-
-      this.docCount = this.topReader
-          .getFields().stream()
-          .mapToInt(f -> {
-            try {
-              return this.topReader.unwrap().getDocCount(f);
-            } catch (final IOException e) {
-              throw new UncheckedIOException(e);
-            }
-          }).sum();
-      assert this.docCount > 0;
-      this.docCountDiv = 1.0 / (double) this.docCount;
-      this.limit = (int) Math.floor((double) this.docCount * this.t);
+      final int docCount = this.topReader.numDocs();
+      if (docCount <= 0) {
+        this.isEmpty = true;
+        this.docCountDiv = 0d;
+        this.limit = 0;
+      } else {
+        this.docCountDiv = 1.0 / (double) docCount;
+        this.limit = (int) Math.floor((double) docCount * this.t);
+      }
     }
 
     /**
@@ -194,13 +202,21 @@ public abstract class TermFilter {
     }
 
     @Override
-    protected void setTopReader(@NotNull final FilteredDirectoryReader reader) {
+    protected void setTopReader(@NotNull final IndexReader reader) {
       super.setTopReader(reader);
       assert this.topReader != null;
-      this.subReaders = this.topReader.getSubReaders().stream()
-          // skip readers without documents
-          .filter(r -> r.numDocs() > 0)
-          .toArray(LeafReader[]::new);
+      if (FilteredDirectoryReader.class.isInstance(this.topReader)) {
+        this.subReaders = ((FilteredDirectoryReader) this.topReader)
+            .getSubReaders().stream()
+                // skip readers without documents
+            .filter(r -> r.numDocs() > 0)
+            .toArray(LeafReader[]::new);
+      } else {
+        this.subReaders = this.topReader.getContext().leaves().stream()
+            .map(LeafReaderContext::reader)
+            .filter(r -> r.numDocs() > 0)
+            .toArray(LeafReader[]::new);
+      }
       this.subReaderCount = this.subReaders.length;
       this.checkBits = BitsUtils.bits2FixedBitSet(
           MultiFields.getLiveDocs(this.topReader));
@@ -222,7 +238,7 @@ public abstract class TermFilter {
         return true;
       }
 
-      if (this.commonTerms.find(term) > -1) {
+      if (this.isEmpty || this.commonTerms.find(term) > -1) {
         return false;
       }
 
@@ -235,12 +251,22 @@ public abstract class TermFilter {
 
       for (int i = this.subReaderCount - 1; i >= 0; i--) {
         assert this.subReaders != null;
-        final FilteredFields ffields = (FilteredFields)
-            this.subReaders[i].fields();
-        final String[] fields = ffields.getFields();
+        final Fields fInstance = this.subReaders[i].fields();
+        final String[] fields;
+        if (FilteredFields.class.isInstance(fInstance)) {
+          fields = ((FilteredFields) fInstance).getFields();
+        } else {
+          fields = StreamSupport.stream(fInstance.spliterator(), false)
+              .toArray(String[]::new);
+        }
         final int fieldCount = fields.length;
         for (int j = fieldCount - 1; j >= 0; j--) {
-          @Nullable final Terms t = ffields.originalTerms(fields[j]);
+          @Nullable final Terms t;
+          if (FilteredFields.class.isInstance(fInstance)) {
+            t = ((FilteredFields) fInstance).originalTerms(fields[j]);
+          } else {
+            t = fInstance.terms(fields[j]);
+          }
 
           if (t != null) {
             te = t.iterator(te);
@@ -290,8 +316,8 @@ public abstract class TermFilter {
 
     @Override
     public boolean isAccepted(
-        @NotNull final TermsEnum termsEnum,
-        @NotNull final BytesRef term) {
+        @Nullable final TermsEnum termsEnum,
+        @Nullable final BytesRef term) {
       return true;
     }
   }
