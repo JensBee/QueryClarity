@@ -160,7 +160,7 @@ public final class FDRIndexDataProvider
                     throw new UncheckedIOException(e);
                   }
                 })
-                .sum();
+                .max().orElse(0);
           } catch (final IOException e) {
             throw new UncheckedIOException(e);
           }
@@ -351,7 +351,7 @@ public final class FDRIndexDataProvider
           .mapToInt(sd -> sd.doc)
           .sorted()
           .toArray();
-      this.docIds = new FixedBitSet(docIds[docIds.length -1]);
+      this.docIds = new FixedBitSet(docIds[docIds.length - 1] + 1);
       Arrays.stream(docIds)
           .forEach(this.docIds::set);
       this.docCount = this.docIds.cardinality();
@@ -434,7 +434,7 @@ public final class FDRIndexDataProvider
                     throw new UncheckedIOException(e);
                   }
                 })
-                // exclude empty terms
+                    // exclude empty terms
                 .filter(t -> t != null)
                 .toArray(Terms[]::new))
             .flatMap(t -> {
