@@ -27,7 +27,6 @@ import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
@@ -164,7 +163,7 @@ public class CollectionMetricsTest
     IndexDataProvider getIdp()
         throws IOException, ConfigurationException, BuildException {
       final DirectoryReader reader = DirectoryReader.open(this.dir);
-      final IndexReader idxReader =
+      final FilteredDirectoryReader idxReader =
           new FilteredDirectoryReader.Builder(reader).build();
       return new FDRIndexDataProvider.Builder()
           .indexReader(idxReader)

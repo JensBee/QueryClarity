@@ -20,16 +20,13 @@ package de.unihildesheim.iw.lucene.index;
 import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.lucene.VecTextField;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
-import de.unihildesheim.iw.lucene.index.FDRIndexDataProvider.Builder;
-import de.unihildesheim.iw.lucene.index.FDRIndexDataProviderTest.TestMemIndex
-    .Index;
+import de.unihildesheim.iw.lucene.index.FDRIndexDataProviderTest.TestMemIndex.Index;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
@@ -53,7 +50,7 @@ import java.util.stream.Stream;
  *
  * @author Jens Bertram
  */
-@SuppressWarnings("JavaDoc")
+@SuppressWarnings({"JavaDoc", "UnnecessarilyQualifiedInnerClassAccess"})
 public class FDRIndexDataProviderTest
     extends TestCase {
   public FDRIndexDataProviderTest() {
@@ -65,9 +62,9 @@ public class FDRIndexDataProviderTest
       throws Exception {
     try (TestMemIndex idx = new TestMemIndex(Index.TVECTORS)) {
       final DirectoryReader reader = DirectoryReader.open(idx.dir);
-      final IndexReader idxReader =
+      final FilteredDirectoryReader idxReader =
           new FilteredDirectoryReader.Builder(reader).build();
-      new Builder()
+      new FDRIndexDataProvider.Builder()
           .indexReader(idxReader)
           .build();
     }
@@ -78,10 +75,10 @@ public class FDRIndexDataProviderTest
       throws Exception {
     try (TestMemIndex idx = new TestMemIndex(Index.NO_TVECTORS)) {
       final DirectoryReader reader = DirectoryReader.open(idx.dir);
-      final IndexReader idxReader =
+      final FilteredDirectoryReader idxReader =
           new FilteredDirectoryReader.Builder(reader).build();
       try {
-        new Builder()
+        new FDRIndexDataProvider.Builder()
             .indexReader(idxReader)
             .build();
         Assert.fail("Expected an IllegalStateException to be thrown.");
@@ -96,9 +93,9 @@ public class FDRIndexDataProviderTest
       throws Exception {
     try (TestMemIndex idx = new TestMemIndex(Index.TVECTORS)) {
       final DirectoryReader reader = DirectoryReader.open(idx.dir);
-      final IndexReader idxReader =
+      final FilteredDirectoryReader idxReader =
           new FilteredDirectoryReader.Builder(reader).build();
-      final IndexDataProvider idp = new Builder()
+      final IndexDataProvider idp = new FDRIndexDataProvider.Builder()
           .indexReader(idxReader)
           .build();
 
@@ -112,9 +109,9 @@ public class FDRIndexDataProviderTest
       throws Exception {
     try (TestMemIndex idx = new TestMemIndex(Index.TVECTORS)) {
       final DirectoryReader reader = DirectoryReader.open(idx.dir);
-      final IndexReader idxReader =
+      final FilteredDirectoryReader idxReader =
           new FilteredDirectoryReader.Builder(reader).build();
-      final IndexDataProvider idp = new Builder()
+      final IndexDataProvider idp = new FDRIndexDataProvider.Builder()
           .indexReader(idxReader)
           .build();
 
@@ -135,9 +132,9 @@ public class FDRIndexDataProviderTest
       throws Exception {
     try (TestMemIndex idx = new TestMemIndex(Index.TVECTORS)) {
       final DirectoryReader reader = DirectoryReader.open(idx.dir);
-      final IndexReader idxReader =
+      final FilteredDirectoryReader idxReader =
           new FilteredDirectoryReader.Builder(reader).build();
-      final IndexDataProvider idp = new Builder()
+      final IndexDataProvider idp = new FDRIndexDataProvider.Builder()
           .indexReader(idxReader)
           .build();
 
@@ -158,9 +155,9 @@ public class FDRIndexDataProviderTest
       throws Exception {
     try (TestMemIndex idx = new TestMemIndex(Index.TVECTORS)) {
       final DirectoryReader reader = DirectoryReader.open(idx.dir);
-      final IndexReader idxReader =
+      final FilteredDirectoryReader idxReader =
           new FilteredDirectoryReader.Builder(reader).build();
-      final IndexDataProvider idp = new Builder()
+      final IndexDataProvider idp = new FDRIndexDataProvider.Builder()
           .indexReader(idxReader)
           .build();
 
@@ -178,9 +175,9 @@ public class FDRIndexDataProviderTest
       throws Exception {
     try (TestMemIndex idx = new TestMemIndex(Index.TVECTORS)) {
       final DirectoryReader reader = DirectoryReader.open(idx.dir);
-      final IndexReader idxReader =
+      final FilteredDirectoryReader idxReader =
           new FilteredDirectoryReader.Builder(reader).build();
-      final IndexDataProvider idp = new Builder()
+      final IndexDataProvider idp = new FDRIndexDataProvider.Builder()
           .indexReader(idxReader)
           .build();
 
@@ -201,9 +198,9 @@ public class FDRIndexDataProviderTest
       throws Exception {
     try (TestMemIndex idx = new TestMemIndex(Index.TVECTORS)) {
       final DirectoryReader reader = DirectoryReader.open(idx.dir);
-      final IndexReader idxReader =
+      final FilteredDirectoryReader idxReader =
           new FilteredDirectoryReader.Builder(reader).build();
-      final IndexDataProvider idp = new Builder()
+      final IndexDataProvider idp = new FDRIndexDataProvider.Builder()
           .indexReader(idxReader)
           .build();
 
@@ -221,9 +218,9 @@ public class FDRIndexDataProviderTest
       throws Exception {
     try (TestMemIndex idx = new TestMemIndex(Index.TVECTORS)) {
       final DirectoryReader reader = DirectoryReader.open(idx.dir);
-      final IndexReader idxReader =
+      final FilteredDirectoryReader idxReader =
           new FilteredDirectoryReader.Builder(reader).build();
-      final IndexDataProvider idp = new Builder()
+      final IndexDataProvider idp = new FDRIndexDataProvider.Builder()
           .indexReader(idxReader)
           .build();
 
@@ -244,9 +241,9 @@ public class FDRIndexDataProviderTest
       throws Exception {
     try (TestMemIndex idx = new TestMemIndex(Index.TVECTORS)) {
       final DirectoryReader reader = DirectoryReader.open(idx.dir);
-      final IndexReader idxReader =
+      final FilteredDirectoryReader idxReader =
           new FilteredDirectoryReader.Builder(reader).build();
-      final IndexDataProvider idp = new Builder()
+      final IndexDataProvider idp = new FDRIndexDataProvider.Builder()
           .indexReader(idxReader)
           .build();
 
@@ -273,9 +270,9 @@ public class FDRIndexDataProviderTest
       throws Exception {
     try (TestMemIndex idx = new TestMemIndex(Index.TVECTORS)) {
       final DirectoryReader reader = DirectoryReader.open(idx.dir);
-      final IndexReader idxReader =
+      final FilteredDirectoryReader idxReader =
           new FilteredDirectoryReader.Builder(reader).build();
-      final IndexDataProvider idp = new Builder()
+      final IndexDataProvider idp = new FDRIndexDataProvider.Builder()
           .indexReader(idxReader)
           .build();
 
@@ -290,9 +287,9 @@ public class FDRIndexDataProviderTest
       throws Exception {
     try (TestMemIndex idx = new TestMemIndex(Index.TVECTORS)) {
       final DirectoryReader reader = DirectoryReader.open(idx.dir);
-      final IndexReader idxReader =
+      final FilteredDirectoryReader idxReader =
           new FilteredDirectoryReader.Builder(reader).build();
-      final IndexDataProvider idp = new Builder()
+      final IndexDataProvider idp = new FDRIndexDataProvider.Builder()
           .indexReader(idxReader)
           .build();
 
@@ -309,9 +306,9 @@ public class FDRIndexDataProviderTest
       throws Exception {
     try (TestMemIndex idx = new TestMemIndex(Index.TVECTORS)) {
       final DirectoryReader reader = DirectoryReader.open(idx.dir);
-      final IndexReader idxReader =
+      final FilteredDirectoryReader idxReader =
           new FilteredDirectoryReader.Builder(reader).build();
-      final IndexDataProvider idp = new Builder()
+      final IndexDataProvider idp = new FDRIndexDataProvider.Builder()
           .indexReader(idxReader)
           .build();
 
@@ -325,9 +322,9 @@ public class FDRIndexDataProviderTest
       throws Exception {
     try (TestMemIndex idx = new TestMemIndex(Index.TVECTORS)) {
       final DirectoryReader reader = DirectoryReader.open(idx.dir);
-      final IndexReader idxReader =
+      final FilteredDirectoryReader idxReader =
           new FilteredDirectoryReader.Builder(reader).build();
-      final IndexDataProvider idp = new Builder()
+      final IndexDataProvider idp = new FDRIndexDataProvider.Builder()
           .indexReader(idxReader)
           .build();
 
