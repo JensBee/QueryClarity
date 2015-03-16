@@ -16,16 +16,14 @@
  */
 package de.unihildesheim.iw.lucene.index;
 
+import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader
+    .FilteredLeafReader;
 import de.unihildesheim.iw.lucene.search.FDRDefaultSimilarity;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.store.FSDirectory;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.File;
-import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.Arrays;
 import java.util.Collection;
@@ -89,25 +87,6 @@ public final class IndexUtils {
   }
 
   /**
-   * Get an {@link IndexReader} for a file based Lucene index.
-   *
-   * @param idxDir Directory where the Lucene index is located at
-   * @return Reader for the given index
-   * @throws IOException Thrown, if the index is not found or any other
-   * low-level I/O error occurred
-   */
-  public static IndexReader openReader(final File idxDir)
-      throws IOException {
-    // check, if there's a Lucene index in the path
-    final FSDirectory luceneDir = FSDirectory.open(idxDir.toPath());
-    if (!DirectoryReader.indexExists(luceneDir)) {
-      throw new IOException("No index found at index path '" + idxDir
-          .getCanonicalPath() + "'.");
-    }
-    return DirectoryReader.open(luceneDir);
-  }
-
-  /**
    * Get an {@link IndexSearcher} instance. If the reader is an instance of
    * {@link FilteredDirectoryReader} the {@link FDRDefaultSimilarity}
    * will be used.
@@ -117,7 +96,7 @@ public final class IndexUtils {
   public static IndexSearcher getSearcher(final IndexReader reader) {
     final IndexSearcher searcher = new IndexSearcher(reader);
     if (FilteredDirectoryReader.class.isInstance(reader) ||
-        FilteredDirectoryReader.FilteredLeafReader.class.isInstance(reader)) {
+        FilteredLeafReader.class.isInstance(reader)) {
       searcher.setSimilarity(new FDRDefaultSimilarity());
     }
     return searcher;
