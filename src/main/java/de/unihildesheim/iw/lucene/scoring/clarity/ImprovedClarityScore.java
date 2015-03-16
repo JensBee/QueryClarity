@@ -542,7 +542,7 @@ public final class ImprovedClarityScore
         .documentIds(feedbackDocIds)
         .get()
         .filter(t -> {
-          final BigDecimal relDf = cMetrics.relDf(t);
+          final BigDecimal relDf = BigDecimal.valueOf(cMetrics.relDf(t));
           return relDf.compareTo(minFreq) >= 0
               && relDf.compareTo(maxFreq) <= 0;
         });

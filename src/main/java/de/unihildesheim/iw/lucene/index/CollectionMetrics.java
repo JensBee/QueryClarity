@@ -20,15 +20,14 @@ package de.unihildesheim.iw.lucene.index;
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
+import de.unihildesheim.iw.mapdb.serializer.BytesRefSerializer;
 import de.unihildesheim.iw.mapdb.serializer.DocumentModelSerializer;
 import org.apache.lucene.util.BytesRef;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import de.unihildesheim.iw.mapdb.serializer.BytesRefSerializer;
 import org.mapdb.DBMaker;
 import org.mapdb.Serializer;
 
-import java.math.BigDecimal;
 import java.math.MathContext;
 import java.util.Collections;
 import java.util.Map;
@@ -50,7 +49,7 @@ public final class CollectionMetrics {
   /**
    * Number of documents in index.
    */
-  private final BigDecimal docCount;
+  private final long docCount;
   /**
    * Cache document frequency values.
    */
@@ -98,6 +97,7 @@ public final class CollectionMetrics {
 
     /**
      * Disable caching of document frequency values.
+     *
      * @return Self reference
      */
     public CollectionMetricsConfiguration noCacheDf() {
@@ -107,6 +107,7 @@ public final class CollectionMetrics {
 
     /**
      * Disable caching of term frequency values.
+     *
      * @return Self reference
      */
     public CollectionMetricsConfiguration noCacheTf() {
@@ -116,6 +117,7 @@ public final class CollectionMetrics {
 
     /**
      * Disable caching of document models.
+     *
      * @return Self reference
      */
     public CollectionMetricsConfiguration noCacheDocModels() {
@@ -147,7 +149,7 @@ public final class CollectionMetrics {
     // set configuration
     this.conf = cmConf == null ? new CollectionMetricsConfiguration() : cmConf;
     this.tf = this.dataProv.getTermFrequency();
-    this.docCount = BigDecimal.valueOf(this.dataProv.getDocumentCount());
+    this.docCount = this.dataProv.getDocumentCount();
 
     this.c_rtf = DBMaker
         .newMemoryDirectDB()
@@ -224,7 +226,7 @@ public final class CollectionMetrics {
 
   /**
    * Get the relative frequency of a term. The relative frequency is the
-   * frequency {@code tF} of term {@code t}t divided by the frequency {@code F}
+   * frequency {@code tF} of term {@code t} divided by the frequency {@code F}
    * of all terms.
    *
    * @param term Term to lookup
@@ -264,14 +266,15 @@ public final class CollectionMetrics {
   }
 
   /**
-   * Get the document frequency of a term.
+   * Get the relative document frequency of a term. The relative document
+   * frequency of a term is defined as {@code reldf(term) = df(term) /
+   * number_of_documents}.
    *
    * @param term Term to lookup.
    * @return Document frequency of the given term
    */
-  public BigDecimal relDf(final BytesRef term) {
-    return BigDecimal.valueOf((long) df(term)).divide(
-        this.docCount, MATH_CONTEXT);
+  public double relDf(final BytesRef term) {
+    return df(term).doubleValue() / (double) this.docCount;
   }
 
   /**

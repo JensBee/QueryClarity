@@ -42,6 +42,6 @@ public final class CommonTermsVocabularyProvider
         .getDocumentsTerms(Objects.requireNonNull(
             this.docIds, "Document ids not set."))
         .filter(t ->
-            this.dataProv.metrics().relDf(t).floatValue() <= threshold);
+            this.dataProv.metrics().relDf(t) <= (double) threshold);
   }
 }
