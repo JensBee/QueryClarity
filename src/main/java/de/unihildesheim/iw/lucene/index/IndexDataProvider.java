@@ -20,6 +20,7 @@ import de.unihildesheim.iw.lucene.document.DocumentModel;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -73,6 +74,7 @@ public interface IndexDataProvider
    *
    * @return Stream of document-ids
    */
+  @NotNull
   IntStream getDocumentIds();
 
   /**
@@ -81,6 +83,7 @@ public interface IndexDataProvider
    * @param docId Lucene document-id
    * @return Document-model associated with the given Lucene document-id
    */
+  @NotNull
   DocumentModel getDocumentModel(final int docId);
 
   /**
@@ -97,6 +100,7 @@ public interface IndexDataProvider
    * @param docIds List of document ids to extract terms from
    * @return Terms from all documents
    */
+  @NotNull
   Stream<BytesRef> getDocumentsTerms(final DocIdSet docIds);
 
   /**
@@ -112,6 +116,7 @@ public interface IndexDataProvider
    *
    * @return List of document field names
    */
+  @NotNull
   String[] getDocumentFields();
 
   /**
@@ -120,6 +125,7 @@ public interface IndexDataProvider
    *
    * @return List of words to exclude.
    */
+  @NotNull
   BytesRefHash getStopwords();
 
   /**

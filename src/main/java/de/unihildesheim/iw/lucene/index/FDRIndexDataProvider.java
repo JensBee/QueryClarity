@@ -170,11 +170,13 @@ public final class FDRIndexDataProvider
   }
 
   @Override
+  @NotNull
   public IntStream getDocumentIds() {
     return StreamUtils.stream(this.index.docIds);
   }
 
   @Override
+  @NotNull
   public DocumentModel getDocumentModel(final int docId) {
     return new DocumentModel.Builder(docId)
         .setTermFrequency(getDocumentTerms(docId)).getModel();
@@ -223,6 +225,7 @@ public final class FDRIndexDataProvider
   }
 
   @Override
+  @NotNull
   public Stream<BytesRef> getDocumentsTerms(@NotNull final DocIdSet docIds) {
     try {
       return StreamUtils.stream(docIds)
@@ -273,11 +276,13 @@ public final class FDRIndexDataProvider
   }
 
   @Override
+  @NotNull
   public String[] getDocumentFields() {
     return this.index.fields;
   }
 
   @Override
+  @NotNull
   public BytesRefHash getStopwords() {
     return EMPTY_STOPWORDS; // we don't use stopwords
   }
