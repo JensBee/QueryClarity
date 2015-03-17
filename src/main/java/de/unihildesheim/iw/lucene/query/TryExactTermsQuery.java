@@ -26,7 +26,6 @@ import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Query;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -110,15 +109,6 @@ public final class TryExactTermsQuery
   }
 
   /**
-   * Get the query object.
-   *
-   * @return Query object
-   */
-  public BooleanQuery get() {
-    return this.query;
-  }
-
-  /**
    * Reduce the number of terms that must match by one.
    *
    * @return True, if query was relaxed, false, if no terms left to relax the
@@ -143,7 +133,7 @@ public final class TryExactTermsQuery
    * @return Current query object
    */
   @Override
-  public Query getQueryObj() {
+  public BooleanQuery getQueryObj() {
     return this.query;
   }
 
