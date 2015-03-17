@@ -69,7 +69,7 @@ public final class FeedbackQuery {
    * @param docCount Number of documents that should be retrieved
    * @return Actual number of documents possible to retrieve
    */
-  private static int getMaxDocs(final IndexReader reader, final int docCount) {
+  static int getMaxDocs(final IndexReader reader, final int docCount) {
     final int maxRetDocs; // maximum number of documents that can be returned
     if (docCount == Integer.MAX_VALUE) {
       return reader.maxDoc();
@@ -100,7 +100,7 @@ public final class FeedbackQuery {
    * @return Documents matching the query
    * @throws IOException Thrown on low-level I/O errors
    */
-  private static int[] getDocs(final IndexSearcher searcher,
+  static int[] getDocs(final IndexSearcher searcher,
       final Query query, final int maxDocCount)
       throws IOException {
     final TimeMeasure timeMeasure = new TimeMeasure().start();
@@ -173,6 +173,9 @@ public final class FeedbackQuery {
     } else if (maxDocCount < 0) {
       throw new IllegalArgumentException("Maximum number of documents must " +
           "be -1 (unlimited) or greater than zero.");
+    } else if (maxDocCount < minDocs) {
+      throw new IllegalArgumentException("Maximum number of documents must " +
+          "be greater than minimum value.");
     } else {
       maxDocs = maxDocCount;
     }
