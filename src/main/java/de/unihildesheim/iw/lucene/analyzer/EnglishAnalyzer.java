@@ -37,22 +37,19 @@ public final class EnglishAnalyzer
     extends StopwordAnalyzerBase {
 
   /**
+   * Builds an analyzer without using any stop words.
+   */
+  public EnglishAnalyzer() {
+    // empty
+  }
+
+  /**
    * Builds an analyzer with the given stop words.
    *
    * @param newStopwords stop words
    */
   public EnglishAnalyzer(final CharArraySet newStopwords) {
     super(newStopwords);
-  }
-
-  /**
-   * Builds an analyzer with the default Lucene version and stopwords from the
-   * given {@link IndexDataProvider}.
-   * @param dataProv DataProvider instance
-   */
-  public EnglishAnalyzer(final IndexDataProvider dataProv) {
-    super(new CharArraySet(
-        BytesRefUtils.hashToSet(dataProv.getStopwords()), true));
   }
 
   /**

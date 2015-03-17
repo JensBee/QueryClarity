@@ -105,27 +105,24 @@ public final class LanguageBasedAnalyzers {
   }
 
   /**
-   * Create a new {@link Analyzer} for the provided language using the list of
-   * stopwords currently set in the {@link IndexDataProvider}.
+   * Create a new {@link Analyzer} for the provided language without using any
+   * stopwords.
    *
    * @param lang Language code (two-char)
-   * @param dataProv Provider with stopwords
    * @return New Analyzer instance
    */
   @SuppressWarnings("resource")
-  public static Analyzer createInstance(
-      @NotNull final Language lang,
-      @NotNull final IndexDataProvider dataProv) {
+  public static Analyzer createInstance(@NotNull final Language lang) {
     @Nullable final Analyzer analyzer;
     switch (lang) {
       case DE:
-        analyzer = new GermanAnalyzer(dataProv);
+        analyzer = new GermanAnalyzer();
         break;
       case EN:
-        analyzer = new EnglishAnalyzer(dataProv);
+        analyzer = new EnglishAnalyzer();
         break;
       case FR:
-        analyzer = new FrenchAnalyzer(dataProv);
+        analyzer = new FrenchAnalyzer();
         break;
       default:
         // should never be reached

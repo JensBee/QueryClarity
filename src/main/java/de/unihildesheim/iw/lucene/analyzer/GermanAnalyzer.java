@@ -17,8 +17,6 @@
 
 package de.unihildesheim.iw.lucene.analyzer;
 
-import de.unihildesheim.iw.lucene.index.IndexDataProvider;
-import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
@@ -37,6 +35,13 @@ public final class GermanAnalyzer
     extends StopwordAnalyzerBase {
 
   /**
+   * Builds an analyzer without any stop words.
+   */
+  public GermanAnalyzer() {
+    // empty
+  }
+
+  /**
    * Builds an analyzer with the given stop words.
    *
    * @param newStopwords stop words
@@ -46,20 +51,12 @@ public final class GermanAnalyzer
   }
 
   /**
-   * Builds an analyzer with the default Lucene version and stopwords from the
-   * given {@link IndexDataProvider}.
-   */
-  public GermanAnalyzer(final IndexDataProvider dataProv) {
-    super(new CharArraySet(
-        BytesRefUtils.hashToSet(dataProv.getStopwords()), true));
-  }
-
-  /**
    * This configuration must match with the configuration used for the index!
    *
    * @param fieldName Document field
    * @return Token stream
    */
+  @SuppressWarnings("resource")
   @Override
   protected TokenStreamComponents createComponents(final String fieldName) {
     final Tokenizer source = new StandardTokenizer();
