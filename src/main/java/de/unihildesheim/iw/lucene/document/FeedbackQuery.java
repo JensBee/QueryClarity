@@ -22,7 +22,6 @@ import de.unihildesheim.iw.lucene.util.BitsUtils;
 import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
 import de.unihildesheim.iw.lucene.util.StreamUtils;
 import de.unihildesheim.iw.util.RandomValue;
-import de.unihildesheim.iw.util.TimeMeasure;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.IndexSearcher;
@@ -103,8 +102,6 @@ public final class FeedbackQuery {
   static int[] getDocs(final IndexSearcher searcher,
       final Query query, final int maxDocCount)
       throws IOException {
-    final TimeMeasure timeMeasure = new TimeMeasure().start();
-
     final TopDocs results;
     final int fbDocCnt;
     if (maxDocCount == -1) {
@@ -126,19 +123,14 @@ public final class FeedbackQuery {
       fbDocCnt = Math.min(results.totalHits, maxDocCount);
     }
 
-    timeMeasure.stop();
-
     if (LOG.isDebugEnabled()) {
       if (maxDocCount == -1) {
         //noinspection HardcodedFileSeparator
-        LOG.debug("Getting {}/unlimited feedback documents "
-            + "took {}.", fbDocCnt, timeMeasure.getTimeString());
+        LOG.debug("Getting {}/unlimited feedback documents.", fbDocCnt);
       } else {
         //noinspection HardcodedFileSeparator
-        LOG.debug("Getting {}/{} feedback documents ({} requested) "
-                + "took {}.", fbDocCnt, results.totalHits, maxDocCount,
-            timeMeasure.getTimeString()
-        );
+        LOG.debug("Getting {}/{} feedback documents ({} requested).",
+            fbDocCnt, results.totalHits, maxDocCount);
       }
     }
 
