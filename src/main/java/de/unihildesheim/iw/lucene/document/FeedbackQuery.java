@@ -186,7 +186,7 @@ public final class FeedbackQuery {
 
     final int maxRetDocs = getMaxDocs(searcher.getIndexReader(), maxDocs);
     final Query q = query.getQueryObj();
-    final FixedBitSet bits = new FixedBitSet(maxDocCount);
+    final FixedBitSet bits = new FixedBitSet(searcher.getIndexReader().maxDoc());
     bits.or(BitsUtils.arrayToBits(getDocs(searcher, q, maxRetDocs)));
 
     int docsToGet;
