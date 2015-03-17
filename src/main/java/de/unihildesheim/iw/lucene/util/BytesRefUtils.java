@@ -141,7 +141,7 @@ public final class BytesRefUtils {
    * @return Set or {@code null}, if {@code bh} was null
    */
   @Nullable
-  @Contract("null -> null")
+  @Contract("null -> null; !null -> !null")
   public static Set<String> hashToSet(@Nullable final BytesRefHash bh) {
     if (bh == null) {
       return null;
