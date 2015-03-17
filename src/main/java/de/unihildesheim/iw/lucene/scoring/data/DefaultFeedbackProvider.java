@@ -25,6 +25,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.IndexSearcher;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
@@ -39,10 +40,15 @@ import java.util.Objects;
  */
 public class DefaultFeedbackProvider
     extends AbstractFeedbackProvider<DefaultFeedbackProvider> {
+  /**
+   * Reusable {@link IndexSearcher} instance.
+   */
   @Nullable
   private IndexSearcher searcher;
 
-  public DefaultFeedbackProvider indexReader(final IndexReader indexReader) {
+  @Override
+  public DefaultFeedbackProvider indexReader(
+      @NotNull final IndexReader indexReader) {
     super.indexReader(indexReader);
     this.searcher = IndexUtils.getSearcher(indexReader);
     return this;
