@@ -196,7 +196,7 @@ public final class FDRIndexDataProvider
                   f, docId);
               if (LOG.isDebugEnabled()) {
                 LOG.debug("Field exists? {}",
-                    (this.index.reader.document(docId).getField(f) != null));
+                    this.index.reader.document(docId).getField(f) != null);
               }
               return Stream.empty();
             } else {
