@@ -27,8 +27,6 @@ import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.apache.lucene.analysis.util.StopwordAnalyzerBase;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 
@@ -37,12 +35,7 @@ import java.util.Arrays;
  */
 public final class FrenchAnalyzer
     extends StopwordAnalyzerBase {
-
-  /**
-   * Logger instance for this class.
-   */
-  private static final Logger LOG = LoggerFactory.getLogger(FrenchAnalyzer.class);
-  private static final String[] DEFAULT_ELISIONS = {
+  static final String[] DEFAULT_ELISIONS = {
       "c", "d", "j", "l", "m", "n", "qu", "s", "t",
       "jusqu", "quoiqu", "lorsqu", "puisqu"};
   private final CharArraySet elisions =
