@@ -283,7 +283,7 @@ public final class FeedbackQuery {
 
     final List<Integer> haveDocs = dataProv
         .getDocumentIds()
-            // skip ids already provided
+        // skip ids already provided
         .filter(id -> Arrays.binarySearch(docIdsArr, id) < 0)
         .boxed()
         .collect(Collectors.toList());
@@ -306,7 +306,7 @@ public final class FeedbackQuery {
     }
     Arrays.sort(results);
     final Builder result = new Builder(results[results.length -1]);
-    Arrays.stream(results).forEach(result::add);
+    Arrays.stream(results).distinct().forEach(result::add);
     return result.build();
   }
 }
