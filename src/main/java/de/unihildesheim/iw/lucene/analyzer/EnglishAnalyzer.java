@@ -48,6 +48,7 @@ public final class EnglishAnalyzer
   /**
    * Builds an analyzer with the default Lucene version and stopwords from the
    * given {@link IndexDataProvider}.
+   * @param dataProv DataProvider instance
    */
   public EnglishAnalyzer(final IndexDataProvider dataProv) {
     super(new CharArraySet(
@@ -60,6 +61,7 @@ public final class EnglishAnalyzer
    * @param fieldName Document field
    * @return Token stream
    */
+  @SuppressWarnings("resource")
   @Override
   protected TokenStreamComponents createComponents(final String fieldName) {
     final Tokenizer source = new StandardTokenizer();
