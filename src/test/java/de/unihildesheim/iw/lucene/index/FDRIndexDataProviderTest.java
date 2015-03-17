@@ -32,7 +32,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.RoaringDocIdSet;
 import org.junit.Assert;
 import org.junit.Test;
@@ -297,23 +296,6 @@ public class FDRIndexDataProviderTest
           idx.flds.size(), idp.getDocumentFields().length);
       Assert.assertTrue("Field list mismatch.",
           idx.flds.containsAll(Arrays.asList(idp.getDocumentFields())));
-    }
-  }
-
-  @SuppressWarnings("ImplicitNumericConversion")
-  @Test
-  public void testGetStopwords()
-      throws Exception {
-    try (TestMemIndex idx = new TestMemIndex(Index.TVECTORS)) {
-      final DirectoryReader reader = DirectoryReader.open(idx.dir);
-      final FilteredDirectoryReader idxReader =
-          new FilteredDirectoryReader.Builder(reader).build();
-      final IndexDataProvider idp = new FDRIndexDataProvider.Builder()
-          .indexReader(idxReader)
-          .build();
-
-      final BytesRefHash swHash = idp.getStopwords();
-      Assert.assertEquals("Stopwords count mismatch.", 0L, swHash.size());
     }
   }
 
