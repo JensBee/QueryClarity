@@ -17,7 +17,6 @@
 
 package de.unihildesheim.iw.lucene.analyzer;
 
-import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
@@ -82,6 +81,7 @@ public final class LanguageBasedAnalyzers {
    * @return New Analyzer instance
    */
   @SuppressWarnings({"AssignmentToNull", "resource"})
+  @NotNull
   public static Analyzer createInstance(
       @NotNull final Language lang,
       @NotNull final CharArraySet stopWords) {
