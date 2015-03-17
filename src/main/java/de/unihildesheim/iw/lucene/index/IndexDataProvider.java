@@ -120,15 +120,6 @@ public interface IndexDataProvider
   String[] getDocumentFields();
 
   /**
-   * Get the list of stopwords currently in use. Returned instance should not
-   * be modified by caller.
-   *
-   * @return List of words to exclude.
-   */
-  @NotNull
-  BytesRefHash getStopwords();
-
-  /**
    * Get a collection metrics instance providing derived index information.
    *
    * @return {@link CollectionMetrics} instance

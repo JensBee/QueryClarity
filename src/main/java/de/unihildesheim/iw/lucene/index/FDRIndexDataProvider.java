@@ -79,10 +79,6 @@ public final class FDRIndexDataProvider
    * Collection metrics instance for this DataProvider.
    */
   private final CollectionMetrics metrics;
-  /**
-   * Static empty stopwords hash.
-   */
-  private static final BytesRefHash EMPTY_STOPWORDS = new BytesRefHash();
 
   /**
    * Create instance by using {@link Builder}.
@@ -279,12 +275,6 @@ public final class FDRIndexDataProvider
   @NotNull
   public String[] getDocumentFields() {
     return this.index.fields;
-  }
-
-  @Override
-  @NotNull
-  public BytesRefHash getStopwords() {
-    return EMPTY_STOPWORDS; // we don't use stopwords
   }
 
   @Override
