@@ -37,7 +37,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Relaxable implementation of a {@link RelaxableCommonTermsQuery}.
+ * Relaxable implementation of a {@link CommonTermsQuery}.
  * @author Jens Bertram (code@jens-bertram.net)
  */
 public final class RelaxableCommonTermsQuery
