@@ -19,6 +19,7 @@ package de.unihildesheim.iw.lucene.scoring.data;
 
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import org.apache.lucene.util.BytesRef;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
@@ -33,7 +34,7 @@ import java.util.stream.Stream;
  * @author Jens Bertram
  */
 public final class DefaultVocabularyProvider
-    extends AbstractVocabularyProvider<DefaultVocabularyProvider> {
+    extends AbstractVocabularyProvider {
 
   /**
    * Logger instance for this class.
@@ -47,6 +48,7 @@ public final class DefaultVocabularyProvider
   }
 
   @Override
+  @NotNull
   public Stream<BytesRef> get() {
     return
         Objects.requireNonNull(this.dataProv,
