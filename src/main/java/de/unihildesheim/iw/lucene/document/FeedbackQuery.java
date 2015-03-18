@@ -359,8 +359,8 @@ public final class FeedbackQuery {
         final int docId = haveDocs.remove(
             RandomValue.getInteger(0, haveDocs.size() - 1));
         if (fields != null && fields.length > 0) {
-          hasTerms = dataProv.getDocumentTerms(docId, fields).findFirst()
-              .isPresent();
+          hasTerms = dataProv.getDocumentTerms(docId, fields)
+              .findFirst().isPresent();
         }
         if (hasTerms) {
           results[currentAmount++] = docId;
