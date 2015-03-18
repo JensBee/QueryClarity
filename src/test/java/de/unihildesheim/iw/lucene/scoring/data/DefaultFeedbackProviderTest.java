@@ -23,6 +23,8 @@ import de.unihildesheim.iw.lucene.VecTextField;
 import de.unihildesheim.iw.lucene.index.FDRIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
+import de.unihildesheim.iw.lucene.scoring.data.DefaultFeedbackProviderTest
+    .TestMemIndex.IndexType;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.document.Document;
@@ -70,11 +72,15 @@ public class DefaultFeedbackProviderTest
 
   @SuppressWarnings("ImplicitNumericConversion")
   @Test
-  public void testGet()
+  public void testGet_fixedAmount_all()
       throws Exception {
-    try (TestMemIndex idx = new TestMemIndex()) {
+    try (TestMemIndex idx = new TestMemIndex(IndexType.FULL)) {
       final DefaultFeedbackProvider dfp = new DefaultFeedbackProvider();
-      dfp.indexReader(idx.getReader());
+      dfp.indexReader(idx.getReader())
+          .analyzer(new WhitespaceAnalyzer())
+          .query("value")
+          .dataProvider(idx.getIdp())
+          .amount(idx.docs << 1);
       final DocIdSet fb = dfp.get();
 
       Assert.assertEquals("Amount of feedback mismatch.",
@@ -84,16 +90,20 @@ public class DefaultFeedbackProviderTest
 
   @SuppressWarnings("ImplicitNumericConversion")
   @Test
-  public void testGet_fixedAmount_all()
+  public void testGet_fixedAmount_all_withField()
       throws Exception {
-    try (TestMemIndex idx = new TestMemIndex()) {
+    try (TestMemIndex idx = new TestMemIndex(IndexType.SPARE)) {
       final DefaultFeedbackProvider dfp = new DefaultFeedbackProvider();
-      dfp.indexReader(idx.getReader());
-      dfp.amount(idx.docs << 1);
+      dfp.indexReader(idx.getReader())
+          .analyzer(new WhitespaceAnalyzer())
+          .query("document1")
+          .fields("f2")
+          .dataProvider(idx.getIdp())
+          .amount(idx.docs << 1);
       final DocIdSet fb = dfp.get();
 
       Assert.assertEquals("Amount of feedback mismatch.",
-          idx.docs, getNumDocsFromSet(fb));
+          1L, getNumDocsFromSet(fb));
     }
   }
 
@@ -101,10 +111,13 @@ public class DefaultFeedbackProviderTest
   @Test
   public void testGet_fixedAmount_single()
       throws Exception {
-    try (TestMemIndex idx = new TestMemIndex()) {
+    try (TestMemIndex idx = new TestMemIndex(IndexType.FULL)) {
       final DefaultFeedbackProvider dfp = new DefaultFeedbackProvider();
-      dfp.indexReader(idx.getReader());
-      dfp.amount(1);
+      dfp.indexReader(idx.getReader())
+          .analyzer(new WhitespaceAnalyzer())
+          .query("value")
+          .dataProvider(idx.getIdp())
+          .amount(1);
       final DocIdSet fb = dfp.get();
 
       Assert.assertEquals("Amount of feedback mismatch.",
@@ -116,14 +129,20 @@ public class DefaultFeedbackProviderTest
   @Test
   public void testGet_fixedAmount_zero()
       throws Exception {
-    try (TestMemIndex idx = new TestMemIndex()) {
+    try (TestMemIndex idx = new TestMemIndex(IndexType.FULL)) {
       final DefaultFeedbackProvider dfp = new DefaultFeedbackProvider();
-      dfp.indexReader(idx.getReader());
-      dfp.amount(0);
-      final DocIdSet fb = dfp.get();
+      dfp.indexReader(idx.getReader())
+          .analyzer(new WhitespaceAnalyzer())
+          .query("value")
+          .dataProvider(idx.getIdp())
+          .amount(0);
 
-      Assert.assertEquals("Amount of feedback mismatch.",
-          0L, getNumDocsFromSet(fb));
+      try {
+        dfp.get();
+        Assert.fail("Expected an IllegalArgumentException to be thrown.");
+      } catch (final IllegalArgumentException e) {
+        // pass
+      }
     }
   }
 
@@ -131,10 +150,12 @@ public class DefaultFeedbackProviderTest
   @Test
   public void testGet_minMax_all()
       throws Exception {
-    try (TestMemIndex idx = new TestMemIndex()) {
+    try (TestMemIndex idx = new TestMemIndex(IndexType.FULL)) {
       final DefaultFeedbackProvider dfp = new DefaultFeedbackProvider();
-      dfp.indexReader(idx.getReader());
-      dfp.amount(0, idx.docs << 1);
+      dfp.indexReader(idx.getReader())
+          .analyzer(new WhitespaceAnalyzer())
+          .query("value")
+          .amount(1, idx.docs << 1);
       final DocIdSet fb = dfp.get();
 
       Assert.assertEquals("Amount of feedback mismatch.",
@@ -146,14 +167,44 @@ public class DefaultFeedbackProviderTest
   @Test
   public void testGet_minMax_zero()
       throws Exception {
-    try (TestMemIndex idx = new TestMemIndex()) {
+    try (TestMemIndex idx = new TestMemIndex(IndexType.FULL)) {
       final DefaultFeedbackProvider dfp = new DefaultFeedbackProvider();
-      dfp.indexReader(idx.getReader());
-      dfp.amount(0, 0);
-      final DocIdSet fb = dfp.get();
+      dfp.indexReader(idx.getReader())
+          .analyzer(new WhitespaceAnalyzer())
+          .query("value");
 
-      Assert.assertEquals("Amount of feedback mismatch.",
-          0L, getNumDocsFromSet(fb));
+      dfp.amount(0, 0);
+      try {
+        dfp.get();
+        Assert.fail("Expected an IllegalArgumentException to be thrown.");
+      } catch (final IllegalArgumentException e) {
+        // pass
+      }
+
+      dfp.amount(1, 0);
+      try {
+        dfp.get();
+        Assert.fail("Expected an IllegalArgumentException to be thrown.");
+      } catch (final IllegalArgumentException e) {
+        // pass
+      }
+
+      dfp.amount(0, 1);
+      try {
+        dfp.get();
+        Assert.fail("Expected an IllegalArgumentException to be thrown.");
+      } catch (final IllegalArgumentException e) {
+        // pass
+      }
+
+      dfp.dataProvider(idx.getIdp())
+          .amount(0);
+      try {
+        dfp.get();
+        Assert.fail("Expected an IllegalArgumentException to be thrown.");
+      } catch (final IllegalArgumentException e) {
+        // pass
+      }
     }
   }
 
@@ -161,10 +212,12 @@ public class DefaultFeedbackProviderTest
   @Test
   public void testGet_minMax_single()
       throws Exception {
-    try (TestMemIndex idx = new TestMemIndex()) {
+    try (TestMemIndex idx = new TestMemIndex(IndexType.FULL)) {
       final DefaultFeedbackProvider dfp = new DefaultFeedbackProvider();
-      dfp.indexReader(idx.getReader());
-      dfp.amount(0, 1);
+      dfp.indexReader(idx.getReader())
+          .analyzer(new WhitespaceAnalyzer())
+          .query("value")
+          .amount(1, 1);
       final DocIdSet fb = dfp.get();
 
       Assert.assertEquals("Amount of feedback mismatch.",
@@ -191,12 +244,17 @@ public class DefaultFeedbackProviderTest
     int docs;
 
     @SuppressWarnings("resource")
-    TestMemIndex()
+    TestMemIndex(final IndexType idxType)
         throws IOException {
       this.dir = new RAMDirectory();
       final IndexWriter wrtr = new IndexWriter(this.dir,
-          new IndexWriterConfig(new WhiteSpaceAnalyzer()));
-      wrtr.addDocuments(getIndexDocs());
+          new IndexWriterConfig(
+              new org.apache.lucene.analysis.core.WhitespaceAnalyzer()));
+      if (idxType == IndexType.FULL) {
+        wrtr.addDocuments(getIndexDocs());
+      } else {
+        wrtr.addDocuments(getSpareIndexDocs());
+      }
       wrtr.close();
     }
 
@@ -253,22 +311,56 @@ public class DefaultFeedbackProviderTest
       return docs;
     }
 
+    Iterable<Document> getSpareIndexDocs() {
+      this.flds = Arrays.asList("f1", "f2", "f3");
+
+      final Collection<Document> docs = new ArrayList<>(3);
+
+      final Document doc1 = new Document();
+      doc1.add(new VecTextField("f1",
+          "first field value document1 field1 document1field1", Store.NO));
+      doc1.add(new VecTextField("f3",
+          "third field value document1 field3 document1field3", Store.NO));
+      docs.add(doc1);
+
+      final Document doc2 = new Document();
+      doc2.add(new VecTextField("f1",
+          "first field value document2 field1 document2field1", Store.NO));
+      doc2.add(new VecTextField("f3",
+          "third field value document2 field3 document2field3", Store.NO));
+      docs.add(doc2);
+
+      final Document doc3 = new Document();
+      doc3.add(new VecTextField("f1",
+          "first field value document3 field1 document3field1", Store.NO));
+      doc3.add(new VecTextField("f2",
+          "second field value document3 field2 document3field2", Store.NO));
+      docs.add(doc3);
+
+      this.docs = docs.size();
+      return docs;
+    }
+
+    enum IndexType {
+      FULL, SPARE
+    }
+
     @Override
     public void close()
         throws Exception {
       this.dir.close();
     }
+  }
 
-    private static final class WhiteSpaceAnalyzer
-        extends Analyzer {
+  private static final class WhitespaceAnalyzer
+      extends Analyzer {
 
-      WhiteSpaceAnalyzer() {
-      }
+    WhitespaceAnalyzer() {
+    }
 
-      @Override
-      protected TokenStreamComponents createComponents(final String fieldName) {
-        return new TokenStreamComponents(new WhitespaceTokenizer());
-      }
+    @Override
+    protected TokenStreamComponents createComponents(final String fieldName) {
+      return new TokenStreamComponents(new WhitespaceTokenizer());
     }
   }
 }
