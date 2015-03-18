@@ -20,6 +20,8 @@ package de.unihildesheim.iw.lucene.document;
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.lucene.VecTextField;
+import de.unihildesheim.iw.lucene.document.FeedbackQueryTest.TestIndex
+    .IndexType;
 import de.unihildesheim.iw.lucene.index.FDRIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
@@ -77,7 +79,7 @@ public class FeedbackQueryTest
   @Test
   public void testGetMinMax()
       throws Exception {
-    try (TestIndex idx = new TestIndex()) {
+    try (TestIndex idx = new TestIndex(IndexType.FULL)) {
       final RelaxableQuery rq = new TryExactTermsQuery(
           new WhitespaceAnalyzer(), "field", "f1");
       final IndexSearcher src = new IndexSearcher(idx.getReader());
@@ -102,7 +104,7 @@ public class FeedbackQueryTest
   @Test
   public void testGetMinMax_illegal()
       throws Exception {
-    try (TestIndex idx = new TestIndex()) {
+    try (TestIndex idx = new TestIndex(IndexType.FULL)) {
       final RelaxableQuery rq = new TryExactTermsQuery(
           new WhitespaceAnalyzer(), "field", "f1");
       final IndexSearcher src = new IndexSearcher(idx.getReader());
@@ -129,7 +131,7 @@ public class FeedbackQueryTest
   @Test
   public void testGetMinMax_maxAllDocs()
       throws Exception {
-    try (TestIndex idx = new TestIndex()) {
+    try (TestIndex idx = new TestIndex(IndexType.FULL)) {
       final RelaxableQuery rq = new TryExactTermsQuery(
           new WhitespaceAnalyzer(), "field", "f1");
       final IndexSearcher src = new IndexSearcher(idx.getReader());
@@ -145,7 +147,7 @@ public class FeedbackQueryTest
   @Test
   public void testGetFixed()
       throws Exception {
-    try (TestIndex idx = new TestIndex()) {
+    try (TestIndex idx = new TestIndex(IndexType.FULL)) {
       final RelaxableQuery rq = new TryExactTermsQuery(
           new WhitespaceAnalyzer(), "field", "f1");
       final IndexSearcher src = new IndexSearcher(idx.getReader());
@@ -164,9 +166,31 @@ public class FeedbackQueryTest
 
   @SuppressWarnings("ImplicitNumericConversion")
   @Test
+  public void testGetFixed_withField()
+      throws Exception {
+    try (TestIndex idx = new TestIndex(IndexType.SPARE)) {
+      final RelaxableQuery rq = new TryExactTermsQuery(
+          new WhitespaceAnalyzer(), "field", "f1");
+      final IndexSearcher src = new IndexSearcher(idx.getReader());
+
+      DocIdSet result;
+
+      result = FeedbackQuery.getFixed(src, idx.getIdp(), rq, idx.docs, "f1");
+      Assert.assertEquals("Number of documents retrieved do not match.",
+          2L, getNumDocsFromSet(result));
+
+      result = FeedbackQuery
+          .getFixed(src, idx.getIdp(), rq, idx.docs << 1, "f1");
+      Assert.assertEquals("Number of documents retrieved do not match.",
+          2L, getNumDocsFromSet(result));
+    }
+  }
+
+  @SuppressWarnings("ImplicitNumericConversion")
+  @Test
   public void testGetFixed_useRandom()
       throws Exception {
-    try (TestIndex idx = new TestIndex()) {
+    try (TestIndex idx = new TestIndex(IndexType.FULL)) {
       final RelaxableQuery rq = new TryExactTermsQuery(
           new WhitespaceAnalyzer(), "document1", "f1");
       final IndexSearcher src = new IndexSearcher(idx.getReader());
@@ -187,7 +211,7 @@ public class FeedbackQueryTest
   @Test
   public void testGetRandom()
       throws Exception {
-    try (TestIndex idx = new TestIndex()) {
+    try (TestIndex idx = new TestIndex(IndexType.FULL)) {
       @SuppressWarnings("UnnecessarilyQualifiedInnerClassAccess")
       final DocIdSet dis = new RoaringDocIdSet.Builder(3)
           .add(1).build();
@@ -201,9 +225,25 @@ public class FeedbackQueryTest
 
   @SuppressWarnings("ImplicitNumericConversion")
   @Test
+  public void testGetRandom_withFields()
+      throws Exception {
+    try (TestIndex idx = new TestIndex(IndexType.SPARE)) {
+      @SuppressWarnings("UnnecessarilyQualifiedInnerClassAccess")
+      final DocIdSet dis = new RoaringDocIdSet.Builder(3)
+          .add(1).build();
+
+      final DocIdSet result = FeedbackQuery.getRandom(
+          idx.getIdp(), idx.docs, dis, "f3");
+      Assert.assertEquals("Number of documents retrieved do not match.",
+          2L, getNumDocsFromSet(result));
+    }
+  }
+
+  @SuppressWarnings("ImplicitNumericConversion")
+  @Test
   public void testGetMaxDocs()
       throws Exception {
-    try (TestIndex idx = new TestIndex()) {
+    try (TestIndex idx = new TestIndex(IndexType.FULL)) {
       int max;
 
       max = FeedbackQuery.getMaxDocs(idx.getReader(), 10);
@@ -221,7 +261,7 @@ public class FeedbackQueryTest
   @Test
   public void testGetDocs()
       throws Exception {
-    try (TestIndex idx = new TestIndex()) {
+    try (TestIndex idx = new TestIndex(IndexType.FULL)) {
       final IndexSearcher src = new IndexSearcher(idx.getReader());
 
       Query rq;
@@ -248,7 +288,7 @@ public class FeedbackQueryTest
   @Test
   public void testGetDocs_illegalField()
       throws Exception {
-    try (TestIndex idx = new TestIndex()) {
+    try (TestIndex idx = new TestIndex(IndexType.FULL)) {
       final IndexSearcher src = new IndexSearcher(idx.getReader());
 
       final Query rq = new TryExactTermsQuery(
@@ -277,12 +317,16 @@ public class FeedbackQueryTest
     int docs;
 
     @SuppressWarnings("resource")
-    TestIndex()
+    TestIndex(final IndexType idxType)
         throws IOException {
       this.dir = new RAMDirectory();
       final IndexWriter wrtr = new IndexWriter(this.dir,
           new IndexWriterConfig(new WhitespaceAnalyzer()));
-      wrtr.addDocuments(getTVIndexDocs());
+      if (idxType == IndexType.FULL) {
+        wrtr.addDocuments(getTVIndexDocs());
+      } else {
+        wrtr.addDocuments(getSpareIndexDocs());
+      }
       wrtr.close();
     }
 
@@ -337,6 +381,38 @@ public class FeedbackQueryTest
 
       this.docs = docs.size();
       return docs;
+    }
+
+    Iterable<Document> getSpareIndexDocs() {
+      this.flds = Arrays.asList("f1", "f2", "f3");
+
+      final Collection<Document> docs = new ArrayList<>(3);
+
+      final Document doc1 = new Document();
+      doc1.add(new VecTextField("f1",
+          "first field value document1 field1 document1field1", Store.NO));
+      doc1.add(new VecTextField("f3",
+          "third field value document1 field3 document1field3", Store.NO));
+      docs.add(doc1);
+
+      final Document doc2 = new Document();
+      doc2.add(new VecTextField("f1",
+          "first field value document2 field1 document2field1", Store.NO));
+      doc2.add(new VecTextField("f3",
+          "third field value document2 field3 document2field3", Store.NO));
+      docs.add(doc2);
+
+      final Document doc3 = new Document();
+      doc3.add(new VecTextField("f2",
+          "second field value document3 field2 document3field2", Store.NO));
+      docs.add(doc3);
+
+      this.docs = docs.size();
+      return docs;
+    }
+
+    enum IndexType {
+      FULL, SPARE
     }
 
     @Override
