@@ -337,7 +337,7 @@ public class FDRIndexDataProviderTest
         throws IOException {
       this.dir = new RAMDirectory();
       final IndexWriter wrtr = new IndexWriter(this.dir,
-          new IndexWriterConfig(new WhiteSpaceAnalyzer()));
+          new IndexWriterConfig(new WhitespaceAnalyzer()));
       switch (idxType) {
         case TVECTORS:
           wrtr.addDocuments(getTVIndexDocs());
@@ -413,10 +413,10 @@ public class FDRIndexDataProviderTest
       TVECTORS, NO_TVECTORS
     }
 
-    private static final class WhiteSpaceAnalyzer
+    private static final class WhitespaceAnalyzer
         extends Analyzer {
 
-      WhiteSpaceAnalyzer() {
+      WhitespaceAnalyzer() {
       }
 
       @Override

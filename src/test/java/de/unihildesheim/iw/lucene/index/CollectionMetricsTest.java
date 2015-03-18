@@ -154,7 +154,7 @@ public class CollectionMetricsTest
         throws IOException {
       this.dir = new RAMDirectory();
       final IndexWriter wrtr = new IndexWriter(this.dir,
-          new IndexWriterConfig(new WhiteSpaceAnalyzer()));
+          new IndexWriterConfig(new WhitespaceAnalyzer()));
       wrtr.addDocuments(getTVIndexDocs());
       wrtr.close();
     }
@@ -212,10 +212,10 @@ public class CollectionMetricsTest
       this.dir.close();
     }
 
-    private static final class WhiteSpaceAnalyzer
+    private static final class WhitespaceAnalyzer
         extends Analyzer {
 
-      WhiteSpaceAnalyzer() {
+      WhitespaceAnalyzer() {
       }
 
       @Override

@@ -79,7 +79,7 @@ public class FeedbackQueryTest
       throws Exception {
     try (TestIndex idx = new TestIndex()) {
       final RelaxableQuery rq = new TryExactTermsQuery(
-          new WhiteSpaceAnalyzer(), "field", "f1");
+          new WhitespaceAnalyzer(), "field", "f1");
       final IndexSearcher src = new IndexSearcher(idx.getReader());
 
       DocIdSet result;
@@ -104,7 +104,7 @@ public class FeedbackQueryTest
       throws Exception {
     try (TestIndex idx = new TestIndex()) {
       final RelaxableQuery rq = new TryExactTermsQuery(
-          new WhiteSpaceAnalyzer(), "field", "f1");
+          new WhitespaceAnalyzer(), "field", "f1");
       final IndexSearcher src = new IndexSearcher(idx.getReader());
 
       // zero is too low
@@ -131,7 +131,7 @@ public class FeedbackQueryTest
       throws Exception {
     try (TestIndex idx = new TestIndex()) {
       final RelaxableQuery rq = new TryExactTermsQuery(
-          new WhiteSpaceAnalyzer(), "field", "f1");
+          new WhitespaceAnalyzer(), "field", "f1");
       final IndexSearcher src = new IndexSearcher(idx.getReader());
 
       // -1 for max means all possible matches
@@ -147,7 +147,7 @@ public class FeedbackQueryTest
       throws Exception {
     try (TestIndex idx = new TestIndex()) {
       final RelaxableQuery rq = new TryExactTermsQuery(
-          new WhiteSpaceAnalyzer(), "field", "f1");
+          new WhitespaceAnalyzer(), "field", "f1");
       final IndexSearcher src = new IndexSearcher(idx.getReader());
 
       DocIdSet result;
@@ -168,7 +168,7 @@ public class FeedbackQueryTest
       throws Exception {
     try (TestIndex idx = new TestIndex()) {
       final RelaxableQuery rq = new TryExactTermsQuery(
-          new WhiteSpaceAnalyzer(), "document1", "f1");
+          new WhitespaceAnalyzer(), "document1", "f1");
       final IndexSearcher src = new IndexSearcher(idx.getReader());
 
       DocIdSet result;
@@ -228,17 +228,17 @@ public class FeedbackQueryTest
       int[] docs;
 
       rq = new TryExactTermsQuery(
-          new WhiteSpaceAnalyzer(), "document1", "f1").getQueryObj();
+          new WhitespaceAnalyzer(), "document1", "f1").getQueryObj();
       docs = FeedbackQuery.getDocs(src, rq, 10);
       Assert.assertEquals("Number of docs returned differs.", 1L, docs.length);
 
       rq = new TryExactTermsQuery(
-          new WhiteSpaceAnalyzer(), "field", "f1").getQueryObj();
+          new WhitespaceAnalyzer(), "field", "f1").getQueryObj();
       docs = FeedbackQuery.getDocs(src, rq, 10);
       Assert.assertEquals("Number of docs returned differs.", 3L, docs.length);
 
       rq = new TryExactTermsQuery(
-          new WhiteSpaceAnalyzer(), "foo", "f1").getQueryObj();
+          new WhitespaceAnalyzer(), "foo", "f1").getQueryObj();
       docs = FeedbackQuery.getDocs(src, rq, 10);
       Assert.assertEquals("Number of docs returned differs.", 0L, docs.length);
     }
@@ -252,7 +252,7 @@ public class FeedbackQueryTest
       final IndexSearcher src = new IndexSearcher(idx.getReader());
 
       final Query rq = new TryExactTermsQuery(
-          new WhiteSpaceAnalyzer(), "document1", "foo").getQueryObj();
+          new WhitespaceAnalyzer(), "document1", "foo").getQueryObj();
       int[] docs = FeedbackQuery.getDocs(src, rq, 10);
       Assert.assertEquals("Number of docs returned differs.", 0L, docs.length);
     }
@@ -281,7 +281,7 @@ public class FeedbackQueryTest
         throws IOException {
       this.dir = new RAMDirectory();
       final IndexWriter wrtr = new IndexWriter(this.dir,
-          new IndexWriterConfig(new WhiteSpaceAnalyzer()));
+          new IndexWriterConfig(new WhitespaceAnalyzer()));
       wrtr.addDocuments(getTVIndexDocs());
       wrtr.close();
     }
@@ -346,10 +346,10 @@ public class FeedbackQueryTest
     }
   }
 
-  private static final class WhiteSpaceAnalyzer
+  private static final class WhitespaceAnalyzer
       extends Analyzer {
 
-    WhiteSpaceAnalyzer() {
+    WhitespaceAnalyzer() {
     }
 
     @Override
