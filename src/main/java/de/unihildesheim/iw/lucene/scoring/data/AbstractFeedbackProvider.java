@@ -21,13 +21,17 @@ import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import de.unihildesheim.iw.lucene.query.TryExactTermsQuery;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiFields;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Objects;
+import java.util.stream.StreamSupport;
 
 /**
  * Base (no-operation) class for more specific {@link FeedbackProvider}
@@ -65,7 +69,7 @@ public abstract class AbstractFeedbackProvider
    */
   @Nullable
   @SuppressWarnings("InstanceVariableMayNotBeInitialized")
-  IndexReader idxReader;
+  private IndexReader idxReader;
   /**
    * Reader to access the index.
    */
@@ -75,19 +79,19 @@ public abstract class AbstractFeedbackProvider
    */
   @Nullable
   @SuppressWarnings("InstanceVariableMayNotBeInitialized")
-  Analyzer qAnalyzer;
+  private Analyzer qAnalyzer;
   /**
    * Query string.
    */
   @Nullable
   @SuppressWarnings("InstanceVariableMayNotBeInitialized")
-  String queryStr;
+  private String queryStr;
   /**
    * Document fields to query.
    */
   @Nullable
   @SuppressWarnings("InstanceVariableMayNotBeInitialized")
-  String[] docFields;
+  private String[] docFields;
   /**
    * Query parser to use. Defaults to {@link TryExactTermsQuery}.
    */
@@ -137,8 +141,8 @@ public abstract class AbstractFeedbackProvider
   }
 
   @Override
-  public AbstractFeedbackProvider fields(@NotNull final String[] fields) {
-    this.docFields = fields;
+  public AbstractFeedbackProvider fields(@NotNull final String... fields) {
+    this.docFields = fields.clone();
     return getThis();
   }
 
@@ -150,28 +154,55 @@ public abstract class AbstractFeedbackProvider
   }
 
   /**
+   * Get a list of document fields to query. If document fields are already
+   * set by using {@link #fields(String[])} these will be returned. Otherwise
+   * all fields available to the {@link #idxReader IndexReader} will be
+   * returned. If there are no postings available to the reader an {@link
+   * IllegalStateException} will be thrown.
+   * @return Fields or {@code null} if no fields are set
+   * @throws IOException Thrown on low-level i/o-errors
+   */
+  @SuppressWarnings("ReturnOfCollectionOrArrayField")
+  protected String[] getDocumentFields()
+      throws IOException {
+    if (this.docFields == null) {
+      final Fields fields = MultiFields.getFields(
+          Objects.requireNonNull(this.idxReader, "IndexReader not set"));
+      if (fields == null) {
+        throw new IllegalStateException("Reader has no postings.");
+      }
+      return StreamSupport.stream(fields.spliterator(), false)
+          .toArray(String[]::new);
+    }
+    return this.docFields;
+  }
+
+  /**
    * Creates a new instance of the currently set {@link RelaxableQuery} class
    * using reflection.
+   *
    * @return New instance
    * @throws NoSuchMethodException Thrown, if the required constructor is not
    * defined.
    * @throws IllegalAccessException Thrown, if creating the instance failed
    * @throws InvocationTargetException Thrown, if creating the instance failed
    * @throws InstantiationException Thrown, if creating the instance failed
+   * @throws IOException Thrown on low-level i/o-errors
    */
   protected RelaxableQuery getQueryParserInstance()
       throws NoSuchMethodException, IllegalAccessException,
-             InvocationTargetException, InstantiationException {
+             InvocationTargetException, InstantiationException, IOException {
     final Constructor cTor = getQueryParser().getDeclaredConstructor(
         Analyzer.class, String.class, String[].class);
-    return (RelaxableQuery)cTor.newInstance(
+    return (RelaxableQuery) cTor.newInstance(
         Objects.requireNonNull(this.qAnalyzer, "Analyzer not set."),
         Objects.requireNonNull(this.queryStr, "Query string not set."),
-        Objects.requireNonNull(this.docFields, "Document fields not set."));
+        getDocumentFields());
   }
 
   /**
    * Get the defined {@link RelaxableQuery} instance that will be used.
+   *
    * @return RelaxableQuery class
    */
   private Class<? extends RelaxableQuery> getQueryParser() {

@@ -32,6 +32,7 @@ import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RoaringDocIdSet.Builder;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
@@ -68,7 +69,9 @@ public final class FeedbackQuery {
    * @param docCount Number of documents that should be retrieved
    * @return Actual number of documents possible to retrieve
    */
-  static int getMaxDocs(final IndexReader reader, final int docCount) {
+  static int getMaxDocs(
+      @NotNull final IndexReader reader,
+      final int docCount) {
     final int maxRetDocs; // maximum number of documents that can be returned
     if (docCount == Integer.MAX_VALUE) {
       return reader.maxDoc();
@@ -99,8 +102,10 @@ public final class FeedbackQuery {
    * @return Documents matching the query
    * @throws IOException Thrown on low-level I/O errors
    */
-  static int[] getDocs(final IndexSearcher searcher,
-      final Query query, final int maxDocCount)
+  static int[] getDocs(
+      @NotNull final IndexSearcher searcher,
+      @NotNull final Query query,
+      final int maxDocCount)
       throws IOException {
     final TopDocs results;
     final int fbDocCnt;
@@ -144,6 +149,11 @@ public final class FeedbackQuery {
   }
 
   /**
+   * Tries to get the minimum number of document without {@link
+   * RelaxableQuery#relax() relaxing} the query. If the minimum number of
+   * documents is not reached without relaxing at most the maximum number of
+   * documents is returned while relaxing the query.
+   *
    * @param searcher Searcher to issue queries
    * @param query Relaxable query to get matching documents
    * @param minDocs Minimum number of documents to get. Must be greater than
@@ -178,7 +188,8 @@ public final class FeedbackQuery {
 
     final int maxRetDocs = getMaxDocs(searcher.getIndexReader(), maxDocs);
     final Query q = query.getQueryObj();
-    final FixedBitSet bits = new FixedBitSet(searcher.getIndexReader().maxDoc());
+    final FixedBitSet bits =
+        new FixedBitSet(searcher.getIndexReader().maxDoc());
     bits.or(BitsUtils.arrayToBits(getDocs(searcher, q, maxRetDocs)));
 
     int docsToGet;
@@ -214,6 +225,30 @@ public final class FeedbackQuery {
   }
 
   /**
+   * Try to get a fixed number of feedback documents.
+   *
+   * @param searcher Searcher to search the Lucene index
+   * @param dataProv DataProvider
+   * @param query Relaxable query to get matching documents
+   * @param docCount Number of documents to try to reach. Results may be lower,
+   * if there are less matching documents in the index
+   * @return List of documents matching the (relaxed) query. Ranking order is
+   * not preserved!
+   * @throws IOException Thrown on low-level I/O errors
+   * @see #getFixed(IndexSearcher, IndexDataProvider, RelaxableQuery, int,
+   * String...)
+   */
+  @SuppressWarnings("NullArgumentToVariableArgMethod")
+  public static DocIdSet getFixed(
+      @NotNull final IndexSearcher searcher,
+      @NotNull final IndexDataProvider dataProv,
+      @NotNull final RelaxableQuery query,
+      final int docCount)
+      throws IOException {
+    return getFixed(searcher, dataProv, query, docCount, null);
+  }
+
+  /**
    * Try to get a fixed number of feedback documents. If the number of feedback
    * documents is not reached by running an initial query the query get relaxed
    * (simplified) to reach a higher number of matching feedback documents. If
@@ -229,17 +264,22 @@ public final class FeedbackQuery {
    * @param query Relaxable query to get matching documents
    * @param docCount Number of documents to try to reach. Results may be lower,
    * if there are less matching documents in the index
+   * @param fields Fields that need to have content, if additional random
+   * documents are required
    * @return List of documents matching the (relaxed) query. Ranking order is
    * not preserved!
    * @throws IOException Thrown on low-level I/O errors
    */
-  public static DocIdSet getFixed(final IndexSearcher searcher,
-      final IndexDataProvider dataProv,
-      final RelaxableQuery query, final int docCount)
+  public static DocIdSet getFixed(
+      @NotNull final IndexSearcher searcher,
+      @NotNull final IndexDataProvider dataProv,
+      @NotNull final RelaxableQuery query,
+      final int docCount,
+      @Nullable final String... fields)
       throws IOException {
     DocIdSet docIds = getMinMax(searcher, query, docCount, docCount);
     if (DocIdSetUtils.cardinality(docIds) < docCount) {
-      docIds = getRandom(dataProv, docCount, docIds);
+      docIds = getRandom(dataProv, docCount, docIds, fields);
     }
     return docIds;
   }
@@ -256,10 +296,36 @@ public final class FeedbackQuery {
    * additional documents are present in the index. Otherwise it may be lower.
    * @throws IOException Thrown on low-level i/o-errors
    */
-  public static DocIdSet getRandom(final IndexDataProvider dataProv,
-      final int amount, final DocIdSet docIds)
+  @SuppressWarnings("NullArgumentToVariableArgMethod")
+  public static DocIdSet getRandom(
+      @NotNull final IndexDataProvider dataProv,
+      final int amount,
+      @NotNull final DocIdSet docIds)
+      throws IOException {
+    return getRandom(dataProv, amount, docIds, null);
+  }
+
+  /**
+   * Get random documents from the index.
+   *
+   * @param dataProv DataProvider to request documents from
+   * @param amount Amount of documents to get at total
+   * @param docIds Document-ids already collected. Size must be lower than
+   * {@code amount}.
+   * @param fields Fields that need to have content
+   * @return DocIdSet containing all ids from {@code docIds} and a number of
+   * random chosen documents. The size will be {@code amount}, if enough
+   * additional documents are present in the index. Otherwise it may be lower.
+   * @throws IOException Thrown on low-level i/o-errors
+   */
+  public static DocIdSet getRandom(
+      @NotNull final IndexDataProvider dataProv,
+      final int amount,
+      @NotNull final DocIdSet docIds,
+      @Nullable final String... fields)
       throws IOException {
     final int[] results = new int[amount];
+    Arrays.fill(results, -1);
     // collect all provided document-ids, to skip them while choosing random
     // ones
     final int[] docIdsArr = StreamUtils.stream(docIds).sorted().toArray();
@@ -275,7 +341,7 @@ public final class FeedbackQuery {
 
     final List<Integer> haveDocs = dataProv
         .getDocumentIds()
-        // skip ids already provided
+            // skip ids already provided
         .filter(id -> Arrays.binarySearch(docIdsArr, id) < 0)
         .boxed()
         .collect(Collectors.toList());
@@ -286,10 +352,19 @@ public final class FeedbackQuery {
     } else {
       // add as many documents as possible, while no adding more than the
       // amount specified
+      boolean hasTerms;
       for (int i = Math.min(amount - currentAmount, haveDocs.size());
            i > 0; i--) {
-        results[currentAmount++] =
-            haveDocs.remove(RandomValue.getInteger(0, haveDocs.size() - 1));
+        hasTerms = true;
+        final int docId = haveDocs.remove(
+            RandomValue.getInteger(0, haveDocs.size() - 1));
+        if (fields != null && fields.length > 0) {
+          hasTerms = dataProv.getDocumentTerms(docId, fields).findFirst()
+              .isPresent();
+        }
+        if (hasTerms) {
+          results[currentAmount++] = docId;
+        }
       }
       if (currentAmount < amount && haveDocs.isEmpty()) {
         LOG.warn("Giving up searching for random documents. Got {} documents.",
@@ -297,8 +372,10 @@ public final class FeedbackQuery {
       }
     }
     Arrays.sort(results);
-    final Builder result = new Builder(results[results.length -1]);
-    Arrays.stream(results).distinct().forEach(result::add);
+    final Builder result = new Builder(results[results.length - 1]);
+    Arrays.stream(results)
+        .filter(id -> id >= 0).distinct()
+        .forEach(result::add);
     return result.build();
   }
 }

@@ -70,7 +70,7 @@ public class DefaultFeedbackProvider
           Objects.requireNonNull(this.searcher,
               "IndexReader (Searcher) not set."),
           Objects.requireNonNull(this.dataProv, "IndexDataProvider not set."),
-          qObj, this.fixedAmount);
+          qObj, this.fixedAmount, getDocumentFields());
     }
     return FeedbackQuery.getMinMax(
         Objects.requireNonNull(this.searcher,
