@@ -19,7 +19,6 @@ package de.unihildesheim.iw.lucene.index;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefHash;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.stream.IntStream;
@@ -100,7 +99,7 @@ public interface IndexDataProvider
    * @param field Fields to extract terms from
    * @return Terms from the requested document fields
    */
-  Stream<BytesRef> getDocumentTerms(final int docId, @NotNull String... field);
+  Stream<BytesRef> getDocumentTerms(final int docId, String... field);
 
   /**
    * Get terms for all documents identified by their id.
