@@ -221,6 +221,48 @@ public final class FDRIndexDataProvider
   }
 
   @Override
+  public Stream<BytesRef> getDocumentTerms(final int docId,
+      @NotNull final String... field) {
+    Arrays.sort(field);
+    final Fields fields;
+    try {
+      fields = this.index.reader.getTermVectors(docId);
+    } catch (final IOException e) {
+      throw new UncheckedIOException(e);
+    }
+
+    if (fields == null) {
+      return Stream.empty();
+    }
+
+    final BytesRefHash terms = new BytesRefHash();
+    StreamSupport.stream(fields.spliterator(), false)
+        // filter for required fields
+        .filter(fn -> Arrays.binarySearch(field, fn) >= 0)
+        .map(fn -> {
+          try {
+            return fields.terms(fn);
+          } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+          }
+        })
+        .filter(t -> t != null)
+        .forEach(t -> {
+          try {
+            final TermsEnum te = t.iterator(null);
+            BytesRef term;
+            while ((term = te.next()) != null) {
+              terms.add(term);
+            }
+          } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+          }
+        });
+
+    return StreamUtils.stream(terms);
+  }
+
+  @Override
   @NotNull
   public Stream<BytesRef> getDocumentsTerms(@NotNull final DocIdSet docIds) {
     try {

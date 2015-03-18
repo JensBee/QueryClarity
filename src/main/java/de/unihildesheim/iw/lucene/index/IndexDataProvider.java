@@ -95,6 +95,14 @@ public interface IndexDataProvider
   boolean hasDocument(final int docId);
 
   /**
+   * Get terms for a document and a specific number of named fields.
+   * @param docId Document id
+   * @param field Fields to extract terms from
+   * @return Terms from the requested document fields
+   */
+  Stream<BytesRef> getDocumentTerms(final int docId, @NotNull String... field);
+
+  /**
    * Get terms for all documents identified by their id.
    *
    * @param docIds List of document ids to extract terms from
