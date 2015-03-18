@@ -36,7 +36,7 @@ import java.util.Objects;
  *
  * @author Jens Bertram
  */
-public abstract class AbstractFeedbackProvider<T extends FeedbackProvider>
+public abstract class AbstractFeedbackProvider
     implements FeedbackProvider {
 
   /**
@@ -96,13 +96,13 @@ public abstract class AbstractFeedbackProvider<T extends FeedbackProvider>
   Class<? extends RelaxableQuery> queryParser;
 
   @Override
-  public T query(@NotNull final String query) {
+  public AbstractFeedbackProvider query(@NotNull final String query) {
     this.queryStr = query;
     return getThis();
   }
 
   @Override
-  public T amount(final int min, final int max) {
+  public AbstractFeedbackProvider amount(final int min, final int max) {
     this.minAmount = min;
     this.maxAmount = max;
     this.useFixedAmount = false;
@@ -110,38 +110,41 @@ public abstract class AbstractFeedbackProvider<T extends FeedbackProvider>
   }
 
   @Override
-  public T amount(final int fixed) {
+  public AbstractFeedbackProvider amount(final int fixed) {
     this.fixedAmount = fixed;
     this.useFixedAmount = true;
     return getThis();
   }
 
   @Override
-  public T indexReader(@NotNull final IndexReader indexReader) {
+  public AbstractFeedbackProvider indexReader(
+      @NotNull final IndexReader indexReader) {
     this.idxReader = indexReader;
     return getThis();
   }
 
   @Override
-  public T analyzer(@NotNull final Analyzer analyzer) {
+  public AbstractFeedbackProvider analyzer(@NotNull final Analyzer analyzer) {
     this.qAnalyzer = analyzer;
     return getThis();
   }
 
   @Override
-  public T dataProvider(@NotNull final IndexDataProvider dp) {
+  public AbstractFeedbackProvider dataProvider(
+      @NotNull final IndexDataProvider dp) {
     this.dataProv = dp;
     return getThis();
   }
 
   @Override
-  public T fields(@NotNull final String[] fields) {
+  public AbstractFeedbackProvider fields(@NotNull final String[] fields) {
     this.docFields = fields;
     return getThis();
   }
 
   @Override
-  public T queryParser(@NotNull final Class<? extends RelaxableQuery> rtq) {
+  public AbstractFeedbackProvider queryParser(
+      @NotNull final Class<? extends RelaxableQuery> rtq) {
     this.queryParser = rtq;
     return getThis();
   }
@@ -181,5 +184,5 @@ public abstract class AbstractFeedbackProvider<T extends FeedbackProvider>
    *
    * @return Self reference
    */
-  protected abstract T getThis();
+  protected abstract AbstractFeedbackProvider getThis();
 }
