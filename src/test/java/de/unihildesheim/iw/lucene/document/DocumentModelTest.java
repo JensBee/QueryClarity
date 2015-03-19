@@ -52,7 +52,7 @@ public class DocumentModelTest
     builder.setTermFrequency(new BytesRef("bar"), 10L);
     builder.setTermFrequency(new BytesRef("baz"), 3L);
 
-    final DocumentModel dom = builder.getModel();
+    final DocumentModel dom = builder.build();
 
     Assert.assertEquals("Term frequency differs.",
         12L, dom.tf(new BytesRef("foo")));
@@ -113,7 +113,7 @@ public class DocumentModelTest
     builder.setTermFrequency(new BytesRef("bar"), 10L);
     builder.setTermFrequency(new BytesRef("baz"), 0L);
 
-    final DocumentModel dom = builder.getModel();
+    final DocumentModel dom = builder.build();
 
     Assert.assertEquals("Unique term count differs.",
         dom_termCount, dom.termCount());
@@ -153,7 +153,7 @@ public class DocumentModelTest
     tfMap.put(new BytesRef("baz"), 3L);
 
     builder.setTermFrequency(tfMap);
-    final DocumentModel dom = builder.getModel();
+    final DocumentModel dom = builder.build();
 
     Assert.assertEquals("Term frequency differs.",
         12L, dom.tf(new BytesRef("foo")));
@@ -189,7 +189,7 @@ public class DocumentModelTest
     tfMap.put(new BytesRef("baz"), 0L);
 
     builder.setTermFrequency(tfMap);
-    final DocumentModel dom = builder.getModel();
+    final DocumentModel dom = builder.build();
 
     Assert.assertEquals("Term frequency differs.",
         12L, dom.tf(new BytesRef("foo")));
@@ -265,7 +265,7 @@ public class DocumentModelTest
     builder.setTermFrequency(new BytesRef("bar"), 10L);
     builder.setTermFrequency(new BytesRef("baz"), 3L);
 
-    final DocumentModel dom = builder.getModel();
+    final DocumentModel dom = builder.build();
 
     Assert.assertEquals("Document id differs.", dom_id, dom.id);
     Assert.assertEquals("Unique term count differs.",
@@ -308,7 +308,7 @@ public class DocumentModelTest
     tfMap.put(new BytesRef("baz"), 3L);
 
     builder.setTermFrequency(tfMap);
-    final DocumentModel dom = builder.getModel();
+    final DocumentModel dom = builder.build();
 
     Assert.assertEquals("Document id differs.", dom_id, dom.id);
     Assert.assertEquals("Unique term count differs.",
@@ -342,7 +342,7 @@ public class DocumentModelTest
     dmb.setTermFrequency(new BytesRef("foo"), 12L);
     dmb.setTermFrequency(new BytesRef("bar"), 4L);
     dmb.setTermFrequency(new BytesRef("baz"), 32L);
-    final DocumentModel dm = dmb.getModel();
+    final DocumentModel dm = dmb.build();
     out.writeObject(dm);
     out.close();
   }
@@ -366,7 +366,7 @@ public class DocumentModelTest
     dmb.setTermFrequency(new BytesRef("foo"), 12L);
     dmb.setTermFrequency(new BytesRef("bar"), 4L);
     dmb.setTermFrequency(new BytesRef("baz"), 32L);
-    final DocumentModel ref = dmb.getModel();
+    final DocumentModel ref = dmb.build();
     out.writeObject(ref);
     final byte[] bytes = bouts.toByteArray();
     out.close();

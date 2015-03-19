@@ -55,7 +55,7 @@ public class DocumentModelSerializerTest
     dmb.setTermFrequency(new BytesRef("foo"), 12L);
     dmb.setTermFrequency(new BytesRef("bar"), 4L);
     dmb.setTermFrequency(new BytesRef("baz"), 32L);
-    ser.serialize(out, dmb.getModel());
+    ser.serialize(out, dmb.build());
   }
 
   @SuppressWarnings("ConstantConditions")
@@ -95,7 +95,7 @@ public class DocumentModelSerializerTest
     final ByteArrayOutputStream bouts = new ByteArrayOutputStream();
     final DataOutput out = new DataOutputStream(bouts);
 
-    final DocumentModel ref = dmb.getModel();
+    final DocumentModel ref = dmb.build();
     ser.serialize(out, ref);
     final byte[] bytes = bouts.toByteArray();
 

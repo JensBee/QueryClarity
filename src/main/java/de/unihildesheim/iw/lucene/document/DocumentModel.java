@@ -16,6 +16,7 @@
  */
 package de.unihildesheim.iw.lucene.document;
 
+import de.unihildesheim.iw.Buildable;
 import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.ByteBlockPool.DirectAllocator;
 import org.apache.lucene.util.BytesRef;
@@ -259,7 +260,7 @@ public final class DocumentModel
    * Builder to create new {@link DocumentModel}s.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static final class Builder {
+  public static final class Builder implements Buildable<DocumentModel> {
 
     /**
      * Default number of terms to expect for a document. Used to initialize data
@@ -358,7 +359,8 @@ public final class DocumentModel
      *
      * @return New document model with the data of this builder set
      */
-    public DocumentModel getModel() {
+    @Override
+    public DocumentModel build() {
       return new DocumentModel(this);
     }
   }

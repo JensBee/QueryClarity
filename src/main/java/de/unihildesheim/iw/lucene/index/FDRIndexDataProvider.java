@@ -175,7 +175,7 @@ public final class FDRIndexDataProvider
   @NotNull
   public DocumentModel getDocumentModel(final int docId) {
     return new DocumentModel.Builder(docId)
-        .setTermFrequency(getDocumentTerms(docId)).getModel();
+        .setTermFrequency(getDocumentTerms(docId)).build();
   }
 
   /**
