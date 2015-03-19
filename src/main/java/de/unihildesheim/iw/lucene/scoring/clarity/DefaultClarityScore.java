@@ -42,7 +42,9 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.Counter;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
@@ -73,7 +75,7 @@ public final class DefaultClarityScore
   /**
    * Logger instance for this class.
    */
-  private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
+  private static final Logger LOG = LoggerFactory.getLogger(
       DefaultClarityScore.class);
   /**
    * Context for high precision math calculations.
@@ -116,7 +118,7 @@ public final class DefaultClarityScore
    * Abstract model class. Shared methods for low/high precision model
    * calculations.
    */
-  private abstract static class AbstractModel {
+  abstract static class AbstractModel {
     /**
      * Logger instance for this class.
      */
@@ -152,8 +154,10 @@ public final class DefaultClarityScore
      * @param fb Feedback documents
      * @throws IOException Thrown on low-level I/O-errors
      */
-    AbstractModel(final IndexDataProvider dataProv,
-        final BytesRefArray qt, final DocIdSet fb)
+    AbstractModel(
+        @NotNull final IndexDataProvider dataProv,
+        @NotNull final BytesRefArray qt,
+        @NotNull final DocIdSet fb)
         throws IOException {
       LOG.debug("Create runtime cache.");
       this.dataProv = dataProv;
@@ -164,11 +168,6 @@ public final class DefaultClarityScore
           .filter(queryTerm -> this.cMetrics.tf(queryTerm) > 0L)
           .forEach(this.queryTerms::append);
 
-      // init feedback documents list
-//      this.feedbackDocs = new int[DocIdSetUtils.cardinality(fb)];
-      // init store for cached document models
-//      this.docModels = new ConcurrentHashMap<>((int) (
-//          (double) this.feedbackDocs.length * 1.8));
       this.docModels = new ConcurrentHashMap<>((int) (
           (double) DocIdSetUtils.cardinality(fb) * 1.8));
 
@@ -177,16 +176,6 @@ public final class DefaultClarityScore
           .peek(docId -> this.docModels.put(docId,
               this.cMetrics.docData(docId)))
           .toArray();
-//      final DocIdSetIterator disi = fb.iterator();
-//      int cnt = 0;
-//      for (int docId = disi.nextDoc();
-//           docId != DocIdSetIterator.NO_MORE_DOCS;
-//           docId = disi.nextDoc()) {
-//        // fill list of feedback documents
-//        this.feedbackDocs[cnt++] = docId;
-//        // pre-cache document models
-//        this.docModels.put(docId, this.cMetrics.docData(docId));
-//      }
     }
   }
 
@@ -194,7 +183,7 @@ public final class DefaultClarityScore
    * Class wrapping all methods needed for high-precision calculation of model
    * values. Also holds results of the calculations.
    */
-  private static final class ModelHighPrecision
+  static final class ModelHighPrecision
       extends AbstractModel {
     /**
      * Logger instance for this class.
@@ -224,9 +213,11 @@ public final class DefaultClarityScore
      * @param fb Feedback documents
      * @throws IOException Thrown on low-level I/O-errors
      */
-    ModelHighPrecision(final IndexDataProvider dataProv,
-        final BigDecimal docLangModelWeight,
-        final BytesRefArray qt, final DocIdSet fb)
+    ModelHighPrecision(
+        @NotNull final IndexDataProvider dataProv,
+        @NotNull final BigDecimal docLangModelWeight,
+        @NotNull final BytesRefArray qt,
+        @NotNull final DocIdSet fb)
         throws IOException {
       super(dataProv, qt, fb);
 
@@ -256,7 +247,8 @@ public final class DefaultClarityScore
      * @return Document model value
      */
     BigDecimal document(
-        final DocumentModel docModel, final BytesRef term) {
+        @NotNull final DocumentModel docModel,
+        @NotNull final BytesRef term) {
       return this.docLangModelWeight.multiply(
           BigDecimal.valueOf(docModel.relTf(term)), MATH_CONTEXT)
           .add(this.docLangModelWeight1Sub
@@ -271,7 +263,7 @@ public final class DefaultClarityScore
      * @param term Term to calculate the query model value for
      * @return Query model value for all feedback documents
      */
-    BigDecimal query(final BytesRef term) {
+    BigDecimal query(@NotNull final BytesRef term) {
       return Arrays.stream(this.feedbackDocs)
           .mapToObj(d -> document(this.docModels.get(d), term)
               .multiply(this.staticQueryModelParts.get(d),
@@ -285,7 +277,7 @@ public final class DefaultClarityScore
    * Class wrapping all methods needed for low-precision calculation of model
    * values. Also holds results of the calculations.
    */
-  private static final class ModelLowPrecision
+  static final class ModelLowPrecision
       extends AbstractModel {
     /**
      * Logger instance for this class.
@@ -316,9 +308,11 @@ public final class DefaultClarityScore
      * @param fb Feedback documents
      * @throws IOException Thrown on low-level I/O-errors
      */
-    ModelLowPrecision(final IndexDataProvider dataProv,
+    ModelLowPrecision(
+        @NotNull final IndexDataProvider dataProv,
         final double docLangModelWeight,
-        final BytesRefArray qt, final DocIdSet fb)
+        @NotNull final BytesRefArray qt,
+        @NotNull final DocIdSet fb)
         throws IOException {
       super(dataProv, qt, fb);
 
@@ -348,7 +342,8 @@ public final class DefaultClarityScore
      * @return Document model value
      */
     double document(
-        final DocumentModel docModel, final BytesRef term) {
+        @NotNull final DocumentModel docModel,
+        @NotNull final BytesRef term) {
       return (this.docLangModelWeight * docModel.relTf(term)) +
           (this.docLangModelWeight1Sub * this.cMetrics.relTf(term));
     }
@@ -359,7 +354,7 @@ public final class DefaultClarityScore
      * @param term Term to calculate the query model value for
      * @return Query model value for all feedback documents
      */
-    double query(final BytesRef term) {
+    double query(@NotNull final BytesRef term) {
       return Arrays.stream(this.feedbackDocs)
           .mapToDouble(d -> document(this.docModels.get(d), term) *
               this.staticQueryModelParts.get(d)).sum();
@@ -371,9 +366,8 @@ public final class DefaultClarityScore
    *
    * @param builder Builder to use for constructing the instance
    */
-  private DefaultClarityScore(final Builder builder) {
+  DefaultClarityScore(@NotNull final Builder builder) {
     super(IDENTIFIER);
-    Objects.requireNonNull(builder, "Builder was null.");
 
     // set configuration
     this.conf = builder.getConfiguration();
@@ -405,15 +399,20 @@ public final class DefaultClarityScore
    * @throws ClarityScoreCalculationException
    */
   @Override
-  public Result calculateClarity(final String query)
+  public Result calculateClarity(@NotNull final String query)
       throws ClarityScoreCalculationException {
-    if (StringUtils.isStrippedEmpty(
-        Objects.requireNonNull(query, "Query was null."))) {
+    if (StringUtils.isStrippedEmpty(query)) {
       throw new IllegalArgumentException("Query was empty.");
     }
 
     LOG.info("Calculating clarity score. query={}", query);
-    final TimeMeasure timeMeasure = new TimeMeasure().start();
+    @Nullable
+    final TimeMeasure timeMeasure;
+    if (LOG.isDebugEnabled()) {
+      timeMeasure = new TimeMeasure().start();
+    } else {
+      timeMeasure = null;
+    }
 
     // get a normalized unique list of query terms
     // skips stopwords and removes unknown terms (not visible in current
@@ -441,7 +440,9 @@ public final class DefaultClarityScore
         feedbackDocIds = FeedbackQuery.getRandom(this.dataProv,
             this.conf.getFeedbackDocCount(), feedbackDocIds);
       }
-      LOG.debug("Feedback size: {} documents.", fbDocCount);
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Feedback size: {} documents.", fbDocCount);
+      }
     } catch (final Exception e) {
       final String msg = "Caught exception while getting feedback documents.";
       LOG.error(msg, e);
@@ -460,9 +461,12 @@ public final class DefaultClarityScore
     } catch (final IOException e) {
       throw new ClarityScoreCalculationException("Calculation failed.", e);
     }
-    LOG.debug("Calculating default clarity score for query '{}' "
-            + "with {} document models took {}. {}",
-        query, fbDocCount, timeMeasure.stop().getTimeString(), r.getScore());
+    if (LOG.isDebugEnabled()) {
+      assert timeMeasure != null;
+      LOG.debug("Calculating default clarity score for query '{}' "
+              + "with {} document models took {}. {}",
+          query, fbDocCount, timeMeasure.stop().getTimeString(), r.getScore());
+    }
     return r;
   }
 
@@ -476,7 +480,8 @@ public final class DefaultClarityScore
    * @throws IOException Thrown on low-level I/O-errors
    */
   private Result calculateClarity(
-      final BytesRefArray queryTerms, final DocIdSet feedbackDocIds)
+      @NotNull final BytesRefArray queryTerms,
+      @NotNull final DocIdSet feedbackDocIds)
       throws IOException {
     final Result result = new Result();
     result.setConf(this.conf);
@@ -534,6 +539,10 @@ public final class DefaultClarityScore
   public static final class Result
       extends ClarityScoreResult {
     /**
+     * Logger instance for this class.
+     */
+    private static final Logger LOG = LoggerFactory.getLogger(Result.class);
+    /**
      * Ids of feedback documents used for calculation.
      */
     @Nullable
@@ -572,7 +581,7 @@ public final class DefaultClarityScore
      *
      * @param newConf Configuration used
      */
-    void setConf(final DefaultClarityScoreConfiguration newConf) {
+    void setConf(@NotNull final DefaultClarityScoreConfiguration newConf) {
       this.conf = Objects.requireNonNull(newConf);
     }
 
@@ -586,6 +595,7 @@ public final class DefaultClarityScore
      *
      * @return Configuration used for this calculation result
      */
+    @Nullable
     public DefaultClarityScoreConfiguration getConfiguration() {
       return this.conf;
     }
@@ -639,6 +649,10 @@ public final class DefaultClarityScore
   public static final class Builder
       extends AbstractBuilder<
       DefaultClarityScore, Builder> {
+    /**
+     * Logger instance for this class.
+     */
+    private static final Logger LOG = LoggerFactory.getLogger(Builder.class);
 
     @Override
     Builder getThis() {
