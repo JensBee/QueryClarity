@@ -493,7 +493,7 @@ public final class FDRIndexDataProvider
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class Builder
-      implements Buildable {
+      implements Buildable<FDRIndexDataProvider> {
     /**
      * {@link FilteredDirectoryReader} to use for accessing the Lucene index.
      */
