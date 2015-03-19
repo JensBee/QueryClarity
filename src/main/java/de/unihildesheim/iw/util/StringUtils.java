@@ -278,17 +278,18 @@ public final class StringUtils {
   }
 
   /**
-   * Checks, if a String is all lower-case.
+   * Checks, if all letters of a string are lower-case.
    *
    * @param input String to check
-   * @return True, if all lower-case or String is empty
+   * @return True, if all letters are lower-case or input String was empty
    */
   public static boolean isAllLower(final String input) {
     if (isStrippedEmpty(input)) {
       return true;
     }
     for (int i = input.length() - 1; i >= 0; i--) {
-      if (!Character.isLowerCase(input.codePointAt(i))) {
+      if (Character.isLetter(input.codePointAt(i)) &&
+          !Character.isLowerCase(input.codePointAt(i))) {
         return false;
       }
     }
