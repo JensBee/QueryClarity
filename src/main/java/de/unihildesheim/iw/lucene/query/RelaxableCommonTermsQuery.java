@@ -21,22 +21,29 @@ import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.lucene.CommonTermsDefaults;
 import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermContext;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.List;
 
 /**
  * {@link RelaxableQuery Relaxable} implementation of a {@link
@@ -61,22 +68,16 @@ public final class RelaxableCommonTermsQuery
    * terms of the query regardless of high/low frequency occurrence.
    */
   private final Collection<String> queryTerms;
-  /**
-   * List of unique terms contained in the query (stopped, analyzed).
-   */
-  private final Set<String> uniqueQueryTerms;
-  /**
-   * Number of fields that gets queried. Used for choosing the relax method.
-   */
-  private final int numberOfFields;
 
   /**
    * New instance using settings from the supplied {@link Builder} instance.
    *
    * @param builder {@link Builder} Instance builder
+   * @throws IOException Thrown on low-level i/o-errors
    */
   @SuppressWarnings("ObjectAllocationInLoop")
-  RelaxableCommonTermsQuery(@NotNull final Builder builder) {
+  RelaxableCommonTermsQuery(@NotNull final Builder builder)
+      throws IOException {
     // get all query terms
     assert builder.queryStr != null;
     assert builder.analyzer != null;
@@ -84,50 +85,109 @@ public final class RelaxableCommonTermsQuery
         builder.queryStr, builder.analyzer);
 
     // list of unique terms contained in the query (stopped, analyzed)
-    this.uniqueQueryTerms = new HashSet<>(this.queryTerms);
+    final String[] uniqueQueryTerms = this.queryTerms.stream()
+        .distinct().toArray(String[]::new);
+    final int uniqueTermsCount = uniqueQueryTerms.length;
+
+    // heavily based on code from org.apache.lucene.queries.CommonTermsQuery
+    assert builder.reader != null;
+    final List<LeafReaderContext> leaves = builder.reader.leaves();
+    final int maxDoc = builder.reader.maxDoc();
+    TermsEnum termsEnum = null;
+    final List<Query> subQueries = new ArrayList<>(10);
 
     assert builder.fields != null;
-    this.numberOfFields = builder.fields.length;
+    for (final String field : builder.fields) {
+      final TermContext[] tcArray = new TermContext[uniqueTermsCount];
+      final BooleanQuery lowFreq = new BooleanQuery();
+      final BooleanQuery highFreq = new BooleanQuery();
 
-    if (this.numberOfFields == 1) {
-      // query spans only one field so use simply a single CommonTermsQuery.
-
-      this.query = new CommonTermsQuery(
-          Occur.SHOULD,
-          CommonTermsDefaults.LFOP_DEFAULT,
-          CommonTermsDefaults.MTF_DEFAULT
-      );
-
-      // add terms to query
-      final String fld = builder.fields[0];
-      for (final String term : this.uniqueQueryTerms) {
-        ((CommonTermsQuery) this.query).add(new Term(fld, term));
-      }
-      // Try to match all terms. Since we don't know the number of high/low
-      // frequent terms we try to match all terms first. This may fail if there
-      // are not enough boolean clauses so we have to relax a few times.
-      ((CommonTermsQuery) this.query).setLowFreqMinimumNumberShouldMatch(
-          (float) this.uniqueQueryTerms.size());
-    } else {
-      // generate a CommonTermsQuery for each field
-      final Collection<Query> subQueries = new ArrayList<>(this.numberOfFields);
-      Arrays.stream(builder.fields).forEach(f -> {
-        final CommonTermsQuery ctQ = new CommonTermsQuery(
-            Occur.SHOULD,
-            CommonTermsDefaults.LFOP_DEFAULT,
-            CommonTermsDefaults.MTF_DEFAULT
-        );
-        for (final String term : this.uniqueQueryTerms) {
-          ctQ.add(new Term(f, term));
+      // collect term statistics
+      for (int i = 0; i < uniqueTermsCount; i++) {
+        final Term term = new Term(field, uniqueQueryTerms[i]);
+        for (final LeafReaderContext context : leaves) {
+          final TermContext termContext = tcArray[i];
+          final Fields fields = context.reader().fields();
+          final Terms terms = fields.terms(field);
+          if (terms != null) {
+            // only, if field exists
+            termsEnum = terms.iterator(termsEnum);
+            if (termsEnum != TermsEnum.EMPTY) {
+              if (termsEnum.seekExact(term.bytes())) {
+                if (termContext == null) {
+                  tcArray[i] = new TermContext(
+                      builder.reader.getContext(),
+                      termsEnum.termState(),
+                      context.ord,
+                      termsEnum.docFreq(),
+                      termsEnum.totalTermFreq());
+                } else {
+                  termContext.register(
+                      termsEnum.termState(),
+                      context.ord,
+                      termsEnum.docFreq(),
+                      termsEnum.totalTermFreq());
+                }
+              }
+            }
+          }
         }
-        subQueries.add(ctQ);
-      });
 
+        // build query
+        if (tcArray[i] == null) {
+          lowFreq.add(new TermQuery(term), builder.lowFreqOccur);
+        } else {
+          if ((builder.maxTermFrequency >= 1f &&
+              (float) tcArray[i].docFreq() > builder.maxTermFrequency) ||
+              (tcArray[i].docFreq() > (int) Math.ceil(
+                  (double) (builder.maxTermFrequency * (float) maxDoc)))) {
+            highFreq.add(
+                new TermQuery(term, tcArray[i]), builder.highFreqOccur);
+          } else {
+            lowFreq.add(
+                new TermQuery(term, tcArray[i]), builder.lowFreqOccur);
+          }
+        }
+
+        final int numLowFreqClauses = lowFreq.clauses().size();
+        final int numHighFreqClauses = highFreq.clauses().size();
+        if (builder.lowFreqOccur == Occur.SHOULD && numLowFreqClauses > 0) {
+          lowFreq.setMinimumNumberShouldMatch(numLowFreqClauses);
+        }
+        if (builder.highFreqOccur == Occur.SHOULD && numHighFreqClauses > 0) {
+          highFreq.setMinimumNumberShouldMatch(numHighFreqClauses);
+        }
+      }
+
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("qLF={}", lowFreq);
+        LOG.debug("qHF={}", highFreq);
+      }
+
+      if (lowFreq.clauses().isEmpty()) {
+        subQueries.add(highFreq);
+      } else if (highFreq.clauses().isEmpty()) {
+        subQueries.add(lowFreq);
+      } else {
+        final BooleanQuery query = new BooleanQuery(true); // final query
+        query.add(highFreq, Occur.SHOULD);
+        query.add(lowFreq, Occur.MUST);
+        subQueries.add(query);
+      }
+    }
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("qList={}", subQueries);
+    }
+
+    if (subQueries.size() == 1) {
+      this.query = subQueries.get(0);
+    } else {
       // create a DisjunctionMaxQuery for all sub queries
       this.query = new DisjunctionMaxQuery(subQueries, 0.1f);
     }
+
     if (LOG.isDebugEnabled()) {
-      LOG.debug("RCTQ {} uQt={}", this.query, this.uniqueQueryTerms);
+      LOG.debug("RCTQ {} uQt={}", this.query, uniqueQueryTerms);
     }
   }
 
@@ -137,57 +197,55 @@ public final class RelaxableCommonTermsQuery
    * @return True, if query was relaxed, false, if no terms left to relax the
    * query
    */
+  @SuppressWarnings("ReuseOfLocalVariable")
   @Override
   public boolean relax() {
-    if (this.numberOfFields == 1) {
-      // query is single CommonTermsQuery instance
-      final float matchCount = ((CommonTermsQuery) this.query)
-          .getLowFreqMinimumNumberShouldMatch();
-      if (matchCount > 1f) {
-        if (LOG.isDebugEnabled()) {
-          LOG.debug("Relax to {}/{}", matchCount - 1f,
-              this.uniqueQueryTerms.size());
+    boolean relaxed = false;
+    if (BooleanQuery.class.isInstance(this.query)) {
+      // simple bool query
+      final BooleanQuery q = (BooleanQuery) this.query;
+      int mm = q.getMinimumNumberShouldMatch();
+      if (mm >= 1) {
+        if (mm == 1) {
+          mm = 0;
+        } else {
+          mm--;
         }
-        ((CommonTermsQuery) this.query).setLowFreqMinimumNumberShouldMatch(
-            matchCount - 1f);
-        return true;
+        q.setMinimumNumberShouldMatch(mm);
+        relaxed = true;
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Relaxed single clause query to {}", mm);
+        }
       }
     } else {
-      ((DisjunctionMaxQuery) this.query).getDisjuncts().forEach(dj -> {
-        final CommonTermsQuery q = (CommonTermsQuery) dj;
-        if (LOG.isDebugEnabled()) {
-          LOG.debug("OLD: hf={} lf={}",
-              q.getHighFreqMinimumNumberShouldMatch(),
-              q.getLowFreqMinimumNumberShouldMatch());
+      // disMax
+      final List<Query> dj = ((DisjunctionMaxQuery) this.query).getDisjuncts();
+      for (final Query q : dj) {
+        int mm = ((BooleanQuery) q).getMinimumNumberShouldMatch();
+        if (mm >= 1) {
+          if (mm == 1) {
+            mm = 0;
+          } else {
+            mm--;
+          }
+          ((BooleanQuery) q).setMinimumNumberShouldMatch(mm);
+          relaxed = true;
+          if (LOG.isDebugEnabled()) {
+            LOG.debug("Relaxed a clause to {}", mm);
+          }
         }
-        float mmf;
-        // reset high freq matches
-        mmf = q.getHighFreqMinimumNumberShouldMatch() - 1f;
-        if (mmf <= 0f) {
-          mmf = 1f;
-        }
-        q.setHighFreqMinimumNumberShouldMatch(mmf);
-        // reset low freq matches
-        mmf = q.getLowFreqMinimumNumberShouldMatch() - 1f;
-        if (mmf <= 0f) {
-          mmf = 1f;
-        }
-        q.setLowFreqMinimumNumberShouldMatch(mmf);
-        if (LOG.isDebugEnabled()) {
-          LOG.debug("NEW: hf={} lf={}",
-              q.getHighFreqMinimumNumberShouldMatch(),
-              q.getLowFreqMinimumNumberShouldMatch());
-        }
-      });
+      }
     }
-    return false;
+    return relaxed;
   }
 
+  @NotNull
   @Override
   public Query getQueryObj() {
     return this.query;
   }
 
+  @NotNull
   @Override
   public Collection<String> getQueryTerms() {
     return Collections.unmodifiableCollection(this.queryTerms);
@@ -199,6 +257,11 @@ public final class RelaxableCommonTermsQuery
   @SuppressWarnings("PublicInnerClass")
   public static final class Builder
       implements Buildable<RelaxableCommonTermsQuery> {
+    /**
+     * IndexReader to access the Lucene index.
+     */
+    @Nullable
+    IndexReader reader;
     /**
      * Analyzer to use for query parsing.
      */
@@ -231,12 +294,16 @@ public final class RelaxableCommonTermsQuery
     @Nullable
     String[] fields;
 
+    @NotNull
     @Override
     public RelaxableCommonTermsQuery build()
         throws BuildableException {
       validate();
-      assert this.analyzer != null;
-      return new RelaxableCommonTermsQuery(this);
+      try {
+        return new RelaxableCommonTermsQuery(this);
+      } catch (final IOException e) {
+        throw new BuildException(e);
+      }
     }
 
     @Override
@@ -244,6 +311,9 @@ public final class RelaxableCommonTermsQuery
         throws ConfigurationException {
       if (this.analyzer == null) {
         throw new ConfigurationException("Analyzer not set.");
+      }
+      if (this.reader == null) {
+        throw new ConfigurationException("IndexReader not set.");
       }
       if (this.fields == null || this.fields.length == 0) {
         throw new ConfigurationException("No query fields supplied.");
@@ -311,6 +381,17 @@ public final class RelaxableCommonTermsQuery
      */
     public Builder query(@NotNull final String q) {
       this.queryStr = q;
+      return this;
+    }
+
+    /**
+     * Set the {@link IndexReader} used for parsing query terms.
+     *
+     * @param r IndexReader
+     * @return Self reference
+     */
+    public Builder reader(@NotNull final IndexReader r) {
+      this.reader = r;
       return this;
     }
 
