@@ -17,7 +17,7 @@
 
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
-import de.unihildesheim.iw.Buildable;
+import de.unihildesheim.iw.Buildable.BuildableException;
 import de.unihildesheim.iw.Buildable.ConfigurationException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.scoring.data.DefaultFeedbackProvider;
@@ -36,8 +36,15 @@ import org.jetbrains.annotations.Nullable;
 public abstract class AbstractClarityScoreCalculation
     implements ClarityScoreCalculation {
 
+  /**
+   * Scoring identifier.
+   */
   private final String id;
 
+  /**
+   * Create a new instance using an identifier.
+   * @param identifier Identifier of the implementation
+   */
   AbstractClarityScoreCalculation(@NotNull final String identifier) {
     this.id = identifier;
   }
@@ -47,14 +54,19 @@ public abstract class AbstractClarityScoreCalculation
     return this.id;
   }
 
+  /**
+   * Abstract builder for {@link ClarityScoreCalculation} builder classes.
+   * @param <B> Builder instance type
+   * @param <S> ClarityScoreCalculation instance type
+   */
   @SuppressWarnings("PublicInnerClass")
-  public abstract static class AbstractBuilder<
-      S extends AbstractClarityScoreCalculation,
-      B extends AbstractBuilder> {
+  public abstract static class AbstractCSCBuilder<
+      B extends AbstractCSCBuilder<B, S>, S extends ClarityScoreCalculation> {
     /**
      * Provides constants for features that may be provided by specific
      * implementations.
      */
+    @SuppressWarnings("PackageVisibleInnerClass")
     enum Feature {
       /**
        * Implementation makes use of an {@link Analyzer}.
@@ -109,9 +121,19 @@ public abstract class AbstractClarityScoreCalculation
     @Nullable
     private Analyzer analyzer;
 
+    /**
+     * Build the calculation instance.
+     * @return New calculation instance
+     * @throws BuildableException Thrown on errors encountered while building
+     * the instance
+     */
     public abstract S build()
-        throws Buildable.BuildableException;
+        throws BuildableException;
 
+    /**
+     * Get a self reference to the implementing object-
+     * @return Self reference
+     */
     abstract B getThis();
 
     /**
@@ -119,16 +141,24 @@ public abstract class AbstractClarityScoreCalculation
      * integrity of the values. NOTE: CONFIGURATION feature is NOT checked.
      *
      * @param features Features to check
+     * @return Self reference
      * @throws ConfigurationException Thrown, if a feature is not configured
      */
-    final B validateFeatures(final Feature[] features)
+    final B validateFeatures(
+        @NotNull final Feature... features)
         throws ConfigurationException {
       for (final Feature f : features) {
         boolean fail = false;
         switch (f) {
-          case ANALYZER: fail = this.analyzer == null; break;
-          case DATA_PROVIDER: fail = this.dataProv == null; break;
-          case INDEX_READER: fail = this.indexReader == null; break;
+          case ANALYZER:
+            fail = this.analyzer == null;
+            break;
+          case DATA_PROVIDER:
+            fail = this.dataProv == null;
+            break;
+          case INDEX_READER:
+            fail = this.indexReader == null;
+            break;
         }
         if (fail) {
           throw new ConfigurationException("Feature '" + f.name() + "' not " +
@@ -138,52 +168,114 @@ public abstract class AbstractClarityScoreCalculation
       return getThis();
     }
 
-    final B validateConfiguration(final Class<? extends Configuration> c)
+    /**
+     * Validate the {@link Configuration} object.
+     *
+     * @param c Configuration suitable for this builder
+     * @return Self reference
+     * @throws ConfigurationException Thrown if the currently set configuration
+     * does not match the passed in class or no configuration is set
+     */
+    final B validateConfiguration(
+        @NotNull final Class<? extends Configuration> c)
         throws ConfigurationException {
       if (this.conf == null) {
         throw new ConfigurationException("Configuration not set.");
       }
       if (!c.equals(this.conf.getClass())) {
         throw new ConfigurationException("Wrong configuration format " +
-            "specified. Expecting '" + c.getCanonicalName() + "'");
+            "specified. Expecting '" + c.getCanonicalName() + '\'');
       }
       return getThis();
     }
 
-    public final B configuration(final Configuration configuration) {
+    /**
+     * Set the {@link Configuration} object for this builder.
+     *
+     * @param configuration Configuration
+     * @return Self reference
+     */
+    public final B configuration(
+        @NotNull final Configuration configuration) {
       this.conf = configuration;
       return getThis();
     }
 
+    /**
+     * Get the {@link Configuration} object for this builder.
+     *
+     * @return Currently set {@link Configuration} or {@code null} if there was
+     * none
+     */
+    @Nullable
     Configuration getConfiguration() {
       return this.conf;
     }
 
-    public final B indexDataProvider(final IndexDataProvider newDataProv) {
+    /**
+     * Set the {@link IndexDataProvider} to use by this builder.
+     *
+     * @param newDataProv IndexDataProvider
+     * @return Self reference
+     */
+    public final B indexDataProvider(
+        @NotNull final IndexDataProvider newDataProv) {
       this.dataProv = newDataProv;
       return getThis();
     }
 
+    /**
+     * Get the {@link IndexDataProvider} currently set.
+     *
+     * @return Currently set {@link IndexDataProvider} or {@code null} if there
+     * was none
+     */
+    @Nullable
     final IndexDataProvider getIndexDataProvider() {
       return this.dataProv;
     }
 
-    public final B indexReader(final IndexReader newIndexReader) {
+    /**
+     * Set the {@link IndexReader} to use by this builder.
+     *
+     * @param newIndexReader IndexReader
+     * @return Self reference
+     */
+    public final B indexReader(
+        @NotNull final IndexReader newIndexReader) {
       this.indexReader = newIndexReader;
       return getThis();
     }
 
+    /**
+     * Get the {@link IndexReader} currently set.
+     *
+     * @return Currently set {@link IndexReader} or {@code null} if there
+     * was none
+     */
     @Nullable
     final IndexReader getIndexReader() {
       return this.indexReader;
     }
 
+    /**
+     * Set the {@link FeedbackProvider} to use by this builder.
+     *
+     * @param newFeedbackProvider FeedbackProvider
+     * @return Self reference
+     */
     public final B feedbackProvider(
-        final FeedbackProvider newFeedbackProvider) {
+        @NotNull final FeedbackProvider newFeedbackProvider) {
       this.feedbackProvider = newFeedbackProvider;
       return getThis();
     }
 
+    /**
+     * Get the {@link FeedbackProvider} currently set.
+     *
+     * @return Currently set {@link FeedbackProvider} or {@code null} if there
+     * was none
+     */
     final FeedbackProvider getFeedbackProvider() {
       if (this.feedbackProvider == null) {
         return new DefaultFeedbackProvider();
@@ -191,12 +283,24 @@ public abstract class AbstractClarityScoreCalculation
       return this.feedbackProvider;
     }
 
-    public final B vocabularyProvider(final VocabularyProvider
-        newVocabularyProvider) {
+    /**
+     * Set the {@link VocabularyProvider} to use by this builder.
+     *
+     * @param newVocabularyProvider VocabularyProvider
+     * @return Self reference
+     */
+    public final B vocabularyProvider(
+        @NotNull final VocabularyProvider newVocabularyProvider) {
       this.vocabularyProvider = newVocabularyProvider;
       return getThis();
     }
 
+    /**
+     * Get the {@link VocabularyProvider} currently set.
+     *
+     * @return Currently set {@link VocabularyProvider} or {@code null} if there
+     * was none
+     */
     final VocabularyProvider getVocabularyProvider() {
       if (this.vocabularyProvider == null) {
         return new DefaultVocabularyProvider();
@@ -204,11 +308,24 @@ public abstract class AbstractClarityScoreCalculation
       return this.vocabularyProvider;
     }
 
-    public final B analyzer(final Analyzer newAnalyzer) {
+    /**
+     * Set the {@link Analyzer} to use by this builder.
+     *
+     * @param newAnalyzer Analyzer
+     * @return Self reference
+     */
+    public final B analyzer(
+        @NotNull final Analyzer newAnalyzer) {
       this.analyzer = newAnalyzer;
       return getThis();
     }
 
+    /**
+     * Get the {@link Analyzer} currently set.
+     *
+     * @return Currently set {@link Analyzer} or {@code null} if there
+     * was none
+     */
     @Nullable
     final Analyzer getAnalyzer() {
       return this.analyzer;

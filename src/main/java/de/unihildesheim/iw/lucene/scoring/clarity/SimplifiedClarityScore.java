@@ -85,6 +85,7 @@ public final class SimplifiedClarityScore
     this.analyzer = builder.getAnalyzer();
   }
 
+  @SuppressWarnings("ObjectAllocationInLoop")
   @Override
   public Result calculateClarity(@NotNull final String query) {
     if (StringUtils.isStrippedEmpty(query)) {
@@ -114,7 +115,6 @@ public final class SimplifiedClarityScore
 
     // calculate max likelihood of the query model for each term in the
     // query
-    // iterate over all unique query terms
     final ScoreTupleHighPrecision[] dataSets = new
         ScoreTupleHighPrecision[queryTerms.size()];
     int idx = 0;
@@ -126,12 +126,14 @@ public final class SimplifiedClarityScore
               .relTf(qTermEntry.getKey()))
       );
     }
-    final double score = KlDivergenceHighPrecision.sumAndCalc(dataSets).doubleValue();
+    final double score =
+        KlDivergenceHighPrecision.sumAndCalc(dataSets).doubleValue();
 
-    LOG.debug("Calculation results: query={} score={}.", query, score);
-
-    LOG.debug("Calculating simplified clarity score for query {} "
-        + "took {}. {}", query, timeMeasure.getTimeString(), score);
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Calculation results: query={} score={}.", query, score);
+      LOG.debug("Calculating simplified clarity score for query {} "
+          + "took {}. {}", query, timeMeasure.getTimeString(), score);
+    }
 
     result.setScore(score);
     return result;
@@ -147,8 +149,7 @@ public final class SimplifiedClarityScore
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class Builder
-      extends AbstractBuilder<
-                  SimplifiedClarityScore, Builder> {
+      extends AbstractCSCBuilder<Builder, SimplifiedClarityScore> {
 
     @Override
     public Builder getThis() {
@@ -158,12 +159,8 @@ public final class SimplifiedClarityScore
     @Override
     public SimplifiedClarityScore build()
         throws ConfigurationException {
-      validateFeatures(new Feature[]{
-          Feature.CONFIGURATION,
-          Feature.ANALYZER,
-          Feature.DATA_PROVIDER,
-          Feature.INDEX_READER
-      });
+      validateFeatures(Feature.CONFIGURATION, Feature.ANALYZER,
+          Feature.DATA_PROVIDER, Feature.INDEX_READER);
       return new SimplifiedClarityScore(this);
     }
   }
@@ -185,9 +182,7 @@ public final class SimplifiedClarityScore
     @Override
     public ScoringResultXml getXml() {
       final ScoringResultXml xml = new ScoringResultXml();
-
       getXml(xml);
-
       return xml;
     }
   }

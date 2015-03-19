@@ -647,8 +647,7 @@ public final class DefaultClarityScore
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class Builder
-      extends AbstractBuilder<
-      DefaultClarityScore, Builder> {
+      extends AbstractCSCBuilder<Builder, DefaultClarityScore> {
     /**
      * Logger instance for this class.
      */
@@ -671,12 +670,8 @@ public final class DefaultClarityScore
     @Override
     public DefaultClarityScore build()
         throws BuildableException {
-      validateFeatures(new Feature[]{
-          Feature.CONFIGURATION,
-          Feature.ANALYZER,
-          Feature.DATA_PROVIDER,
-          Feature.INDEX_READER
-      });
+      validateFeatures(Feature.CONFIGURATION, Feature.ANALYZER,
+          Feature.DATA_PROVIDER, Feature.INDEX_READER);
       validateConfiguration(DefaultClarityScoreConfiguration.class);
       return new DefaultClarityScore(this);
     }

@@ -705,8 +705,7 @@ public final class ImprovedClarityScore
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class Builder
-      extends AbstractBuilder<
-      ImprovedClarityScore, Builder> {
+      extends AbstractCSCBuilder<Builder, ImprovedClarityScore> {
     /**
      * Logger instance for this class.
      */
@@ -730,12 +729,8 @@ public final class ImprovedClarityScore
     @Override
     public ImprovedClarityScore build()
         throws BuildableException {
-      validateFeatures(new Feature[]{
-          Feature.CONFIGURATION,
-          Feature.ANALYZER,
-          Feature.DATA_PROVIDER,
-          Feature.INDEX_READER
-      });
+      validateFeatures(Feature.CONFIGURATION, Feature.ANALYZER,
+          Feature.DATA_PROVIDER, Feature.INDEX_READER);
       validateConfiguration(ImprovedClarityScoreConfiguration.class);
       return new ImprovedClarityScore(this);
     }
