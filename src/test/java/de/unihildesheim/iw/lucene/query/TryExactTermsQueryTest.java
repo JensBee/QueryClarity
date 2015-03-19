@@ -17,16 +17,12 @@
 
 package de.unihildesheim.iw.lucene.query;
 
-import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.lucene.VecTextField;
-import de.unihildesheim.iw.lucene.index.FDRIndexDataProvider;
-import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader;
-import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
+import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -61,6 +57,7 @@ public class TryExactTermsQueryTest
   @Test
   public void testRelax()
       throws Exception {
+    @SuppressWarnings("TypeMayBeWeakened")
     final TryExactTermsQuery teq= new TryExactTermsQuery(
         new WhiteSpaceAnalyzer(),
         "foo bar baz bam",
@@ -99,7 +96,7 @@ public class TryExactTermsQueryTest
   public void test_usage()
       throws Exception {
     try (TestMemIndex idx = new TestMemIndex()) {
-      final TryExactTermsQuery teq = new TryExactTermsQuery(
+      final RelaxableQuery teq = new TryExactTermsQuery(
           new WhiteSpaceAnalyzer(),
           "field value document1 field1",
           "f1");
@@ -118,6 +115,9 @@ public class TryExactTermsQueryTest
     }
   }
 
+  /**
+   * Simple {@link Analyzer} splitting terms at whitespaces.
+   */
   private static final class WhiteSpaceAnalyzer
       extends Analyzer {
 
@@ -163,18 +163,6 @@ public class TryExactTermsQueryTest
       return DirectoryReader.open(this.dir);
     }
 
-    @SuppressWarnings("UnnecessarilyQualifiedInnerClassAccess")
-    IndexDataProvider getIdp()
-        throws IOException, Buildable.ConfigurationException,
-               Buildable.BuildException {
-      final DirectoryReader reader = DirectoryReader.open(this.dir);
-      final FilteredDirectoryReader idxReader =
-          new FilteredDirectoryReader.Builder(reader).build();
-      return new FDRIndexDataProvider.Builder()
-          .indexReader(idxReader)
-          .build();
-    }
-
     Iterable<Document> getIndexDocs() {
       this.flds = Arrays.asList("f1", "f2", "f3");
 
@@ -182,29 +170,29 @@ public class TryExactTermsQueryTest
 
       final Document doc1 = new Document();
       doc1.add(new VecTextField("f1",
-          "first field value document1 field1 document1field1", Field.Store.NO));
+          "first field value document1 field1 document1field1", Store.NO));
       doc1.add(new VecTextField("f2",
-          "second field value document1 field2 document1field2", Field.Store.NO));
+          "second field value document1 field2 document1field2", Store.NO));
       doc1.add(new VecTextField("f3",
-          "third field value document1 field3 document1field3", Field.Store.NO));
+          "third field value document1 field3 document1field3", Store.NO));
       docs.add(doc1);
 
       final Document doc2 = new Document();
       doc2.add(new VecTextField("f1",
-          "first field value document2 field1 document2field1", Field.Store.NO));
+          "first field value document2 field1 document2field1", Store.NO));
       doc2.add(new VecTextField("f2",
-          "second field value document2 field2 document2field2", Field.Store.NO));
+          "second field value document2 field2 document2field2", Store.NO));
       doc2.add(new VecTextField("f3",
-          "third field value document2 field3 document2field3", Field.Store.NO));
+          "third field value document2 field3 document2field3", Store.NO));
       docs.add(doc2);
 
       final Document doc3 = new Document();
       doc3.add(new VecTextField("f1",
-          "first field value document3 field1 document3field1", Field.Store.NO));
+          "first field value document3 field1 document3field1", Store.NO));
       doc3.add(new VecTextField("f2",
-          "second field value document3 field2 document3field2", Field.Store.NO));
+          "second field value document3 field2 document3field2", Store.NO));
       doc3.add(new VecTextField("f3",
-          "third field value document3 field3 document3field3", Field.Store.NO));
+          "third field value document3 field3 document3field3", Store.NO));
       docs.add(doc3);
 
       this.docs = docs.size();
