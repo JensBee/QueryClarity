@@ -144,9 +144,10 @@ public final class StringUtils {
    *
    * @param input String to check
    * @return True, if String will be empty after stripping those characters
+   * or string was initially {@code null}.
    */
-  public static boolean isStrippedEmpty(final String input) {
-    if (input.isEmpty() || isTrimmedEmpty(input)) {
+  public static boolean isStrippedEmpty(@Nullable final String input) {
+    if (input == null || input.isEmpty() || isTrimmedEmpty(input)) {
       return true;
     }
     for (int i = 0; i < input.length(); i++) {
