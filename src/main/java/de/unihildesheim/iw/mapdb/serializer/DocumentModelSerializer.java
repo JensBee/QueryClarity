@@ -102,7 +102,7 @@ public final class DocumentModelSerializer {
         builder.addTerm(spare);
       }
 
-      return builder.getModel();
+      return builder.build();
     }
 
     @Override

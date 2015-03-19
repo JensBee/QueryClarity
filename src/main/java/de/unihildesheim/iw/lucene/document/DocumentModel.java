@@ -369,7 +369,8 @@ public final class DocumentModel
    * Builder used for creating a model from serialization data.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static final class SerializationBuilder {
+  public static final class SerializationBuilder
+      implements Buildable<DocumentModel> {
     /**
      * Id to identify the corresponding document.
      */
@@ -422,7 +423,8 @@ public final class DocumentModel
      *
      * @return New document model with the data of this builder set
      */
-    public DocumentModel getModel() {
+    @Override
+    public DocumentModel build() {
       return new DocumentModel(this);
     }
   }
