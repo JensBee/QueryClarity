@@ -27,6 +27,7 @@ import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
 import de.unihildesheim.iw.util.Configuration;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -37,7 +38,7 @@ public abstract class AbstractClarityScoreCalculation
 
   private final String id;
 
-  AbstractClarityScoreCalculation(final String identifier) {
+  AbstractClarityScoreCalculation(@NotNull final String identifier) {
     this.id = identifier;
   }
 
