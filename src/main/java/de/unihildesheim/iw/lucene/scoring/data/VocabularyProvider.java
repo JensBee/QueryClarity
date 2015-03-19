@@ -33,8 +33,8 @@ public interface VocabularyProvider {
    * @param indexDataProvider Data provider instance
    * @return Self reference
    */
-  VocabularyProvider indexDataProvider(final IndexDataProvider
-      indexDataProvider);
+  VocabularyProvider indexDataProvider(
+      final IndexDataProvider indexDataProvider);
 
   /**
    * Set the document ids that may be used to gather feedback vocabulary.
