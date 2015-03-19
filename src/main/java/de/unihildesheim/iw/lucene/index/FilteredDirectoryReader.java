@@ -17,6 +17,7 @@
 
 package de.unihildesheim.iw.lucene.index;
 
+import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.lucene.index.TermFilter.AcceptAll;
 import de.unihildesheim.iw.lucene.search.EmptyFieldFilter;
 import de.unihildesheim.iw.lucene.util.BitsUtils;
@@ -114,7 +115,7 @@ public final class FilteredDirectoryReader
    * reader
    * @param tFilter Term-filter
    */
-  private FilteredDirectoryReader(
+  FilteredDirectoryReader(
       final DirectoryReader dirReader, final SubReaderWrapper wrapper,
       final Collection<String> vFields, final boolean negate,
       @Nullable final Filter qFilter, final TermFilter tFilter) {
@@ -667,7 +668,8 @@ public final class FilteredDirectoryReader
    * Builder to create a new {@link FilteredDirectoryReader} instance.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static final class Builder {
+  public static final class Builder
+      implements Buildable<FilteredDirectoryReader> {
     /**
      * Logger instance for this class.
      */
@@ -771,6 +773,7 @@ public final class FilteredDirectoryReader
      *
      * @return New FilteredDirectoryReader instance
      */
+    @Override
     public FilteredDirectoryReader build() {
       if (this.tf == null) {
         this.tf = new AcceptAll();
