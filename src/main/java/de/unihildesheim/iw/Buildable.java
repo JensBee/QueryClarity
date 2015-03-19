@@ -40,8 +40,10 @@ public interface Buildable<T> {
    * @throws ConfigurationException Thrown, if the current builder configuration
    * is not valid.
    */
-  void validate()
-      throws ConfigurationException;
+  default void validate()
+      throws ConfigurationException {
+    // NOP
+  }
 
   @SuppressWarnings({"PublicInnerClass", "AbstractClassExtendsConcreteClass"})
   /**
