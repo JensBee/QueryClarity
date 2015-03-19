@@ -18,6 +18,7 @@
 package de.unihildesheim.iw.lucene.query;
 
 import org.apache.lucene.search.Query;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * @author Jens Bertram
@@ -36,5 +37,6 @@ public interface RelaxableQuery {
    *
    * @return Query object
    */
+  @NotNull
   abstract Query getQueryObj();
 }
