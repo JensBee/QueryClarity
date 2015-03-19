@@ -17,6 +17,8 @@
 
 package de.unihildesheim.iw;
 
+import org.jetbrains.annotations.NotNull;
+
 /**
  * Interface for builder classes.
  *
@@ -31,6 +33,7 @@ public interface Buildable<T> {
    * @return New Object instance
    * @throws BuildableException Thrown, if building the object has failed
    */
+  @NotNull
   T build()
       throws BuildableException;
 
