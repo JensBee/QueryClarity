@@ -159,17 +159,18 @@ public final class StringUtils {
   }
 
   /**
-   * Checks, if a String is all upper-case.
+   * Checks, if all letters of a string are upper-case.
    *
    * @param input String to check
-   * @return True, if all upper-case or input String was empty
+   * @return True, if all letters are upper-case or input String was empty
    */
   public static boolean isAllUpper(final String input) {
     if (isStrippedEmpty(input)) {
       return true;
     }
     for (int i = input.length() - 1; i >= 0; i--) {
-      if (!Character.isUpperCase(input.codePointAt(i))) {
+      if (Character.isLetter(input.codePointAt(i)) &&
+          !Character.isUpperCase(input.codePointAt(i))) {
         return false;
       }
     }
