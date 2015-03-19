@@ -297,7 +297,7 @@ public final class RelaxableCommonTermsQuery
      * @param f Non empty list of fields to query
      * @return Self reference
      */
-    public Builder query(@NotNull final String... f) {
+    public Builder fields(@NotNull final String... f) {
       this.fields = f.clone();
       return this;
     }
