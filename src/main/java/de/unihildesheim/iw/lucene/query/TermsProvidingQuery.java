@@ -17,6 +17,8 @@
 
 package de.unihildesheim.iw.lucene.query;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.util.Collection;
 
 /**
@@ -28,5 +30,6 @@ public interface TermsProvidingQuery {
    *
    * @return List of query terms (with stop-words removed)
    */
+  @NotNull
   Collection<String> getQueryTerms();
 }
