@@ -143,14 +143,14 @@ public final class StringUtils {
    * Character#isWhitespace(int)} are removed.
    *
    * @param input String to check
-   * @return True, if String will be empty after stripping those characters
-   * or string was initially {@code null}.
+   * @return True, if String will be empty after stripping those characters or
+   * string was initially {@code null}.
    */
   public static boolean isStrippedEmpty(@Nullable final String input) {
     if (input == null || input.isEmpty() || isTrimmedEmpty(input)) {
       return true;
     }
-    for (int i = 0; i < input.length(); i++) {
+    for (int i = input.length() - 1; i >= 0; i--) {
       if (!Character.isWhitespace(input.codePointAt(i))) {
         return false;
       }
@@ -168,7 +168,7 @@ public final class StringUtils {
     if (isStrippedEmpty(input)) {
       return true;
     }
-    for (int i = 0; i < input.length(); i++) {
+    for (int i = input.length() - 1; i >= 0; i--) {
       if (!Character.isUpperCase(input.codePointAt(i))) {
         return false;
       }
@@ -184,7 +184,7 @@ public final class StringUtils {
    * @return True, if String will be empty after stripping those characters
    */
   public static boolean isTrimmedEmpty(final CharSequence input) {
-    for (int i = 0; i < input.length(); i++) {
+    for (int i = input.length() - 1; i >= 0; i--) {
       if ((int) input.charAt(i) > (int) ' ') {
         return false;
       }
@@ -248,7 +248,8 @@ public final class StringUtils {
     }
     final StringBuilder sb = new StringBuilder(input.length());
     // manual transform to lowercase to avoid locale problems
-    for (int i = 0; i < input.length(); i++) {
+    int size = input.length();
+    for (int i = 0; i < size; i++) {
       sb.append(Character.toChars(Character.toLowerCase(input.codePointAt(i))));
     }
     // string is now all lower case
@@ -285,7 +286,7 @@ public final class StringUtils {
     if (isStrippedEmpty(input)) {
       return true;
     }
-    for (int i = 0; i < input.length(); i++) {
+    for (int i = input.length() - 1; i >= 0; i--) {
       if (!Character.isLowerCase(input.codePointAt(i))) {
         return false;
       }
