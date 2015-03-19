@@ -45,7 +45,7 @@ import java.util.Set;
  * @author Jens Bertram
  */
 public final class TryExactTermsQuery
-    extends RelaxableQuery implements TermsProvidingQuery {
+    implements TermsProvidingQuery, RelaxableQuery {
 
   /**
    * Logger instance for this class.
@@ -80,7 +80,6 @@ public final class TryExactTermsQuery
       @NotNull final String queryStr,
       @NotNull final String... fields)
       throws ParseException {
-    super(analyzer, queryStr, fields);
     if (fields.length == 0) {
       throw new IllegalArgumentException("Empty fields list.");
     }
