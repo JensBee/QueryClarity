@@ -66,6 +66,20 @@ public class DefaultClarityScoreTest
 
   private static final double LANG_MODEL_WEIGHT = 0.6;
 
+  @SuppressWarnings("UnnecessarilyQualifiedInnerClassAccess")
+  @Test
+  public void testBuilder()
+      throws Exception {
+    try (TestMemIndex idx = new TestMemIndex()) {
+      new DefaultClarityScore.Builder()
+          .configuration(new DefaultClarityScoreConfiguration())
+          .analyzer(new WhitespaceAnalyzer())
+          .indexDataProvider(idx.getIdp())
+          .indexReader(idx.getReader())
+          .build();
+    }
+  }
+
   @SuppressWarnings("ImplicitNumericConversion")
   @Test
   public void testModelLowPrecision_constructor()
