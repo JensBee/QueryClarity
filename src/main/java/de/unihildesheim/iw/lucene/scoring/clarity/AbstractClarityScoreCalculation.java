@@ -29,6 +29,8 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
@@ -62,6 +64,11 @@ public abstract class AbstractClarityScoreCalculation
   @SuppressWarnings("PublicInnerClass")
   public abstract static class AbstractCSCBuilder<
       B extends AbstractCSCBuilder<B, S>, S extends ClarityScoreCalculation> {
+    /**
+     * Logger instance for this class.
+     */
+    private static final Logger LOG = LoggerFactory.getLogger(
+        AbstractCSCBuilder.class);
     /**
      * Provides constants for features that may be provided by specific
      * implementations.
@@ -139,6 +146,7 @@ public abstract class AbstractClarityScoreCalculation
     /**
      * Check, if all required features have a value set. Does not check the
      * integrity of the values. NOTE: CONFIGURATION feature is NOT checked.
+     * Use {@link #validateConfiguration(Class)} if you need this feature.
      *
      * @param features Features to check
      * @return Self reference
@@ -152,6 +160,10 @@ public abstract class AbstractClarityScoreCalculation
         switch (f) {
           case ANALYZER:
             fail = this.analyzer == null;
+            break;
+          case CONFIGURATION:
+            LOG.warn("Configuration cannot be validated. " +
+                "Use dedicated method instead.");
             break;
           case DATA_PROVIDER:
             fail = this.dataProv == null;
