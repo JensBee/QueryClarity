@@ -27,6 +27,7 @@ import de.unihildesheim.iw.util.TimeMeasure;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
@@ -61,7 +62,7 @@ public final class SimplifiedClarityScore
   /**
    * Logger instance for this class.
    */
-  private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
+  private static final Logger LOG = LoggerFactory.getLogger(
       SimplifiedClarityScore.class);
   /**
    * Provider for general index data.
@@ -83,6 +84,24 @@ public final class SimplifiedClarityScore
     // set configuration
     this.dataProv = builder.getIndexDataProvider();
     this.analyzer = builder.getAnalyzer();
+  }
+
+  /**
+   * Calculate a portion of the score for a single term.
+   * @param term Term
+   * @param termFreq Frequency of term in the query
+   * @param queryLength Number of terms in the query
+   * @return Scoring tuple for the term
+   */
+  ScoreTupleHighPrecision calcScorePortion(
+      @NotNull final BytesRef term,
+      final long termFreq,
+      final long queryLength) {
+   return new ScoreTupleHighPrecision(
+       BigDecimal.valueOf(termFreq)
+           .divide(BigDecimal.valueOf(queryLength), MATH_CONTEXT),
+       BigDecimal.valueOf(this.dataProv.metrics().relTf(term))
+   );
   }
 
   @SuppressWarnings("ObjectAllocationInLoop")
@@ -119,12 +138,8 @@ public final class SimplifiedClarityScore
         ScoreTupleHighPrecision[queryTerms.size()];
     int idx = 0;
     for (final Entry<BytesRef, Integer> qTermEntry : queryTerms.entrySet()) {
-      dataSets[idx++] = new ScoreTupleHighPrecision(
-          BigDecimal.valueOf(qTermEntry.getValue())
-              .divide(BigDecimal.valueOf(queryLength), MATH_CONTEXT),
-          BigDecimal.valueOf(this.dataProv.metrics()
-              .relTf(qTermEntry.getKey()))
-      );
+      dataSets[idx++] = calcScorePortion(
+          qTermEntry.getKey(), qTermEntry.getValue(), queryLength);
     }
     final double score =
         KlDivergenceHighPrecision.sumAndCalc(dataSets).doubleValue();
@@ -159,8 +174,9 @@ public final class SimplifiedClarityScore
     @Override
     public SimplifiedClarityScore build()
         throws ConfigurationException {
-      validateFeatures(Feature.CONFIGURATION, Feature.ANALYZER,
-          Feature.DATA_PROVIDER, Feature.INDEX_READER);
+      validateFeatures(
+          Feature.ANALYZER,
+          Feature.DATA_PROVIDER);
       return new SimplifiedClarityScore(this);
     }
   }
