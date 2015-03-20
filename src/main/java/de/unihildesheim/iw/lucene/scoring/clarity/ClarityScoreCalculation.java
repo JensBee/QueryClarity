@@ -16,9 +16,9 @@
  */
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
-import de.unihildesheim.iw.lucene.index.DataProviderException;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 
 /**
@@ -34,10 +34,8 @@ public interface ClarityScoreCalculation {
    * @param query Query used for term extraction
    * @return Calculated clarity score for the given terms, or <tt>null</tt> on
    * errors.
-   * @throws IOException Thrown on low-level I/O errors
    * @throws ClarityScoreCalculationException Thrown on errors by implementing
    * class, if calculation fails
-   * @throws DataProviderException Forwarded from IndexDataProvider
    */
   ClarityScoreResult calculateClarity(final String query)
       throws ClarityScoreCalculationException;
@@ -69,8 +67,9 @@ public interface ClarityScoreCalculation {
      * @param msg Message
      * @param ex Throwable to forward
      */
-    public ClarityScoreCalculationException(final String msg, final Throwable
-        ex) {
+    public ClarityScoreCalculationException(
+        @Nullable final String msg,
+        @NotNull final Throwable ex) {
       super(msg, ex);
     }
   }
@@ -78,6 +77,7 @@ public interface ClarityScoreCalculation {
   /**
    * Store low-precision model calculation results.
    */
+  @SuppressWarnings("PublicInnerClass")
   public static final class ScoreTupleLowPrecision {
     /**
      * Query model value.
@@ -102,14 +102,17 @@ public interface ClarityScoreCalculation {
   /**
    * Store high-precision model calculation results.
    */
+  @SuppressWarnings("PublicInnerClass")
   public static final class ScoreTupleHighPrecision {
     /**
      * Query model value.
      */
+    @NotNull
     public final BigDecimal qModel;
     /**
      * Collection model value.
      */
+    @NotNull
     public final BigDecimal cModel;
 
     /**
@@ -118,7 +121,8 @@ public interface ClarityScoreCalculation {
      * @param cModel Collection model value
      */
     public ScoreTupleHighPrecision(
-        final BigDecimal qModel, final BigDecimal cModel) {
+        @NotNull final BigDecimal qModel,
+        @NotNull final BigDecimal cModel) {
       this.qModel = qModel;
       this.cModel = cModel;
     }
