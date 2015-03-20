@@ -41,6 +41,7 @@ import java.util.stream.StreamSupport;
  * @author Jens Bertram
  */
 public abstract class AbstractFeedbackProvider
+    <I extends AbstractFeedbackProvider<I>>
     implements FeedbackProvider {
 
   /**
@@ -100,13 +101,13 @@ public abstract class AbstractFeedbackProvider
   Class<? extends RelaxableQuery> queryParser;
 
   @Override
-  public AbstractFeedbackProvider query(@NotNull final String query) {
+  public I query(@NotNull final String query) {
     this.queryStr = query;
     return getThis();
   }
 
   @Override
-  public AbstractFeedbackProvider amount(final int min, final int max) {
+  public I amount(final int min, final int max) {
     this.minAmount = min;
     this.maxAmount = max;
     this.useFixedAmount = false;
@@ -114,51 +115,52 @@ public abstract class AbstractFeedbackProvider
   }
 
   @Override
-  public AbstractFeedbackProvider amount(final int fixed) {
+  public I amount(final int fixed) {
     this.fixedAmount = fixed;
     this.useFixedAmount = true;
     return getThis();
   }
 
   @Override
-  public AbstractFeedbackProvider indexReader(
+  public I indexReader(
       @NotNull final IndexReader indexReader) {
     this.idxReader = indexReader;
     return getThis();
   }
 
   @Override
-  public AbstractFeedbackProvider analyzer(@NotNull final Analyzer analyzer) {
+  public I analyzer(@NotNull final Analyzer analyzer) {
     this.qAnalyzer = analyzer;
     return getThis();
   }
 
   @Override
-  public AbstractFeedbackProvider dataProvider(
+  public I dataProvider(
       @NotNull final IndexDataProvider dp) {
     this.dataProv = dp;
     return getThis();
   }
 
   @Override
-  public AbstractFeedbackProvider fields(@NotNull final String... fields) {
+  public I fields(@NotNull final String... fields) {
     this.docFields = fields.clone();
     return getThis();
   }
 
   @Override
-  public AbstractFeedbackProvider queryParser(
+  public I queryParser(
       @NotNull final Class<? extends RelaxableQuery> rtq) {
     this.queryParser = rtq;
     return getThis();
   }
 
   /**
-   * Get a list of document fields to query. If document fields are already
-   * set by using {@link #fields(String[])} these will be returned. Otherwise
-   * all fields available to the {@link #idxReader IndexReader} will be
-   * returned. If there are no postings available to the reader an {@link
+   * Get a list of document fields to query. If document fields are already set
+   * by using {@link #fields(String[])} these will be returned. Otherwise all
+   * fields available to the {@link #idxReader IndexReader} will be returned. If
+   * there are no postings available to the reader an {@link
    * IllegalStateException} will be thrown.
+   *
    * @return Fields or {@code null} if no fields are set
    * @throws IOException Thrown on low-level i/o-errors
    */
@@ -215,5 +217,5 @@ public abstract class AbstractFeedbackProvider
    *
    * @return Self reference
    */
-  protected abstract AbstractFeedbackProvider getThis();
+  protected abstract I getThis();
 }

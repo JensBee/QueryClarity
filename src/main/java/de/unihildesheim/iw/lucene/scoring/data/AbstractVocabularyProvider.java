@@ -30,6 +30,7 @@ import org.jetbrains.annotations.Nullable;
  * @author Jens Bertram
  */
 public abstract class AbstractVocabularyProvider
+    <I extends AbstractVocabularyProvider<I>>
     implements VocabularyProvider {
   /**
    * Data provider for index data.
@@ -45,7 +46,7 @@ public abstract class AbstractVocabularyProvider
   DocIdSet docIds;
 
   @Override
-  public AbstractVocabularyProvider indexDataProvider(
+  public I indexDataProvider(
       @NotNull final IndexDataProvider indexDataProvider) {
     this.dataProv = indexDataProvider;
     return getThis();
@@ -56,10 +57,10 @@ public abstract class AbstractVocabularyProvider
    *
    * @return Self reference
    */
-  protected abstract AbstractVocabularyProvider getThis();
+  protected abstract I getThis();
 
   @Override
-  public AbstractVocabularyProvider documentIds(
+  public I documentIds(
       @NotNull final DocIdSet documentIds) {
     this.docIds = documentIds;
     return getThis();

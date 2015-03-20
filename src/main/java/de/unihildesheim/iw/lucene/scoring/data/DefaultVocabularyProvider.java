@@ -34,7 +34,7 @@ import java.util.stream.Stream;
  * @author Jens Bertram
  */
 public final class DefaultVocabularyProvider
-    extends AbstractVocabularyProvider {
+    extends AbstractVocabularyProvider<DefaultVocabularyProvider> {
 
   /**
    * Logger instance for this class.

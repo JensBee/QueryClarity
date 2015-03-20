@@ -39,7 +39,7 @@ import java.util.Objects;
  * @author Jens Bertram
  */
 public class DefaultFeedbackProvider
-    extends AbstractFeedbackProvider {
+    extends AbstractFeedbackProvider<DefaultFeedbackProvider> {
   /**
    * Reusable {@link IndexSearcher} instance.
    */
