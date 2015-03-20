@@ -670,8 +670,11 @@ public final class DefaultClarityScore
     @Override
     public DefaultClarityScore build()
         throws BuildableException {
-      validateFeatures(Feature.CONFIGURATION, Feature.ANALYZER,
-          Feature.DATA_PROVIDER, Feature.INDEX_READER);
+      validateFeatures(
+          Feature.CONFIGURATION,
+          Feature.ANALYZER,
+          Feature.DATA_PROVIDER,
+          Feature.INDEX_READER);
       validateConfiguration(DefaultClarityScoreConfiguration.class);
       return new DefaultClarityScore(this);
     }
