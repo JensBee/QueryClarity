@@ -19,6 +19,7 @@ package de.unihildesheim.iw.cli;
 
 import de.unihildesheim.iw.util.StopwordsFileReader;
 import de.unihildesheim.iw.util.StopwordsFileReader.Format;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,8 +38,7 @@ public final class CliCommon {
   /**
    * Logger instance for this class.
    */
-  private static final Logger LOG =
-      LoggerFactory.getLogger(CliCommon.class);
+  private static final Logger LOG = LoggerFactory.getLogger(CliCommon.class);
 
   /**
    * Tries to load a list of stopwords.
@@ -48,8 +48,10 @@ public final class CliCommon {
    * @return Set of stopwords as strings
    * @throws IOException Thrown, if loading the file fails
    */
-  public static Set<String> getStopwords(final String lang, final String
-      format, final String pattern)
+  public static Set<String> getStopwords(
+      @NotNull final String lang,
+      @NotNull final String format,
+      @NotNull final String pattern)
       throws IOException {
     Set<String> sWords = Collections.emptySet();
     // read stopwords
