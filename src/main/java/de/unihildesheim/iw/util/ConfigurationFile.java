@@ -21,11 +21,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.Properties;
 
@@ -89,7 +91,8 @@ public class ConfigurationFile
     this.confFile = new File(newFileName);
 
     if (this.confFile.exists()) {
-      try (FileReader reader = new FileReader(this.confFile)) {
+      try (InputStreamReader reader = new InputStreamReader(
+          new FileInputStream(this.confFile), StandardCharsets.UTF_8)) {
         this.prop.load(reader);
         LOG.info("Configuration loaded from '{}'", newFileName);
       }
