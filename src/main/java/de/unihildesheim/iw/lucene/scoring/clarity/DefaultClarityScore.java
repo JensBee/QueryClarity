@@ -370,11 +370,14 @@ public final class DefaultClarityScore
     super(IDENTIFIER);
 
     // set configuration
+    assert builder.getConfiguration() != null;
     this.conf = builder.getConfiguration();
+    assert this.conf != null && this.conf.getLangModelWeight() != null;
     this.docLangModelWeight = this.conf.getLangModelWeight();
 
     this.conf.debugDump();
 
+    assert builder.getIndexDataProvider() != null;
     this.dataProv = builder.getIndexDataProvider();
     assert builder.getAnalyzer() != null;
     this.analyzer = builder.getAnalyzer();
