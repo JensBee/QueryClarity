@@ -29,7 +29,6 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.jetbrains.annotations.Nullable;
@@ -125,11 +124,7 @@ public final class EmptyFieldFilter
         if (t != null) {
           DocsEnum de = null;
           final TermsEnum te = t.iterator(null);
-          while (true) {
-            @Nullable final BytesRef term = te.next();
-            if (term == null) {
-              break;
-            }
+          while (te.next() != null) {
             de = te.docs(checkBits, de, DocsEnum.FLAG_NONE);
             while (true) {
               final int docId = de.nextDoc();
