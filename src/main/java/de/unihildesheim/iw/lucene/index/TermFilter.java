@@ -160,7 +160,7 @@ public abstract class TermFilter {
     /**
      * True, the underlying reader has no postings (is empty).
      */
-    private boolean isEmpty = false;
+    private boolean isEmpty;
 
     /**
      * New instance using a given threshold. The threshold value {@code t} is
