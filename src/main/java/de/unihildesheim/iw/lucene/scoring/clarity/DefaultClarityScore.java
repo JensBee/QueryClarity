@@ -411,11 +411,7 @@ public final class DefaultClarityScore
     LOG.info("Calculating clarity score. query={}", query);
     @Nullable
     final TimeMeasure timeMeasure;
-    if (LOG.isDebugEnabled()) {
-      timeMeasure = new TimeMeasure().start();
-    } else {
-      timeMeasure = null;
-    }
+    timeMeasure = LOG.isDebugEnabled() ? new TimeMeasure().start() : null;
 
     // get a normalized unique list of query terms
     // skips stopwords and removes unknown terms (not visible in current
@@ -525,10 +521,11 @@ public final class DefaultClarityScore
           .documentIds(feedbackDocIds).get()
           .map(term -> new ScoreTupleHighPrecision(
               model.query(term), BigDecimal.valueOf(cMetrics.relTf(term))))
-              .toArray(ScoreTupleHighPrecision[]::new);
+          .toArray(ScoreTupleHighPrecision[]::new);
 
       LOG.info("Calculating final score.");
-      result.setScore(KlDivergenceHighPrecision.sumAndCalc(dataSets).doubleValue());
+      result.setScore(
+          KlDivergenceHighPrecision.sumAndCalc(dataSets).doubleValue());
     }
 
     return result;

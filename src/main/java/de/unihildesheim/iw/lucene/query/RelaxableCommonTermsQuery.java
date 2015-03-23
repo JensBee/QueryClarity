@@ -180,12 +180,8 @@ public final class RelaxableCommonTermsQuery
       LOG.debug("qList={}", subQueries);
     }
 
-    if (subQueries.size() == 1) {
-      this.query = subQueries.get(0);
-    } else {
-      // create a DisjunctionMaxQuery for all sub queries
-      this.query = new DisjunctionMaxQuery(subQueries, 0.1f);
-    }
+    this.query = subQueries.size() == 1 ? subQueries.get(0) :
+        new DisjunctionMaxQuery(subQueries, 0.1f);
 
     if (LOG.isDebugEnabled()) {
       LOG.debug("RCTQ {} uQt={}", this.query, uniqueQueryTerms);

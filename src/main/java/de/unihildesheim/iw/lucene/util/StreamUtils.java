@@ -94,11 +94,8 @@ public final class StreamUtils {
    * @return Stream of sets content
    */
   public static IntStream stream(@Nullable final DocIdSetIterator disi) {
-    if (disi == null) {
-      return IntStream.empty();
-    } else {
-      return StreamSupport.intStream(new DocIdSetSpliterator(disi), false);
-    }
+    return disi == null ? IntStream.empty() :
+        StreamSupport.intStream(new DocIdSetSpliterator(disi), false);
   }
 
   /**
