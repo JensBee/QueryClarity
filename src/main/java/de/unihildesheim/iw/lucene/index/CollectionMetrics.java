@@ -17,8 +17,6 @@
 
 package de.unihildesheim.iw.lucene.index;
 
-import de.unihildesheim.iw.GlobalConfiguration;
-import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.mapdb.serializer.BytesRefSerializer;
 import de.unihildesheim.iw.mapdb.serializer.DocumentModelSerializer;
@@ -28,7 +26,6 @@ import org.jetbrains.annotations.Nullable;
 import org.mapdb.DBMaker;
 import org.mapdb.Serializer;
 
-import java.math.MathContext;
 import java.util.Collections;
 import java.util.Map;
 
@@ -155,47 +152,38 @@ public final class CollectionMetrics {
         .expireStoreSize(1500d)
         .make();
 
-    if (this.conf.cacheDocModels) {
-      this.c_docModel = DBMaker
-          .newMemoryDirectDB()
-          .transactionDisable()
-          .make()
-          .createHashMap("cache")
-          .keySerializer(Serializer.INTEGER)
-          .valueSerializer(DocumentModelSerializer.SERIALIZER)
-          .expireStoreSize(1000d)
-          .make();
-    } else {
-      this.c_docModel = Collections.emptyMap();
-    }
+    this.c_docModel = this.conf.cacheDocModels ?
+        DBMaker
+            .newMemoryDirectDB()
+            .transactionDisable()
+            .make()
+            .createHashMap("cache")
+            .keySerializer(Serializer.INTEGER)
+            .valueSerializer(DocumentModelSerializer.SERIALIZER)
+            .expireStoreSize(1000d)
+            .make() : Collections.emptyMap();
 
-    if (this.conf.cacheDf) {
-      this.c_df = DBMaker
-          .newMemoryDirectDB()
-          .transactionDisable()
-          .make()
-          .createHashMap("cache")
-          .keySerializer(BytesRefSerializer.SERIALIZER)
-          .valueSerializer(Serializer.INTEGER)
-          .expireStoreSize(1500d)
-          .make();
-    } else {
-      this.c_df = Collections.emptyMap();
-    }
+    this.c_df = this.conf.cacheDf ?
+        DBMaker
+            .newMemoryDirectDB()
+            .transactionDisable()
+            .make()
+            .createHashMap("cache")
+            .keySerializer(BytesRefSerializer.SERIALIZER)
+            .valueSerializer(Serializer.INTEGER)
+            .expireStoreSize(1500d)
+            .make() : Collections.emptyMap();
 
-    if (this.conf.cacheTf) {
-      this.c_tf = DBMaker
-          .newMemoryDirectDB()
-          .transactionDisable()
-          .make()
-          .createHashMap("cache")
-          .keySerializer(BytesRefSerializer.SERIALIZER)
-          .valueSerializer(Serializer.LONG)
-          .expireStoreSize(1500d)
-          .make();
-    } else {
-      this.c_tf = Collections.emptyMap();
-    }
+    this.c_tf = this.conf.cacheTf ?
+        DBMaker
+            .newMemoryDirectDB()
+            .transactionDisable()
+            .make()
+            .createHashMap("cache")
+            .keySerializer(BytesRefSerializer.SERIALIZER)
+            .valueSerializer(Serializer.LONG)
+            .expireStoreSize(1500d)
+            .make() : Collections.emptyMap();
   }
 
   /**
@@ -230,11 +218,7 @@ public final class CollectionMetrics {
     @Nullable Double result = this.c_rtf.get(term);
     if (result == null) {
       final long tf = tf(term);
-      if (tf == 0L) {
-        result = 0d;
-      } else {
-        result = (double) tf / (double) this.tf;
-      }
+      result = tf == 0L ? 0d : (double) tf / (double) this.tf;
       this.c_rtf.put(BytesRef.deepCopyOf(term), result);
     }
     return result;

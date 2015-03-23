@@ -253,20 +253,16 @@ public abstract class TermFilter {
         assert this.subReaders != null;
         final Fields fInstance = this.subReaders[i].fields();
         final String[] fields;
-        if (FilteredFields.class.isInstance(fInstance)) {
-          fields = ((FilteredFields) fInstance).getFields();
-        } else {
-          fields = StreamSupport.stream(fInstance.spliterator(), false)
-              .toArray(String[]::new);
-        }
+        fields = FilteredFields.class.isInstance(fInstance) ?
+            ((FilteredFields) fInstance).getFields() :
+            StreamSupport.stream(fInstance.spliterator(), false)
+                .toArray(String[]::new);
         final int fieldCount = fields.length;
         for (int j = fieldCount - 1; j >= 0; j--) {
           @Nullable final Terms t;
-          if (FilteredFields.class.isInstance(fInstance)) {
-            t = ((FilteredFields) fInstance).originalTerms(fields[j]);
-          } else {
-            t = fInstance.terms(fields[j]);
-          }
+          t = FilteredFields.class.isInstance(fInstance) ?
+              ((FilteredFields) fInstance).originalTerms(fields[j]) :
+              fInstance.terms(fields[j]);
 
           if (t != null) {
             te = t.iterator(te);
