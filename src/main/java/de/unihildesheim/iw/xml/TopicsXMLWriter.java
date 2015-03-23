@@ -58,6 +58,7 @@ public class TopicsXMLWriter
     writeResults(out, false);
   }
 
+  @SuppressWarnings("BooleanParameter")
   public void writeResults(final File out, final boolean strip)
       throws JAXBException {
     if (strip) {

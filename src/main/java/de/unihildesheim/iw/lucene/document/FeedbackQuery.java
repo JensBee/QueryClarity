@@ -22,6 +22,7 @@ import de.unihildesheim.iw.lucene.util.BitsUtils;
 import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
 import de.unihildesheim.iw.lucene.util.StreamUtils;
 import de.unihildesheim.iw.util.RandomValue;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.IndexSearcher;
@@ -140,6 +141,7 @@ public final class FeedbackQuery {
     }
 
     // extract document ids while keeping order
+    @SuppressFBWarnings("SUA_SUSPICIOUS_UNINITIALIZED_ARRAY")
     final int[] docIds = new int[results.scoreDocs.length];
     // add the matching documents to the list
     IntStream.range(0, results.scoreDocs.length)
@@ -215,7 +217,7 @@ public final class FeedbackQuery {
         }
       } else {
         LOG.info("Cannot relax query any more. Returning only {} documents.",
-            bits.cardinality());
+            bitsCount);
         break;
       }
     }

@@ -18,6 +18,7 @@ package de.unihildesheim.iw.util;
 
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.Tuple.Tuple2;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -198,10 +199,10 @@ public class Configuration {
    * was none
    * @see #getBoolean(String, boolean)
    */
-  @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
+  @SuppressWarnings({"BooleanMethodNameMustStartWithQuestion",
+      "BooleanParameter"})
   public final boolean getAndAddBoolean(
-      @NotNull final String key,
-      final boolean defaultValue) {
+      @NotNull final String key, final boolean defaultValue) {
     final String valueStr = defaultValue ? "1" : "0";
     final String value = getString(key, valueStr);
     final boolean result;
@@ -248,6 +249,7 @@ public class Configuration {
    * String}, if there was none or there was an error interpreting the value as
    * integer
    */
+  @SuppressFBWarnings("RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE")
   @NotNull
   private String getString(@NotNull final String key) {
     return getString(key, EMPTY_STRING);

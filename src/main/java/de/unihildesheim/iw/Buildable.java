@@ -17,6 +17,7 @@
 
 package de.unihildesheim.iw;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -43,6 +44,7 @@ public interface Buildable<T> {
    * @throws ConfigurationException Thrown, if the current builder configuration
    * is not valid.
    */
+  @SuppressFBWarnings("ACEM_ABSTRACT_CLASS_EMPTY_METHODS")
   default void validate()
       throws ConfigurationException {
     // NOP

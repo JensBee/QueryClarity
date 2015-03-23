@@ -23,6 +23,7 @@ import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils.MergingBytesRefHash;
 import de.unihildesheim.iw.lucene.util.StreamUtils;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -110,6 +111,7 @@ public final class FDRIndexDataProvider
     return this.index.ttf;
   }
 
+  @SuppressFBWarnings("EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS")
   @Override
   public long getTermFrequency(@NotNull final BytesRef term) {
     return this.index.reader.leaves().stream()
@@ -138,6 +140,7 @@ public final class FDRIndexDataProvider
         }).sum();
   }
 
+  @SuppressFBWarnings("EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS")
   @Override
   public int getDocumentFrequency(@NotNull final BytesRef term) {
     return this.index.reader.leaves().stream()
@@ -171,8 +174,9 @@ public final class FDRIndexDataProvider
     return StreamUtils.stream(this.index.docIds);
   }
 
-  @Override
+  @SuppressFBWarnings("RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE")
   @NotNull
+  @Override
   public DocumentModel getDocumentModel(final int docId) {
     return new DocumentModel.Builder(docId)
         .setTermFrequency(getDocumentTerms(docId)).build();
@@ -220,6 +224,8 @@ public final class FDRIndexDataProvider
     return docId < this.index.docIds.length() && this.index.docIds.get(docId);
   }
 
+  @SuppressFBWarnings({"EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS",
+      "EXS_EXCEPTION_SOFTENING_NO_CHECKED"})
   @Override
   public Stream<BytesRef> getDocumentTerms(final int docId,
       @NotNull final String... field) {
@@ -262,6 +268,7 @@ public final class FDRIndexDataProvider
     return StreamUtils.stream(terms);
   }
 
+  @SuppressFBWarnings("EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS")
   @Override
   @NotNull
   public Stream<BytesRef> getDocumentsTerms(@NotNull final DocIdSet docIds) {
@@ -368,6 +375,7 @@ public final class FDRIndexDataProvider
      * @param r IndexReader
      * @throws IOException Thrown on low-level I/O-errors
      */
+    @SuppressFBWarnings("EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS")
     LuceneIndex(@NotNull final FilteredDirectoryReader r)
         throws IOException {
       this.reader = r;
@@ -520,6 +528,7 @@ public final class FDRIndexDataProvider
      * @throws BuildException Thrown on any error during construction
      * @throws ConfigurationException Thrown on configuration errors
      */
+    @NotNull
     @Override
     public FDRIndexDataProvider build()
         throws BuildException, ConfigurationException {

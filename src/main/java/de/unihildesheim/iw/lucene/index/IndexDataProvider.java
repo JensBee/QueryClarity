@@ -17,6 +17,7 @@
 package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.lucene.document.DocumentModel;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.util.BytesRef;
 import org.jetbrains.annotations.NotNull;
@@ -63,6 +64,7 @@ public interface IndexDataProvider
    * instance. The behavior of functions called after this is undefined.
    * Default implementation does nothing.
    */
+  @SuppressFBWarnings("ACEM_ABSTRACT_CLASS_EMPTY_METHODS")
   @Override
   default void close() {
     // NOP

@@ -20,6 +20,7 @@ package de.unihildesheim.iw.lucene.query;
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.lucene.CommonTermsDefaults;
 import de.unihildesheim.iw.util.StringUtils;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
@@ -245,6 +246,7 @@ public final class RelaxableCommonTermsQuery
     return this.query;
   }
 
+  @SuppressFBWarnings("RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE")
   @NotNull
   @Override
   public Collection<String> getQueryTerms() {
@@ -294,6 +296,7 @@ public final class RelaxableCommonTermsQuery
     @Nullable
     String[] fields;
 
+    @SuppressFBWarnings("RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE")
     @NotNull
     @Override
     public RelaxableCommonTermsQuery build()
@@ -332,6 +335,7 @@ public final class RelaxableCommonTermsQuery
      * frequency term.
      * @return Self reference
      */
+    @SuppressWarnings("TypeMayBeWeakened")
     public Builder maxTermFrequency(final float mtf) {
       this.maxTermFrequency = mtf;
       return this;

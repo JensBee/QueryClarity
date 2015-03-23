@@ -23,6 +23,7 @@ import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation
     .ScoreTupleLowPrecision;
 import de.unihildesheim.iw.util.concurrent.AtomicBigDecimal;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.jetbrains.annotations.NotNull;
 import org.nevec.rjm.BigDecimalMath;
 import org.slf4j.LoggerFactory;
@@ -36,9 +37,13 @@ import java.util.Arrays;
  */
 public final class MathUtils {
   /**
+   * Constant value of log10.
+   */
+  public static final double LOG10 = Math.log(10d);
+  /**
    * Constant value of log2.
    */
-  private static final double LOG2 = Math.log(2d);
+  public static final double LOG2 = Math.log(2d);
   /**
    * Pre-calculated BigDecimal LOG2 value.
    */
@@ -126,14 +131,6 @@ public final class MathUtils {
               throw new IllegalArgumentException(
                   "Null entries are not allowed in dataSet.");
             }
-            if (ds.qModel == null) {
-              throw new IllegalArgumentException(
-                  "Null as query-model value is not allowed.");
-            }
-            if (ds.cModel == null) {
-              throw new IllegalArgumentException(
-                  "Null as collection-model value is not allowed.");
-            }
             final int qModelState = ds.qModel.compareTo(BigDecimal.ZERO);
             if (qModelState < 0) {
               throw new IllegalArgumentException(
@@ -180,14 +177,6 @@ public final class MathUtils {
             if (ds == null) {
               throw new IllegalArgumentException(
                   "Null entries are not allowed in dataSet.");
-            }
-            if (ds.qModel == null) {
-              throw new IllegalArgumentException(
-                  "Null as query-model value is not allowed.");
-            }
-            if (ds.cModel == null) {
-              throw new IllegalArgumentException(
-                  "Null as collection-model value are not allowed.");
             }
             final int qModelState = ds.qModel.compareTo(BigDecimal.ZERO);
             if (qModelState < 0) {
@@ -249,6 +238,7 @@ public final class MathUtils {
      * @param dataSet Data-set to sum
      * @return Sums for values in the given data-set
      */
+    @SuppressFBWarnings("CLI_CONSTANT_LIST_INDEX")
     static ScoreTupleLowPrecision sumValues(
         @NotNull final ScoreTupleLowPrecision... dataSet) {
       final double[] sums = Arrays.stream(dataSet)

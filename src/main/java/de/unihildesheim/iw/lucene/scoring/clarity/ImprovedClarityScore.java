@@ -34,6 +34,7 @@ import de.unihildesheim.iw.util.MathUtils.KlDivergenceHighPrecision;
 import de.unihildesheim.iw.util.MathUtils.KlDivergenceLowPrecision;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -425,16 +426,19 @@ public final class ImprovedClarityScore
    *
    * @param builder Builder to use for constructing the instance
    */
+  @SuppressFBWarnings("NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE")
   ImprovedClarityScore(final Builder builder) {
     super(IDENTIFIER);
     Objects.requireNonNull(builder, "Builder was null.");
 
     // set configuration
+    assert builder.getIndexDataProvider() != null;
     this.dataProv = builder.getIndexDataProvider();
+    assert builder.getConfiguration() != null;
     this.conf = builder.getConfiguration();
 
     // check config
-    if (this.conf.getMinFeedbackDocumentsCount() >
+    if ((long) this.conf.getMinFeedbackDocumentsCount() >
         this.dataProv.getDocumentCount()) {
       throw new IllegalStateException(
           "Required minimum number of feedback documents ("
@@ -466,6 +470,7 @@ public final class ImprovedClarityScore
    * @param query Query to calculate for
    * @return Clarity score result object
    */
+  @SuppressFBWarnings("EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS")
   @Override
   public Result calculateClarity(@NotNull final String query)
       throws ClarityScoreCalculationException {
@@ -630,6 +635,7 @@ public final class ImprovedClarityScore
      *
      * @param fbDocIds List of feedback documents
      */
+    @SuppressFBWarnings("EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS")
     void setFeedbackDocIds(@Nullable final DocIdSet fbDocIds) {
       if (fbDocIds != null) {
         try {

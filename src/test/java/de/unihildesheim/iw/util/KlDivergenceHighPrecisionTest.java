@@ -327,8 +327,8 @@ public class KlDivergenceHighPrecisionTest
         BigDecimal.valueOf(3L), BigDecimal.valueOf(14L));
     try {
       KlDivergenceHighPrecision.calc(dataSet, sums);
-      Assert.fail("Expected an IllegalArgumentException to be thrown.");
-    } catch (final IllegalArgumentException e) {
+      Assert.fail("Expected a NullPointerException to be thrown.");
+    } catch (final NullPointerException e) {
       // pass
     }
   }
@@ -348,8 +348,8 @@ public class KlDivergenceHighPrecisionTest
         BigDecimal.valueOf(3L), BigDecimal.valueOf(14L));
     try {
       KlDivergenceHighPrecision.calc(dataSet, sums);
-      Assert.fail("Expected an IllegalArgumentException to be thrown.");
-    } catch (final IllegalArgumentException e) {
+      Assert.fail("Expected an NullPointerException to be thrown.");
+    } catch (final NullPointerException e) {
       // pass
     }
   }
