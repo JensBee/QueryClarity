@@ -75,9 +75,8 @@ public final class Language {
 
   @Override
   public int hashCode() {
-    int result = this.stopwords.hashCode();
-    result = 31 * result + this.lang.hashCode();
-    return result;
+    final int result = this.stopwords.hashCode();
+    return 31 * result + this.lang.hashCode();
   }
 
   @Override
