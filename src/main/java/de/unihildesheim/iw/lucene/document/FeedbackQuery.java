@@ -189,34 +189,31 @@ public final class FeedbackQuery {
     }
 
     final int maxRetDocs = getMaxDocs(searcher.getIndexReader(), maxDocs);
-    final Query q = query.getQueryObj();
     final FixedBitSet bits =
         new FixedBitSet(searcher.getIndexReader().maxDoc());
-    bits.or(BitsUtils.arrayToBits(getDocs(searcher, q, maxRetDocs)));
+    bits.or(BitsUtils.arrayToBits(
+        getDocs(searcher, query.getQueryObj(), maxRetDocs)));
+
+    // build a log-info string
+    final String logInfo = "Got {} matching feedback documents. " +
+        "Relaxing query to " +
+        (maxDocCount > 0 ? "get additional" : "reach the minimum of") +
+        " {} feedback documents...";
 
     int docsToGet;
-    while (bits.cardinality() < minDocs) {
-      final int bitsCount = bits.cardinality();
+    int bitsCount;
+    while ((bitsCount = bits.cardinality()) < minDocs && query.relax()) {
       docsToGet = maxRetDocs - bitsCount;
-      if (maxDocCount > 0) {
-        LOG.info("Got {} matching feedback documents. "
-            + "Relaxing query to get additional {} feedback " +
-            "documents...", bitsCount, docsToGet);
-      } else {
-        LOG.info("Got {} matching feedback documents. "
-            + "Relaxing query to reach the minimum of {} feedback " +
-            "documents...", bitsCount, minDocs);
-      }
-      if (query.relax()) {
-        final int[] docs = getDocs(searcher, q, maxRetDocs);
-        for (int i = docs.length - 1;
-             i >= 0 && bits.cardinality() < maxDocs; i--) {
-          bits.set(docs[i]);
+      LOG.info(logInfo, bitsCount, docsToGet);
+
+      final int[] docs = getDocs(searcher, query.getQueryObj(), maxRetDocs);
+      int maxAdd = maxDocs - bitsCount;
+
+      for (int i = docs.length - 1;
+           i >= 0 && maxAdd > 0; i--) {
+        if (!bits.getAndSet(docs[i])) {
+          maxAdd--;
         }
-      } else {
-        LOG.info("Cannot relax query any more. Returning only {} documents.",
-            bitsCount);
-        break;
       }
     }
 
