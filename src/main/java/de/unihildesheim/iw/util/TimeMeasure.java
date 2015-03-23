@@ -46,8 +46,8 @@ public final class TimeMeasure {
   private boolean stopped;
 
   /**
-   * Get a string representation of the elapsed time formatted as <tt>DDd
-   * HH:MM:SS</tt> string.
+   * Get a string representation of the elapsed time formatted as {@code DDd
+   * HH:MM:SS} string.
    *
    * @param nanos Nanoseconds to convert
    * @return Formatted elapsed time string
@@ -57,8 +57,8 @@ public final class TimeMeasure {
   }
 
   /**
-   * Get a string representation of the elapsed time formatted as <tt>DDd
-   * HH:MM:SS</tt> string.
+   * Get a string representation of the elapsed time formatted as {@code DDd
+   * HH:MM:SS} string.
    *
    * @param elapsedTime Elapsed seconds to convert
    * @return Formatted elapsed time string
@@ -91,7 +91,7 @@ public final class TimeMeasure {
 
     final int strPartsCount = strParts.size();
 
-    if (strPartsCount == 0) {
+    if (strParts.isEmpty()) {
       timeStr.append(0).append('s');
     } else {
       for (int i = 0; i < strPartsCount; i++) {
@@ -161,7 +161,7 @@ public final class TimeMeasure {
   /**
    * Get the elapsed milliseconds of the current measurement.
    *
-   * @return elapsed milliseconds, or <tt>0</tt> if no time was recorded
+   * @return elapsed milliseconds, or {@code 0} if no time was recorded
    */
   public double getElapsedMillis() {
     final double nanos = getElapsedNanos();
@@ -171,7 +171,7 @@ public final class TimeMeasure {
   /**
    * Get the elapsed nanoseconds of the current measurement.
    *
-   * @return elapsed nanoseconds, or <tt>0</tt> if no time was recorded
+   * @return elapsed nanoseconds, or {@code 0} if no time was recorded
    */
   public double getElapsedNanos() {
     final double nanos;
@@ -184,8 +184,8 @@ public final class TimeMeasure {
   }
 
   /**
-   * Get a string representation of the elapsed time formatted as <tt>DDd
-   * HH:MM:SS</tt> string.
+   * Get a string representation of the elapsed time formatted as {@code DDd
+   * HH:MM:SS} string.
    *
    * @return Formatted elapsed time string
    */
