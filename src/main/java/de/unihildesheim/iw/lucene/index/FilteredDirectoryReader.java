@@ -23,6 +23,7 @@ import de.unihildesheim.iw.lucene.search.EmptyFieldFilter;
 import de.unihildesheim.iw.lucene.util.BitsUtils;
 import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
 import de.unihildesheim.iw.lucene.util.StreamUtils;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocsAndPositionsEnum;
@@ -66,6 +67,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Spliterator.OfLong;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -115,10 +118,15 @@ public final class FilteredDirectoryReader
    * reader
    * @param tFilter Term-filter
    */
+  @SuppressFBWarnings({"EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS",
+      "LO_APPENDED_STRING_IN_FORMAT_STRING"})
   FilteredDirectoryReader(
-      final DirectoryReader dirReader, final SubReaderWrapper wrapper,
-      final Collection<String> vFields, final boolean negate,
-      @Nullable final Filter qFilter, final TermFilter tFilter) {
+      @NotNull final DirectoryReader dirReader,
+      @NotNull final SubReaderWrapper wrapper,
+      @NotNull final Collection<String> vFields,
+      final boolean negate,
+      @Nullable final Filter qFilter,
+      @NotNull final TermFilter tFilter) {
     // all sub-readers get initialized when calling super
     super(dirReader, wrapper);
 
@@ -339,7 +347,6 @@ public final class FilteredDirectoryReader
 
       // create context
       this.flrContext.termFilter = tFilter;
-      this.flrContext.context = this.getContext();
       this.flrContext.originContext = this.in.getContext();
 
       this.fieldsInstance = new FilteredFields(this.flrContext,
@@ -439,13 +446,8 @@ public final class FilteredDirectoryReader
           .forEach(filterBits::set);
 
       if (LOG.isDebugEnabled()) {
-        if (this.flrContext.docBits != null) {
-          LOG.debug("Filter (doc): {} -> {}",
-              this.flrContext.docBits.cardinality(), filterBits.cardinality());
-        } else {
-          LOG.debug("Filter (doc): {} -> {}",
-              this.flrContext.maxDoc, filterBits.cardinality());
-        }
+        LOG.debug("Filter (doc): {} -> {}",
+            this.flrContext.maxDoc, filterBits.cardinality());
       }
       this.flrContext.docBits = filterBits;
     }
@@ -511,28 +513,12 @@ public final class FilteredDirectoryReader
       // get a bit-set of matching docs from the original reader..
       // AND them with the allowed documents to get only visible matches
       @Nullable final BitSet filteredDocs;
-      if (this.flrContext.docBits == null) {
-        filteredDocs = BitsUtils.bits2BitSet(this.in.getDocsWithField
-            (field));
-        if (filteredDocs == null) {
-          return null;
-        }
-      } else {
-        filteredDocs = BitsUtils.bits2FixedBitSet(
-            this.in.getDocsWithField(field));
-        if (filteredDocs == null) {
-          return null;
-        }
-        ((FixedBitSet) filteredDocs).and(this.flrContext.docBits);
+      filteredDocs = BitsUtils.bits2FixedBitSet(
+          this.in.getDocsWithField(field));
+      if (filteredDocs == null) {
+        return null;
       }
-//      final FixedBitSet filteredDocs = BitsUtils.bits2FixedBitSet(
-//          this.in.getDocsWithField(field));
-//      if (filteredDocs == null) {
-//        return null;
-//      }
-//      if (this.flrContext.docBits != null) {
-//        filteredDocs.and(this.flrContext.docBits);
-//      }
+      ((FixedBitSet) filteredDocs).and(this.flrContext.docBits);
       return filteredDocs;
     }
 
@@ -671,11 +657,6 @@ public final class FilteredDirectoryReader
   public static final class Builder
       implements Buildable<FilteredDirectoryReader> {
     /**
-     * Logger instance for this class.
-     */
-    private static final Logger LOG =
-        LoggerFactory.getLogger(Builder.class);
-    /**
      * Original DirectoryReader instance being wrapped.
      */
     final DirectoryReader in;
@@ -773,6 +754,8 @@ public final class FilteredDirectoryReader
      *
      * @return New FilteredDirectoryReader instance
      */
+    @SuppressFBWarnings("RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE")
+    @NotNull
     @Override
     public FilteredDirectoryReader build() {
       if (this.tf == null) {
@@ -783,11 +766,12 @@ public final class FilteredDirectoryReader
       }
 
       final SubReaderWrapper srw = new SubReaderWrapper() {
+        @SuppressFBWarnings("RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE")
         @Override
         public LeafReader wrap(final LeafReader reader) {
+          assert Builder.this.f != null;
+          assert Builder.this.tf != null;
           try {
-            assert Builder.this.f != null;
-            assert Builder.this.tf != null;
             return new FilteredLeafReader(reader, Builder.this.f,
                 Builder.this.fn, Builder.this.qf, Builder.this.tf);
           } catch (final IOException e) {
@@ -839,7 +823,7 @@ public final class FilteredDirectoryReader
      * @param flr Filtered reader context
      * @param wrap Original Fields instance
      * @param skipDocCheck Skips the check, if a doc exists with a given field.
-     * Useful in comination with Field instances from TermVectors.
+     * Useful in combination with Field instances from TermVectors.
      * @param fld Visible fields
      */
     FilteredFields(
@@ -872,11 +856,12 @@ public final class FilteredDirectoryReader
     /**
      * Get a list of all visible document fields that have any content.
      *
-     * @param skipDocCheck Skip check, if a document exists with a given
-     * field. Usable with TermVector Fields instances.
+     * @param skipDocCheck Skip check, if a document exists with a given field.
+     * Usable with TermVector Fields instances.
      * @param fld Field initially set visible
      * @return List of available document fields
      */
+    @SuppressFBWarnings("EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS")
     private String[] getFields(
         final boolean skipDocCheck, final String... fld) {
       return StreamSupport.stream(this.in.spliterator(), false)
@@ -952,18 +937,13 @@ public final class FilteredDirectoryReader
     /**
      * Bits with visible documents bits turned on.
      */
-    @Nullable
+    @NotNull
     FixedBitSet docBits;
     /**
      * Term filter in use.
      */
     @Nullable
     TermFilter termFilter;
-    /**
-     * Filtered reader context.
-     */
-    @Nullable
-    LeafReaderContext context;
     /**
      * Context of wrapped reader.
      */
@@ -993,11 +973,6 @@ public final class FilteredDirectoryReader
   static final class FilteredTermsEnum
       extends TermsEnum {
     /**
-     * Logger instance for this class.
-     */
-    private static final Logger LOG =
-        LoggerFactory.getLogger(FilteredTermsEnum.class);
-    /**
      * Original TermsEnum instance being wrapped.
      */
     private final TermsEnum in;
@@ -1006,18 +981,13 @@ public final class FilteredDirectoryReader
      */
     private final FLRContext ctx;
     /**
-     * Shared {@link DocsEnum} instance.
+     * On-time retrieval result of document-frequency value.
      */
-    @Nullable
-    @SuppressWarnings("FieldAccessedSynchronizedAndUnsynchronized")
-    private DocsEnum sharedDocsEnum;
+    private final AtomicInteger freqsDF = new AtomicInteger(-1);
     /**
-     * On-time retrieval result of document-frequency and total-term-frequency
-     * value.
+     * On-time retrieval result of total-term-frequency value.
      */
-    @Nullable
-    @SuppressWarnings("FieldAccessedSynchronizedAndUnsynchronized")
-    private long[] freqs;
+    private final AtomicLong freqsTTF = new AtomicLong(-1L);
 
     /**
      * Creates a new FilterTermsEnum.
@@ -1040,7 +1010,9 @@ public final class FilteredDirectoryReader
     @Override
     public SeekStatus seekCeil(final BytesRef term)
         throws IOException {
-      this.freqs = null;
+      // reset frequency values
+      this.freqsDF.set(-1);
+      this.freqsTTF.set(-1L);
       // try seek to term
       SeekStatus status = this.in.seekCeil(term);
 
@@ -1066,8 +1038,7 @@ public final class FilteredDirectoryReader
         throws IOException {
       // check, if term is contained in any visible document
       return DocIdSetIterator.NO_MORE_DOCS != this.in
-          .docs(this.ctx.docBits,
-              this.sharedDocsEnum, DocsEnum.FLAG_NONE).nextDoc();
+          .docs(this.ctx.docBits, null, DocsEnum.FLAG_NONE).nextDoc();
     }
 
     /**
@@ -1081,9 +1052,11 @@ public final class FilteredDirectoryReader
     @Nullable
     public BytesRef next()
         throws IOException {
-      this.freqs = null;
-      BytesRef term;
+      // reset frequency values
+      this.freqsDF.set(-1);
+      this.freqsTTF.set(-1L);
 
+      BytesRef term;
       while ((term = this.in.next()) != null) {
         if (hasDoc() &&
             (this.ctx.termFilter == null ||
@@ -1097,7 +1070,10 @@ public final class FilteredDirectoryReader
     @Override
     public void seekExact(final long ord)
         throws IOException {
-      this.freqs = null;
+      // reset frequency values
+      this.freqsDF.set(-1);
+      this.freqsTTF.set(-1L);
+
       this.in.seekExact(ord);
     }
 
@@ -1116,36 +1092,48 @@ public final class FilteredDirectoryReader
     @Override
     public int docFreq()
         throws IOException {
-      return (int) (this.freqs == null ? freqs()[0] : this.freqs[0]);
+      int docFreq = this.freqsDF.get();
+      if (docFreq == -1) {
+        freqs();
+        docFreq = this.freqsDF.get();
+      }
+      assert docFreq > -1;
+      return docFreq;
     }
 
     /**
      * Get the document-frequency and the total-term-frequency value at the same
      * time.
      *
-     * @return Array [docFreq, TTF]
      * @throws IOException Thrown on low-level I/O-errors
      */
-    private synchronized long[] freqs()
+    private void freqs()
         throws IOException {
-      if (this.freqs == null) {
-        this.sharedDocsEnum = this.in.docs(this.ctx.docBits,
-            this.sharedDocsEnum, DocsEnum.FLAG_FREQS);
-        final long[] freqs = {0L, 0L}; // docFreq, ttf
-        while (this.sharedDocsEnum.nextDoc() !=
+      if (this.freqsDF.get() == -1L || this.freqsTTF.get() == -1L) {
+        final DocsEnum de = this.in.docs(this.ctx.docBits,
+            null, DocsEnum.FLAG_FREQS);
+        int docFreq = 0;
+        long ttf = 0L;
+        while (de.nextDoc() !=
             DocIdSetIterator.NO_MORE_DOCS) {
-          freqs[0]++; // docFreq
-          freqs[1] += (long) this.sharedDocsEnum.freq(); // ttf
+          docFreq++; // docFreq
+          ttf += (long) de.freq(); // ttf
         }
-        this.freqs = freqs;
+        this.freqsDF.set(docFreq);
+        this.freqsTTF.set(ttf);
       }
-      return this.freqs;
     }
 
     @Override
     public long totalTermFreq()
         throws IOException {
-      return this.freqs == null ? freqs()[1] : this.freqs[1];
+      long ttf = this.freqsTTF.get();
+      if (ttf == -1L) {
+        freqs();
+        ttf = this.freqsTTF.get();
+      }
+      assert ttf > -1L;
+      return ttf;
     }
 
     @Override
@@ -1157,9 +1145,6 @@ public final class FilteredDirectoryReader
       if (liveDocs == null) {
         return this.in.docs(this.ctx.docBits, reuse, flags);
       } else {
-        if (this.ctx.docBits == null) {
-          return this.in.docs(liveDocs, reuse, flags);
-        }
         final FixedBitSet liveBits = this.ctx.docBits.clone();
         liveBits.and(BitsUtils.bits2FixedBitSet(liveDocs));
         return this.in.docs(liveBits, reuse, flags);
@@ -1176,13 +1161,9 @@ public final class FilteredDirectoryReader
       if (liveDocs == null) {
         dape = this.in.docsAndPositions(this.ctx.docBits, reuse, flags);
       } else {
-        if (this.ctx.docBits == null) {
-          dape = this.in.docsAndPositions(liveDocs, reuse, flags);
-        } else {
-          final FixedBitSet liveBits = this.ctx.docBits.clone();
-          liveBits.and(BitsUtils.bits2FixedBitSet(liveDocs));
-          dape = this.in.docsAndPositions(liveBits, reuse, flags);
-        }
+        final FixedBitSet liveBits = this.ctx.docBits.clone();
+        liveBits.and(BitsUtils.bits2FixedBitSet(liveDocs));
+        dape = this.in.docsAndPositions(liveBits, reuse, flags);
       }
       return dape;
     }
@@ -1194,11 +1175,6 @@ public final class FilteredDirectoryReader
   @SuppressWarnings("PackageVisibleInnerClass")
   static final class FilteredTerms
       extends Terms {
-    /**
-     * Logger instance for this class.
-     */
-    private static final Logger LOG =
-        LoggerFactory.getLogger(FilteredTerms.class);
     /**
      * Current field name.
      */
