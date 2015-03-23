@@ -73,21 +73,13 @@ public final class StopwordsFileReader {
         new InputStreamReader(new FileInputStream(source), cs))) {
 
       String line;
-      while ((line = reader.readLine()) != null) {
-        line = line.trim();
-
-        // ignore empty lines
-        if (line.isEmpty()) {
-          continue;
-        }
-
+      while ((line = reader.readLine()) != null &&
+          !(line = line.trim()).isEmpty()) {
         // skip snowball comment lines
-        if (Format.SNOWBALL == format && line.charAt(0) == '|') {
-          continue;
+        if (Format.SNOWBALL != format || line.charAt(0) != '|') {
+          // add the first word
+          words.add(WS_SPLIT.split(line, 2)[0]);
         }
-
-        // add the first word
-        words.add(WS_SPLIT.split(line, 2)[0]);
       }
     }
     return words;
