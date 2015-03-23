@@ -121,8 +121,7 @@ public final class Tuple {
     public int hashCode() {
       int hash = 7;
       hash = 47 * hash + Objects.hashCode(this.a);
-      hash = 47 * hash + Objects.hashCode(this.b);
-      return hash;
+      return 47 * hash + Objects.hashCode(this.b);
     }
 
     @Override
@@ -212,13 +211,12 @@ public final class Tuple {
       int hash = 7;
       hash = 79 * hash + Objects.hashCode(this.a);
       hash = 79 * hash + Objects.hashCode(this.b);
-      hash = 79 * hash + Objects.hashCode(this.c);
-      return hash;
+      return 79 * hash + Objects.hashCode(this.c);
     }
 
     @Override
     public String toString() {
-      return "Tuple3(a=" + this.a + " b=" + this.b + " c=" + this.c + ")";
+      return "Tuple3(a=" + this.a + " b=" + this.b + " c=" + this.c + ')';
     }
   }
 
@@ -298,14 +296,13 @@ public final class Tuple {
       hash = 79 * hash + Objects.hashCode(this.a);
       hash = 79 * hash + Objects.hashCode(this.b);
       hash = 79 * hash + Objects.hashCode(this.c);
-      hash = 79 * hash + Objects.hashCode(this.d);
-      return hash;
+      return 79 * hash + Objects.hashCode(this.d);
     }
 
     @Override
     public String toString() {
       return "Tuple4(a=" + this.a + " b=" + this.b + " c=" + this.c + " d=" +
-          this.d + ")";
+          this.d + ')';
     }
   }
 }

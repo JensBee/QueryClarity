@@ -62,9 +62,10 @@ public final class EmptyFieldFilter
 
   /**
    * @param field the field to filter
-   * @param negate iff <code>true</code> all documents with no terms in the
+   * @param negate iff {@code true} all documents with no terms in the
    * given field are accepted.
    */
+  @SuppressWarnings("BooleanParameter")
   public EmptyFieldFilter(final String field, final boolean negate) {
     this.field = field;
     this.negate = negate;
@@ -165,9 +166,8 @@ public final class EmptyFieldFilter
 
   @Override
   public int hashCode() {
-    int result = this.field != null ? this.field.hashCode() : 0;
-    result = 31 * result + (this.negate ? 1 : 0);
-    return result;
+    final int result = this.field != null ? this.field.hashCode() : 0;
+    return 31 * result + (this.negate ? 1 : 0);
   }
 
   @Override
