@@ -94,20 +94,20 @@ public final class EmptyFieldFilter
   public DocIdSet getDocIdSet(
       final LeafReaderContext context, @Nullable final Bits acceptDocs)
       throws IOException {
-    BitSet checkBits;
+    FixedBitSet checkBits;
     final LeafReader reader = context.reader();
     final int maxDoc = reader.maxDoc();
 
     BitSet finalBits = new SparseFixedBitSet(maxDoc);
     if (acceptDocs == null) {
-      checkBits = BitsUtils.bits2BitSet(reader.getLiveDocs());
+      checkBits = BitsUtils.bits2FixedBitSet(reader.getLiveDocs());
       if (checkBits == null) {
         // all live
         checkBits = new FixedBitSet(maxDoc);
         ((FixedBitSet) checkBits).set(0, checkBits.length());
       }
     } else {
-      checkBits = BitsUtils.bits2BitSet(acceptDocs);
+      checkBits = BitsUtils.bits2FixedBitSet(acceptDocs);
     }
 
     @Nullable final Terms terms = reader.terms(this.field);
@@ -124,16 +124,12 @@ public final class EmptyFieldFilter
         if (t != null) {
           DocsEnum de = null;
           final TermsEnum te = t.iterator(null);
+          int docId;
           while (te.next() != null) {
             de = te.docs(checkBits, de, DocsEnum.FLAG_NONE);
-            while (true) {
-              final int docId = de.nextDoc();
-              if (docId == DocIdSetIterator.NO_MORE_DOCS) {
-                break;
-              }
-              if (checkBits.get(docId)) {
+            while ((docId = de.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS)  {
+              if (checkBits.getAndClear(docId)) {
                 finalBits.set(docId);
-                checkBits.clear(docId);
               }
             }
           }
