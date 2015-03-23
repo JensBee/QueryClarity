@@ -1057,12 +1057,11 @@ public final class FilteredDirectoryReader
       this.freqsTTF.set(-1L);
 
       BytesRef term;
-      while ((term = this.in.next()) != null) {
-        if (hasDoc() &&
-            (this.ctx.termFilter == null ||
-                this.ctx.termFilter.isAccepted(this.in, term))) {
-          break;
-        }
+
+      while ((term = this.in.next()) != null && (!hasDoc() ||
+          (this.ctx.termFilter != null &&
+              !this.ctx.termFilter.isAccepted(this.in, term)))) {
+        // NOP, just skip terms we should ignore
       }
       return term;
     }
