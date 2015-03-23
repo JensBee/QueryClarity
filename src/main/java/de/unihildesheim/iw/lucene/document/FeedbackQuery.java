@@ -209,11 +209,9 @@ public final class FeedbackQuery {
       }
       if (query.relax()) {
         final int[] docs = getDocs(searcher, q, maxRetDocs);
-        for (int i = docs.length - 1; i >= 0; i--) {
+        for (int i = docs.length - 1;
+             i >= 0 && bits.cardinality() < maxDocs; i--) {
           bits.set(docs[i]);
-          if (bits.cardinality() >= maxDocs) {
-            break;
-          }
         }
       } else {
         LOG.info("Cannot relax query any more. Returning only {} documents.",
