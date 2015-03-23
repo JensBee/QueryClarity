@@ -249,7 +249,7 @@ public final class StringUtils {
     }
     final StringBuilder sb = new StringBuilder(input.length());
     // manual transform to lowercase to avoid locale problems
-    int size = input.length();
+    final int size = input.length();
     for (int i = 0; i < size; i++) {
       sb.append(Character.toChars(Character.toLowerCase(input.codePointAt(i))));
     }
