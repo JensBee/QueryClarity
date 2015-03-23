@@ -17,6 +17,7 @@
 package de.unihildesheim.iw.lucene.document;
 
 import de.unihildesheim.iw.Buildable;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.ByteBlockPool.DirectAllocator;
 import org.apache.lucene.util.BytesRef;
@@ -134,10 +135,15 @@ public final class DocumentModel
     final BytesRef spare = new BytesRef();
 
     for (int i = 0; i < size; i++) {
-      spare.bytes = new byte[in.readInt()];
+      final int bytesAvailable = in.readInt();
+      spare.bytes = new byte[bytesAvailable];
       spare.length = spare.bytes.length;
       spare.offset = 0;
-      in.read(spare.bytes);
+      final int bytesRead = in.read(spare.bytes);
+      if (bytesRead < bytesAvailable) {
+        throw new IllegalStateException("Not enough bytes to read. " +
+            "Expected " + bytesAvailable + " but got " + bytesRead + '.');
+      }
       this.terms.add(spare);
     }
 
@@ -251,6 +257,7 @@ public final class DocumentModel
    *
    * @return Current frequency values
    */
+  @SuppressFBWarnings("EI_EXPOSE_REP")
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
   public long[] getFreqsForSerialization() {
     return this.freqs;
