@@ -233,11 +233,15 @@ public class Configuration {
       throw new IllegalArgumentException("Key was empty.");
     }
     final String value = getString(key);
-    if (value.isEmpty()) {
-      return defaultValue;
-    } else {
-      return "1".equals(value) || "true".equalsIgnoreCase(value) || "yes"
-          .equalsIgnoreCase(value);
+    switch (value.toLowerCase()) {
+      case "":
+        return defaultValue;
+      case "1":
+      case "true":
+      case "yes":
+        return true;
+      default:
+        return false;
     }
   }
 
@@ -269,13 +273,7 @@ public class Configuration {
       final int defaultValue) {
     @Nullable
     final String value = getString(key);
-    final int result;
-    if (value.isEmpty()) {
-      result = defaultValue;
-    } else {
-      result = Integer.parseInt(value);
-    }
-    return result;
+    return value.isEmpty() ? defaultValue : Integer.parseInt(value);
   }
 
   /**
@@ -328,13 +326,7 @@ public class Configuration {
       @NotNull final String key,
       final double defaultValue) {
     final String value = getString(key);
-    final double result;
-    if (value.isEmpty()) {
-      result = defaultValue;
-    } else {
-      result = Double.parseDouble(value);
-    }
-    return result;
+    return value.isEmpty() ? defaultValue : Double.parseDouble(value);
   }
 
   /**
