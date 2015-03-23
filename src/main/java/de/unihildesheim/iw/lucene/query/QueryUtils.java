@@ -18,6 +18,7 @@ package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.lucene.index.CollectionMetrics;
 import de.unihildesheim.iw.lucene.util.StreamUtils;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -97,6 +98,7 @@ public final class QueryUtils {
    * @param terms Collection of terms to check against the collection
    * @return Passed in terms with non-collection terms removed
    */
+  @SuppressFBWarnings("LO_APPENDED_STRING_IN_FORMAT_STRING")
   private static BytesRefArray removeUnknownTerms(final CollectionMetrics
       cMetrics, final BytesRefArray terms) {
     final StringBuilder sb = new StringBuilder(
@@ -156,7 +158,7 @@ public final class QueryUtils {
    * @return Tokenized query string with stop-words removed CollectionMetrics}
    * fails
    */
-  public static List<String> tokenizeQueryString(
+  public static Collection<String> tokenizeQueryString(
       @NotNull final String query,
       @NotNull final Analyzer qAnalyzer) {
     return tokenizeQueryString(query, qAnalyzer, null);
