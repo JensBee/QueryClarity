@@ -19,6 +19,7 @@ package de.unihildesheim.iw.cli;
 
 import au.com.bytecode.opencsv.CSVWriter;
 import de.unihildesheim.iw.util.StopwordsFileReader;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
@@ -35,8 +36,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.FileWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.Set;
 
 /**
@@ -57,11 +60,6 @@ final class DumpCommonTerms
    * Object wrapping commandline options.
    */
   private final Params cliParams = new Params();
-  /**
-   * CSV writer instance.
-   */
-  @Nullable
-  private CSVWriter csvWriter;
 
   /**
    * Default private constructor passing a description to {@link CliBase}.
@@ -75,20 +73,23 @@ final class DumpCommonTerms
    * Main method.
    *
    * @param args Commandline arguments.
+   * @throws IOException Thrown on low-level i/o-errors
    */
-  public static void main(final String[] args)
+  public static void main(final String... args)
       throws IOException {
     new DumpCommonTerms().runMain(args);
-    System.exit(0); // required to trigger shutdown-hooks
+    Runtime.getRuntime().exit(0); // required to trigger shutdown-hooks
   }
 
   /**
    * Class setup.
    *
    * @param args Commandline arguments.
-   * @throws IOException
+   * @throws IOException Thrown on low-level i/o-errors
    */
-  private void runMain(final String[] args)
+  @SuppressWarnings("ObjectAllocationInLoop")
+  @SuppressFBWarnings("SEC_SIDE_EFFECT_CONSTRUCTOR")
+  private void runMain(final String... args)
       throws IOException {
     new CmdLineParser(this.cliParams);
     parseWithHelp(this.cliParams, args);
@@ -98,9 +99,12 @@ final class DumpCommonTerms
 
     LOG.info("Writing terms to '{}'.", this.cliParams.targetFile);
 
+    assert this.cliParams.lang != null;
+    assert this.cliParams.stopFilePattern != null;
     final Set<String> sWords = CliCommon.getStopwords(this.cliParams.lang,
         this.cliParams.stopFileFormat, this.cliParams.stopFilePattern);
 
+    assert this.cliParams.idxReader != null;
     final int maxDoc = this.cliParams.idxReader.maxDoc();
     if (maxDoc == 0) {
       LOG.error("Empty index.");
@@ -116,12 +120,13 @@ final class DumpCommonTerms
       termsEnum = terms.iterator(termsEnum);
       term = termsEnum.next();
 
-      try {
-        // target file
-        this.csvWriter =
-            new CSVWriter(new FileWriter(this.cliParams.targetFile));
+      assert this.cliParams.targetFile != null;
+      try (CSVWriter csvWriter =
+          new CSVWriter(new OutputStreamWriter(new FileOutputStream(
+          this.cliParams.targetFile), StandardCharsets.UTF_8))){
+
         // write header line
-        this.csvWriter.writeNext(new String[]{"term", "relDF"});
+        csvWriter.writeNext(new String[]{"term", "relDF"});
 
         while (term != null) {
           final String termStr = term.utf8ToString();
@@ -132,8 +137,7 @@ final class DumpCommonTerms
 
               if (relDocFreq > this.cliParams.threshold) {
                 // log term
-                this.csvWriter.writeNext(new String[]{
-                    termStr,
+                csvWriter.writeNext(new String[]{termStr,
                     // make exponential string R compatible
                     Double.toString(relDocFreq).toLowerCase()
                 });
@@ -142,8 +146,6 @@ final class DumpCommonTerms
           }
           term = termsEnum.next();
         }
-      } finally {
-        this.csvWriter.close();
       }
     }
   }
@@ -152,6 +154,11 @@ final class DumpCommonTerms
    * Wrapper for commandline options.
    */
   private static final class Params {
+    /**
+     * Logger instance for this class.
+     */
+    private static final Logger LOG =
+        LoggerFactory.getLogger(Params.class);
     /**
      * Stopwords file format.
      */
@@ -238,7 +245,9 @@ final class DumpCommonTerms
     @Option(name = "-lang", metaVar = "language", required = true,
         usage = "Process for the defined language.")
     String lang;
-
+    /**
+     * Document frequency threshold.
+     */
     @SuppressWarnings("PackageVisibleField")
     @Option(name = "-threshold", metaVar = "float", required = true,
         usage = "Document frequency threshold. If this is exceeded a term " +
@@ -254,14 +263,16 @@ final class DumpCommonTerms
     /**
      * Check, if the defined files and directories are available.
      *
-     * @throws IOException
+     * @throws IOException Thrown on low-level i/o-errors
      */
     void check()
         throws IOException {
+      assert this.targetFile != null;
       if (this.targetFile.exists()) {
-        LOG.error("Target file '" + this.targetFile + "' already exist.");
-        System.exit(-1);
+        LOG.error("Target file '{}' already exist.", this.targetFile);
+        Runtime.getRuntime().exit(-1);
       }
+      assert this.idxDir != null;
       if (this.idxDir.exists()) {
         // check, if path is a directory
         if (!this.idxDir.isDirectory()) {
@@ -276,20 +287,20 @@ final class DumpCommonTerms
         }
         this.idxReader = DirectoryReader.open(this.luceneDir);
       } else {
-        LOG.error("Index directory'" + this.idxDir + "' does not exist.");
-        System.exit(-1);
+        LOG.error("Index directory '{}' does not exist.", this.idxDir);
+        Runtime.getRuntime().exit(-1);
       }
+      assert this.dataDir != null;
       if (!this.dataDir.exists()) {
-        LOG.info("Data directory'" + this.dataDir +
-            "' does not exist and will be created.");
+        LOG.info("Data directory '{}' does not exist and will be created.",
+            this.dataDir);
       }
       if (StopwordsFileReader.getFormatFromString(this.stopFileFormat) ==
           null) {
         LOG.error(
-            "Unknown stopwords file format '" + this.stopFileFormat + "'.");
-        System.exit(-1);
+            "Unknown stopwords file format '{}'.", this.stopFileFormat);
+        Runtime.getRuntime().exit(-1);
       }
     }
   }
-
 }
