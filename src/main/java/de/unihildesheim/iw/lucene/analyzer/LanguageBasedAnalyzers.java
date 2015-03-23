@@ -23,8 +23,8 @@ import org.apache.lucene.analysis.util.CharArraySet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * @author Jens Bertram
@@ -34,10 +34,10 @@ public final class LanguageBasedAnalyzers {
   /**
    * List of known languages.
    */
-  private static final List<String> LANG_LIST;
+  private static final Set<String> LANG_LIST;
 
   static {
-    LANG_LIST = new ArrayList<>(Language.values().length);
+    LANG_LIST = new HashSet<>(Language.values().length);
     for (final Language lang : Language.values()) {
       LANG_LIST.add(lang.name());
     }
