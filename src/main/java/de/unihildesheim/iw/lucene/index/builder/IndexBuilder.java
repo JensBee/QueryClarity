@@ -17,7 +17,6 @@
 
 package de.unihildesheim.iw.lucene.index.builder;
 
-import de.unihildesheim.iw.lucene.LuceneDefaults;
 import de.unihildesheim.iw.lucene.VecTextField;
 import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers;
 import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers.Language;
