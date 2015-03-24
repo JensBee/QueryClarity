@@ -22,8 +22,6 @@ import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.xml.adapters.Entries.StringValueEntry;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.xml.bind.annotation.adapters.XmlAdapter;
 import java.util.ArrayList;
@@ -33,10 +31,6 @@ import java.util.List;
  * @author Jens Bertram
  */
 final class ListAdapter {
-  /**
-   * Logger instance for this class.
-   */
-  private static final Logger LOG = LoggerFactory.getLogger(ListAdapter.class);
   /**
    * XML processing of Tuple2 objects.
    */

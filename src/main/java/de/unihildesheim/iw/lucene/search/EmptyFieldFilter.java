@@ -32,8 +32,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.jetbrains.annotations.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
@@ -44,11 +42,6 @@ import java.io.IOException;
  */
 public final class EmptyFieldFilter
     extends Filter {
-  /**
-   * Logger instance for this class.
-   */
-  private static final Logger LOG =
-      LoggerFactory.getLogger(EmptyFieldFilter.class);
   private final String field;
   private final boolean negate;
 
