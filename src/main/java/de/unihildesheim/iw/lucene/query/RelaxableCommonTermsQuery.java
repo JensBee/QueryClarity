@@ -75,7 +75,7 @@ public final class RelaxableCommonTermsQuery
    * @param builder {@link Builder} Instance builder
    * @throws IOException Thrown on low-level i/o-errors
    */
-  @SuppressWarnings("ObjectAllocationInLoop")
+  @SuppressWarnings({"ObjectAllocationInLoop", "ObjectEquality"})
   RelaxableCommonTermsQuery(@NotNull final Builder builder)
       throws IOException {
     // get all query terms
