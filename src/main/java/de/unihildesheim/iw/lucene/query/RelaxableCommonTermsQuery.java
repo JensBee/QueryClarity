@@ -18,7 +18,6 @@
 package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.Buildable;
-import de.unihildesheim.iw.lucene.CommonTermsDefaults;
 import de.unihildesheim.iw.util.StringUtils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.lucene.analysis.Analyzer;
@@ -274,13 +273,13 @@ public final class RelaxableCommonTermsQuery
      * {@link Occur} used for low frequency terms.
      */
     @NotNull
-    Occur lowFreqOccur = CommonTermsDefaults.LFOP_DEFAULT;
+    Occur lowFreqOccur = Occur.SHOULD;
     /**
      * a value in [0..1) (or absolute number &gt;=1) representing the maximum
      * threshold of a terms document frequency to be considered a low frequency
      * term.
      */
-    float maxTermFrequency = CommonTermsDefaults.MTF_DEFAULT;
+    float maxTermFrequency = 0.01f;
     /**
      * Query string.
      */
