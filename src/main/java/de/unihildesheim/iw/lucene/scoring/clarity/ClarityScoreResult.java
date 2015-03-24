@@ -121,7 +121,7 @@ public abstract class ClarityScoreResult
    *
    * @param qTerms Query terms
    */
-  final void setQueryTerms(@NotNull final BytesRefArray qTerms) {
+  final void setQueryTerms(@Nullable final BytesRefArray qTerms) {
     this.queryTerms = qTerms;
   }
 
