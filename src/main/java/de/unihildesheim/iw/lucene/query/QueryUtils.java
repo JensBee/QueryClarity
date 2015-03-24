@@ -18,6 +18,7 @@ package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.lucene.index.CollectionMetrics;
 import de.unihildesheim.iw.lucene.util.StreamUtils;
+import de.unihildesheim.iw.util.StringUtils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
@@ -68,7 +69,6 @@ public final class QueryUtils {
       @NotNull final String query,
       @NotNull final Analyzer qAnalyzer,
       @Nullable final CollectionMetrics cMetrics) {
-    @SuppressWarnings("CollectionWithoutInitialCapacity")
     BytesRefArray result = new BytesRefArray(Counter.newCounter(false));
 
     try (TokenStream stream = qAnalyzer.tokenStream(null, query)) {
@@ -78,7 +78,6 @@ public final class QueryUtils {
             stream.getAttribute(CharTermAttribute.class));
         if (term.length > 0) {
           result.append(term);
-          //result.add(new ByteArray(term.getBytes(StandardCharsets.UTF_8)));
         }
       }
     } catch (final IOException e) {
@@ -225,8 +224,9 @@ public final class QueryUtils {
       @NotNull final String query,
       @NotNull final Analyzer qAnalyzer,
       @Nullable final CollectionMetrics cMetrics) {
-    @SuppressWarnings("CollectionWithoutInitialCapacity")
-    final Map<BytesRef, Integer> result = new HashMap<>();
+    // estimate size
+    final Map<BytesRef, Integer> result = new HashMap<>(
+        (int)((double) StringUtils.estimatedWordCount(query) * 1.8));
     try (TokenStream stream = qAnalyzer.tokenStream(null, query)) {
       stream.reset();
       while (stream.incrementToken()) {

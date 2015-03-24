@@ -127,7 +127,7 @@ public final class DocumentModel
    * @throws ClassNotFoundException Thrown if de-serialization of the
    * term-frw-map failed.
    */
-  @SuppressWarnings({"ObjectAllocationInLoop", "ResultOfMethodCallIgnored"})
+  @SuppressWarnings({"ObjectAllocationInLoop"})
   private void readObject(final ObjectInputStream in)
       throws IOException, ClassNotFoundException {
     in.defaultReadObject();

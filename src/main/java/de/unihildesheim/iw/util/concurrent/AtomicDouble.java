@@ -61,7 +61,6 @@ public final class AtomicDouble
   /**
    * Current value.
    */
-  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
   private transient volatile long value;
 
   /**

@@ -106,7 +106,6 @@ public final class SimplifiedClarityScore
    );
   }
 
-  @SuppressWarnings("ObjectAllocationInLoop")
   @Override
   public Result calculateClarity(@NotNull final String query) {
     if (StringUtils.isStrippedEmpty(query)) {
