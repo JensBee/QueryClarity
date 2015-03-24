@@ -69,6 +69,7 @@ public abstract class AbstractFeedbackProvider
   /**
    * Reader to access the index.
    */
+  @Nullable
   protected IndexDataProvider dataProv;
   /**
    * Query analyzer.
@@ -152,7 +153,8 @@ public abstract class AbstractFeedbackProvider
    * there are no postings available to the reader an {@link
    * IllegalStateException} will be thrown.
    *
-   * @return Fields or {@code null} if no fields are set
+   * @return Fields (instance field, no clone) or {@code null} if no fields are
+   * set
    * @throws IOException Thrown on low-level i/o-errors
    */
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
