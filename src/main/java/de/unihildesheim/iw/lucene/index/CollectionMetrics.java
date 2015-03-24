@@ -26,7 +26,6 @@ import org.jetbrains.annotations.Nullable;
 import org.mapdb.DBMaker;
 import org.mapdb.Serializer;
 
-import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -61,84 +60,15 @@ public final class CollectionMetrics {
    * Data provider to access index data.
    */
   private final IndexDataProvider dataProv;
-  /**
-   * Configuration for this class.
-   */
-  @NotNull
-  private final CollectionMetricsConfiguration conf;
-
-  /**
-   * Configuration object for metrics class. Defaults to cache most of the
-   * values retrieved from the {@link IndexDataProvider}.
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public static final class CollectionMetricsConfiguration {
-    /**
-     * Should document frequency values be cached?
-     */
-    boolean cacheDf = true;
-    /**
-     * Should term frequency values be cached?
-     */
-    boolean cacheTf = true;
-    /**
-     * Should document models be cached?
-     */
-    boolean cacheDocModels = true;
-
-    /**
-     * Disable caching of document frequency values.
-     *
-     * @return Self reference
-     */
-    public CollectionMetricsConfiguration noCacheDf() {
-      this.cacheDf = false;
-      return this;
-    }
-
-    /**
-     * Disable caching of term frequency values.
-     *
-     * @return Self reference
-     */
-    public CollectionMetricsConfiguration noCacheTf() {
-      this.cacheTf = false;
-      return this;
-    }
-
-    /**
-     * Disable caching of document models.
-     *
-     * @return Self reference
-     */
-    public CollectionMetricsConfiguration noCacheDocModels() {
-      this.cacheDocModels = false;
-      return this;
-    }
-  }
-
-  /**
-   * Initialize the collection data provider using a default configuration.
-   *
-   * @param idp DataProvider
-   */
-  public <I extends IndexDataProvider> CollectionMetrics(final I idp) {
-    this(idp, null);
-  }
 
   /**
    * Initialize the collection data provider - optionally caching some basic
    * index information, based on settings made in the configuration object.
    *
    * @param idp DataProvider
-   * @param cmConf Configuration
    */
-  public <I extends IndexDataProvider> CollectionMetrics(
-      @NotNull final I idp,
-      @Nullable final CollectionMetricsConfiguration cmConf) {
+  public <I extends IndexDataProvider> CollectionMetrics(@NotNull final I idp) {
     this.dataProv = idp;
-    // set configuration
-    this.conf = cmConf == null ? new CollectionMetricsConfiguration() : cmConf;
     this.tf = this.dataProv.getTermFrequency();
     this.docCount = this.dataProv.getDocumentCount();
 
@@ -152,38 +82,35 @@ public final class CollectionMetrics {
         .expireStoreSize(1500d)
         .make();
 
-    this.c_docModel = this.conf.cacheDocModels ?
-        DBMaker
-            .newMemoryDirectDB()
-            .transactionDisable()
-            .make()
-            .createHashMap("cache")
-            .keySerializer(Serializer.INTEGER)
-            .valueSerializer(DocumentModelSerializer.SERIALIZER)
-            .expireStoreSize(1000d)
-            .make() : Collections.emptyMap();
+    this.c_docModel = DBMaker
+        .newMemoryDirectDB()
+        .transactionDisable()
+        .make()
+        .createHashMap("cache")
+        .keySerializer(Serializer.INTEGER)
+        .valueSerializer(DocumentModelSerializer.SERIALIZER)
+        .expireStoreSize(1000d)
+        .make();
 
-    this.c_df = this.conf.cacheDf ?
-        DBMaker
-            .newMemoryDirectDB()
-            .transactionDisable()
-            .make()
-            .createHashMap("cache")
-            .keySerializer(BytesRefSerializer.SERIALIZER)
-            .valueSerializer(Serializer.INTEGER)
-            .expireStoreSize(1500d)
-            .make() : Collections.emptyMap();
+    this.c_df = DBMaker
+        .newMemoryDirectDB()
+        .transactionDisable()
+        .make()
+        .createHashMap("cache")
+        .keySerializer(BytesRefSerializer.SERIALIZER)
+        .valueSerializer(Serializer.INTEGER)
+        .expireStoreSize(1500d)
+        .make();
 
-    this.c_tf = this.conf.cacheTf ?
-        DBMaker
-            .newMemoryDirectDB()
-            .transactionDisable()
-            .make()
-            .createHashMap("cache")
-            .keySerializer(BytesRefSerializer.SERIALIZER)
-            .valueSerializer(Serializer.LONG)
-            .expireStoreSize(1500d)
-            .make() : Collections.emptyMap();
+    this.c_tf = DBMaker
+        .newMemoryDirectDB()
+        .transactionDisable()
+        .make()
+        .createHashMap("cache")
+        .keySerializer(BytesRefSerializer.SERIALIZER)
+        .valueSerializer(Serializer.LONG)
+        .expireStoreSize(1500d)
+        .make();
   }
 
   /**
@@ -193,17 +120,13 @@ public final class CollectionMetrics {
    * @return Collection frequency of the given term
    */
   public long tf(final BytesRef term) {
-    if (this.conf.cacheTf) {
-      @Nullable Long result = this.c_tf.get(term);
-      if (result == null) {
-        // may return null, if term is not known
-        result = this.dataProv.getTermFrequency(term);
-        this.c_tf.put(BytesRef.deepCopyOf(term), result);
-      }
-      return result;
-    } else {
-      return this.dataProv.getTermFrequency(term);
+    @Nullable Long result = this.c_tf.get(term);
+    if (result == null) {
+      // may return null, if term is not known
+      result = this.dataProv.getTermFrequency(term);
+      this.c_tf.put(BytesRef.deepCopyOf(term), result);
     }
+    return result;
   }
 
   /**
@@ -231,16 +154,12 @@ public final class CollectionMetrics {
    * @return Document frequency of the given term
    */
   public Integer df(final BytesRef term) {
-    if (this.conf.cacheDf) {
-      @Nullable Integer result = this.c_df.get(term);
-      if (result == null) {
-        result = this.dataProv.getDocumentFrequency(term);
-        this.c_df.put(BytesRef.deepCopyOf(term), result);
-      }
-      return result;
-    } else {
-      return this.dataProv.getDocumentFrequency(term);
+    @Nullable Integer result = this.c_df.get(term);
+    if (result == null) {
+      result = this.dataProv.getDocumentFrequency(term);
+      this.c_df.put(BytesRef.deepCopyOf(term), result);
     }
+    return result;
   }
 
   /**
@@ -262,15 +181,11 @@ public final class CollectionMetrics {
    * @return Document-model for the given document id
    */
   public DocumentModel docData(final int documentId) {
-    if (this.conf.cacheDocModels) {
-      @Nullable DocumentModel d = this.c_docModel.get(documentId);
-      if (d == null) {
-        d = this.dataProv.getDocumentModel(documentId);
-        this.c_docModel.put(documentId, d);
-      }
-      return d;
-    } else {
-      return this.dataProv.getDocumentModel(documentId);
+    @Nullable DocumentModel d = this.c_docModel.get(documentId);
+    if (d == null) {
+      d = this.dataProv.getDocumentModel(documentId);
+      this.c_docModel.put(documentId, d);
     }
+    return d;
   }
 }
