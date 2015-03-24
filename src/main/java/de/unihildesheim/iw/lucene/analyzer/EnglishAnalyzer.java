@@ -17,8 +17,6 @@
 
 package de.unihildesheim.iw.lucene.analyzer;
 
-import de.unihildesheim.iw.lucene.index.IndexDataProvider;
-import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
