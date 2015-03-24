@@ -38,7 +38,7 @@ public final class TimeMeasure {
   /**
    * True, if measurement is paused.
    */
-  private boolean paused;
+  private boolean notPaused = true;
 
   /**
    * True, if measurement is stopped.
@@ -112,10 +112,10 @@ public final class TimeMeasure {
    * @return Self reference
    */
   public TimeMeasure start() {
-    if (!this.paused) {
+    if (this.notPaused) {
       this.elapsed = 0L;
     }
-    this.paused = false;
+    this.notPaused = true;
     this.stopped = false;
     this.startTime = System.nanoTime();
     return this;
@@ -127,10 +127,10 @@ public final class TimeMeasure {
    * @return Self reference
    */
   public TimeMeasure pause() {
-    if (!this.paused && !this.stopped) {
+    if (this.notPaused && !this.stopped) {
       this.elapsed = getNanos();
     }
-    this.paused = true;
+    this.notPaused = false;
     return this;
   }
 
@@ -150,10 +150,10 @@ public final class TimeMeasure {
    * @return Self reference
    */
   public TimeMeasure stop() {
-    if (!this.stopped && !this.paused) {
+    if (!this.stopped && this.notPaused) {
       this.elapsed += getNanos();
     }
-    this.paused = false;
+    this.notPaused = true;
     this.stopped = true;
     return this;
   }
