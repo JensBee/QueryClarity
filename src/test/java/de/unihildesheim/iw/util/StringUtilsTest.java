@@ -147,4 +147,13 @@ Assert.assertEquals("Word count mismatch.", 5L,
     Assert.assertTrue("Lowercased string test failed.",
         StringUtils.isAllLower("foobar baz"));
   }
+
+  @SuppressWarnings("ImplicitNumericConversion")
+  @Test
+  public void testEstimatedWordCount() {
+    final String str = "foo bar baz\tbam   bim";
+    final int result = StringUtils.estimatedWordCount(str);
+
+    Assert.assertEquals("Estimated word count mismatch.", 5L, result);
+  }
 }

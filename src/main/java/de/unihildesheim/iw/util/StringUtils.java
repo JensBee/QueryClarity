@@ -194,6 +194,30 @@ public final class StringUtils {
   }
 
   /**
+   * Roughly estimates the number of words in a string by counting the number of
+   * whitespaces.
+   *
+   * @param s String
+   * @return Estimated number of words
+   */
+  @SuppressWarnings({"AssignmentToForLoopParameter", "StatementWithEmptyBody"})
+  public static int estimatedWordCount(final CharSequence s) {
+    int count = 0;
+    final int chars = s.length();
+    for (int i = 0; i < chars; i++) {
+      if (Character.isWhitespace(s.charAt(i))) {
+        count++;
+        int j = i;
+        while (Character.isWhitespace(s.charAt(++j))) {
+          // NOP, just skip abjected whitespaces
+        }
+        i = j - 1;
+      }
+    }
+    return count + 1;
+  }
+
+  /**
    * Counts the occurrence of words in the given string. <br> Based on:
    * http://tutorials.jenkov .com/java-internationalization/breakiterator
    * .html#word-boundaries
