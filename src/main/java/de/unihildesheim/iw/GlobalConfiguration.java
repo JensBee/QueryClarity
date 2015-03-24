@@ -46,7 +46,7 @@ public final class GlobalConfiguration
 
   static {
     try {
-      INSTANCE = new GlobalConfiguration(FILE_NAME);
+      INSTANCE = new GlobalConfiguration();
     } catch (final IOException e) {
       throw new ExceptionInInitializerError(e);
     }
@@ -55,12 +55,11 @@ public final class GlobalConfiguration
   /**
    * Private constructor. Statically called.
    *
-   * @param newFileName File name of the configuration
    * @throws IOException Thrown on low-level I/O errors
    */
-  private GlobalConfiguration(final String newFileName)
+  private GlobalConfiguration()
       throws IOException {
-    super(newFileName);
+    super(FILE_NAME);
     setDefaults();
     // activate storing to disk upon exit
     saveOnExit();
