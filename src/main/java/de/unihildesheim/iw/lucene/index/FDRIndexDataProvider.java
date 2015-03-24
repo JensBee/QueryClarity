@@ -496,7 +496,6 @@ public final class FDRIndexDataProvider
     /**
      * {@link FilteredDirectoryReader} to use for accessing the Lucene index.
      */
-    @SuppressWarnings("InstanceVariableMayNotBeInitialized")
     @Nullable
     FilteredDirectoryReader idxReader;
 

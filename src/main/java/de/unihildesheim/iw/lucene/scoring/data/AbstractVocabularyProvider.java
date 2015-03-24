@@ -35,15 +35,13 @@ public abstract class AbstractVocabularyProvider
   /**
    * Data provider for index data.
    */
-  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
   @Nullable
-  IndexDataProvider dataProv;
+  protected IndexDataProvider dataProv;
   /**
    * Document id's whose terms should be used as vocabulary.
    */
-  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
   @Nullable
-  DocIdSet docIds;
+  protected DocIdSet docIds;
 
   @Override
   public I indexDataProvider(

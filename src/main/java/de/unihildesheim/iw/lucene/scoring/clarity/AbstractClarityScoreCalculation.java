@@ -101,7 +101,6 @@ public abstract class AbstractClarityScoreCalculation
     /**
      * Data provider for index related term-data.
      */
-    @SuppressWarnings("InstanceVariableMayNotBeInitialized")
     @Nullable
     private IndexDataProvider dataProv;
     /**
@@ -112,19 +111,16 @@ public abstract class AbstractClarityScoreCalculation
     /**
      * Provider for feedback documents.
      */
-    @SuppressWarnings("InstanceVariableMayNotBeInitialized")
     @Nullable
     private FeedbackProvider feedbackProvider;
     /**
      * Provider for feedback vocabulary.
      */
-    @SuppressWarnings("InstanceVariableMayNotBeInitialized")
     @Nullable
     private VocabularyProvider vocabularyProvider;
     /**
      * Analyzer to parse queries & terms.
      */
-    @SuppressWarnings("InstanceVariableMayNotBeInitialized")
     @Nullable
     private Analyzer analyzer;
 

@@ -47,57 +47,48 @@ public abstract class AbstractFeedbackProvider
   /**
    * Number of documents to get, if a fixed amount is requested.
    */
-  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
-  int fixedAmount;
+  protected int fixedAmount;
   /**
    * Minimum number of documents to get.
    */
-  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
-  int minAmount;
+  protected int minAmount;
   /**
    * Maximum number of documents to get.
    */
-  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
-  int maxAmount;
+  protected int maxAmount;
   /**
    * True, if a fixed amount of documents should be tried to retrieve.
    */
-  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
-  boolean useFixedAmount;
+  protected boolean useFixedAmount;
 
   /**
    * Reader to access the index.
    */
   @Nullable
-  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
   private IndexReader idxReader;
   /**
    * Reader to access the index.
    */
-  IndexDataProvider dataProv;
+  protected IndexDataProvider dataProv;
   /**
    * Query analyzer.
    */
   @Nullable
-  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
   private Analyzer qAnalyzer;
   /**
    * Query string.
    */
   @Nullable
-  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
   private String queryStr;
   /**
    * Document fields to query.
    */
   @Nullable
-  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
   private String[] docFields;
   /**
    * Query parser to use. Defaults to {@link TryExactTermsQuery}.
    */
   @Nullable
-  @SuppressWarnings("InstanceVariableMayNotBeInitialized")
   Class<? extends RelaxableQuery> queryParser;
 
   @Override
