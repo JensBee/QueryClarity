@@ -372,7 +372,7 @@ public final class DefaultClarityScore
     // set configuration
     assert builder.getConfiguration() != null;
     this.conf = builder.getConfiguration();
-    assert this.conf != null && this.conf.getLangModelWeight() != null;
+    assert this.conf.getLangModelWeight() != null;
     this.docLangModelWeight = this.conf.getLangModelWeight();
 
     this.conf.debugDump();
