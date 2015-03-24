@@ -50,10 +50,10 @@ public interface Buildable<T> {
     // NOP
   }
 
-  @SuppressWarnings({"PublicInnerClass", "AbstractClassExtendsConcreteClass"})
   /**
    * Exception for buildable objects.
    */
+  @SuppressWarnings({"PublicInnerClass", "AbstractClassExtendsConcreteClass"})
   public abstract class BuildableException
       extends Exception {
     /**
