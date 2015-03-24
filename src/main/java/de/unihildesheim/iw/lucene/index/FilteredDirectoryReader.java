@@ -252,10 +252,6 @@ public final class FilteredDirectoryReader
      */
     private final String[] fields;
     /**
-     * If true, given fields should be negated.
-     */
-    private final boolean negateFields;
-    /**
      * Contextual meta-data.
      */
     private final FLRContext flrContext;
@@ -289,8 +285,6 @@ public final class FilteredDirectoryReader
         @NotNull final TermFilter tFilter)
         throws IOException {
       this.in = wrap;
-
-      this.negateFields = negate;
 
       if (vFields.isEmpty() && qFilter == null) {
         LOG.warn("No filters specified. " +
