@@ -566,13 +566,11 @@ public final class DefaultClarityScore
      *
      * @param fbDocIds List of feedback documents
      */
-    void setFeedbackDocIds(@Nullable final DocIdSet fbDocIds) {
-      if (fbDocIds != null) {
-        try {
-          this.feedbackDocIds = DocIdSetUtils.bits(fbDocIds);
-        } catch (final IOException e) {
-          LOG.error("Failed to retrieve ids for feedback documents.", e);
-        }
+    void setFeedbackDocIds(@NotNull final DocIdSet fbDocIds) {
+      try {
+        this.feedbackDocIds = DocIdSetUtils.bits(fbDocIds);
+      } catch (final IOException e) {
+        LOG.error("Failed to retrieve ids for feedback documents.", e);
       }
     }
 

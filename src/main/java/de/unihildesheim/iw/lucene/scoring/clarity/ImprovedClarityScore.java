@@ -634,13 +634,11 @@ public final class ImprovedClarityScore
      * @param fbDocIds List of feedback documents
      */
     @SuppressFBWarnings("EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS")
-    void setFeedbackDocIds(@Nullable final DocIdSet fbDocIds) {
-      if (fbDocIds != null) {
-        try {
-          this.feedbackDocIds = DocIdSetUtils.bits(fbDocIds);
-        } catch (final IOException e) {
-          throw new UncheckedIOException(e);
-        }
+    void setFeedbackDocIds(@NotNull final DocIdSet fbDocIds) {
+      try {
+        this.feedbackDocIds = DocIdSetUtils.bits(fbDocIds);
+      } catch (final IOException e) {
+        throw new UncheckedIOException(e);
       }
     }
 
@@ -649,7 +647,7 @@ public final class ImprovedClarityScore
      *
      * @param newConf Configuration used
      */
-    void setConf(@NotNull final ImprovedClarityScoreConfiguration newConf) {
+    void setConf(@Nullable final ImprovedClarityScoreConfiguration newConf) {
       this.conf = newConf;
     }
 

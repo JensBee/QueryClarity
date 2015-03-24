@@ -684,7 +684,7 @@ public final class FilteredDirectoryReader
      *
      * @param wrap Instance to wrap
      */
-    public Builder(final DirectoryReader wrap) {
+    public Builder(@NotNull final DirectoryReader wrap) {
       this.in = wrap;
     }
 
@@ -694,7 +694,7 @@ public final class FilteredDirectoryReader
      * @param qFilter Filter instance
      * @return Self reference
      */
-    public Builder queryFilter(final Filter qFilter) {
+    public Builder queryFilter(@Nullable final Filter qFilter) {
       this.qf = qFilter;
       return this;
     }
@@ -707,7 +707,7 @@ public final class FilteredDirectoryReader
      * @return Self reference
      */
     public Builder fields(
-        final Collection<String> vFields) {
+        @NotNull final Collection<String> vFields) {
       this.f = new HashSet<>(vFields.size());
       this.f.addAll(vFields);
       this.fn = false;
@@ -725,7 +725,7 @@ public final class FilteredDirectoryReader
      */
     @SuppressWarnings("BooleanParameter")
     public Builder fields(
-        final Collection<String> vFields, final boolean negate) {
+        @NotNull final Collection<String> vFields, final boolean negate) {
       this.f = new HashSet<>(vFields.size());
       this.f.addAll(vFields);
       this.fn = negate;
@@ -738,7 +738,7 @@ public final class FilteredDirectoryReader
      * @param tFilter Filter instance.
      * @return Self reference
      */
-    public Builder termFilter(final TermFilter tFilter) {
+    public Builder termFilter(@Nullable final TermFilter tFilter) {
       this.tf = tFilter;
       return this;
     }
@@ -913,7 +913,7 @@ public final class FilteredDirectoryReader
      * @throws IOException Thrown on low-level I/O-errors
      */
     @Nullable
-    public Terms originalTerms(final String field)
+    public Terms originalTerms(@NotNull final String field)
         throws IOException {
       return this.in.terms(field);
     }
@@ -1002,7 +1002,7 @@ public final class FilteredDirectoryReader
     }
 
     @Override
-    public SeekStatus seekCeil(final BytesRef term)
+    public SeekStatus seekCeil(@NotNull final BytesRef term)
         throws IOException {
       // reset frequency values
       this.freqsDF.set(-1);
@@ -1042,6 +1042,7 @@ public final class FilteredDirectoryReader
      * @return Next term or {@code null}, if there's none left
      * @throws IOException Thrown on low-level I/O-errors
      */
+    @SuppressWarnings("StatementWithEmptyBody")
     @Override
     @Nullable
     public BytesRef next()
