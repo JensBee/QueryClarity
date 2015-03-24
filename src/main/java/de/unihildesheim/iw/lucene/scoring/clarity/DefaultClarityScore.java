@@ -120,7 +120,7 @@ public final class DefaultClarityScore
    * Abstract model class. Shared methods for low/high precision model
    * calculations.
    */
-  abstract static class AbstractModel {
+  private abstract static class AbstractModel {
     /**
      * Logger instance for this class.
      */
@@ -180,6 +180,7 @@ public final class DefaultClarityScore
    * Class wrapping all methods needed for high-precision calculation of model
    * values. Also holds results of the calculations.
    */
+  @SuppressWarnings("PackageVisibleInnerClass")
   static final class ModelHighPrecision
       extends AbstractModel {
     /**
@@ -274,6 +275,7 @@ public final class DefaultClarityScore
    * Class wrapping all methods needed for low-precision calculation of model
    * values. Also holds results of the calculations.
    */
+  @SuppressWarnings("PackageVisibleInnerClass")
   static final class ModelLowPrecision
       extends AbstractModel {
     /**

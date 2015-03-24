@@ -299,6 +299,7 @@ public abstract class TermFilter {
   /**
    * Default term-filter accepting all terms.
    */
+  @SuppressWarnings("PackageVisibleInnerClass")
   static final class AcceptAll
       extends TermFilter {
 
