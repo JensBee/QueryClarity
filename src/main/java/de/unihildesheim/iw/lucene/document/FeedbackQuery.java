@@ -172,6 +172,7 @@ public final class FeedbackQuery {
       final int minDocs, final int maxDocCount)
       throws IOException {
     final int maxDocs;
+
     if (maxDocCount == -1) {
       maxDocs = Integer.MAX_VALUE;
     } else if (maxDocCount < 0) {
