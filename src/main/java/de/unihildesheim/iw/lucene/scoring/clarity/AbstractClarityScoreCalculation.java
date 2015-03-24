@@ -149,10 +149,9 @@ public abstract class AbstractClarityScoreCalculation
      * Use {@link #validateConfiguration(Class)} if you need this feature.
      *
      * @param features Features to check
-     * @return Self reference
      * @throws ConfigurationException Thrown, if a feature is not configured
      */
-    final B validateFeatures(
+    final void validateFeatures(
         @NotNull final Feature... features)
         throws ConfigurationException {
       for (final Feature f : features) {
@@ -177,18 +176,16 @@ public abstract class AbstractClarityScoreCalculation
               "configured.");
         }
       }
-      return getThis();
     }
 
     /**
      * Validate the {@link Configuration} object.
      *
      * @param c Configuration suitable for this builder
-     * @return Self reference
      * @throws ConfigurationException Thrown if the currently set configuration
      * does not match the passed in class or no configuration is set
      */
-    final B validateConfiguration(
+    final void validateConfiguration(
         @NotNull final Class<? extends Configuration> c)
         throws ConfigurationException {
       if (this.conf == null) {
@@ -198,7 +195,6 @@ public abstract class AbstractClarityScoreCalculation
         throw new ConfigurationException("Wrong configuration format " +
             "specified. Expecting '" + c.getCanonicalName() + '\'');
       }
-      return getThis();
     }
 
     /**
