@@ -140,10 +140,6 @@ public final class ImprovedClarityScore
      */
     final Map<Integer, DocumentModel> docModels;
     /**
-     * DataProvider instance from parent class.
-     */
-    final IndexDataProvider dataProv;
-    /**
      * Collection metrics instance.
      */
     final CollectionMetrics cMetrics;
@@ -161,7 +157,6 @@ public final class ImprovedClarityScore
         final BytesRefArray qt, final DocIdSet fb)
         throws IOException {
       LOG.debug("Create runtime cache.");
-      this.dataProv = dataProv;
       this.cMetrics = dataProv.metrics();
       // add query terms, skip those not in index
       this.queryTerms = new BytesRefArray(Counter.newCounter(false));

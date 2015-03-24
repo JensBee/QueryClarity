@@ -139,10 +139,6 @@ public final class DefaultClarityScore
      */
     final Map<Integer, DocumentModel> docModels;
     /**
-     * {@link IndexDataProvider} to use.
-     */
-    final IndexDataProvider dataProv;
-    /**
      * Collection metrics instance.
      */
     final CollectionMetrics cMetrics;
@@ -162,7 +158,6 @@ public final class DefaultClarityScore
         @NotNull final DocIdSet fb)
         throws IOException {
       LOG.debug("Create runtime cache.");
-      this.dataProv = dataProv;
       this.cMetrics = dataProv.metrics();
       // add query terms, skip those not in index
       this.queryTerms = new BytesRefArray(Counter.newCounter(false));
