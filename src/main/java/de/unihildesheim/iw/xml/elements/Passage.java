@@ -18,6 +18,8 @@
 package de.unihildesheim.iw.xml.elements;
 
 import de.unihildesheim.iw.lucene.scoring.ScoringResult.ScoringResultXml;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.xml.bind.annotation.XmlAttribute;
 import javax.xml.bind.annotation.XmlElement;
@@ -41,10 +43,12 @@ public final class Passage {
   /**
    * Passage content.
    */
+  @Nullable
   private String content;
   /**
    * Passages language attribute.
    */
+  @Nullable
   private String lang;
 
   /**
@@ -59,7 +63,9 @@ public final class Passage {
    * @param newLang Language identifier
    * @param newContent Passage content
    */
-  public Passage(final String newLang, final String newContent) {
+  public Passage(
+      @Nullable final String newLang,
+      @Nullable final String newContent) {
     this.lang = newLang;
     this.content = newContent;
   }
@@ -70,6 +76,7 @@ public final class Passage {
    * @return Language identifier
    */
   @XmlAttribute(name = "lang")
+  @Nullable
   public String getLanguage() {
     return this.lang;
   }
@@ -79,7 +86,7 @@ public final class Passage {
    *
    * @param newLang Language identifier
    */
-  public void setLanguage(final String newLang) {
+  public void setLanguage(@NotNull final String newLang) {
     this.lang = newLang;
   }
 
@@ -88,6 +95,7 @@ public final class Passage {
    *
    * @return Passage content
    */
+  @Nullable
   public String getContent() {
     return this.content;
   }
@@ -97,7 +105,7 @@ public final class Passage {
    *
    * @param newContent Content
    */
-  public void setContent(final String newContent) {
+  public void setContent(@Nullable final String newContent) {
     this.content = newContent;
   }
 
@@ -120,24 +128,24 @@ public final class Passage {
     /**
      * Implementation name.
      */
-    @SuppressWarnings("UnusedDeclaration")
+    @Nullable
     @XmlAttribute
     private String impl;
     /**
      * Flag indicating, if this result is empty.
      */
-    @SuppressWarnings("UnusedDeclaration") // used by JAXB
     @XmlAttribute
     private boolean empty;
     /**
      * Score result.
      */
-    @SuppressWarnings("UnusedDeclaration") // used by JAXB
+    @Nullable
     @XmlAttribute
     private Double score;
     /**
      * Complete result set.
      */
+    @Nullable
     private ScoringResultXml result;
 
     /**
@@ -154,8 +162,9 @@ public final class Passage {
      * @param isEmpty True, if result is empty
      */
     @SuppressWarnings("BooleanParameter")
-    public Score(final String identifier, final Double newScore,
-        final boolean isEmpty) {
+    public Score(
+        @Nullable final String identifier,
+        @Nullable final Double newScore, final boolean isEmpty) {
       this.impl = identifier;
       this.score = newScore;
       this.empty = isEmpty;
@@ -165,10 +174,12 @@ public final class Passage {
       return this.empty;
     }
 
+    @Nullable
     public String getIdentifier() {
       return this.impl;
     }
 
+    @Nullable
     public Double getScore() {
       return this.score;
     }
@@ -178,6 +189,7 @@ public final class Passage {
      *
      * @return Scoring result
      */
+    @Nullable
     @XmlElement(name = "result")
     public ScoringResultXml getResult() {
       return this.result;
@@ -189,7 +201,7 @@ public final class Passage {
      * @param newResult Scoring result
      */
     public void setResult(
-        final ScoringResultXml newResult) {
+        @Nullable final ScoringResultXml newResult) {
       this.result = newResult;
     }
   }

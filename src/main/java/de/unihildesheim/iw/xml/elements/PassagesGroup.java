@@ -17,6 +17,8 @@
 
 package de.unihildesheim.iw.xml.elements;
 
+import org.jetbrains.annotations.Nullable;
+
 import javax.xml.bind.annotation.XmlAttribute;
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlRootElement;
@@ -36,12 +38,13 @@ public final class PassagesGroup {
   /**
    * List of single passages in this group.
    */
-  private final Collection<Passage> passages = new ArrayList<>
-      (DEFAULT_PASSAGES_SIZE);
+  private final Collection<Passage> passages =
+      new ArrayList<>(DEFAULT_PASSAGES_SIZE);
 
   /**
    * PassagesGroup group source attribute.
    */
+  @Nullable
   private String source;
 
   /**
@@ -55,7 +58,7 @@ public final class PassagesGroup {
    *
    * @param newSource Source name
    */
-  public PassagesGroup(final String newSource) {
+  public PassagesGroup(@Nullable final String newSource) {
     this.source = newSource;
   }
 
@@ -75,6 +78,7 @@ public final class PassagesGroup {
    *
    * @return Source name
    */
+  @Nullable
   @XmlAttribute
   public String getSource() {
     return this.source;
@@ -85,7 +89,7 @@ public final class PassagesGroup {
    *
    * @param src Source name
    */
-  public void setSource(final String src) {
+  public void setSource(@Nullable final String src) {
     this.source = src;
   }
 }

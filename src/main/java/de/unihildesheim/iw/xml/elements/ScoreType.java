@@ -50,6 +50,7 @@ public final class ScoreType {
    *
    * @return Configuration map
    */
+  @Nullable
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
   @XmlElement(name = "conf")
   @XmlJavaTypeAdapter(StringValue.class)
@@ -63,7 +64,7 @@ public final class ScoreType {
    * @param map Configuration map
    */
   @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
-  public void setConfiguration(final Map<String, String> map) {
+  public void setConfiguration(@Nullable final Map<String, String> map) {
     this.confMap = map;
   }
 
@@ -72,6 +73,7 @@ public final class ScoreType {
    *
    * @return Language identifier
    */
+  @Nullable
   @XmlAttribute(name = "impl")
   public String getImplementation() {
     return this.identifier;
@@ -82,7 +84,7 @@ public final class ScoreType {
    *
    * @param id Score identifier
    */
-  public void setImplementation(final String id) {
+  public void setImplementation(@Nullable final String id) {
     this.identifier = id;
   }
 }
