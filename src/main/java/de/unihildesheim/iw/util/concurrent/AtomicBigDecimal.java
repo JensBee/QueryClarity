@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * @author Jens Bertram
  */
-public class AtomicBigDecimal
+public final class AtomicBigDecimal
     extends Number {
   /**
    * Serialization id.

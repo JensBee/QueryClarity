@@ -30,7 +30,7 @@ import java.util.Iterator;
 /**
  * @author Jens Bertram
  */
-public class TopicsXMLWriter
+public final class TopicsXMLWriter
     extends TopicsXMLReader {
   /**
    * Marshaller for {@link #jaxbContext}.

@@ -51,11 +51,12 @@ public final class SimplifiedClarityScore
   /**
    * Prefix used to identify externally stored data.
    */
+  @SuppressWarnings("WeakerAccess")
   public static final String IDENTIFIER = "SCS";
   /**
    * Default math context for model calculations.
    */
-  static final MathContext MATH_CONTEXT = new MathContext(
+  private static final MathContext MATH_CONTEXT = new MathContext(
       GlobalConfiguration.conf()
           .getString(DefaultKeys.MATH_CONTEXT.toString(),
               GlobalConfiguration.DEFAULT_MATH_CONTEXT));
@@ -78,6 +79,7 @@ public final class SimplifiedClarityScore
    *
    * @param builder Builder to use for constructing the instance
    */
+  @SuppressWarnings("WeakerAccess")
   SimplifiedClarityScore(@NotNull final Builder builder) {
     super(IDENTIFIER);
 

@@ -165,7 +165,7 @@ public abstract class AbstractFeedbackProvider
    * @throws IOException Thrown on low-level i/o-errors
    */
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
-  protected String[] getDocumentFields()
+  protected final String[] getDocumentFields()
       throws IOException {
     if (this.docFields == null) {
       final Fields fields = MultiFields.getFields(

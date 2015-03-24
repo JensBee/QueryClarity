@@ -29,7 +29,7 @@ import org.apache.lucene.search.similarities.TFIDFSimilarity;
  * FilteredDirectoryReader}.
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class FDRDefaultSimilarity
+public final class FDRDefaultSimilarity
     extends DefaultSimilarity {
   /**
    * Same as {@link TFIDFSimilarity#idfExplain(CollectionStatistics,

@@ -71,6 +71,7 @@ public final class DefaultClarityScore
   /**
    * Prefix used to identify externally stored data.
    */
+  @SuppressWarnings("WeakerAccess")
   public static final String IDENTIFIER = "DCS";
   /**
    * Logger instance for this class.
@@ -80,6 +81,7 @@ public final class DefaultClarityScore
   /**
    * Context for high precision math calculations.
    */
+  @SuppressWarnings("WeakerAccess")
   static final MathContext MATH_CONTEXT = new MathContext(
       GlobalConfiguration.conf()
           .getString(DefaultKeys.MATH_CONTEXT.toString(),
@@ -366,6 +368,7 @@ public final class DefaultClarityScore
    *
    * @param builder Builder to use for constructing the instance
    */
+  @SuppressWarnings("WeakerAccess")
   DefaultClarityScore(@NotNull final Builder builder) {
     super(IDENTIFIER);
 

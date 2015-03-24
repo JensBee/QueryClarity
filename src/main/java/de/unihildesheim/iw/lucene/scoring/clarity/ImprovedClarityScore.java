@@ -76,6 +76,7 @@ public final class ImprovedClarityScore
    * properties stored in the {@link de.unihildesheim.iw.lucene.index
    * .IndexDataProvider}.
    */
+  @SuppressWarnings("WeakerAccess")
   public static final String IDENTIFIER = "ICS";
   /**
    * Logger instance for this class.
@@ -85,6 +86,7 @@ public final class ImprovedClarityScore
   /**
    * Default math context for model calculations.
    */
+  @SuppressWarnings("WeakerAccess")
   static final MathContext MATH_CONTEXT = new MathContext(
       GlobalConfiguration.conf()
           .getString(DefaultKeys.MATH_CONTEXT.toString(),
@@ -426,6 +428,7 @@ public final class ImprovedClarityScore
    *
    * @param builder Builder to use for constructing the instance
    */
+  @SuppressWarnings("WeakerAccess")
   @SuppressFBWarnings("NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE")
   ImprovedClarityScore(final Builder builder) {
     super(IDENTIFIER);

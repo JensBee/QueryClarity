@@ -24,7 +24,7 @@ import java.util.Collection;
 /**
  * @author Jens Bertram
  */
-public interface TermsProvidingQuery {
+interface TermsProvidingQuery {
   /**
    * Get the list of terms from the original query. Stop-words may be removed.
    *

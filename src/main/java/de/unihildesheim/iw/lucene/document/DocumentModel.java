@@ -75,6 +75,7 @@ public final class DocumentModel
    *
    * @param builder Builder to use
    */
+  @SuppressWarnings("WeakerAccess")
   DocumentModel(@NotNull final Builder builder) {
     this.id = builder.docId;
     this.terms = builder.terms;
@@ -88,6 +89,7 @@ public final class DocumentModel
    *
    * @param builder Builder to use
    */
+  @SuppressWarnings("WeakerAccess")
   DocumentModel(@NotNull final SerializationBuilder builder) {
     this.id = builder.docId;
     this.terms = builder.terms;

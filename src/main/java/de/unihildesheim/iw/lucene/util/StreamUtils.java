@@ -120,7 +120,7 @@ public final class StreamUtils {
    * Spliterator over contents of a {@link FixedBitSet}.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static class BitSetSpliterator
+  public static final class BitSetSpliterator
   implements OfInt {
     /**
      * Wrapped {@link BitSet} instance.
@@ -175,7 +175,7 @@ public final class StreamUtils {
    * Spliterator over contents of a {@link DocIdSet}.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static class DocIdSetSpliterator
+  public static final class DocIdSetSpliterator
       implements OfInt {
     /**
      * Wrapped {@link DocIdSetIterator} instance.
@@ -231,7 +231,7 @@ public final class StreamUtils {
    * Spliterator over contents of a {@link BytesRefArray}.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static class BytesRefArraySpliterator
+  public static final class BytesRefArraySpliterator
       implements Spliterator<BytesRef> {
     /**
      * Wrapped {@link BytesRefIterator} instance.
@@ -288,7 +288,7 @@ public final class StreamUtils {
    * Stream contents of a {@link TermsEnum}.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static class TermsEnumSpliterator
+  public static final class TermsEnumSpliterator
       implements Spliterator<BytesRef> {
     /**
      * Wrapped {@link TermsEnum} instance.
@@ -342,7 +342,7 @@ public final class StreamUtils {
    * Stream contents of a {@link BytesRefHash}.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static class BytesRefHashSpliterator
+  public static final class BytesRefHashSpliterator
   implements Spliterator<BytesRef> {
     /**
      * Wrapped {@link BytesRefHash} instance.
@@ -399,7 +399,7 @@ public final class StreamUtils {
    * Spliterator over contents of a {@link FixedBitSet}.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static class BitsSpliterator
+  public static final class BitsSpliterator
       implements OfInt {
     /**
      * Current index in wrapped instance.

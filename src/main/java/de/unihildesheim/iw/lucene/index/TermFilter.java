@@ -33,8 +33,6 @@ import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.FixedBitSet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.stream.StreamSupport;
@@ -46,9 +44,8 @@ public abstract class TermFilter {
   /**
    * Top-reader having all sub-readers available.
    */
-  @SuppressWarnings("ProtectedField")
   @Nullable
-  protected IndexReader topReader;
+  IndexReader topReader;
 
   /**
    * @param termsEnum TermsEnum currently in use. Be careful not to change the
@@ -121,11 +118,6 @@ public abstract class TermFilter {
   @SuppressWarnings("PublicInnerClass")
   public static final class CommonTerms
       extends TermFilter {
-    /**
-     * Logger instance for this class.
-     */
-    private static final Logger LOG =
-        LoggerFactory.getLogger(CommonTerms.class);
     /**
      * Common terms collected so ctx.
      */

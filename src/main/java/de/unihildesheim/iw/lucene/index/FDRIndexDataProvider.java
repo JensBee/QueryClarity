@@ -87,6 +87,7 @@ public final class FDRIndexDataProvider
    * @param builder Builder instance
    * @throws IOException Thrown on low-level I/O-errors
    */
+  @SuppressWarnings("WeakerAccess")
   FDRIndexDataProvider(final Builder builder)
       throws IOException {
     // first initialize the Lucene index
