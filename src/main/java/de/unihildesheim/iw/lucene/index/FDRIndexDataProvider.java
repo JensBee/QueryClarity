@@ -61,13 +61,6 @@ import java.util.stream.StreamSupport;
 public final class FDRIndexDataProvider
     implements IndexDataProvider {
   /**
-   * Context for high precision math calculations.
-   */
-  static final MathContext MATH_CONTEXT = new MathContext(
-      GlobalConfiguration.conf()
-          .getString(DefaultKeys.MATH_CONTEXT.toString(),
-              GlobalConfiguration.DEFAULT_MATH_CONTEXT));
-  /**
    * Logger instance for this class.
    */
   private static final Logger LOG =
