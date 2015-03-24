@@ -20,7 +20,6 @@ package de.unihildesheim.iw.lucene.scoring.data;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import org.apache.lucene.util.BytesRef;
 import org.jetbrains.annotations.NotNull;
-import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -35,13 +34,6 @@ import java.util.stream.Stream;
  */
 public final class DefaultVocabularyProvider
     extends AbstractVocabularyProvider<DefaultVocabularyProvider> {
-
-  /**
-   * Logger instance for this class.
-   */
-  static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
-      DefaultVocabularyProvider.class);
-
   @Override
   public DefaultVocabularyProvider getThis() {
     return this;
