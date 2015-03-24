@@ -18,8 +18,6 @@
 package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.Buildable;
-import de.unihildesheim.iw.GlobalConfiguration;
-import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils.MergingBytesRefHash;
 import de.unihildesheim.iw.lucene.util.StreamUtils;
@@ -47,7 +45,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.math.MathContext;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
