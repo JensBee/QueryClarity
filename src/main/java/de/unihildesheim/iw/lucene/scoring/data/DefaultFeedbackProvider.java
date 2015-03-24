@@ -22,7 +22,6 @@ import de.unihildesheim.iw.lucene.index.IndexUtils;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import de.unihildesheim.iw.lucene.query.TryExactTermsQuery;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.IndexSearcher;
 import org.jetbrains.annotations.NotNull;
@@ -61,7 +60,7 @@ public final class DefaultFeedbackProvider
 
   @Override
   public DocIdSet get()
-      throws ParseException, IOException, InvocationTargetException,
+      throws IOException, InvocationTargetException,
              NoSuchMethodException, InstantiationException,
              IllegalAccessException {
     final RelaxableQuery qObj = getQueryParserInstance();
