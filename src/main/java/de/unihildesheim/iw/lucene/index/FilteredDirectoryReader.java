@@ -922,7 +922,7 @@ public final class FilteredDirectoryReader
   /**
    * Contextual information for an FilteredLeafReader instance.
    */
-  @SuppressWarnings({"PackageVisibleInnerClass", "PackageVisibleField"})
+  @SuppressWarnings("PackageVisibleInnerClass")
   static final class FLRContext {
     /**
      * Store cached results of {@link EmptyFieldFilter}s.

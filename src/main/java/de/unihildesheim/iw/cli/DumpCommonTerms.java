@@ -162,7 +162,6 @@ final class DumpCommonTerms
     /**
      * Stopwords file format.
      */
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-stop-format", metaVar = "(plain|snowball)", required =
         false, depends = "-stop", usage =
         "Format of the stopwords file. 'plain' for a simple list of " +
@@ -174,7 +173,6 @@ final class DumpCommonTerms
      * Target file file for writing scored claims.
      */
     @Nullable
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-o", metaVar = "FILE", required = true,
         usage = "Output file for writing scored passages")
     File targetFile;
@@ -183,7 +181,6 @@ final class DumpCommonTerms
      * Directory containing the target Lucene index.
      */
     @Nullable
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = CliParams.INDEX_DIR_P, metaVar = CliParams.INDEX_DIR_M,
         required = true, usage = CliParams.INDEX_DIR_U)
     File idxDir;
@@ -195,7 +192,6 @@ final class DumpCommonTerms
     /**
      * {@link IndexReader} to use for accessing the Lucene index.
      */
-    @SuppressWarnings("PackageVisibleField")
     @Nullable
     IndexReader idxReader;
 
@@ -203,7 +199,6 @@ final class DumpCommonTerms
      * Directory for storing working data.
      */
     @Nullable
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = CliParams.DATA_DIR_P, metaVar = CliParams.DATA_DIR_M,
         required = true, usage = CliParams.DATA_DIR_U)
     File dataDir;
@@ -211,7 +206,6 @@ final class DumpCommonTerms
      * Document-fields to query.
      */
     @Nullable
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-field", metaVar = "field name", required = true,
         handler = StringArrayOptionHandler.class,
         usage = "Document field to query.")
@@ -221,7 +215,6 @@ final class DumpCommonTerms
      * Prefix for cache data.
      */
     @Nullable
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-prefix", metaVar = "name", required = true,
         usage = "Naming prefix for cached data files to load or create.")
     String prefix;
@@ -230,7 +223,6 @@ final class DumpCommonTerms
      * Pattern for stopwords files.
      */
     @Nullable
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-stop", metaVar = "pattern", required = false,
         usage = "File naming pattern for stopword lists. " +
             "The pattern will be suffixed by '_<lang>.txt'. Stopword files " +
@@ -241,14 +233,12 @@ final class DumpCommonTerms
      * Single language.
      */
     @Nullable
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-lang", metaVar = "language", required = true,
         usage = "Process for the defined language.")
     String lang;
     /**
      * Document frequency threshold.
      */
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-threshold", metaVar = "float", required = true,
         usage = "Document frequency threshold. If this is exceeded a term " +
             "will be treated as being too common (means gets skipped).")

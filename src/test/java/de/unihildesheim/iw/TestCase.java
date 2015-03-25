@@ -31,7 +31,7 @@ public abstract class TestCase {
   /**
    * Logger instance.
    */
-  private final Logger log;
+  final Logger log;
 
   /**
    * Init test-case and set the Logger instance.
@@ -41,12 +41,11 @@ public abstract class TestCase {
     this.log = l;
   }
 
-  @SuppressWarnings(
-      {"PackageVisibleField", "AnonymousInnerClassMayBeStatic", "PublicField"})
-  @Rule
   /**
    * Print current test method.
    */
+  @SuppressWarnings({"AnonymousInnerClassMayBeStatic", "PublicField"})
+  @Rule
   public TestRule watcher = new TestWatcher() {
     @Override
     protected void starting(final Description description) {

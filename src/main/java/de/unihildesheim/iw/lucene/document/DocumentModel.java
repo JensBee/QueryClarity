@@ -280,18 +280,15 @@ public final class DocumentModel
     /**
      * Id to identify the corresponding document.
      */
-    @SuppressWarnings("PackageVisibleField")
     final int docId;
 
     /**
      * Terms contained in the new model.
      */
-    @SuppressWarnings("PackageVisibleField")
     final BytesRefHash terms;
     /**
      * Frequency values for all terms in the new model.
      */
-    @SuppressWarnings("PackageVisibleField")
     final List<Long> freqs;
 
     /**
@@ -384,18 +381,15 @@ public final class DocumentModel
     /**
      * Id to identify the corresponding document.
      */
-    @SuppressWarnings("PackageVisibleField")
     final int docId;
 
     /**
      * Terms contained in the new model.
      */
-    @SuppressWarnings("PackageVisibleField")
     final BytesRefHash terms;
     /**
      * Frequency values for all terms in the new model.
      */
-    @SuppressWarnings("PackageVisibleField")
     final long[] freqs;
 
     /**

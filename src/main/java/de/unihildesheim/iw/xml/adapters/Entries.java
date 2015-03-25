@@ -41,15 +41,13 @@ final class Entries {
     /**
      * Entry key.
      */
-    @SuppressWarnings("PackageVisibleField")
     @XmlAttribute
     String key;
 
     /**
      * Tuple2 entries.
      */
-    @SuppressWarnings({"PackageVisibleField",
-        "CollectionWithoutInitialCapacity"})
+    @SuppressWarnings("CollectionWithoutInitialCapacity")
     @XmlElement
     @XmlJavaTypeAdapter(Tuple2ListValue.class)
     List<Tuple2<String, String>> entries = new ArrayList<>();
@@ -96,13 +94,11 @@ final class Entries {
     /**
      * Entry key.
      */
-    @SuppressWarnings("PackageVisibleField")
     @XmlAttribute
     String key;
     /**
      * Entry value.
      */
-    @SuppressWarnings("PackageVisibleField")
     @XmlValue
     String value;
 

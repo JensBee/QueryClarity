@@ -141,7 +141,6 @@ public class CliBase {
     /**
      * True, if help message was requested.
      */
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-h", aliases = "--help", usage = "Usage help",
         required = false)
     boolean printHelp;
