@@ -21,6 +21,7 @@ import de.unihildesheim.iw.xml.elements.Language;
 import de.unihildesheim.iw.xml.elements.Passage;
 import de.unihildesheim.iw.xml.elements.PassagesGroup;
 import de.unihildesheim.iw.xml.elements.ScoreType;
+import org.jetbrains.annotations.NotNull;
 
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.Marshaller;
@@ -37,7 +38,12 @@ public final class TopicsXMLWriter
    */
   private final Marshaller jaxbMarshaller;
 
-  public TopicsXMLWriter(final File source)
+  /**
+   * Constructor setting the source file to read base data from.
+   * @param source Source file
+   * @throws JAXBException Thrown if parsing the source file failed
+   */
+  public TopicsXMLWriter(@NotNull final File source)
       throws JAXBException {
     super(source, false);
     this.jaxbMarshaller = getJaxbContext().createMarshaller();
@@ -45,19 +51,38 @@ public final class TopicsXMLWriter
         Boolean.TRUE);
   }
 
-  public void addScoreType(final ScoreType scoreType) {
+  /**
+   * Set the scoring type used.
+   * @param scoreType Type
+   */
+  public void addScoreType(@NotNull final ScoreType scoreType) {
     getTopicPassages().getScoreTypes().add(scoreType);
   }
 
-  public void addStopwordsList(final Language lang) {
+  /**
+   * Add a list of words used as stopwords.
+   * @param lang Words list
+   */
+  public void addStopwordsList(@NotNull final Language lang) {
     getTopicPassages().getLanguages().add(lang);
   }
 
-  public void writeResults(final File out)
+  /**
+   * Write results to a new file.
+   * @param out Target file
+   * @throws JAXBException Thrown if marshalling to the target file failed
+   */
+  public void writeResults(@NotNull final File out)
       throws JAXBException {
     writeResults(out, false);
   }
 
+  /**
+   * Write results to a new file.
+   * @param out Target file
+   * @param strip If true, empty elements will not be written
+   * @throws JAXBException Thrown if marshalling to the target file failed
+   */
   @SuppressWarnings("BooleanParameter")
   public void writeResults(final File out, final boolean strip)
       throws JAXBException {

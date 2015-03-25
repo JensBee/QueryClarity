@@ -117,7 +117,10 @@ public final class TryExactTermsQuery
   public boolean relax() {
     final int matchCount = this.query.getMinimumNumberShouldMatch();
     if (matchCount > 1) {
-      LOG.debug("Relax to {}/{}", matchCount - 1, this.uniqueQueryTerms.size());
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Relax to {}/{}", matchCount - 1,
+            this.uniqueQueryTerms.size());
+      }
       this.query.setMinimumNumberShouldMatch(matchCount - 1);
       return true;
     }
@@ -131,6 +134,7 @@ public final class TryExactTermsQuery
    *
    * @return Current query object
    */
+  @NotNull
   @Override
   public BooleanQuery getQueryObj() {
     return this.query;
@@ -141,6 +145,7 @@ public final class TryExactTermsQuery
    *
    * @return List of query terms with stop-words removed
    */
+  @NotNull
   @Override
   public Collection<String> getQueryTerms() {
     return Collections.unmodifiableCollection(this.queryTerms);

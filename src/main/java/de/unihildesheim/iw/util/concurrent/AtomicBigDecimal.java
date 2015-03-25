@@ -140,6 +140,13 @@ public final class AtomicBigDecimal
     return getAndAdd(delta, null);
   }
 
+  /**
+   * Atomically adds the given value to the current value.
+   *
+   * @param delta the value to add
+   * @param mc Math context to use
+   * @return the previous value
+   */
   public BigDecimal getAndAdd(
       final BigDecimal delta, @Nullable final MathContext mc) {
     while (true) {
@@ -162,6 +169,13 @@ public final class AtomicBigDecimal
     return addAndGet(delta, null);
   }
 
+  /**
+   * Atomically adds the given value to the current value.
+   *
+   * @param delta the value to add
+   * @param mc Math context to use
+   * @return the updated value
+   */
   public BigDecimal addAndGet(
       final BigDecimal delta, @Nullable final MathContext mc) {
     while (true) {

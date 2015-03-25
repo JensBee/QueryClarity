@@ -42,7 +42,7 @@ public class ConfigurationFile
   /**
    * Logger instance for this class.
    */
-  private static final Logger LOG = LoggerFactory.getLogger(
+  static final Logger LOG = LoggerFactory.getLogger(
       ConfigurationFile.class);
 
   /**

@@ -35,9 +35,15 @@ import java.util.Arrays;
  */
 public final class FrenchAnalyzer
     extends StopwordAnalyzerBase {
+  /**
+   * Default elisions to exclude.
+   */
   static final String[] DEFAULT_ELISIONS = {
       "c", "d", "j", "l", "m", "n", "qu", "s", "t",
       "jusqu", "quoiqu", "lorsqu", "puisqu"};
+  /**
+   * Array view of elisions to remove. May be extended by user.
+   */
   private final CharArraySet elisions =
       new CharArraySet(DEFAULT_ELISIONS.length, true);
 

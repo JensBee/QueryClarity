@@ -76,6 +76,9 @@ public abstract class ScoringResult {
   @SuppressWarnings("PublicInnerClass")
   public static final class ScoringResultXml {
 
+    /**
+     * XML element key names.
+     */
     public enum Keys {
       /**
        * Number of feedback documents an list of feedback documents.
@@ -86,10 +89,19 @@ public abstract class ScoringResult {
        */
       FEEDBACK_DOCUMENT_KEY("id");
 
+      /**
+       * Key name as written in XML result.
+       */
       final String name;
+
+      /**
+       * Constructor setting XML string.
+       * @param newName XML string set by enum
+       */
       Keys(final String newName) {
         this.name = newName;
       }
+
       public String toString() {
         return this.name;
       }

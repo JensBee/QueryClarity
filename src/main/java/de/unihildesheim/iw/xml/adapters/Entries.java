@@ -33,6 +33,9 @@ import java.util.List;
  * @author Jens Bertram
  */
 final class Entries {
+  /**
+   * List of tuple2 values.
+   */
   @SuppressWarnings("PackageVisibleInnerClass")
   static final class Tuple2ListEntry {
     /**
@@ -45,7 +48,8 @@ final class Entries {
     /**
      * Tuple2 entries.
      */
-    @SuppressWarnings("PackageVisibleField")
+    @SuppressWarnings({"PackageVisibleField",
+        "CollectionWithoutInitialCapacity"})
     @XmlElement
     @XmlJavaTypeAdapter(Tuple2ListValue.class)
     List<Tuple2<String, String>> entries = new ArrayList<>();
@@ -63,6 +67,10 @@ final class Entries {
       this.entries = newT2List;
     }
 
+    /**
+     * Get the list of tuple2 values.
+     * @return List of values
+     */
     @SuppressWarnings("ReturnOfCollectionOrArrayField")
     List<Tuple2<String, String>> getEntries() {
       return this.entries;
@@ -80,6 +88,9 @@ final class Entries {
     }
   }
 
+  /**
+   * Simple string value entry.
+   */
   @SuppressWarnings("PackageVisibleInnerClass")
   static final class StringValueEntry {
     /**
@@ -108,7 +119,7 @@ final class Entries {
 
     @Override
     public String toString() {
-      return "StringValueEntry{k=" + this.key + " v=" + this.value + "}";
+      return "StringValueEntry{k=" + this.key + " v=" + this.value + '}';
     }
   }
 }

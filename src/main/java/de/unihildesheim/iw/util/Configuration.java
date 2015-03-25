@@ -45,7 +45,7 @@ public class Configuration {
   private static final Logger LOG = LoggerFactory.getLogger(
       Configuration.class);
   /**
-   * Default constnt empty string value.
+   * Default constant empty string value.
    */
   private static final String EMPTY_STRING = "";
 

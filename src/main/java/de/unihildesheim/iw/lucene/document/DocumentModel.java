@@ -338,7 +338,7 @@ public final class DocumentModel
         throw new IllegalArgumentException("Frequency values must be >=0. " +
             "Got '" + freq + '\'');
       }
-      if (freq > 0) { // skip empty terms
+      if (freq > 0L) { // skip empty terms
         final int idx = this.terms.add(term);
         if (idx >= 0) {
           if (this.freqs.isEmpty()) {
@@ -368,6 +368,7 @@ public final class DocumentModel
      *
      * @return New document model with the data of this builder set
      */
+    @NotNull
     @Override
     public DocumentModel build() {
       return new DocumentModel(this);
@@ -432,6 +433,7 @@ public final class DocumentModel
      *
      * @return New document model with the data of this builder set
      */
+    @NotNull
     @Override
     public DocumentModel build() {
       return new DocumentModel(this);

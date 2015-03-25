@@ -647,7 +647,7 @@ public final class ImprovedClarityScore
      *
      * @param newConf Configuration used
      */
-    void setConf(@Nullable final ImprovedClarityScoreConfiguration newConf) {
+    void setConf(@NotNull final ImprovedClarityScoreConfiguration newConf) {
       this.conf = newConf;
     }
 

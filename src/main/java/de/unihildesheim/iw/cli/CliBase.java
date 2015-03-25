@@ -17,6 +17,7 @@
 
 package de.unihildesheim.iw.cli;
 
+import org.jetbrains.annotations.NotNull;
 import org.kohsuke.args4j.ClassParser;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
@@ -30,7 +31,6 @@ import java.io.PrintStream;
  * @author Jens Bertram
  */
 public class CliBase {
-
   /**
    * Logger instance for this class.
    */
@@ -38,7 +38,6 @@ public class CliBase {
   /**
    * Object holding default commandline parameters.
    */
-  @SuppressWarnings("PackageVisibleField")
   final DefaultCliParams defaultCliParams;
   /**
    * Header banner for cli output.
@@ -59,7 +58,8 @@ public class CliBase {
    * @param newHeader Short header to print when class is loaded
    * @param newInfo Short info to tell what this cli-class does
    */
-  protected CliBase(final String newHeader, final String newInfo) {
+  protected CliBase(@NotNull final String newHeader, @NotNull final String
+      newInfo) {
     this.header = newHeader;
     this.info = newInfo;
     this.defaultCliParams = new DefaultCliParams();
@@ -72,8 +72,8 @@ public class CliBase {
    * @param args Commandline parameters
    * @return Cli arguments parser instance
    */
-  protected final CmdLineParser parseWithHelp(final Object bean,
-      final String[] args) {
+  protected final CmdLineParser parseWithHelp(
+      @NotNull final Object bean, @NotNull final String... args) {
     final CmdLineParser parser = parse(bean, args);
 
     if (!this.helpPrinted) {
@@ -90,7 +90,8 @@ public class CliBase {
    * @param args Commandline parameters
    * @return Cli arguments parser instance
    */
-  final CmdLineParser parse(final Object bean, final String[] args) {
+  final CmdLineParser parse(
+      @NotNull final Object bean, @NotNull final String... args) {
     final CmdLineParser parser = new CmdLineParser(this.defaultCliParams);
     final ClassParser beanOpts = new ClassParser();
     beanOpts.parse(bean, parser);
@@ -120,7 +121,7 @@ public class CliBase {
    *
    * @param out Output stream
    */
-  final void printHeader(final PrintStream out) {
+  final void printHeader(@NotNull final PrintStream out) {
     out.println(this.header);
   }
 
@@ -129,7 +130,7 @@ public class CliBase {
    *
    * @param out Output stream
    */
-  final void printInfo(final PrintStream out) {
+  final void printInfo(@NotNull final PrintStream out) {
     out.println(this.info);
   }
 
@@ -137,13 +138,13 @@ public class CliBase {
    * Default commandline parameters shared by all instances.
    */
   final class DefaultCliParams {
-    @SuppressWarnings("PackageVisibleField")
-    @Option(name = "-h", aliases = "--help", usage = "Usage help",
-        required = false)
     /**
      * True, if help message was requested.
      */
-        boolean printHelp;
+    @SuppressWarnings("PackageVisibleField")
+    @Option(name = "-h", aliases = "--help", usage = "Usage help",
+        required = false)
+    boolean printHelp;
 
     /**
      * Prints a help string and exists, if requested by cli params.
@@ -154,8 +155,10 @@ public class CliBase {
      * @param force If true, printing is forces, regardless if it's requested by
      * cli param
      */
-    void printHelpAndExit(final CmdLineParser parser,
-        final PrintStream out, final int exitCode, final boolean force) {
+    void printHelpAndExit(
+        @NotNull final CmdLineParser parser,
+        @NotNull final PrintStream out,
+        final int exitCode, final boolean force) {
       if (this.printHelp || force) {
         printInfo(out);
         parser.printUsage(out);

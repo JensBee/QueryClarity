@@ -170,15 +170,27 @@ public final class Passage {
       this.empty = isEmpty;
     }
 
+    /**
+     * Check, if there's no content for this passage.
+     * @return True, if no content
+     */
     public boolean isEmpty() {
       return this.empty;
     }
 
+    /**
+     * Get the identifier describing this passage.
+     * @return Identifier
+     */
     @Nullable
     public String getIdentifier() {
       return this.impl;
     }
 
+    /**
+     * Get the score calculated for this passage.
+     * @return Score value
+     */
     @Nullable
     public Double getScore() {
       return this.score;

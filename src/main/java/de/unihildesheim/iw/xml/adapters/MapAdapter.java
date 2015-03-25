@@ -35,12 +35,6 @@ import java.util.Map.Entry;
  * @author Jens Bertram
  */
 public final class MapAdapter {
-
-  /**
-   * Logger instance for this class.
-   */
-  private static final Logger LOG = LoggerFactory.getLogger(MapAdapter.class);
-
   /**
    * XML processing of mapping from key to Tuple2.
    */
@@ -90,6 +84,11 @@ public final class MapAdapter {
   @SuppressWarnings("PublicInnerClass")
   public static final class StringValue
       extends XmlAdapter<StringValueEntry[], Map<String, String>> {
+    /**
+     * Logger instance for this class.
+     */
+    private static final Logger LOG =
+        LoggerFactory.getLogger(StringValue.class);
 
     @Nullable
     @Override
@@ -99,7 +98,9 @@ public final class MapAdapter {
       if (null == value) {
         return null;
       }
-      LOG.debug("StringValue unmarshal {} entries.", value.length);
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("StringValue unmarshal {} entries.", value.length);
+      }
       final Map<String, String> retMap = new HashMap<>(value.length);
       for (final StringValueEntry sVal : value) {
         retMap.put(sVal.key, sVal.value);

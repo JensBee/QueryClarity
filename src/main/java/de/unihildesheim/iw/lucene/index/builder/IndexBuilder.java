@@ -30,6 +30,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 
 import java.io.IOException;
@@ -47,12 +48,27 @@ public class IndexBuilder
    */
   private static final Logger LOG =
       org.slf4j.LoggerFactory.getLogger(IndexBuilder.class);
+  /**
+   * Language index is build for.
+   */
   private final Language language;
+  /**
+   * Writer to the index.
+   */
   private final IndexWriter writer;
 
+  /**
+   * Create the writer object using a target directory a language and
+   * optionally a list of stopwords.
+   * @param target Target path
+   * @param lang Language identifier
+   * @param stopwords List of stopwords
+   * @throws IOException Thrown on low-level i/o-errors
+   */
   public IndexBuilder(
-      final Path target,
-      final Language lang, final Set<String> stopwords)
+      @NotNull final Path target,
+      @NotNull final Language lang,
+      @NotNull final Set<String> stopwords)
       throws IOException {
     // check, if we've an analyzer for the current language
     if (!LanguageBasedAnalyzers.hasAnalyzer(lang.toString())) {
@@ -61,9 +77,8 @@ public class IndexBuilder
     }
 
     // get an analyzer for the target language
-    final Analyzer analyzer = LanguageBasedAnalyzers.createInstance
-        (LanguageBasedAnalyzers.getLanguage(lang.toString()),
-            new CharArraySet(stopwords, true));
+    final Analyzer analyzer = LanguageBasedAnalyzers.createInstance(
+        lang, new CharArraySet(stopwords, true));
 
     // Lucene index setup
     final Directory index = FSDirectory.open(target);
@@ -73,7 +88,12 @@ public class IndexBuilder
     this.language = lang;
   }
 
-  public void index(final PatentDocument patent)
+  /**
+   * Index a single document.
+   * @param patent Patent document
+   * @throws IOException Thrown on low-level i/o-errors
+   */
+  public void index(@NotNull final PatentDocument patent)
       throws IOException {
     // create Lucene document from model
     final Document patDoc = new Document();

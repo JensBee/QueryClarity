@@ -20,7 +20,7 @@ package de.unihildesheim.iw.lucene.scoring.clarity;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Types of clarty score scorers available.
+ * Types of clarity score scorers available.
  */
 public enum ScorerType {
   /**

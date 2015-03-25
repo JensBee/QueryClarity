@@ -42,7 +42,13 @@ import java.io.IOException;
  */
 public final class EmptyFieldFilter
     extends Filter {
+  /**
+   * Field to filter on.
+   */
   private final String field;
+  /**
+   * If true, filter function is negated.
+   */
   private final boolean negate;
 
   /**
@@ -107,22 +113,22 @@ public final class EmptyFieldFilter
     if (terms != null) {
       final int termsDocCount = terms.getDocCount();
 
-      if (termsDocCount == 0) {
-        // none matching
-      } else if (termsDocCount == maxDoc) {
-        // all matching
-        finalBits = checkBits;
-      } else {
-        @Nullable final Terms t = reader.terms(this.field);
-        if (t != null) {
-          DocsEnum de = null;
-          final TermsEnum te = t.iterator(null);
-          int docId;
-          while (te.next() != null) {
-            de = te.docs(checkBits, de, DocsEnum.FLAG_NONE);
-            while ((docId = de.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS)  {
-              if (checkBits.getAndClear(docId)) {
-                finalBits.set(docId);
+      if (termsDocCount != 0) {
+        if (termsDocCount == maxDoc) {
+          // all matching
+          finalBits = checkBits;
+        } else {
+          @Nullable final Terms t = reader.terms(this.field);
+          if (t != null) {
+            DocsEnum de = null;
+            final TermsEnum te = t.iterator(null);
+            int docId;
+            while (te.next() != null) {
+              de = te.docs(checkBits, de, DocsEnum.FLAG_NONE);
+              while ((docId = de.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                if (checkBits.getAndClear(docId)) {
+                  finalBits.set(docId);
+                }
               }
             }
           }

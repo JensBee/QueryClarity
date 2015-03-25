@@ -141,7 +141,7 @@ public final class Tuple {
 
     @Override
     public String toString() {
-      return "Tuple2(a=" + this.a + " b=" + this.b + ")";
+      return "Tuple2(a=" + this.a + " b=" + this.b + ')';
     }
   }
 

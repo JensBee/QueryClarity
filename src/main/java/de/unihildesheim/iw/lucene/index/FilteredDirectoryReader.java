@@ -931,7 +931,6 @@ public final class FilteredDirectoryReader
     /**
      * Bits with visible documents bits turned on.
      */
-    @NotNull
     FixedBitSet docBits;
     /**
      * Term filter in use.

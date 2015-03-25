@@ -18,6 +18,7 @@
 package de.unihildesheim.iw.xml.elements;
 
 import de.unihildesheim.iw.util.StringUtils;
+import org.jetbrains.annotations.NotNull;
 
 import javax.xml.bind.annotation.XmlAttribute;
 import javax.xml.bind.annotation.XmlRootElement;
@@ -32,20 +33,36 @@ import java.util.List;
  */
 @XmlRootElement
 public final class Language {
-
+  /**
+   * Stopwords set for this language.
+   */
   private String stopwords = "";
-
+  /**
+   * Language code identifier.
+   */
   private String lang = "";
 
+  /**
+   * Get the language identifier for this instance.
+   * @return Identifier
+   */
   public String getLanguage() {
     return this.lang;
   }
 
+  /**
+   * Set the language identifier for this instance.
+   * @param language Language identifier
+   */
   @XmlAttribute(name = "name")
-  public void setLanguage(final String language) {
+  public void setLanguage(@NotNull final String language) {
     this.lang = language;
   }
 
+  /**
+   * Get the stopwords set for this langugae.
+   * @return Stopwords list
+   */
   public String getStopwords() {
     return this.stopwords;
   }
@@ -55,7 +72,7 @@ public final class Language {
    *
    * @param newStopwords Stopwords
    */
-  public void setStopwords(final Collection<String> newStopwords) {
+  public void setStopwords(@NotNull final Collection<String> newStopwords) {
     final List<String> sw = new ArrayList<>(new HashSet<>(newStopwords));
     Collections.sort(sw);
     this.stopwords = StringUtils.join(sw, " ");
@@ -66,7 +83,7 @@ public final class Language {
    *
    * @param newStopwords Stopwords as single string
    */
-  public void setStopwords(final String newStopwords) {
+  public void setStopwords(@NotNull final String newStopwords) {
     final List<String> sw = new ArrayList<>(
         new HashSet<>(StringUtils.split(newStopwords, " ")));
     Collections.sort(sw);

@@ -111,6 +111,8 @@ public final class RandomValue {
   /**
    * Get a random long value.
    *
+   * @param min Minimum value
+   * @param max Maximum value
    * @return Long value
    */
   public static long getLong(final long min, final long max) {

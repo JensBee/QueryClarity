@@ -93,7 +93,7 @@ public interface FeedbackProvider {
    * @param fields Set of document field names
    * @return Self reference
    */
-  FeedbackProvider fields(final String[] fields);
+  FeedbackProvider fields(final String... fields);
 
   /**
    * Set the query parser to use for getting feedback documents.
