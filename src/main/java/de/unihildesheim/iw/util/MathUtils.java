@@ -18,14 +18,13 @@ package de.unihildesheim.iw.util;
 
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
-import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation
-    .ScoreTupleHighPrecision;
-import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation
-    .ScoreTupleLowPrecision;
+import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation.ScoreTupleHighPrecision;
+import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation.ScoreTupleLowPrecision;
 import de.unihildesheim.iw.util.concurrent.AtomicBigDecimal;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import de.unihildesheim.iw.util.concurrent.AtomicDouble;
 import org.jetbrains.annotations.NotNull;
 import org.nevec.rjm.BigDecimalMath;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
@@ -92,10 +91,80 @@ public final class MathUtils {
   }
 
   /**
+   * Scale values from a given domain to a given range.
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public static final class Rescale {
+    /**
+     * Logger instance for this class.
+     */
+    private static final Logger LOG = LoggerFactory.getLogger(Rescale.class);
+    /**
+     * Range values.
+     */
+    final double[] values;
+    final double divider;
+
+    /**
+     * Initializes the rescaling for the given domain and range.
+     *
+     * @param dom1 Domain lower bound
+     * @param dom2 Domain upper bound
+     * @param rng1 Range lower bound
+     * @param rng2 Range upper bound
+     */
+    public Rescale(
+        final double dom1, final double dom2,
+        final double rng1, final double rng2) {
+      this.values = new double[]{dom1, dom2, rng1, rng2};
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Scale dom={}~{} rng={}~{}", dom1, dom2, rng1, rng2);
+      }
+
+      this.divider = (this.values[1] - this.values[0]) == 0 ?
+              1d / this.values[1] : this.values[1] - this.values[0];
+    }
+
+    /**
+     * Initializes the rescaling for the given domain and the default range
+     * between [>0, <1].
+     *
+     * @param dom1 Domain lower bound
+     * @param dom2 Domain upper bound
+     */
+    public Rescale(
+        final double dom1, final double dom2) {
+      this(dom1, dom2, 0.001, 0.999);
+    }
+
+    /**
+     * Scale the given value in the given domain defined at construction time to
+     * the target range set at construction time. Domain bounds are not
+     * checked!
+     *
+     * @param value Value to scale. Must be in bounds defined at construction
+     * time.
+     * @return Value scaled to target range
+     */
+    public double scale(final double value) {
+      final double preScaled = (value - this.values[0]) / this.divider;
+      final double result = (this.values[2] * (1d - preScaled)) +
+          (this.values[3] * preScaled);
+
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Scaling {} from {}~{} -> {}~{} = {}", value,
+            this.values[0], this.values[1],
+            this.values[2], this.values[3], result);
+      }
+      return result;
+    }
+  }
+
+  /**
    * Methods for calculating the Kullback-Leibler divergence.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static final class KlDivergenceHighPrecision {
+  private static final class KlDivergenceHighPrecision {
     /**
      * Logger instance for this class.
      */
@@ -210,103 +279,102 @@ public final class MathUtils {
     }
   }
 
-  /**
-   * Methods for calculating the Kullback-Leibler divergence.
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public static final class KlDivergenceLowPrecision {
-    /**
-     * Logger instance for this class.
-     */
-    private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
-        KlDivergenceLowPrecision.class);
+  public static BigDecimal klDivergence(
+      @NotNull final ScoreTupleHighPrecision... dataSet) {
+    final AtomicBigDecimal qModSum = new AtomicBigDecimal(0d);
+    final AtomicBigDecimal cModSum = new AtomicBigDecimal(0d);
 
-    /**
-     * Runs summing and calculation of the KL-Divergence in one step.
-     *
-     * @param dataSet Data-set
-     * @return KL-Divergence value
-     */
-    public static double sumAndCalc(
-        @NotNull final ScoreTupleLowPrecision... dataSet) {
-      return calc(dataSet, sumValues(dataSet));
-    }
+    // pre-check and estimate domain values
+    Arrays.stream(dataSet)
+        .forEach(ds -> {
+          // check for illegal values in dataSet
+          if (ds == null) {
+            throw new IllegalArgumentException(
+                "Null entries are not allowed in dataSet.");
+          }
+          final int cModelState = ds.cModel.compareTo(BigDecimal.ZERO);
+          if (cModelState < 0) {
+            throw new IllegalArgumentException(
+                "Values <0 as collection-model value are not allowed.");
+          }
+          final int qModelState = ds.qModel.compareTo(BigDecimal.ZERO);
+          if (qModelState < 0) {
+            throw new IllegalArgumentException(
+                "Values <0 as query-model value are not allowed.");
+          }
 
-    /**
-     * Sum values for a given data-set.
-     *
-     * @param dataSet Data-set to sum
-     * @return Sums for values in the given data-set
-     */
-    @SuppressFBWarnings("CLI_CONSTANT_LIST_INDEX")
-    static ScoreTupleLowPrecision sumValues(
-        @NotNull final ScoreTupleLowPrecision... dataSet) {
-      final double[] sums = Arrays.stream(dataSet)
-          .filter(ds -> {
-            // null values are not allowed
-            if (ds == null) {
-              throw new IllegalArgumentException(
-                  "Null entries are not allowed in dataSet.");
-            }
-            if (ds.cModel < 0d) {
-              throw new IllegalArgumentException(
-                  "Values <0 as collection-model value are not allowed.");
-            }
-            if (ds.qModel < 0d) {
-              throw new IllegalArgumentException(
-                  "Values <0 as query-model value are not allowed.");
-            }
-            // both values will be zero if cModel is zero
-            // cModel == 0 implies qModel == 0
-            // dividing zero is always zero, so skip if qModel == 0
-            return ds.cModel > 0d && ds.qModel > 0d;
-          })
-          .map(ds -> new double[]{ds.qModel, ds.cModel})
-          .reduce(new double[]{0d, 0d},
-              (sum, curr) -> new double[]{sum[0] + curr[0], sum[1] + curr[1]});
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("pqSum={} pcSum={}", sums[0], sums[1]);
-      }
-      return new ScoreTupleLowPrecision(sums[0], sums[1]);
-    }
+          // sum values
+          if (cModelState != 0 && qModelState != 0) { // check KL constraints
+            qModSum.add(ds.qModel, MATH_CONTEXT);
+            cModSum.add(ds.cModel, MATH_CONTEXT);
+          }
+        });
 
-    /**
-     * Calculate the KL-Divergence value.
-     *
-     * @param dataSet DataSet used for calculation
-     * @param sums Sums of the {@code dataSet}
-     * @return KL-Divergence value
-     */
-    static double calc(
-        @NotNull final ScoreTupleLowPrecision[] dataSet,
-        @NotNull final ScoreTupleLowPrecision sums) {
-      return Arrays.stream(dataSet)
-          .filter(ds -> {
-            // null values are not allowed
-            if (ds == null) {
-              throw new IllegalArgumentException(
-                  "Null entries are not allowed in dataSet.");
-            }
-            if (ds.cModel < 0d) {
-              throw new IllegalArgumentException(
-                  "Values <0 as collection-model value are not allowed.");
-            }
-            if (ds.qModel < 0d) {
-              throw new IllegalArgumentException(
-                  "Values <0 as query-model value are not allowed.");
-            }
-            // ds.qModel will be zero if ds.cModel is zero:
-            // ds.cModel == 0 implies ds.qModel == 0
-            // dividing zero is always zero, so skip if qModel == 0
-            return ds.cModel > 0d && ds.qModel > 0d;
-          })
-          .mapToDouble(ds -> {
-            // scale value of ds.qModel & ds.cModel to [0,1]
-            final double qScaled = ds.qModel / sums.qModel;
-            // r += (ds.cModel/sums[cModel]) *
-            // log((ds.cModel/sums[cModel]) / (ds.qModel/sums[qModel]))
-            return qScaled * Math.log(qScaled / (ds.cModel / sums.cModel));
-          }).sum();
-    }
+    // calculate result
+    final BigDecimal qms = qModSum.get();
+    final BigDecimal cms = cModSum.get();
+    final AtomicBigDecimal result = new AtomicBigDecimal();
+
+    assert qms.compareTo(BigDecimal.ZERO) != 0;
+    assert cms.compareTo(BigDecimal.ZERO) != 0;
+
+    Arrays.stream(dataSet)
+        .filter(ds ->
+            ds.cModel.compareTo(BigDecimal.ZERO) != 0 &&
+                ds.qModel.compareTo(BigDecimal.ZERO) != 0)
+        .map(ds -> {
+          final BigDecimal qm = ds.qModel.divide(qms, MATH_CONTEXT);
+          final BigDecimal cm = ds.cModel.divide(cms, MATH_CONTEXT);
+          return qm.multiply(
+              BigDecimalMath.log(
+                  qm.divide(cm, MATH_CONTEXT)
+              ), MATH_CONTEXT
+          );
+        }).forEach(s -> result.add(s, MATH_CONTEXT));
+    return result.get().divide(BD_LOG2, MATH_CONTEXT);
+  }
+
+  public static double klDivergence(
+      @NotNull final ScoreTupleLowPrecision... dataSet) {
+    final AtomicDouble qModSum = new AtomicDouble(0d);
+    final AtomicDouble cModSum = new AtomicDouble(0d);
+
+    // pre-check and estimate domain values
+    Arrays.stream(dataSet)
+        .forEach(ds -> {
+          // check for illegal values in dataSet
+          if (ds == null) {
+            throw new IllegalArgumentException(
+                "Null entries are not allowed in dataSet.");
+          }
+          if (ds.cModel < 0d) {
+            throw new IllegalArgumentException(
+                "Values <0 as collection-model value are not allowed.");
+          }
+          if (ds.qModel < 0d) {
+            throw new IllegalArgumentException(
+                "Values <0 as query-model value are not allowed.");
+          }
+
+          // sum values
+          if (ds.cModel != 0d && ds.qModel != 0d) { // check KL constraints
+            qModSum.add(ds.qModel);
+            cModSum.add(ds.cModel);
+          }
+        });
+
+    // calculate result
+    final double qms = qModSum.get();
+    final double cms = cModSum.get();
+
+    assert qms != 0d;
+    assert cms != 0d;
+
+    return Arrays.stream(dataSet)
+        .filter(ds -> ds.cModel != 0d && ds.qModel != 0d)
+        .mapToDouble(ds -> {
+          final double qm = ds.qModel / qms;
+          return qm * Math.log(qm / (ds.cModel / cms));
+        }).sum() / LOG2;
   }
 }

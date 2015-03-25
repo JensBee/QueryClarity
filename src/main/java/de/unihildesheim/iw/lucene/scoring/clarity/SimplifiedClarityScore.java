@@ -21,7 +21,7 @@ import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
-import de.unihildesheim.iw.util.MathUtils.KlDivergenceHighPrecision;
+import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import org.apache.lucene.analysis.Analyzer;
@@ -142,8 +142,7 @@ public final class SimplifiedClarityScore
       dataSets[idx++] = calcScorePortion(
           qTermEntry.getKey(), qTermEntry.getValue(), queryLength);
     }
-    final double score =
-        KlDivergenceHighPrecision.sumAndCalc(dataSets).doubleValue();
+    final double score = MathUtils.klDivergence(dataSets).doubleValue();
 
     if (LOG.isDebugEnabled()) {
       LOG.debug("Calculation results: query={} score={}.", query, score);

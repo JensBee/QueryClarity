@@ -30,8 +30,7 @@ import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
 import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
 import de.unihildesheim.iw.lucene.util.StreamUtils;
-import de.unihildesheim.iw.util.MathUtils.KlDivergenceHighPrecision;
-import de.unihildesheim.iw.util.MathUtils.KlDivergenceLowPrecision;
+import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -567,8 +566,7 @@ public final class ImprovedClarityScore
             .toArray(ScoreTupleLowPrecision[]::new);
 
         LOG.info("Calculating final score.");
-        result.setScore(
-            KlDivergenceLowPrecision.sumAndCalc(dataSets));
+        result.setScore(MathUtils.klDivergence(dataSets));
       } else {
         final ModelHighPrecision model = new ModelHighPrecision(
             this.dataProv, queryTerms, feedbackDocIds,
@@ -584,8 +582,7 @@ public final class ImprovedClarityScore
             .toArray(ScoreTupleHighPrecision[]::new);
 
         LOG.info("Calculating final score.");
-        result.setScore(
-            KlDivergenceHighPrecision.sumAndCalc(dataSets).doubleValue());
+        result.setScore(MathUtils.klDivergence(dataSets).doubleValue());
       }
     } catch (final IOException e) {
       throw new UncheckedIOException(e);

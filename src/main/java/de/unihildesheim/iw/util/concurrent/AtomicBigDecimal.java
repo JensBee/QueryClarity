@@ -149,14 +149,38 @@ public final class AtomicBigDecimal
    */
   public BigDecimal getAndAdd(
       final BigDecimal delta, @Nullable final MathContext mc) {
-    while (true) {
-      final BigDecimal origVal = get();
-      final BigDecimal newVal;
-      newVal = mc == null ? origVal.add(delta) : origVal.add(delta, mc);
-      if (compareAndSet(origVal, newVal)) {
-        return origVal;
-      }
-    }
+    BigDecimal current;
+    BigDecimal updated;
+    do {
+      current = get();
+      updated = mc == null ? current.add(delta) : current.add(delta, mc);
+    } while (!compareAndSet(current, updated));
+    return current;
+  }
+
+  /**
+   * Atomically adds the given value to the current value.
+   *
+   * @param delta the value to add
+   * @param mc Math context to use
+   */
+  public void add(
+      final BigDecimal delta, @Nullable final MathContext mc) {
+    BigDecimal current;
+    BigDecimal updated;
+    do {
+      current = get();
+      updated = mc == null ? current.add(delta) : current.add(delta, mc);
+    } while (!compareAndSet(current, updated));
+  }
+
+  /**
+   * Atomically adds the given value to the current value.
+   *
+   * @param delta the value to add
+   */
+  public void add(final BigDecimal delta) {
+    add(delta, null);
   }
 
   /**

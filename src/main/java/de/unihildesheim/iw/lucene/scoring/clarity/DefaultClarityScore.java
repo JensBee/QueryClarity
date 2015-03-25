@@ -31,8 +31,7 @@ import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
 import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
 import de.unihildesheim.iw.lucene.util.StreamUtils;
-import de.unihildesheim.iw.util.MathUtils.KlDivergenceHighPrecision;
-import de.unihildesheim.iw.util.MathUtils.KlDivergenceLowPrecision;
+import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import org.apache.lucene.analysis.Analyzer;
@@ -507,7 +506,7 @@ public final class DefaultClarityScore
           .toArray(ScoreTupleLowPrecision[]::new);
 
       LOG.info("Calculating final score.");
-      result.setScore(KlDivergenceLowPrecision.sumAndCalc(dataSets));
+      result.setScore(MathUtils.klDivergence(dataSets));
     } else {
       // high precision math
       final ModelHighPrecision model = new ModelHighPrecision(this.dataProv,
@@ -524,8 +523,7 @@ public final class DefaultClarityScore
           .toArray(ScoreTupleHighPrecision[]::new);
 
       LOG.info("Calculating final score.");
-      result.setScore(
-          KlDivergenceHighPrecision.sumAndCalc(dataSets).doubleValue());
+      result.setScore(MathUtils.klDivergence(dataSets).doubleValue());
     }
 
     return result;

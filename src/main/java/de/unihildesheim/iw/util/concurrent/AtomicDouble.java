@@ -137,15 +137,14 @@ public final class AtomicDouble
    * @return the previous value
    */
   public double getAndAdd(final double delta) {
-    while (true) {
-      final long current = this.value;
-      final double currentVal = Double.longBitsToDouble(current);
-      final double nextVal = currentVal + delta;
-      final long next = Double.doubleToRawLongBits(nextVal);
-      if (UPDATER.compareAndSet(this, current, next)) {
-        return currentVal;
-      }
-    }
+    long current;
+    long next;
+    do {
+      current = this.value;
+      next = Double.doubleToRawLongBits(
+          Double.longBitsToDouble(current) + delta);
+    } while (!UPDATER.compareAndSet(this, current, next));
+    return Double.longBitsToDouble(current);
   }
 
   /**
@@ -155,15 +154,29 @@ public final class AtomicDouble
    * @return the updated value
    */
   public double addAndGet(final double delta) {
-    while (true) {
-      final long current = this.value;
-      final double currentVal = Double.longBitsToDouble(current);
-      final double nextVal = currentVal + delta;
-      final long next = Double.doubleToRawLongBits(nextVal);
-      if (UPDATER.compareAndSet(this, current, next)) {
-        return nextVal;
-      }
-    }
+    double nextVal;
+    long current;
+    do {
+      current = this.value;
+      nextVal = Double.longBitsToDouble(current) + delta;
+    } while (!UPDATER.compareAndSet(this, current,
+        Double.doubleToRawLongBits(nextVal)));
+    return nextVal;
+  }
+
+  /**
+   * Atomically adds the given value to the current value.
+   *
+   * @param delta the value to add
+   */
+  public void add(final double delta) {
+    long next;
+    long current;
+    do {
+      current = this.value;
+      next = Double.doubleToRawLongBits(
+          Double.longBitsToDouble(current) + delta);
+    } while (!UPDATER.compareAndSet(this, current, next));
   }
 
   /**
