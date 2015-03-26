@@ -279,8 +279,7 @@ public final class StreamUtils {
 
     @Override
     public int characteristics() {
-      return Spliterator.DISTINCT | Spliterator.IMMUTABLE |
-          Spliterator.NONNULL | Spliterator.SIZED;
+      return Spliterator.IMMUTABLE | Spliterator.NONNULL | Spliterator.SIZED;
     }
   }
 
