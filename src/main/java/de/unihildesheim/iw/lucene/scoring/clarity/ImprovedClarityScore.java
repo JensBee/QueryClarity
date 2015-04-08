@@ -531,23 +531,23 @@ public final class ImprovedClarityScore
     result.setFeedbackDocIds(feedbackDocIds);
 
     // get document frequency threshold - allowed terms must be in bounds
-    final BigDecimal minFreq = BigDecimal.valueOf(this.conf
-        .getMinFeedbackTermSelectionThreshold());
-    final BigDecimal maxFreq = BigDecimal.valueOf(this.conf
-        .getMaxFeedbackTermSelectionThreshold());
+    final double minFreq = this.conf
+        .getMinFeedbackTermSelectionThreshold();
+    final double maxFreq = this.conf
+        .getMaxFeedbackTermSelectionThreshold();
     if (LOG.isDebugEnabled()) {
       LOG.debug("Feedback term Document frequency threshold: {}%-{}%",
-          minFreq.doubleValue() * 100d, maxFreq.doubleValue() * 100d);
+          minFreq * 100d, maxFreq * 100d);
     }
 
     // feedback terms stream used for calculation
     final Stream<BytesRef> fbTermStream = this.vocProvider
         .documentIds(feedbackDocIds)
         .get()
+        // filter common terms
         .filter(t -> {
-          final BigDecimal relDf = BigDecimal.valueOf(cMetrics.relDf(t));
-          return relDf.compareTo(minFreq) >= 0
-              && relDf.compareTo(maxFreq) <= 0;
+          final double relDf = this.dataProv.getRelativeDocumentFrequency(t);
+          return relDf >= minFreq && relDf <= maxFreq;
         });
 
     try {
