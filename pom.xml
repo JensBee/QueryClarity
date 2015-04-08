@@ -25,9 +25,6 @@
         <project.name>queryClarity</project.name>
         <project.test.enableAssertions>true</project.test.enableAssertions>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <jacoco.ut.execution.data.file>
-            ${project.build.directory}/coverage-reports/jacoco-ut.exec
-        </jacoco.ut.execution.data.file>
     </properties>
 
     <build>
@@ -68,7 +65,8 @@
                             <goal>copy-dependencies</goal>
                         </goals>
                         <configuration>
-                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                            <outputDirectory>${project.build.directory}/lib
+                            </outputDirectory>
                             <overWriteReleases>false</overWriteReleases>
                             <overWriteSnapshots>true</overWriteSnapshots>
                             <excludeTransitive>false</excludeTransitive>
@@ -84,14 +82,43 @@
                     <enableAssertions>
                         ${project.test.enableAssertions}
                     </enableAssertions>
-                    <!--
-                    <excludes>
-                        <exclude>
-                            **/*PerformanceTest.java
-                        </exclude>
-                    </excludes>
-                    -->
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.cxf</groupId>
+                <artifactId>cxf-xjc-plugin</artifactId>
+                <version>3.0.3</version>
+                <configuration>
+                    <extensions>
+                        <extension>
+                            org.apache.cxf.xjcplugins:cxf-xjc-dv:3.0.3
+                        </extension>
+                    </extensions>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>generate-sources</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>xsdtojava</goal>
+                        </goals>
+                        <configuration>
+                            <sourceRoot>
+                                ${basedir}/target/generated-sources
+                            </sourceRoot>
+                            <xsdOptions>
+                                <xsdOption>
+                                    <xsd>
+                                        src/main/resources/schema/topics.xsd
+                                    </xsd>
+                                    <packagename>
+                                        de.unihildesheim.iw.xml.topics
+                                    </packagename>
+                                </xsdOption>
+                            </xsdOptions>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
         <finalName>${project.name}</finalName>
@@ -129,13 +156,6 @@
             <artifactId>lucene-test-framework</artifactId>
             <version>${project.lucene.version}</version>
         </dependency>
-        <!--
-        <dependency>
-            <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-backward-codecs</artifactId>
-            <version>${project.lucene.version}</version>
-        </dependency>
-        -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
