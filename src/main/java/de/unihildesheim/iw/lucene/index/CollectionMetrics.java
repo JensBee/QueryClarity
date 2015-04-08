@@ -18,20 +18,21 @@
 package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.lucene.document.DocumentModel;
-import de.unihildesheim.iw.mapdb.serializer.BytesRefSerializer;
-import de.unihildesheim.iw.mapdb.serializer.DocumentModelSerializer;
 import org.apache.lucene.util.BytesRef;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-import org.mapdb.DBMaker;
-import org.mapdb.Serializer;
-
-import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
+@Deprecated
 public final class CollectionMetrics {
+  /**
+   * Logger instance for this class.
+   */
+  private static final Logger LOG = LoggerFactory.getLogger(
+      CollectionMetrics.class);
   /**
    * Index total term frequency value.
    */
@@ -40,22 +41,22 @@ public final class CollectionMetrics {
    * Number of documents in index.
    */
   private final long docCount;
-  /**
-   * Cache document frequency values.
-   */
-  private final Map<BytesRef, Integer> c_df;
-  /**
-   * Cache term frequency values.
-   */
-  private final Map<BytesRef, Long> c_tf;
-  /**
-   * Cache relative term frequency values.
-   */
-  private final Map<BytesRef, Double> c_rtf;
-  /**
-   * Cache for created {@link DocumentModel}s.
-   */
-  private final Map<Integer, DocumentModel> c_docModel;
+//  /**
+//   * Cache document frequency values.
+//   */
+//  private final Map<BytesRef, Integer> c_df;
+//  /**
+//   * Cache term frequency values.
+//   */
+//  private final Map<BytesRef, Long> c_tf;
+//  /**
+//   * Cache relative term frequency values.
+//   */
+//  private final Map<BytesRef, Double> c_rtf;
+//  /**
+//   * Cache for created {@link DocumentModel}s.
+//   */
+//  private final Map<Integer, DocumentModel> c_docModel;
   /**
    * Data provider to access index data.
    */
@@ -72,45 +73,45 @@ public final class CollectionMetrics {
     this.tf = this.dataProv.getTermFrequency();
     this.docCount = this.dataProv.getDocumentCount();
 
-    this.c_rtf = DBMaker
-        .newMemoryDirectDB()
-        .transactionDisable()
-        .make()
-        .createHashMap("cache")
-        .keySerializer(BytesRefSerializer.SERIALIZER)
-        .valueSerializer(Serializer.BASIC)
-        .expireStoreSize(1500d)
-        .make();
-
-    this.c_docModel = DBMaker
-        .newMemoryDirectDB()
-        .transactionDisable()
-        .make()
-        .createHashMap("cache")
-        .keySerializer(Serializer.INTEGER)
-        .valueSerializer(DocumentModelSerializer.SERIALIZER)
-        .expireStoreSize(1000d)
-        .make();
-
-    this.c_df = DBMaker
-        .newMemoryDirectDB()
-        .transactionDisable()
-        .make()
-        .createHashMap("cache")
-        .keySerializer(BytesRefSerializer.SERIALIZER)
-        .valueSerializer(Serializer.INTEGER)
-        .expireStoreSize(1500d)
-        .make();
-
-    this.c_tf = DBMaker
-        .newMemoryDirectDB()
-        .transactionDisable()
-        .make()
-        .createHashMap("cache")
-        .keySerializer(BytesRefSerializer.SERIALIZER)
-        .valueSerializer(Serializer.LONG)
-        .expireStoreSize(1500d)
-        .make();
+//    this.c_rtf = DBMaker
+//        .newMemoryDirectDB()
+//        .transactionDisable()
+//        .make()
+//        .createHashMap("cache")
+//        .keySerializer(BytesRefSerializer.SERIALIZER)
+//        .valueSerializer(Serializer.BASIC)
+//        .expireStoreSize(1500d)
+//        .make();
+//
+//    this.c_docModel = DBMaker
+//        .newMemoryDirectDB()
+//        .transactionDisable()
+//        .make()
+//        .createHashMap("cache")
+//        .keySerializer(Serializer.INTEGER)
+//        .valueSerializer(DocumentModelSerializer.SERIALIZER)
+//        .expireStoreSize(1000d)
+//        .make();
+//
+//    this.c_df = DBMaker
+//        .newMemoryDirectDB()
+//        .transactionDisable()
+//        .make()
+//        .createHashMap("cache")
+//        .keySerializer(BytesRefSerializer.SERIALIZER)
+//        .valueSerializer(Serializer.INTEGER)
+//        .expireStoreSize(1500d)
+//        .make();
+//
+//    this.c_tf = DBMaker
+//        .newMemoryDirectDB()
+//        .transactionDisable()
+//        .make()
+//        .createHashMap("cache")
+//        .keySerializer(BytesRefSerializer.SERIALIZER)
+//        .valueSerializer(Serializer.LONG)
+//        .expireStoreSize(1500d)
+//        .make();
   }
 
   /**
@@ -120,13 +121,14 @@ public final class CollectionMetrics {
    * @return Collection frequency of the given term
    */
   public long tf(final BytesRef term) {
-    @Nullable Long result = this.c_tf.get(term);
-    if (result == null) {
+    return this.dataProv.getTermFrequency(term);
+//    @Nullable Long result = this.c_tf.get(term);
+//    if (result == null) {
       // may return null, if term is not known
-      result = this.dataProv.getTermFrequency(term);
-      this.c_tf.put(BytesRef.deepCopyOf(term), result);
-    }
-    return result;
+//      result = this.dataProv.getTermFrequency(term);
+//      this.c_tf.put(BytesRef.deepCopyOf(term), result);
+//    }
+//    return result;
   }
 
   /**
@@ -138,13 +140,14 @@ public final class CollectionMetrics {
    * @return Relative collection frequency of the given term
    */
   public double relTf(final BytesRef term) {
-    @Nullable Double result = this.c_rtf.get(term);
-    if (result == null) {
+//    @Nullable Double result = this.c_rtf.get(term);
+//    if (result == null) {
       final long tf = tf(term);
-      result = tf == 0L ? 0d : (double) tf / (double) this.tf;
-      this.c_rtf.put(BytesRef.deepCopyOf(term), result);
-    }
-    return result;
+//      result = tf == 0L ? 0d : (double) tf / (double) this.tf;
+//      this.c_rtf.put(BytesRef.deepCopyOf(term), result);
+//    }
+//    return result;
+    return tf == 0L ? 0d : (double) tf / (double) this.tf;
   }
 
   /**
@@ -154,12 +157,13 @@ public final class CollectionMetrics {
    * @return Document frequency of the given term
    */
   public Integer df(final BytesRef term) {
-    @Nullable Integer result = this.c_df.get(term);
-    if (result == null) {
-      result = this.dataProv.getDocumentFrequency(term);
-      this.c_df.put(BytesRef.deepCopyOf(term), result);
-    }
-    return result;
+    return this.dataProv.getDocumentFrequency(term);
+//    @Nullable Integer result = this.c_df.get(term);
+//    if (result == null) {
+//      result = this.dataProv.getDocumentFrequency(term);
+//      this.c_df.put(BytesRef.deepCopyOf(term), result);
+//    }
+//    return result;
   }
 
   /**
@@ -181,11 +185,16 @@ public final class CollectionMetrics {
    * @return Document-model for the given document id
    */
   public DocumentModel docData(final int documentId) {
-    @Nullable DocumentModel d = this.c_docModel.get(documentId);
-    if (d == null) {
-      d = this.dataProv.getDocumentModel(documentId);
-      this.c_docModel.put(documentId, d);
-    }
-    return d;
+    return this.dataProv.getDocumentModel(documentId);
+//    LOG.debug("docData id={}", documentId);
+//    @Nullable DocumentModel d = this.c_docModel.get(documentId);
+//    if (d == null) {
+//      LOG.debug("docData id={} state=new", documentId);
+//      d = this.dataProv.getDocumentModel(documentId);
+//      this.c_docModel.put(documentId, d);
+//    } else {
+//      LOG.debug("docData id={} state=cached", documentId);
+//    }
+//    return d;
   }
 }
