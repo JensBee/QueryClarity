@@ -67,8 +67,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Spliterator.OfLong;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -243,10 +241,6 @@ public final class FilteredDirectoryReader
     private static final FieldInfos NO_FIELDINFOS =
         new FieldInfos(new FieldInfo[0]);
     /**
-     * Fields instance.
-     */
-    private final FilteredFields fieldsInstance;
-    /**
      * Set of field names visible. Must be sorted to use {@link
      * Arrays#binarySearch(Object[], Object)}.
      */
@@ -263,6 +257,10 @@ public final class FilteredDirectoryReader
      * The underlying LeafReader.
      */
     private final LeafReader in;
+    /**
+     * Fields instance.
+     */
+    private final FilteredFields fieldsInstance;
 
     /**
      * <p>Construct a FilterLeafReader based on the specified base reader.
@@ -332,6 +330,10 @@ public final class FilteredDirectoryReader
 
       // number of documents enabled after filtering
       this.flrContext.numDocs = this.flrContext.docBits.cardinality();
+      // check, if all bits are turned on
+      if (this.flrContext.numDocs == this.flrContext.docBits.length()) {
+        this.flrContext.allBitsSet = true;
+      }
 
       if (LOG.isDebugEnabled()) {
         LOG.debug("Final state: numDocs={} maxDoc={} fields={}",
@@ -436,7 +438,7 @@ public final class FilteredDirectoryReader
       // A document whose bit is on is valid.
       final FixedBitSet filterBits = new FixedBitSet(this.in.maxDoc());
       StreamUtils.stream(aFilter.getDocIdSet(
-          this.in.getContext(), this.flrContext.docBits))
+          this.in.getContext(), this.flrContext.getDocBitsOrNull()))
           .forEach(filterBits::set);
 
       if (LOG.isDebugEnabled()) {
@@ -512,7 +514,10 @@ public final class FilteredDirectoryReader
       if (filteredDocs == null) {
         return null;
       }
-      ((FixedBitSet) filteredDocs).and(this.flrContext.docBits);
+      // and only, if there are unset bits
+      if (!this.flrContext.allBitsSet) {
+        ((FixedBitSet) filteredDocs).and(this.flrContext.docBits);
+      }
       return filteredDocs;
     }
 
@@ -950,12 +955,21 @@ public final class FilteredDirectoryReader
      * Highest document number.
      */
     int maxDoc;
+    /**
+     * True, if all bits are set (all documents are enabled).
+     */
+    boolean allBitsSet;
 
     /**
      * Context object constructor.
      */
     FLRContext() {
       this.cachedFieldValueFilters = new ConcurrentHashMap<>(15);
+    }
+
+    @Nullable
+    FixedBitSet getDocBitsOrNull() {
+      return this.allBitsSet ? null : this.docBits;
     }
   }
 
@@ -974,13 +988,10 @@ public final class FilteredDirectoryReader
      */
     private final FLRContext ctx;
     /**
-     * On-time retrieval result of document-frequency value.
+     * One-time calculated total term-frequency value for the current term.
+     * {@code -1}, if not calculated.
      */
-    private final AtomicInteger freqsDF = new AtomicInteger(-1);
-    /**
-     * On-time retrieval result of total-term-frequency value.
-     */
-    private final AtomicLong freqsTTF = new AtomicLong(-1L);
+    private volatile long ttf;
 
     /**
      * Creates a new FilterTermsEnum.
@@ -993,6 +1004,7 @@ public final class FilteredDirectoryReader
         @NotNull final TermsEnum wrap) {
       this.in = wrap;
       this.ctx = flr;
+      this.ttf = -1L;
     }
 
     @Override
@@ -1003,9 +1015,7 @@ public final class FilteredDirectoryReader
     @Override
     public SeekStatus seekCeil(@NotNull final BytesRef term)
         throws IOException {
-      // reset frequency values
-      this.freqsDF.set(-1);
-      this.freqsTTF.set(-1L);
+      this.ttf = -1L; // reset ttf value, since current term has changed
       // try seek to term
       SeekStatus status = this.in.seekCeil(term);
 
@@ -1013,8 +1023,8 @@ public final class FilteredDirectoryReader
       // or term is contained in any visible document
       while (status != SeekStatus.END) {
         if (hasDoc() && (this.ctx.termFilter == null ||
-            this.ctx.termFilter.isAccepted(this.in, term))) {
-          return status;
+            this.ctx.termFilter.isAccepted(this.in, term()))) {
+          break;
         }
         status = next() == null ? SeekStatus.END : SeekStatus.NOT_FOUND;
       }
@@ -1031,7 +1041,8 @@ public final class FilteredDirectoryReader
         throws IOException {
       // check, if term is contained in any visible document
       return DocIdSetIterator.NO_MORE_DOCS != this.in
-          .docs(this.ctx.docBits, null, DocsEnum.FLAG_NONE).nextDoc();
+          .docs(this.ctx.getDocBitsOrNull(), null, DocsEnum.FLAG_NONE)
+          .nextDoc();
     }
 
     /**
@@ -1046,10 +1057,7 @@ public final class FilteredDirectoryReader
     @Nullable
     public BytesRef next()
         throws IOException {
-      // reset frequency values
-      this.freqsDF.set(-1);
-      this.freqsTTF.set(-1L);
-
+      this.ttf = -1L; // reset ttf value, since current term has changed
       BytesRef term;
 
       while ((term = this.in.next()) != null && (!hasDoc() ||
@@ -1061,13 +1069,8 @@ public final class FilteredDirectoryReader
     }
 
     @Override
-    public void seekExact(final long ord)
-        throws IOException {
-      // reset frequency values
-      this.freqsDF.set(-1);
-      this.freqsTTF.set(-1L);
-
-      this.in.seekExact(ord);
+    public void seekExact(final long ord) {
+      throw new UnsupportedOperationException();
     }
 
     @Override
@@ -1077,66 +1080,69 @@ public final class FilteredDirectoryReader
     }
 
     @Override
-    public long ord()
-        throws IOException {
-      return this.in.ord();
+    public long ord() {
+      throw new UnsupportedOperationException();
     }
 
     @Override
     public int docFreq()
         throws IOException {
-      int docFreq = this.freqsDF.get();
-      if (docFreq == -1) {
-        freqs();
-        docFreq = this.freqsDF.get();
+      final DocsEnum de = this.in.docs(this.ctx.getDocBitsOrNull(),
+          null, DocsEnum.FLAG_NONE);
+      int docFreq = 0;
+      while (de.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+        docFreq++;
       }
-      assert docFreq > -1;
       return docFreq;
-    }
-
-    /**
-     * Get the document-frequency and the total-term-frequency value at the same
-     * time.
-     *
-     * @throws IOException Thrown on low-level I/O-errors
-     */
-    private void freqs()
-        throws IOException {
-      if (this.freqsDF.get() == -1L || this.freqsTTF.get() == -1L) {
-        final DocsEnum de = this.in.docs(this.ctx.docBits,
-            null, DocsEnum.FLAG_FREQS);
-        int docFreq = 0;
-        long ttf = 0L;
-        while (de.nextDoc() !=
-            DocIdSetIterator.NO_MORE_DOCS) {
-          docFreq++; // docFreq
-          ttf += (long) de.freq(); // ttf
-        }
-        this.freqsDF.set(docFreq);
-        this.freqsTTF.set(ttf);
-      }
     }
 
     @Override
     public long totalTermFreq()
         throws IOException {
-      long ttf = this.freqsTTF.get();
-      if (ttf == -1L) {
-        freqs();
-        ttf = this.freqsTTF.get();
+      if (this.ttf < 0L) {
+        long newTTF;
+        final DocsEnum de;
+        if (this.ctx.numDocs > (this.ctx.maxDoc >> 1)) {
+          // get initial value from all docs
+          newTTF = this.in.totalTermFreq();
+          // if all bits are set, take the ttf value we've got
+          if (!this.ctx.allBitsSet) {
+            // more than half of the documents are enabled, so get the
+            // total-term-frequency value and subtract disabled document values
+            final FixedBitSet nonMatchingDocs = this.ctx.docBits.clone();
+            // flip bits
+            nonMatchingDocs.flip(0, nonMatchingDocs.length());
+            de = this.in.docs(nonMatchingDocs, null, DocsEnum.FLAG_FREQS);
+
+            // subtract value for each doc
+            while (de.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+              newTTF -= (long) de.freq();
+            }
+          }
+        } else {
+          // less than half of the documents are enabled, so add up all
+          // values manually for all enabled documents
+          de = this.in.docs(this.ctx.docBits, null, DocsEnum.FLAG_FREQS);
+          // add up values
+          newTTF = 0L;
+          while (de.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+            newTTF += (long) de.freq();
+          }
+        }
+        this.ttf = newTTF;
       }
-      assert ttf > -1L;
-      return ttf;
+      return this.ttf;
     }
 
+    @SuppressWarnings("ObjectEquality")
     @Override
     public DocsEnum docs(
         @Nullable final Bits liveDocs,
         @Nullable final DocsEnum reuse,
         final int flags)
         throws IOException {
-      if (liveDocs == null) {
-        return this.in.docs(this.ctx.docBits, reuse, flags);
+      if (liveDocs == null || liveDocs == this.ctx.getDocBitsOrNull()) {
+        return this.in.docs(this.ctx.getDocBitsOrNull(), reuse, flags);
       } else {
         final FixedBitSet liveBits = this.ctx.docBits.clone();
         liveBits.and(BitsUtils.bits2FixedBitSet(liveDocs));
@@ -1144,6 +1150,7 @@ public final class FilteredDirectoryReader
       }
     }
 
+    @SuppressWarnings("ObjectEquality")
     @Override
     public DocsAndPositionsEnum docsAndPositions(
         @Nullable final Bits liveDocs,
@@ -1151,8 +1158,9 @@ public final class FilteredDirectoryReader
         throws IOException {
       final DocsAndPositionsEnum dape;
 
-      if (liveDocs == null) {
-        dape = this.in.docsAndPositions(this.ctx.docBits, reuse, flags);
+      if (liveDocs == null || liveDocs == this.ctx.getDocBitsOrNull()) {
+        dape =
+            this.in.docsAndPositions(this.ctx.getDocBitsOrNull(), reuse, flags);
       } else {
         final FixedBitSet liveBits = this.ctx.docBits.clone();
         liveBits.and(BitsUtils.bits2FixedBitSet(liveDocs));
@@ -1225,7 +1233,7 @@ public final class FilteredDirectoryReader
       DocsEnum docsEnum = null;
 
       while (termsEnum.next() != null) {
-        docsEnum = termsEnum.docs(this.ctx.docBits,
+        docsEnum = termsEnum.docs(this.ctx.getDocBitsOrNull(),
             docsEnum, DocsEnum.FLAG_NONE);
         if (docsEnum.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
           return true;
@@ -1301,43 +1309,8 @@ public final class FilteredDirectoryReader
         throws IOException {
       if (this.sumFreqs[0] < 0L) {
         final TermsEnum te = iterator(null);
-        this.sumFreqs[0] = StreamSupport.longStream(new OfLong() {
-          @Override
-          public boolean tryAdvance(final LongConsumer action) {
-            try {
-              final BytesRef nextTerm = te.next();
-              if (nextTerm == null) {
-                return false;
-              } else {
-                //noinspection ConstantConditions
-                if (FilteredTerms.this.ctx.termFilter == null ||
-                    FilteredTerms.this.ctx
-                        .termFilter.isAccepted(te, nextTerm)) {
-                  action.accept((long) te.docFreq());
-                }
-                return true;
-              }
-            } catch (final IOException e) {
-              throw new UncheckedIOException(e);
-            }
-          }
-
-          @Override
-          @Nullable
-          public OfLong trySplit() {
-            return null; // no split support
-          }
-
-          @Override
-          public long estimateSize() {
-            return Long.MAX_VALUE; // we don't know
-          }
-
-          @Override
-          public int characteristics() {
-            return IMMUTABLE; // not mutable
-          }
-        }, false).sum();
+        this.sumFreqs[0] = StreamSupport.longStream(
+            new DocFreqSpliterator(te), false).sum();
       }
       return this.sumFreqs[0];
     }
@@ -1392,6 +1365,61 @@ public final class FilteredDirectoryReader
     public TermsEnum unfilteredIterator(@Nullable final TermsEnum reuse)
         throws IOException {
       return this.in.iterator(reuse);
+    }
+
+    /**
+     * Simple spliterator for document-frequency calculation of the current
+     * term.
+     */
+    private static class DocFreqSpliterator
+        implements OfLong {
+      private final TermsEnum te;
+
+      /**
+       * Create a new instance using the provided terms iterator.
+       * @param te Iterator
+       */
+      public DocFreqSpliterator(@NotNull final TermsEnum te) {
+        this.te = te;
+      }
+
+      @Override
+      public boolean tryAdvance(final LongConsumer action) {
+        try {
+          final BytesRef nextTerm = this.te.next();
+          if (nextTerm == null) {
+            return false;
+          } else {
+            //noinspection ConstantConditions
+            /* already checked in TermsEnum
+            if (FilteredTerms.this.ctx.termFilter == null ||
+                FilteredTerms.this.ctx
+                    .termFilter.isAccepted(te, nextTerm)) {
+              action.accept((long) te.docFreq());
+            }*/
+            action.accept((long) this.te.docFreq());
+            return true;
+          }
+        } catch (final IOException e) {
+          throw new UncheckedIOException(e);
+        }
+      }
+
+      @Override
+      @Nullable
+      public OfLong trySplit() {
+        return null; // no split support
+      }
+
+      @Override
+      public long estimateSize() {
+        return Long.MAX_VALUE; // we don't know
+      }
+
+      @Override
+      public int characteristics() {
+        return IMMUTABLE; // not mutable
+      }
     }
   }
 }
