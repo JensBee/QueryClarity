@@ -48,6 +48,7 @@ import org.junit.Test;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -519,7 +520,8 @@ public class FilteredDirectoryReaderTest
         @Override
         void testDocCount()
             throws Exception {
-          Assert.assertEquals("Doc count mismatch for visible field.",
+          Assert.assertEquals("testDocCount: " +
+                  "Doc count mismatch for visible field.",
               idx.docs, fReader.getDocCount("f2"));
         }
 
@@ -528,7 +530,8 @@ public class FilteredDirectoryReaderTest
         void testDocFreq()
             throws Exception {
           for (final String f : idx.flds) {
-            Assert.assertEquals("Missing term from all documents.",
+            Assert.assertEquals("testDocFreq: " +
+                    "Missing term from all documents.",
                 idx.docs, fReader.docFreq(new Term(f, "value")));
           }
         }
@@ -537,7 +540,8 @@ public class FilteredDirectoryReaderTest
         void testSumDocFreq()
             throws Exception {
           for (final String f : idx.flds) {
-            Assert.assertEquals("Missing term from all documents.",
+            Assert.assertEquals("testSumDocFreq: " +
+                    "Missing term from all documents.",
                 18L, fReader.getSumDocFreq(f));
           }
         }
@@ -547,7 +551,8 @@ public class FilteredDirectoryReaderTest
             throws Exception {
           for (int i = 0; i < idx.docs - 1; i++) {
             final Fields f = fReader.getTermVectors(i);
-            Assert.assertEquals("Too much fields retrieved from TermVector.",
+            Assert.assertEquals("testTermVectors: " +
+                    "Too much fields retrieved from TermVector.",
                 idx.flds.size(), f.size());
           }
         }
@@ -1428,6 +1433,32 @@ public class FilteredDirectoryReaderTest
               2L, fReader.maxDoc());
         }
       };
+    }
+  }
+
+  @Test
+  public void testTermsEnum_totalTermFreq()
+      throws Exception {
+    try (TestMemIndex idx = new TestMemIndex(Index.ALL_FIELDS)) {
+      final DirectoryReader reader = DirectoryReader.open(idx.dir);
+      final FilteredDirectoryReader fReader = new Builder(reader)
+          .fields(Collections.singleton("f2"))
+          .build();
+
+      fReader.getSubReaders().forEach(r -> {
+        final Fields f = r.fields();
+        f.forEach(fld -> {
+          try {
+            final Terms t = f.terms(fld);
+            final TermsEnum te = t.iterator(null);
+            while (te.next() != null) {
+              te.totalTermFreq();
+            }
+          } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+          }
+        });
+      });
     }
   }
 
