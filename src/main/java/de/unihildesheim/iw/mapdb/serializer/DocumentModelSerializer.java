@@ -23,6 +23,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
 import org.mapdb.DataInput2;
 import org.mapdb.DataOutput2;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -85,21 +87,25 @@ public final class DocumentModelSerializer {
       final int docId = DataInput2.unpackInt(in);
       // read number of unique terms
       final int termCount = DataInput2.unpackInt(in);
+
       // read term-frequencies
       final long[] freqs = org.mapdb.Serializer.LONG_ARRAY
           .deserialize(in, available);
+
       final SerializationBuilder builder =
           new SerializationBuilder(docId, termCount, freqs);
 
       // read terms
       final BytesRef spare = new BytesRef();
-      for (int i = termCount -1; i >= 0; i--) {
-        spare.bytes = new byte[DataInput2.unpackInt(in)];
-        spare.offset = 0;
-        spare.length = spare.bytes.length;
-        in.readFully(spare.bytes);
+      if (termCount > 0) {
+        for (int i = termCount - 1; i >= 0; i--) {
+          spare.bytes = new byte[DataInput2.unpackInt(in)];
+          spare.offset = 0;
+          spare.length = spare.bytes.length;
+          in.readFully(spare.bytes);
 
-        builder.addTerm(spare);
+          builder.addTerm(spare);
+        }
       }
 
       return builder.build();
