@@ -22,18 +22,18 @@ import de.unihildesheim.iw.lucene.index.IndexUtils;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import de.unihildesheim.iw.lucene.query.TryExactTermsQuery;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.IndexSearcher;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 import java.util.Objects;
 
 /**
  * Default implementation of a {@link FeedbackProvider} using the {@link
- * TryExactTermsQuery} for retrieval.
+ * TryExactTermsQuery} for retrieval, if no other Query type gets specified.
  *
  * @author Jens Bertram
  */
@@ -60,9 +60,7 @@ public final class DefaultFeedbackProvider
 
   @Override
   public DocIdSet get()
-      throws IOException, InvocationTargetException,
-             NoSuchMethodException, InstantiationException,
-             IllegalAccessException {
+      throws IOException, ParseException {
     final RelaxableQuery qObj = getQueryParserInstance();
     if (this.useFixedAmount) {
       return FeedbackQuery.getFixed(

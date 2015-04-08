@@ -101,5 +101,5 @@ public interface FeedbackProvider {
    * @param rtq Query parser
    * @return Self reference
    */
-  FeedbackProvider queryParser(final Class<? extends RelaxableQuery> rtq);
+  FeedbackProvider queryParser(final RelaxableQuery rtq);
 }

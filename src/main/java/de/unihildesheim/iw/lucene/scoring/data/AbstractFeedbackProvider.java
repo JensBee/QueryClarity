@@ -24,12 +24,11 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.queryparser.classic.ParseException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.util.Objects;
 import java.util.stream.StreamSupport;
 
@@ -65,7 +64,7 @@ public abstract class AbstractFeedbackProvider
    * Reader to access the index.
    */
   @Nullable
-  private IndexReader idxReader;
+  protected IndexReader reader;
   /**
    * Reader to access the index.
    */
@@ -75,12 +74,12 @@ public abstract class AbstractFeedbackProvider
    * Query analyzer.
    */
   @Nullable
-  private Analyzer qAnalyzer;
+  protected Analyzer analyzer;
   /**
    * Query string.
    */
   @Nullable
-  private String queryStr;
+  protected String queryStr;
   /**
    * Document fields to query.
    */
@@ -90,7 +89,7 @@ public abstract class AbstractFeedbackProvider
    * Query parser to use. Defaults to {@link TryExactTermsQuery}.
    */
   @Nullable
-  Class<? extends RelaxableQuery> queryParser;
+  RelaxableQuery queryParser;
 
   @Override
   public I query(@NotNull final String query) {
@@ -116,13 +115,13 @@ public abstract class AbstractFeedbackProvider
   @Override
   public I indexReader(
       @NotNull final IndexReader indexReader) {
-    this.idxReader = indexReader;
+    this.reader = indexReader;
     return getThis();
   }
 
   @Override
   public I analyzer(@NotNull final Analyzer analyzer) {
-    this.qAnalyzer = analyzer;
+    this.analyzer = analyzer;
     return getThis();
   }
 
@@ -140,8 +139,7 @@ public abstract class AbstractFeedbackProvider
   }
 
   @Override
-  public I queryParser(
-      @NotNull final Class<? extends RelaxableQuery> rtq) {
+  public I queryParser(@NotNull RelaxableQuery rtq) {
     this.queryParser = rtq;
     return getThis();
   }
@@ -149,7 +147,7 @@ public abstract class AbstractFeedbackProvider
   /**
    * Get a list of document fields to query. If document fields are already set
    * by using {@link #fields(String[])} these will be returned. Otherwise all
-   * fields available to the {@link #idxReader IndexReader} will be returned. If
+   * fields available to the {@link #reader IndexReader} will be returned. If
    * there are no postings available to the reader an {@link
    * IllegalStateException} will be thrown.
    *
@@ -158,15 +156,15 @@ public abstract class AbstractFeedbackProvider
    * @throws IOException Thrown on low-level i/o-errors
    */
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
-  protected final String[] getDocumentFields()
+  protected final synchronized String[] getDocumentFields()
       throws IOException {
     if (this.docFields == null) {
       final Fields fields = MultiFields.getFields(
-          Objects.requireNonNull(this.idxReader, "IndexReader not set"));
+          Objects.requireNonNull(this.reader, "IndexReader not set"));
       if (fields == null) {
         throw new IllegalStateException("Reader has no postings.");
       }
-      return StreamSupport.stream(fields.spliterator(), false)
+      this.docFields = StreamSupport.stream(fields.spliterator(), false)
           .toArray(String[]::new);
     }
     return this.docFields;
@@ -177,32 +175,17 @@ public abstract class AbstractFeedbackProvider
    * using reflection.
    *
    * @return New instance
-   * @throws NoSuchMethodException Thrown, if the required constructor is not
-   * defined.
-   * @throws IllegalAccessException Thrown, if creating the instance failed
-   * @throws InvocationTargetException Thrown, if creating the instance failed
-   * @throws InstantiationException Thrown, if creating the instance failed
    * @throws IOException Thrown on low-level i/o-errors
    */
   protected RelaxableQuery getQueryParserInstance()
-      throws NoSuchMethodException, IllegalAccessException,
-             InvocationTargetException, InstantiationException, IOException {
-    final Constructor cTor = getQueryParser().getDeclaredConstructor(
-        Analyzer.class, String.class, String[].class);
-    return (RelaxableQuery) cTor.newInstance(
-        Objects.requireNonNull(this.qAnalyzer, "Analyzer not set."),
-        Objects.requireNonNull(this.queryStr, "Query string not set."),
-        getDocumentFields());
-  }
-
-  /**
-   * Get the defined {@link RelaxableQuery} instance that will be used.
-   *
-   * @return RelaxableQuery class
-   */
-  private Class<? extends RelaxableQuery> getQueryParser() {
-    return this.queryParser == null ? TryExactTermsQuery.class :
-        this.queryParser;
+      throws ParseException, IOException {
+    if (this.queryParser == null) {
+      this.queryParser = new TryExactTermsQuery(
+          Objects.requireNonNull(this.analyzer, "Analyzer not set."),
+          Objects.requireNonNull(this.queryStr, "Query string not set."),
+          getDocumentFields());
+    }
+    return this.queryParser;
   }
 
   /**
