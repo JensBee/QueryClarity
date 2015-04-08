@@ -24,6 +24,7 @@ import de.unihildesheim.iw.lucene.util.StreamUtils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.MultiTerms;
@@ -46,7 +47,9 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -70,6 +73,56 @@ public final class FDRIndexDataProvider
    * Collection metrics instance for this DataProvider.
    */
   private final CollectionMetrics metrics;
+  /**
+   * Size of the document-model LRU cache.
+   */
+  static final int CACHE_DOCMOD_SIZE = 10000;
+  /**
+   * LRU cache of document models.
+   */
+  @SuppressWarnings({"AnonymousInnerClassMayBeStatic",
+      "CloneableClassWithoutClone", "serial"})
+  private final Map<Integer, DocumentModel> cache_docmod =
+      Collections.synchronizedMap(
+          new LinkedHashMap<Integer, DocumentModel>(
+              CACHE_DOCMOD_SIZE + 1, .75F, true) {
+            @Override
+            public boolean removeEldestEntry(final Map.Entry eldest) {
+              return size() > CACHE_DOCMOD_SIZE;
+            }
+          });
+  /**
+   * Size of the term-frequency LRU cache.
+   */
+  static final int CACHE_TF_SIZE = 10000;
+  /**
+   * LRU cache of term-frequency values.
+   */
+  @SuppressWarnings({"AnonymousInnerClassMayBeStatic",
+      "CloneableClassWithoutClone", "serial"})
+  private final Map<BytesRef, Long> cache_tf = Collections.synchronizedMap(
+      new LinkedHashMap<BytesRef, Long>(CACHE_TF_SIZE + 1, .75F, true) {
+        @Override
+        public boolean removeEldestEntry(final Map.Entry eldest) {
+          return size() > CACHE_TF_SIZE;
+        }
+      });
+  /**
+   * Size of the document-frequency LRU cache.
+   */
+  static final int CACHE_DF_SIZE = 10000;
+  /**
+   * LRU cache of document-frequency values.
+   */
+  @SuppressWarnings({"AnonymousInnerClassMayBeStatic",
+      "CloneableClassWithoutClone", "serial"})
+  private final Map<BytesRef, Integer> cache_df = Collections.synchronizedMap(
+      new LinkedHashMap<BytesRef, Integer>(CACHE_DF_SIZE + 1, .75F, true) {
+        @Override
+        public boolean removeEldestEntry(final Map.Entry eldest) {
+          return size() > CACHE_DF_SIZE;
+        }
+      });
 
   /**
    * Create instance by using {@link Builder}.
@@ -105,58 +158,112 @@ public final class FDRIndexDataProvider
   @SuppressFBWarnings("EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS")
   @Override
   public long getTermFrequency(@NotNull final BytesRef term) {
-    return this.index.reader.leaves().stream()
-        .map(LeafReaderContext::reader)
-        .filter(r -> r.numDocs() > 0)
-        .mapToLong(r -> {
+    // try get a cached value first
+    @Nullable
+    Long tf = this.cache_tf.get(term);
+    if (tf == null) {
+      tf = 0L;
+      for (final LeafReaderContext lrc : this.index.reader.leaves()) {
+        final LeafReader r = lrc.reader();
+        long fieldTf = 0L;
+        if (r.numDocs() > 0) {
           try {
-            return StreamSupport.stream(r.fields().spliterator(), false)
-                .mapToLong(f -> {
-                  try {
-                    @Nullable final Terms terms = r.terms(f);
-                    if (terms == null) {
-                      return 0L;
-                    }
-                    final TermsEnum termsEnum = terms.iterator(null);
-                    return termsEnum.seekExact(term) ?
-                        termsEnum.totalTermFreq() : 0L;
-                  } catch (final IOException e) {
-                    throw new UncheckedIOException(e);
-                  }
-                })
-                .sum();
+            for (final String s : r.fields()) {
+              @Nullable final Terms terms = r.terms(s);
+              if (terms != null) {
+                final TermsEnum termsEnum = terms.iterator(null);
+                if (termsEnum.seekExact(term)) {
+                  fieldTf += termsEnum.totalTermFreq();
+                }
+              }
+            }
           } catch (final IOException e) {
             throw new UncheckedIOException(e);
           }
-        }).sum();
+        }
+        tf += fieldTf;
+      }
+      this.cache_tf.put(BytesRef.deepCopyOf(term), tf);
+    }
+
+    return tf;
+
+////    Long tf = this.tfMap.get(term);
+////    if (tf == null) {
+//      long tf = this.index.reader.leaves().stream()
+//          .map(LeafReaderContext::reader)
+//          .filter(r -> r.numDocs() > 0)
+//          .mapToLong(r -> {
+//            try {
+//              return StreamSupport.stream(r.fields().spliterator(), false)
+//                  .mapToLong(f -> {
+//                    try {
+//                      @Nullable final Terms terms = r.terms(f);
+//                      if (terms == null) {
+//                        return 0L;
+//                      }
+//                      final TermsEnum termsEnum = terms.iterator(null);
+//                      return termsEnum.seekExact(term) ?
+//                          termsEnum.totalTermFreq() : 0L;
+//                    } catch (final IOException e) {
+//                      LOG.error("Error getting term frequency.", e);
+//                      throw new UncheckedIOException(e);
+//                    }
+//                  })
+//                  .sum();
+//            } catch (final IOException e) {
+//              LOG.error("Error getting term frequency.", e);
+//              throw new UncheckedIOException(e);
+//            }
+//          }).sum();
+////      this.tfMap.put(BytesRef.deepCopyOf(term), tf);
+////    }
+//    return tf;
+  }
+
+  @Override
+  public double getRelativeTermFrequency(@NotNull final BytesRef term) {
+    final long tf = getTermFrequency(term);
+    return tf == 0L ? 0d : (double) tf / (double) this.index.ttf;
   }
 
   @SuppressFBWarnings("EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS")
   @Override
   public int getDocumentFrequency(@NotNull final BytesRef term) {
-    return this.index.reader.leaves().stream()
-        .map(LeafReaderContext::reader)
-        .filter(r -> r.numDocs() > 0)
-        .mapToInt(r -> {
-          try {
-            return StreamSupport.stream(r.fields().spliterator(), false)
-                .mapToInt(f -> {
-                  try {
-                    @Nullable final Terms terms = r.terms(f);
-                    if (terms == null) {
-                      return 0;
+    Integer df = this.cache_df.get(term);
+    if (df == null) {
+      df = this.index.reader.leaves().stream()
+          .map(LeafReaderContext::reader)
+          .filter(r -> r.numDocs() > 0)
+          .mapToInt(r -> {
+            try {
+              return StreamSupport.stream(r.fields().spliterator(), false)
+                  .mapToInt(f -> {
+                    try {
+                      @Nullable final Terms terms = r.terms(f);
+                      if (terms == null) {
+                        return 0;
+                      }
+                      final TermsEnum termsEnum = terms.iterator(null);
+                      return termsEnum.seekExact(term) ? termsEnum.docFreq() :
+                          0;
+                    } catch (final IOException e) {
+                      throw new UncheckedIOException(e);
                     }
-                    final TermsEnum termsEnum = terms.iterator(null);
-                    return termsEnum.seekExact(term) ? termsEnum.docFreq() : 0;
-                  } catch (final IOException e) {
-                    throw new UncheckedIOException(e);
-                  }
-                })
-                .max().orElse(0);
-          } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-          }
-        }).sum();
+                  })
+                  .max().orElse(0);
+            } catch (final IOException e) {
+              throw new UncheckedIOException(e);
+            }
+          }).sum();
+      this.cache_df.put(BytesRef.deepCopyOf(term), df);
+    }
+    return df;
+  }
+
+  @Override
+  public double getRelativeDocumentFrequency(final BytesRef term) {
+    return (double) getDocumentFrequency(term) / (double) this.index.docCount;
   }
 
   @Override
@@ -169,8 +276,13 @@ public final class FDRIndexDataProvider
   @NotNull
   @Override
   public DocumentModel getDocumentModel(final int docId) {
-    return new DocumentModel.Builder(docId)
-        .setTermFrequency(getDocumentTerms(docId)).build();
+    DocumentModel dm = this.cache_docmod.get(docId);
+    if (dm == null) {
+      dm = new DocumentModel.Builder(docId)
+          .setTermFrequency(getDocumentTerms(docId)).build();
+      this.cache_docmod.put(docId, dm);
+    }
+    return dm;
   }
 
   /**
