@@ -71,15 +71,17 @@ public final class StopwordsFileReader {
 
     try (BufferedReader reader = new BufferedReader(
         new InputStreamReader(new FileInputStream(source), cs))) {
-
-      String line;
-      while ((line = reader.readLine()) != null &&
-          !(line = line.trim()).isEmpty()) {
-        // skip snowball comment lines
-        if (Format.SNOWBALL != format || line.charAt(0) != '|') {
-          // add the first word
-          words.add(WS_SPLIT.split(line, 2)[0]);
+      String line = reader.readLine();
+      while (line != null) {
+        line = line.trim();
+        if (!line.isEmpty()) {
+          // skip snowball comment lines
+          if (Format.SNOWBALL != format || (int) line.charAt(0) != (int) '|') {
+            // add the first word
+            words.add(WS_SPLIT.split(line, 2)[0]);
+          }
         }
+        line = reader.readLine();
       }
     }
     return words;
