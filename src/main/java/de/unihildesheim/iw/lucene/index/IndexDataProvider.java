@@ -52,12 +52,28 @@ public interface IndexDataProvider
   long getTermFrequency(final BytesRef term);
 
   /**
+   * Get the relative term frequency of a single term in the index.
+   *
+   * @param term Term to lookup
+   * @return The relative frequency of the term in the index
+   */
+  double getRelativeTermFrequency(final BytesRef term);
+
+  /**
    * Get the document frequency of a single term in the index.
    *
    * @param term Term to lookup
    * @return The frequency of the term in the index
    */
   int getDocumentFrequency(final BytesRef term);
+
+  /**
+   * Get the relative document frequency of a single term in the index.
+   *
+   * @param term Term to lookup
+   * @return The relative frequency of the term in the index
+   */
+  double getRelativeDocumentFrequency(final BytesRef term);
 
   /**
    * Close this instance. This is meant for handling cleanups after using this
