@@ -23,7 +23,6 @@ import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.document.FeedbackQuery;
-import de.unihildesheim.iw.lucene.index.CollectionMetrics;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.lucene.scoring.ScoringResult.ScoringResultXml.Keys;
@@ -138,9 +137,9 @@ public final class DefaultClarityScore
      */
     final Map<Integer, DocumentModel> docModels;
     /**
-     * Collection metrics instance.
+     * IndexDataProvider instance.
      */
-    final CollectionMetrics cMetrics;
+    final IndexDataProvider dataProv;
 
     /**
      * Initialize the abstract model with a set of query terms and feedback
@@ -157,11 +156,11 @@ public final class DefaultClarityScore
         @NotNull final DocIdSet fb)
         throws IOException {
       LOG.debug("Create runtime cache.");
-      this.cMetrics = dataProv.metrics();
+      this.dataProv = dataProv;
       // add query terms, skip those not in index
       this.queryTerms = new BytesRefArray(Counter.newCounter(false));
       StreamUtils.stream(qt)
-          .filter(queryTerm -> this.cMetrics.tf(queryTerm) > 0L)
+          .filter(queryTerm -> this.dataProv.getTermFrequency(queryTerm) > 0L)
           .forEach(this.queryTerms::append);
 
       this.docModels = new ConcurrentHashMap<>((int) (
@@ -170,7 +169,7 @@ public final class DefaultClarityScore
       LOG.info("Caching document models");
       this.feedbackDocs = StreamUtils.stream(fb)
           .peek(docId -> this.docModels.put(docId,
-              this.cMetrics.docData(docId)))
+              this.dataProv.getDocumentModel(docId)))
           .toArray();
     }
   }
@@ -230,7 +229,7 @@ public final class DefaultClarityScore
         final BigDecimal staticPart =
             StreamUtils.stream(this.queryTerms)
                 .map(br -> document(
-                    this.cMetrics.docData(docId), br))
+                    this.dataProv.getDocumentModel(docId), br))
                 .reduce(BigDecimal.ONE, (r, c) -> r.multiply(c, MATH_CONTEXT));
         this.staticQueryModelParts.put(docId, staticPart);
       });
@@ -250,7 +249,8 @@ public final class DefaultClarityScore
           BigDecimal.valueOf(docModel.relTf(term)), MATH_CONTEXT)
           .add(this.docLangModelWeight1Sub
                   .multiply(BigDecimal.valueOf(
-                      this.cMetrics.relTf(term)), MATH_CONTEXT),
+                      this.dataProv.getRelativeTermFrequency(term)
+                  ), MATH_CONTEXT),
               MATH_CONTEXT);
     }
 
@@ -325,7 +325,8 @@ public final class DefaultClarityScore
       Arrays.stream(this.feedbackDocs).forEach(docId -> {
         final double staticPart =
             StreamUtils.stream(this.queryTerms)
-                .mapToDouble(br -> document(this.cMetrics.docData(docId), br))
+                .mapToDouble(br -> document(
+                    this.dataProv.getDocumentModel(docId), br))
                 .reduce(1d, (g, c) -> g * c);
 
         this.staticQueryModelParts.put(docId, staticPart);
@@ -343,7 +344,8 @@ public final class DefaultClarityScore
         @NotNull final DocumentModel docModel,
         @NotNull final BytesRef term) {
       return (this.docLangModelWeight * docModel.relTf(term)) +
-          (this.docLangModelWeight1Sub * this.cMetrics.relTf(term));
+          (this.docLangModelWeight1Sub *
+              this.dataProv.getRelativeTermFrequency(term));
     }
 
     /**
@@ -355,7 +357,8 @@ public final class DefaultClarityScore
     double query(@NotNull final BytesRef term) {
       return Arrays.stream(this.feedbackDocs)
           .mapToDouble(d -> document(this.docModels.get(d), term) *
-              this.staticQueryModelParts.get(d)).sum();
+              this.staticQueryModelParts.get(d))
+          .sum();
     }
   }
 
@@ -371,7 +374,6 @@ public final class DefaultClarityScore
     // set configuration
     assert builder.getConfiguration() != null;
     this.conf = builder.getConfiguration();
-    assert this.conf.getLangModelWeight() != null;
     this.docLangModelWeight = this.conf.getLangModelWeight();
 
     this.conf.debugDump();
@@ -486,8 +488,8 @@ public final class DefaultClarityScore
     result.setFeedbackDocIds(feedbackDocIds);
     result.setQueryTerms(queryTerms);
 
-    // cache metrics instance getting used frequently
-    final CollectionMetrics cMetrics = this.dataProv.metrics();
+//    // cache metrics instance getting used frequently
+//    final CollectionMetrics cMetrics = this.dataProv.metrics();
 
     // object containing all methods for model calculations
     if (MATH_LOW_PRECISION) {
@@ -502,7 +504,7 @@ public final class DefaultClarityScore
       final ScoreTupleLowPrecision[] dataSets = this.vocProvider
           .documentIds(feedbackDocIds).get()
           .map(term -> new ScoreTupleLowPrecision(
-              model.query(term), cMetrics.relTf(term)))
+              model.query(term), this.dataProv.getRelativeTermFrequency(term)))
           .toArray(ScoreTupleLowPrecision[]::new);
 
       LOG.info("Calculating final score.");
@@ -519,7 +521,9 @@ public final class DefaultClarityScore
       final ScoreTupleHighPrecision[] dataSets = this.vocProvider
           .documentIds(feedbackDocIds).get()
           .map(term -> new ScoreTupleHighPrecision(
-              model.query(term), BigDecimal.valueOf(cMetrics.relTf(term))))
+//              model.query(term), BigDecimal.valueOf(cMetrics.relTf(term))))
+              model.query(term),
+              BigDecimal.valueOf(this.dataProv.getRelativeTermFrequency(term))))
           .toArray(ScoreTupleHighPrecision[]::new);
 
       LOG.info("Calculating final score.");
