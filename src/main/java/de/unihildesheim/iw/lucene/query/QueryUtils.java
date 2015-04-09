@@ -16,7 +16,7 @@
  */
 package de.unihildesheim.iw.lucene.query;
 
-import de.unihildesheim.iw.lucene.index.CollectionMetrics;
+import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.util.StreamUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -55,20 +55,19 @@ public final class QueryUtils {
 
   /**
    * Tokenizes a query string using Lucenes analyzer. This also removes
-   * stopwords from the query string. The {@link CollectionMetrics} instance is
+   * stopwords from the query string. The {@link IndexDataProvider} instance is
    * used to skip terms no found in the collection.
    *
    * @param query Query string to tokenize
    * @param qAnalyzer Analyzer to use
-   * @param cMetrics Collection metrics to skip terms not in the collection. If
-   * null all terms wll be included.
+   * @param dataProv IndexDataProvider
    * @return List of tokens from original query with stop-words removed
    */
   @SuppressWarnings("ObjectAllocationInLoop")
   public static BytesRefArray tokenizeQuery(
       @NotNull final String query,
       @NotNull final Analyzer qAnalyzer,
-      @Nullable final CollectionMetrics cMetrics) {
+      @Nullable final IndexDataProvider dataProv) {
     BytesRefArray result = new BytesRefArray(Counter.newCounter(false));
 
     try (TokenStream stream = qAnalyzer.tokenStream(null, query)) {
@@ -83,8 +82,8 @@ public final class QueryUtils {
     } catch (final IOException e) {
       // not thrown b/c we're using a string reader
     }
-    if (cMetrics != null) {
-      result = removeUnknownTerms(cMetrics, result);
+    if (dataProv != null) {
+      result = removeUnknownTerms(dataProv, result);
     }
     return result;
   }
@@ -93,13 +92,14 @@ public final class QueryUtils {
    * Remove terms from the given collection, if they are not found in the
    * collection.
    *
-   * @param cMetrics Metrics to access term frequency values
+   * @param dataProv IndexDataProvider
    * @param terms Collection of terms to check against the collection
    * @return Passed in terms with non-collection terms removed
    */
   @SuppressFBWarnings("LO_APPENDED_STRING_IN_FORMAT_STRING")
-  private static BytesRefArray removeUnknownTerms(final CollectionMetrics
-      cMetrics, final BytesRefArray terms) {
+  private static BytesRefArray removeUnknownTerms(
+      @NotNull final IndexDataProvider dataProv,
+      @NotNull final BytesRefArray terms) {
     final StringBuilder sb = new StringBuilder(
         "Skipped terms (stopword or not in collection): [");
     final FixedBitSet bits = new FixedBitSet(terms.size());
@@ -111,7 +111,7 @@ public final class QueryUtils {
     } else {
       for (int i = terms.size() - 1; i >= 0; i--) {
         term = terms.get(spare, i);
-        if (cMetrics.tf(term) <= 0L) {
+        if (dataProv.getTermFrequency(term) <= 0L) {
           sb.append(term.utf8ToString()).append(' ');
           bits.set(i);
         }
@@ -137,14 +137,15 @@ public final class QueryUtils {
    * Remove terms from the given collection, if they are not found in the
    * collection.
    *
-   * @param cMetrics Metrics to access term frequency values
+   * @param dataProv IndexDataProvider
    * @param terms Collection of terms to check against the collection
    * @return Passed in terms with non-collection terms removed
    */
-  private static Collection<BytesRef> removeUnknownTerms(final CollectionMetrics
-      cMetrics, final Collection<BytesRef> terms) {
+  private static Collection<BytesRef> removeUnknownTerms(
+      @NotNull final IndexDataProvider dataProv,
+      @NotNull final Collection<BytesRef> terms) {
     return terms.stream()
-        .filter(t -> (cMetrics.tf(t) <= 0L))
+        .filter(t -> (dataProv.getTermFrequency(t) <= 0L))
         .collect(Collectors.toList());
   }
 
@@ -165,22 +166,21 @@ public final class QueryUtils {
 
   /**
    * Tokenizes a query string using Lucenes analyzer. This also removes
-   * stopwords from the query string. The {@link CollectionMetrics} instance is
+   * stopwords from the query string. The {@link IndexDataProvider} instance is
    * used to skip terms no found in the collection.
    *
    * @param query Query string to tokenize
    * @param qAnalyzer Analyzer to use
-   * @param cMetrics Collection metrics to skip terms not in the collection. If
-   * null all terms wll be included.
+   * @param dataProv IndexDataProvider
    * @return List of tokens from original query with stop-words removed
-   * @see #tokenizeQuery(String, Analyzer, CollectionMetrics)
+   * @see #tokenizeQuery(String, Analyzer, IndexDataProvider)
    */
   public static List<String> tokenizeQueryString(
       @NotNull final String query,
       @NotNull final Analyzer qAnalyzer,
-      @Nullable final CollectionMetrics cMetrics) {
+      @Nullable final IndexDataProvider dataProv) {
     final BytesRefArray tokenizedQuery =
-        tokenizeQuery(query, qAnalyzer, cMetrics);
+        tokenizeQuery(query, qAnalyzer, dataProv);
     final List<String> tokenizedQueryStr =
         new ArrayList<>(tokenizedQuery.size());
     tokenizedQueryStr.addAll(
@@ -198,7 +198,7 @@ public final class QueryUtils {
    * @param query Query string
    * @param qAnalyzer Analyzer used to parse the query String
    * @return mapping of query-term to in-query-frequency
-   * @see #tokenizeAndMapQuery(String, Analyzer, CollectionMetrics)
+   * @see #tokenizeAndMapQuery(String, Analyzer, IndexDataProvider)
    */
   public static Map<BytesRef, Integer> tokenizeAndMapQuery(
       @NotNull final String query,
@@ -209,13 +209,12 @@ public final class QueryUtils {
   /**
    * Tokenizes a query string using Lucenes analyzer. This also removes
    * stopwords from the query string. Returns a mapping of query-term to
-   * in-query-frequency. The {@link CollectionMetrics} instance is used to skip
+   * in-query-frequency. The {@link IndexDataProvider} instance is used to skip
    * terms no found in the collection.
    *
    * @param query Query String
    * @param qAnalyzer Analyzer used to parse the query String
-   * @param cMetrics Collection metrics to skip terms not in the collection. If
-   * null all terms wll be included.
+   * @param dataProv IndexDataProvider
    * @return mapping of query-term to in-query-frequency with optionally terms
    * not in the collection skipped
    */
@@ -223,7 +222,7 @@ public final class QueryUtils {
   public static Map<BytesRef, Integer> tokenizeAndMapQuery(
       @NotNull final String query,
       @NotNull final Analyzer qAnalyzer,
-      @Nullable final CollectionMetrics cMetrics) {
+      @Nullable final IndexDataProvider dataProv) {
     // estimate size
     final Map<BytesRef, Integer> result = new HashMap<>(
         (int)((double) StringUtils.estimatedWordCount(query) * 1.8));
@@ -241,8 +240,8 @@ public final class QueryUtils {
     } catch (final IOException e) {
       // not thrown b/c we're using a string reader
     }
-    if (cMetrics != null) {
-      removeUnknownTerms(cMetrics, result.keySet()).stream()
+    if (dataProv != null) {
+      removeUnknownTerms(dataProv, result.keySet()).stream()
           .forEach(result::remove);
     }
     return result;

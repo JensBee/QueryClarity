@@ -143,11 +143,4 @@ public interface IndexDataProvider
    */
   @NotNull
   String[] getDocumentFields();
-
-  /**
-   * Get a collection metrics instance providing derived index information.
-   *
-   * @return {@link CollectionMetrics} instance
-   */
-  CollectionMetrics metrics();
 }

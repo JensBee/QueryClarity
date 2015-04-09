@@ -298,22 +298,7 @@ public class FDRIndexDataProviderTest
           idx.flds.containsAll(Arrays.asList(idp.getDocumentFields())));
     }
   }
-
-  @Test
-  public void testMetrics()
-      throws Exception {
-    try (TestMemIndex idx = new TestMemIndex(Index.TVECTORS)) {
-      final DirectoryReader reader = DirectoryReader.open(idx.dir);
-      final FilteredDirectoryReader idxReader =
-          new FilteredDirectoryReader.Builder(reader).build();
-      final IndexDataProvider idp = new FDRIndexDataProvider.Builder()
-          .indexReader(idxReader)
-          .build();
-
-      Assert.assertNotNull("Failed to get Metrics.", idp.metrics());
-    }
-  }
-
+  
   /**
    * Simple static memory index for testing.
    *

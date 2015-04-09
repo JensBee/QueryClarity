@@ -83,7 +83,7 @@ public class SimplifiedClarityScoreTest
           dcs.calcScorePortion(term, inQueryFreq, queryLength);
 
       final double expectedQMod = (double) inQueryFreq / (double) queryLength;
-      final double expectedCMod = idx.getIdp().metrics().relTf(term);
+      final double expectedCMod = idx.getIdp().getRelativeTermFrequency(term);
 
       Assert.assertEquals("Query model value differs.",
           expectedQMod, result.qModel.doubleValue(), 0.1e10);

@@ -22,7 +22,6 @@ import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
-import de.unihildesheim.iw.lucene.index.CollectionMetrics;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.lucene.scoring.ScoringResult.ScoringResultXml.Keys;
@@ -139,9 +138,9 @@ public final class ImprovedClarityScore
      */
     final Map<Integer, DocumentModel> docModels;
     /**
-     * Collection metrics instance.
+     * IndexDataProvider instance.
      */
-    final CollectionMetrics cMetrics;
+    final IndexDataProvider dataProv;
 
     /**
      * Initialize the abstract model with a set of query terms and feedback
@@ -156,37 +155,23 @@ public final class ImprovedClarityScore
         final BytesRefArray qt, final DocIdSet fb)
         throws IOException {
       LOG.debug("Create runtime cache.");
-      this.cMetrics = dataProv.metrics();
+      this.dataProv = dataProv;
       // add query terms, skip those not in index
       this.queryTerms = new BytesRefArray(Counter.newCounter(false));
       StreamUtils.stream(qt)
-          .filter(queryTerm -> this.cMetrics.tf(queryTerm) > 0L)
+          .filter(queryTerm -> this.dataProv.getTermFrequency(queryTerm) > 0L)
           .forEach(this.queryTerms::append);
 
-      // init feedback documents list
-//      this.feedbackDocs = new int[DocIdSetUtils.cardinality(fb)];
       // init store for cached document models
-//      this.docModels = new ConcurrentHashMap<>((int) (
-//          (double) this.feedbackDocs.length * 1.8));
       this.docModels = new ConcurrentHashMap<>((int) (
           (double) DocIdSetUtils.cardinality(fb) * 1.8));
 
+      // init feedback documents list
       LOG.info("Caching document models");
       this.feedbackDocs = StreamUtils.stream(fb)
           .peek(docId -> this.docModels.put(docId,
-              this.cMetrics.docData(docId)))
+              this.dataProv.getDocumentModel(docId)))
           .toArray();
-
-//      final DocIdSetIterator disi = fb.iterator();
-//      int cnt = 0;
-//      for (int docId = disi.nextDoc();
-//           docId != DocIdSetIterator.NO_MORE_DOCS;
-//           docId = disi.nextDoc()) {
-//        // fill list of feedback documents
-//        this.feedbackDocs[cnt++] = docId;
-//        // pre-cache document models
-//        this.docModels.put(docId, this.cMetrics.docData(docId));
-//      }
     }
   }
 
@@ -253,7 +238,7 @@ public final class ImprovedClarityScore
 
       LOG.info("Pre-calculating static query model and smoothing values");
       for (final Integer docId : this.feedbackDocs) {
-        final DocumentModel docModel = this.cMetrics.docData(docId);
+        final DocumentModel docModel = this.dataProv.getDocumentModel(docId);
 
         // smoothing value
         final BigDecimal sSmooth = BigDecimal.valueOf(docModel.tf())
@@ -281,7 +266,7 @@ public final class ImprovedClarityScore
         final DocumentModel docModel, final BytesRef term) {
       // collection model of current term
       final BigDecimal cModel = BigDecimal.valueOf(
-          this.cMetrics.relTf(term));
+          this.dataProv.getRelativeTermFrequency(term));
 
       // smoothed document-term model
       final BigDecimal smoothing = BigDecimal.valueOf(docModel.tf(term))
@@ -367,7 +352,7 @@ public final class ImprovedClarityScore
 
       LOG.info("Pre-calculating static query model and smoothing values");
       for (final Integer docId : this.feedbackDocs) {
-        final DocumentModel docModel = this.cMetrics.docData(docId);
+        final DocumentModel docModel = this.dataProv.getDocumentModel(docId);
 
         // smoothing value
         final double sSmooth = (double) docModel.tf() +
@@ -393,7 +378,7 @@ public final class ImprovedClarityScore
     double document(
         final DocumentModel docModel, final BytesRef term) {
       // collection model of current term
-      final double cModel = this.cMetrics.relTf(term);
+      final double cModel = this.dataProv.getRelativeTermFrequency(term);
 
       // smoothed document-term model
       final double smoothing = ((double) docModel.tf(term) + (this.dmParams[0] *
@@ -478,14 +463,11 @@ public final class ImprovedClarityScore
     // result object
     final Result result = new Result(this.getClass());
 
-    // cache metrics instance getting used frequently
-    final CollectionMetrics cMetrics = this.dataProv.metrics();
-
     // get a normalized unique list of query terms
     // skips stopwords and removes unknown terms (not visible in current
     // fields, etc.)
     final BytesRefArray queryTerms = QueryUtils.tokenizeQuery(query,
-        this.analyzer, cMetrics);
+        this.analyzer, this.dataProv);
     // check query term extraction result
     if (queryTerms.size() == 0) {
       result.setEmpty("No query terms.");
@@ -562,7 +544,7 @@ public final class ImprovedClarityScore
             "(low precision)");
         final ScoreTupleLowPrecision[] dataSets = fbTermStream
             .map(term -> new ScoreTupleLowPrecision(
-                model.query(term), cMetrics.relTf(term)))
+                model.query(term), this.dataProv.getRelativeTermFrequency(term)))
             .toArray(ScoreTupleLowPrecision[]::new);
 
         LOG.info("Calculating final score.");
@@ -578,7 +560,8 @@ public final class ImprovedClarityScore
             "(high precision)");
         final ScoreTupleHighPrecision[] dataSets = fbTermStream
             .map(term -> new ScoreTupleHighPrecision(
-                model.query(term), BigDecimal.valueOf(cMetrics.relTf(term))))
+                model.query(term), BigDecimal.valueOf(
+                this.dataProv.getRelativeTermFrequency(term))))
             .toArray(ScoreTupleHighPrecision[]::new);
 
         LOG.info("Calculating final score.");

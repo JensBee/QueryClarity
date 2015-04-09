@@ -70,10 +70,6 @@ public final class FDRIndexDataProvider
    */
   private final LuceneIndex index;
   /**
-   * Collection metrics instance for this DataProvider.
-   */
-  private final CollectionMetrics metrics;
-  /**
    * Size of the document-model LRU cache.
    */
   static final int CACHE_DOCMOD_SIZE = 10000;
@@ -138,9 +134,6 @@ public final class FDRIndexDataProvider
 
     LOG.info("Initializing index & gathering base data..");
     this.index = new LuceneIndex(builder.idxReader);
-
-    // all data gathered, initialize metrics instance
-    this.metrics = new CollectionMetrics(this);
 
     if (LOG.isDebugEnabled()) {
       LOG.debug("index.TTF {} index.UT {}", this.index.ttf,
@@ -427,11 +420,6 @@ public final class FDRIndexDataProvider
   @NotNull
   public String[] getDocumentFields() {
     return this.index.fields;
-  }
-
-  @Override
-  public CollectionMetrics metrics() {
-    return this.metrics;
   }
 
   /**

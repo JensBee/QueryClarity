@@ -20,7 +20,6 @@ package de.unihildesheim.iw.lucene.query;
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.lucene.VecTextField;
-import de.unihildesheim.iw.lucene.index.CollectionMetrics;
 import de.unihildesheim.iw.lucene.index.FDRIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
@@ -99,10 +98,9 @@ public class QueryUtilsTest
       throws Exception {
     try (TestMemIndex idx = new TestMemIndex()) {
       final IndexDataProvider idp = idx.getIdp();
-      final CollectionMetrics m = idp.metrics();
 
       final BytesRefArray bra = QueryUtils.tokenizeQuery(
-          "foo bar field baz value", ANALYZER, m);
+          "foo bar field baz value", ANALYZER, idp);
 
       Assert.assertEquals("Extracted terms count mismatch.", 2L, bra.size());
 
@@ -161,10 +159,9 @@ public class QueryUtilsTest
       throws Exception {
     try (TestMemIndex idx = new TestMemIndex()) {
       final IndexDataProvider idp = idx.getIdp();
-      final CollectionMetrics m = idp.metrics();
 
       final List<String> result = QueryUtils.tokenizeQueryString(
-          "foo bar field baz value", ANALYZER, m);
+          "foo bar field baz value", ANALYZER, idp);
 
       Assert.assertEquals("Extracted terms count mismatch.", 2L, result.size());
 
@@ -223,10 +220,10 @@ public class QueryUtilsTest
       throws Exception {
     try (TestMemIndex idx = new TestMemIndex()) {
       final IndexDataProvider idp = idx.getIdp();
-      final CollectionMetrics m = idp.metrics();
 
       final Map<BytesRef, Integer> map = QueryUtils.tokenizeAndMapQuery(
-          "foo field bar baz value foo bar bar value foo bar bam", ANALYZER, m);
+          "foo field bar baz value foo bar bar value foo bar bam",
+          ANALYZER, idp);
 
       Assert.assertEquals("Extracted terms count mismatch.", 2L, map.size());
 

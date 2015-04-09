@@ -102,7 +102,7 @@ public final class SimplifiedClarityScore
    return new ScoreTupleHighPrecision(
        BigDecimal.valueOf(termFreq)
            .divide(BigDecimal.valueOf(queryLength), MATH_CONTEXT),
-       BigDecimal.valueOf(this.dataProv.metrics().relTf(term))
+       BigDecimal.valueOf(this.dataProv.getRelativeTermFrequency(term))
    );
   }
 

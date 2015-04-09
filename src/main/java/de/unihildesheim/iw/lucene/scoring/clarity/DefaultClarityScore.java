@@ -418,7 +418,7 @@ public final class DefaultClarityScore
     // skips stopwords and removes unknown terms (not visible in current
     // fields, etc.)
     final BytesRefArray queryTerms = QueryUtils.tokenizeQuery(query,
-        this.analyzer, this.dataProv.metrics());
+        this.analyzer, this.dataProv);
     // check query term extraction result
     if (queryTerms == null || queryTerms.size() == 0) {
       final Result result = new Result();

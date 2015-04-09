@@ -124,7 +124,7 @@ public class DefaultClarityScoreTest
       final BytesRef term = new BytesRef("document1");
       // (0.6 * (3/18)) + (1 - 0.6) * relTf(term)
       final double expected =
-          (0.6 * (3d / 18d)) + (1d - 0.6) * idp.metrics().relTf(term);
+          (0.6 * (3d / 18d)) + (1d - 0.6) * idp.getRelativeTermFrequency(term);
       final double result = lpMod.document(idp.getDocumentModel(0), term);
       Assert.assertEquals("Document model result differs.",
           expected, result, 0d);
@@ -153,21 +153,25 @@ public class DefaultClarityScoreTest
       final BytesRef term = new BytesRef("document1");
       final double expected =
           // doc-0: docModel query term
-          (((0.6 * (3d / 18d)) + (1d - 0.6) * idp.metrics().relTf(term)) *
+          (((0.6 * (3d / 18d)) + (1d - 0.6) *
+              idp.getRelativeTermFrequency(term)) *
               // doc-0: docModel for all query terms
-              ((0.6 * (3d / 18d)) + (1d - 0.6) * idp.metrics().relTf(qt1)) *
-              ((0.6 * (3d / 18d)) + (1d - 0.6) * idp.metrics().relTf(qt2))) +
+              ((0.6 * (3d / 18d)) + (1d - 0.6) *
+                  idp.getRelativeTermFrequency(qt1)) *
+              ((0.6 * (3d / 18d)) + (1d - 0.6) *
+                  idp.getRelativeTermFrequency(qt2))) +
               // doc-1: docModel query term
-              ((1d - 0.6) * idp.metrics().relTf(term) *
+              ((1d - 0.6) * idp.getRelativeTermFrequency(term) *
                   // doc-1: docModel for all query terms
-                  ((1d - 0.6) * idp.metrics().relTf(qt1)) *
-                  ((0.6 * (3d / 18d)) + (1d - 0.6) * idp.metrics().relTf
-                      (qt2))) +
+                  ((1d - 0.6) * idp.getRelativeTermFrequency(qt1)) *
+                  ((0.6 * (3d / 18d)) + (1d - 0.6) *
+                      idp.getRelativeTermFrequency(qt2))) +
               // doc-2: docModel query term
-              ((1d - 0.6) * idp.metrics().relTf(term) *
+              ((1d - 0.6) * idp.getRelativeTermFrequency(term) *
                   // doc-2: docModel for all query terms
-                  ((1d - 0.6) * idp.metrics().relTf(qt1)) *
-                  ((0.6 * (3d / 18d)) + (1d - 0.6) * idp.metrics().relTf(qt2)));
+                  ((1d - 0.6) * idp.getRelativeTermFrequency(qt1)) *
+                  ((0.6 * (3d / 18d)) + (1d - 0.6) *
+                      idp.getRelativeTermFrequency(qt2)));
       final double result = lpMod.query(term);
       Assert.assertEquals("Query model result differs.",
           expected, result, 0.1e10);
@@ -218,7 +222,7 @@ public class DefaultClarityScoreTest
       final BytesRef term = new BytesRef("document1");
       // (0.6 * (3/18)) + (1 - 0.6) * relTf(term)
       final double expected =
-          (0.6 * (3d / 18d)) + (1d - 0.6) * idp.metrics().relTf(term);
+          (0.6 * (3d / 18d)) + (1d - 0.6) * idp.getRelativeTermFrequency(term);
       final double result = hpMod.document(idp.getDocumentModel(0), term)
           .doubleValue();
       Assert.assertEquals("Document model result differs.",
@@ -248,21 +252,25 @@ public class DefaultClarityScoreTest
       final BytesRef term = new BytesRef("document1");
       final double expected =
           // doc-0: docModel query term
-          (((0.6 * (3d / 18d)) + (1d - 0.6) * idp.metrics().relTf(term)) *
+          (((0.6 * (3d / 18d)) + (1d - 0.6) *
+              idp.getRelativeTermFrequency(term)) *
               // doc-0: docModel for all query terms
-              ((0.6 * (3d / 18d)) + (1d - 0.6) * idp.metrics().relTf(qt1)) *
-              ((0.6 * (3d / 18d)) + (1d - 0.6) * idp.metrics().relTf(qt2))) +
+              ((0.6 * (3d / 18d)) + (1d - 0.6) *
+                  idp.getRelativeTermFrequency(qt1)) *
+              ((0.6 * (3d / 18d)) + (1d - 0.6) *
+                  idp.getRelativeTermFrequency(qt2))) +
               // doc-1: docModel query term
-              ((1d - 0.6) * idp.metrics().relTf(term) *
+              ((1d - 0.6) * idp.getRelativeTermFrequency(term) *
                   // doc-1: docModel for all query terms
-                  ((1d - 0.6) * idp.metrics().relTf(qt1)) *
-                  ((0.6 * (3d / 18d)) + (1d - 0.6) * idp.metrics().relTf
-                      (qt2))) +
+                  ((1d - 0.6) * idp.getRelativeTermFrequency(qt1)) *
+                  ((0.6 * (3d / 18d)) + (1d - 0.6) *
+                      idp.getRelativeTermFrequency(qt2))) +
               // doc-2: docModel query term
-              ((1d - 0.6) * idp.metrics().relTf(term) *
+              ((1d - 0.6) * idp.getRelativeTermFrequency(term) *
                   // doc-2: docModel for all query terms
-                  ((1d - 0.6) * idp.metrics().relTf(qt1)) *
-                  ((0.6 * (3d / 18d)) + (1d - 0.6) * idp.metrics().relTf(qt2)));
+                  ((1d - 0.6) * idp.getRelativeTermFrequency(qt1)) *
+                  ((0.6 * (3d / 18d)) + (1d - 0.6) *
+                      idp.getRelativeTermFrequency(qt2)));
       final double result = hpMod.query(term).doubleValue();
       Assert.assertEquals("Query model result differs.",
           expected, result, 0.1e10);
