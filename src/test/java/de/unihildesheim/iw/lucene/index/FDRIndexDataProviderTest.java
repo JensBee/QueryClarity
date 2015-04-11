@@ -298,7 +298,7 @@ public class FDRIndexDataProviderTest
           idx.flds.containsAll(Arrays.asList(idp.getDocumentFields())));
     }
   }
-  
+
   /**
    * Simple static memory index for testing.
    *
