@@ -23,6 +23,7 @@ import de.unihildesheim.iw.xml.elements.Passage;
 import de.unihildesheim.iw.xml.topics.PassagesList.Passages;
 import de.unihildesheim.iw.xml.topics.Scorers.Scorer;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
@@ -49,19 +50,35 @@ public class TopicsXML {
    * Creates a new instance from the given file.
    *
    * @param source Topics XML file. If file exists it will be loaded.
-   * @throws JAXBException Thrown on unmarshalling errors
+   * @throws JAXBException Thrown on context errors
    */
-  public TopicsXML(@NotNull final File source)
+  public TopicsXML(@Nullable final File source)
       throws JAXBException {
     this.jaxbContext = JAXBContext
         .newInstance(de.unihildesheim.iw.xml.topics.TopicPassages.class);
-    final Unmarshaller jaxbUnmarshaller = this.jaxbContext.createUnmarshaller();
 
-    if (source.exists()) {
-      this.topicPassages = (TopicPassages) jaxbUnmarshaller.unmarshal(source);
-    } else {
+    if (source == null || !source.exists()) {
       this.topicPassages = new TopicPassages();
+    } else {
+      final Unmarshaller jaxbUnmarshaller = this.jaxbContext.createUnmarshaller();
+      this.topicPassages = (TopicPassages) jaxbUnmarshaller.unmarshal(source);
     }
+  }
+
+  /**
+   * Creates a new empty instance.
+   *
+   * @throws JAXBException Thrown on context errors
+   */
+  public TopicsXML()
+      throws JAXBException {
+    this.jaxbContext = JAXBContext
+        .newInstance(de.unihildesheim.iw.xml.topics.TopicPassages.class);
+    this.topicPassages = new TopicPassages();
+  }
+
+  public TopicPassages getRoot() {
+    return this.topicPassages;
   }
 
 //  /**
@@ -108,6 +125,16 @@ public class TopicsXML {
         .flatMap(pg -> pg.getP().stream())
         .filter(p -> p.getLang().equalsIgnoreCase(lang))
         .collect(Collectors.toList());
+  }
+
+  /**
+   * Get the {@link PassagesList}.
+   *
+   * @return List of passages
+   */
+  @Nullable
+  public final PassagesList getPassagesList() {
+    return this.topicPassages.getPassagesList();
   }
 
   /**
