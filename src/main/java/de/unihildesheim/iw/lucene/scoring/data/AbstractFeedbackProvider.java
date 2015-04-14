@@ -46,40 +46,40 @@ public abstract class AbstractFeedbackProvider
   /**
    * Number of documents to get, if a fixed amount is requested.
    */
-  protected int fixedAmount;
+  int fixedAmount;
   /**
    * Minimum number of documents to get.
    */
-  protected int minAmount;
+  int minAmount;
   /**
    * Maximum number of documents to get.
    */
-  protected int maxAmount;
+  int maxAmount;
   /**
    * True, if a fixed amount of documents should be tried to retrieve.
    */
-  protected boolean useFixedAmount;
+  boolean useFixedAmount;
 
   /**
    * Reader to access the index.
    */
   @Nullable
-  protected IndexReader reader;
+  IndexReader reader;
   /**
    * Reader to access the index.
    */
   @Nullable
-  protected IndexDataProvider dataProv;
+  IndexDataProvider dataProv;
   /**
    * Query analyzer.
    */
   @Nullable
-  protected Analyzer analyzer;
+  Analyzer analyzer;
   /**
    * Query string.
    */
   @Nullable
-  protected String queryStr;
+  String queryStr;
   /**
    * Document fields to query.
    */
@@ -89,6 +89,7 @@ public abstract class AbstractFeedbackProvider
    * Query parser to use. Defaults to {@link TryExactTermsQuery}.
    */
   @Nullable
+  private
   RelaxableQuery queryParser;
 
   @Override
@@ -156,7 +157,7 @@ public abstract class AbstractFeedbackProvider
    * @throws IOException Thrown on low-level i/o-errors
    */
   @SuppressWarnings("ReturnOfCollectionOrArrayField")
-  protected final synchronized String[] getDocumentFields()
+  final synchronized String[] getDocumentFields()
       throws IOException {
     if (this.docFields == null) {
       final Fields fields = MultiFields.getFields(
@@ -177,7 +178,7 @@ public abstract class AbstractFeedbackProvider
    * @return New instance
    * @throws IOException Thrown on low-level i/o-errors
    */
-  protected RelaxableQuery getQueryParserInstance()
+  final RelaxableQuery getQueryParserInstance()
       throws ParseException, IOException {
     if (this.queryParser == null) {
       this.queryParser = new TryExactTermsQuery(

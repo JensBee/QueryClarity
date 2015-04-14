@@ -1371,7 +1371,7 @@ public final class FilteredDirectoryReader
      * Simple spliterator for document-frequency calculation of the current
      * term.
      */
-    private static class DocFreqSpliterator
+    private static final class DocFreqSpliterator
         implements OfLong {
       private final TermsEnum te;
 
@@ -1379,12 +1379,12 @@ public final class FilteredDirectoryReader
        * Create a new instance using the provided terms iterator.
        * @param te Iterator
        */
-      public DocFreqSpliterator(@NotNull final TermsEnum te) {
+      DocFreqSpliterator(@NotNull final TermsEnum te) {
         this.te = te;
       }
 
       @Override
-      public boolean tryAdvance(final LongConsumer action) {
+      public final boolean tryAdvance(final LongConsumer action) {
         try {
           final BytesRef nextTerm = this.te.next();
           if (nextTerm == null) {
@@ -1407,17 +1407,17 @@ public final class FilteredDirectoryReader
 
       @Override
       @Nullable
-      public OfLong trySplit() {
+      public final OfLong trySplit() {
         return null; // no split support
       }
 
       @Override
-      public long estimateSize() {
+      public final long estimateSize() {
         return Long.MAX_VALUE; // we don't know
       }
 
       @Override
-      public int characteristics() {
+      public final int characteristics() {
         return IMMUTABLE; // not mutable
       }
     }

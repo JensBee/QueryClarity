@@ -36,12 +36,12 @@ public abstract class AbstractVocabularyProvider
    * Data provider for index data.
    */
   @Nullable
-  protected IndexDataProvider dataProv;
+  IndexDataProvider dataProv;
   /**
    * Document id's whose terms should be used as vocabulary.
    */
   @Nullable
-  protected DocIdSet docIds;
+  DocIdSet docIds;
 
   @Override
   public I indexDataProvider(

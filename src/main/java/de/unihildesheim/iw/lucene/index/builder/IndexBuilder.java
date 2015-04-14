@@ -41,7 +41,7 @@ import java.util.Set;
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class IndexBuilder
+public final class IndexBuilder
     implements AutoCloseable {
   /**
    * Logger instance for this class.
@@ -146,7 +146,7 @@ public class IndexBuilder
   }
 
   @Override
-  public void close()
+  public final void close()
       throws Exception {
     this.writer.close();
   }

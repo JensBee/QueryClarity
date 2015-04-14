@@ -30,7 +30,7 @@ public interface RelaxableQuery {
    * @return True, if query was relaxed, false otherwise
    */
   @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
-  abstract boolean relax();
+  boolean relax();
 
   /**
    * Get the Query object.
@@ -38,5 +38,5 @@ public interface RelaxableQuery {
    * @return Query object
    */
   @NotNull
-  abstract Query getQueryObj();
+  Query getQueryObj();
 }

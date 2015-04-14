@@ -17,10 +17,11 @@
 
 package de.unihildesheim.iw.lucene.scoring.data;
 
-import de.unihildesheim.iw.Buildable;
+import de.unihildesheim.iw.Buildable.BuildableException;
 import de.unihildesheim.iw.lucene.document.FeedbackQuery;
 import de.unihildesheim.iw.lucene.index.IndexUtils;
 import de.unihildesheim.iw.lucene.query.RelaxableCommonTermsQuery;
+import de.unihildesheim.iw.lucene.query.RelaxableCommonTermsQuery.Builder;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
@@ -38,7 +39,7 @@ import java.util.Objects;
  *
  * @author Jens Bertram
  */
-public class CommonTermsFeedbackProvider
+public final class CommonTermsFeedbackProvider
     extends AbstractFeedbackProvider<CommonTermsFeedbackProvider> {
   /**
    * Reusable {@link IndexSearcher} instance.
@@ -61,8 +62,8 @@ public class CommonTermsFeedbackProvider
 
   @Override
   public DocIdSet get()
-      throws IOException, ParseException, Buildable.BuildableException {
-    final RelaxableQuery qObj = new RelaxableCommonTermsQuery.Builder()
+      throws IOException, ParseException, BuildableException {
+    final RelaxableQuery qObj = new Builder()
         .analyzer(Objects.requireNonNull(this.analyzer,
             "Analyzer not set."))
         .fields(getDocumentFields())

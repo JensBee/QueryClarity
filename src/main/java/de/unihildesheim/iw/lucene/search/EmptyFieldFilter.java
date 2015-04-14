@@ -150,8 +150,7 @@ public final class EmptyFieldFilter
     final EmptyFieldFilter that = (EmptyFieldFilter) o;
 
     return this.negate == that.negate &&
-        !(this.field != null ? !this.field.equals(that.field) :
-            that.field != null);
+        this.field == null ? that.field == null : this.field.equals(that.field);
   }
 
   @Override
