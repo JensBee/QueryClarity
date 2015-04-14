@@ -15,13 +15,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.xml.topics;
+package de.unihildesheim.iw.storage.xml.topics;
 
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation;
 import de.unihildesheim.iw.util.Configuration;
-import de.unihildesheim.iw.xml.elements.Passage;
-import de.unihildesheim.iw.xml.topics.PassagesList.Passages;
-import de.unihildesheim.iw.xml.topics.Scorers.Scorer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -36,7 +33,7 @@ import java.util.stream.Collectors;
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class TopicsXML {
+public final class TopicsXML {
   /**
    * XML context.
    */
@@ -55,7 +52,7 @@ public class TopicsXML {
   public TopicsXML(@Nullable final File source)
       throws JAXBException {
     this.jaxbContext = JAXBContext
-        .newInstance(de.unihildesheim.iw.xml.topics.TopicPassages.class);
+        .newInstance(TopicPassages.class);
 
     if (source == null || !source.exists()) {
       this.topicPassages = new TopicPassages();
@@ -73,7 +70,7 @@ public class TopicsXML {
   public TopicsXML()
       throws JAXBException {
     this.jaxbContext = JAXBContext
-        .newInstance(de.unihildesheim.iw.xml.topics.TopicPassages.class);
+        .newInstance(TopicPassages.class);
     this.topicPassages = new TopicPassages();
   }
 
@@ -102,7 +99,7 @@ public class TopicsXML {
   public final void addScorer(
       @NotNull final ClarityScoreCalculation csc,
       @NotNull final Configuration conf) {
-    final Scorer s = new Scorer();
+    final Scorers.Scorer s = new Scorers.Scorer();
     s.setImpl(csc.getIdentifier());
 
     Scorers scorers = this.topicPassages.getScorers();
@@ -114,7 +111,7 @@ public class TopicsXML {
   }
 
   /**
-   * Get the {@link Passage Passages} by language.
+   * Get a list of {@link PassagesListEntry Passages entries} by language.
    *
    * @param lang Language
    * @return List of passages
@@ -156,14 +153,14 @@ public class TopicsXML {
    * @throws JAXBException Thrown if marshalling to the target file failed
    */
   @SuppressWarnings("BooleanParameter")
-  public void writeToFile(
+  public final void writeToFile(
       @NotNull final File out, final boolean strip)
       throws JAXBException {
     final Marshaller marshaller = this.jaxbContext.createMarshaller();
     marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.TRUE);
 
     if (strip) {
-      final List<Passages> passages =
+      final List<PassagesList.Passages> passages =
           this.topicPassages.getPassagesList().getPassages();
       passages.stream()
           .filter(pg -> {
