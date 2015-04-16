@@ -16,3 +16,4 @@ src/test/resources/_*.txt
 src/test/resources/_fixedTestIndexContent_*
 .idea/
 /*.jar
+/src/main/resources/schema/*.xml
