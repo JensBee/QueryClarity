@@ -17,12 +17,10 @@
 package de.unihildesheim.iw.lucene.scoring;
 
 import de.unihildesheim.iw.Tuple.Tuple2;
-import de.unihildesheim.iw.xml.adapters.MapAdapter.StringValue;
-import de.unihildesheim.iw.xml.adapters.MapAdapter.Tuple2ListValue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import javax.xml.bind.annotation.XmlElement;
-import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -75,7 +73,11 @@ public abstract class ScoringResult {
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class ScoringResultXml {
-
+    /**
+     * Logger instance for this class.
+     */
+    private static final Logger LOG =
+        LoggerFactory.getLogger(ScoringResultXml.class);
     /**
      * XML element key names.
      */
@@ -108,29 +110,14 @@ public abstract class ScoringResult {
     }
 
     /**
-     * XML items.
-     */
-    @SuppressWarnings("CollectionWithoutInitialCapacity")
-    @XmlElement
-    @XmlJavaTypeAdapter(StringValue.class)
-    private final Map<String, String> items = new HashMap<>();
-    /**
-     * XML list items.
-     */
-    @SuppressWarnings("CollectionWithoutInitialCapacity")
-    @XmlElement
-    @XmlJavaTypeAdapter(Tuple2ListValue.class)
-    private final Map<String, List<Tuple2<String, String>>> lists = new
-        HashMap<>();
-
-    /**
      * List of simple String items. Mapped by key to value.
      *
      * @return List of key, value pairs
      */
     @SuppressWarnings("ReturnOfCollectionOrArrayField")
     public Map<String, String> getItems() {
-      return this.items;
+      LOG.warn("XML items currently not supported!");
+      return Collections.emptyMap();
     }
 
     /**
@@ -140,9 +127,9 @@ public abstract class ScoringResult {
      */
     @SuppressWarnings("ReturnOfCollectionOrArrayField")
     public Map<String, List<Tuple2<String, String>>> getLists() {
-      return this.lists;
+      //return this.lists;
+      LOG.warn("XML list currently not supported!");
+      return Collections.emptyMap();
     }
   }
-
-
 }
