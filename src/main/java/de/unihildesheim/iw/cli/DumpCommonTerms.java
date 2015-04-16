@@ -172,7 +172,6 @@ final class DumpCommonTerms
     /**
      * Target file file for writing scored claims.
      */
-    @Nullable
     @Option(name = "-o", metaVar = "FILE", required = true,
         usage = "Output file for writing scored passages")
     File targetFile;
@@ -180,7 +179,6 @@ final class DumpCommonTerms
     /**
      * Directory containing the target Lucene index.
      */
-    @Nullable
     @Option(name = CliParams.INDEX_DIR_P, metaVar = CliParams.INDEX_DIR_M,
         required = true, usage = CliParams.INDEX_DIR_U)
     File idxDir;
@@ -198,14 +196,12 @@ final class DumpCommonTerms
     /**
      * Directory for storing working data.
      */
-    @Nullable
     @Option(name = CliParams.DATA_DIR_P, metaVar = CliParams.DATA_DIR_M,
         required = true, usage = CliParams.DATA_DIR_U)
     File dataDir;
     /**
      * Document-fields to query.
      */
-    @Nullable
     @Option(name = "-field", metaVar = "field name", required = true,
         handler = StringArrayOptionHandler.class,
         usage = "Document field to query.")
@@ -214,7 +210,6 @@ final class DumpCommonTerms
     /**
      * Prefix for cache data.
      */
-    @Nullable
     @Option(name = "-prefix", metaVar = "name", required = true,
         usage = "Naming prefix for cached data files to load or create.")
     String prefix;
@@ -232,7 +227,6 @@ final class DumpCommonTerms
     /**
      * Single language.
      */
-    @Nullable
     @Option(name = "-lang", metaVar = "language", required = true,
         usage = "Process for the defined language.")
     String lang;
