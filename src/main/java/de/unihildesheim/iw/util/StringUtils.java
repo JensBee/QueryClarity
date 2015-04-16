@@ -319,4 +319,20 @@ public final class StringUtils {
     }
     return true;
   }
+
+  /**
+   * Checks, if a string looks like it's all numeric.
+   * @param input String to check
+   * @return True, if string look all numeric
+   */
+  @SuppressWarnings("ImplicitNumericConversion")
+  public static boolean isNumeric(final String input) {
+    boolean isNumeric = true;
+    for (int i = input.length() - 1; i >= 0 && isNumeric; i--) {
+      char c = input.charAt(i);
+      isNumeric = (c >= '0' && c <= '9') ||
+          c == '-' || c == '.' || c == 'e' || c == 'e';
+    }
+    return isNumeric;
+  }
 }
