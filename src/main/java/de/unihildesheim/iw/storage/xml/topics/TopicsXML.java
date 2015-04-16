@@ -18,7 +18,11 @@
 package de.unihildesheim.iw.storage.xml.topics;
 
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation;
+import de.unihildesheim.iw.storage.xml.topics.Languages.Lang;
+import de.unihildesheim.iw.storage.xml.topics.PassagesList.Passages;
+import de.unihildesheim.iw.storage.xml.topics.Scorers.Scorer;
 import de.unihildesheim.iw.util.Configuration;
+import de.unihildesheim.iw.util.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -27,8 +31,12 @@ import javax.xml.bind.JAXBException;
 import javax.xml.bind.Marshaller;
 import javax.xml.bind.Unmarshaller;
 import java.io.File;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
+
+import static de.unihildesheim.iw.storage.xml.topics.Meta.Data;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
@@ -42,6 +50,22 @@ public final class TopicsXML {
    * XML root element, JAXB object.
    */
   private final TopicPassages topicPassages;
+
+  public enum MetaTags {
+    QUERY_TYPE("queryType"), IDX_FIELDS("idxFields"), TIMESTAMP("timestamp"),
+    SAMPLE("sampleId");
+
+    final String name;
+
+    MetaTags(final String name) {
+      this.name = name;
+    }
+
+    @Override
+    public String toString() {
+      return this.name;
+    }
+  }
 
   /**
    * Creates a new instance from the given file.
@@ -57,7 +81,8 @@ public final class TopicsXML {
     if (source == null || !source.exists()) {
       this.topicPassages = new TopicPassages();
     } else {
-      final Unmarshaller jaxbUnmarshaller = this.jaxbContext.createUnmarshaller();
+      final Unmarshaller jaxbUnmarshaller =
+          this.jaxbContext.createUnmarshaller();
       this.topicPassages = (TopicPassages) jaxbUnmarshaller.unmarshal(source);
     }
   }
@@ -69,37 +94,23 @@ public final class TopicsXML {
    */
   public TopicsXML()
       throws JAXBException {
-    this.jaxbContext = JAXBContext
-        .newInstance(TopicPassages.class);
-    this.topicPassages = new TopicPassages();
+    this(null);
   }
 
   public TopicPassages getRoot() {
     return this.topicPassages;
   }
 
-//  /**
-//   * Extract all languages available in the topicsXML file by parsing each
-//   * passage entry available.
-//   *
-//   * @return Set of languages
-//   */
-//  private Set<String> extractLanguages() {
-//    return this.topicPassages.getPassagesList().getPassages().stream()
-//        .flatMap(pg -> pg.getP().stream())
-//        .map(p -> StringUtils.lowerCase(p.getLang()))
-//        .collect(Collectors.toSet());
-//  }
-
   /**
    * Add a scorer.
+   *
    * @param csc Clarity scorer
    * @param conf Scorer configuration
    */
-  public final void addScorer(
+  public void addScorer(
       @NotNull final ClarityScoreCalculation csc,
       @NotNull final Configuration conf) {
-    final Scorers.Scorer s = new Scorers.Scorer();
+    final Scorer s = new Scorer();
     s.setImpl(csc.getIdentifier());
 
     Scorers scorers = this.topicPassages.getScorers();
@@ -160,7 +171,7 @@ public final class TopicsXML {
     marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.TRUE);
 
     if (strip) {
-      final List<PassagesList.Passages> passages =
+      final List<Passages> passages =
           this.topicPassages.getPassagesList().getPassages();
       passages.stream()
           .filter(pg -> {
@@ -176,5 +187,68 @@ public final class TopicsXML {
           }).peek(passages::remove);
     }
     marshaller.marshal(this.topicPassages, out);
+  }
+
+  public void setMeta(
+      @NotNull final MetaTags name,
+      @NotNull final String value) {
+    setMeta(name.toString(), value);
+  }
+
+  /**
+   * Set a meta-data value.
+   *
+   * @param name Value identifier
+   * @param value Value
+   */
+  public void setMeta(
+      @NotNull final String name,
+      @NotNull final String value) {
+    Meta meta = this.topicPassages.getMeta();
+    if (meta == null) {
+      meta = new Meta();
+      this.topicPassages.setMeta(meta);
+    }
+    final Data data = new Data();
+    data.setName(name);
+    data.setValue(value);
+    meta.getData().add(data);
+  }
+
+  public Meta getMeta() {
+    Meta meta = this.topicPassages.getMeta();
+    if (meta == null) {
+      meta = new Meta();
+      this.topicPassages.setMeta(meta);
+    }
+    return meta;
+  }
+
+  /**
+   * Set stopwords for a single language.
+   *
+   * @param lang Language
+   * @param words Stopwords
+   */
+  public void setStopwords(
+      @NotNull final String lang,
+      @NotNull final Collection<String> words) {
+    Languages lng = this.topicPassages.getLanguages();
+    if (lng == null) {
+      lng = new Languages();
+      this.topicPassages.setLanguages(lng);
+    }
+    final Optional<Lang> entry = lng.getLang().stream()
+        .filter(l -> l.getName().equalsIgnoreCase(lang))
+        .findFirst();
+
+    final Lang target;
+    if (entry.isPresent()) {
+      target = entry.get();
+    } else {
+      target = new Lang();
+      target.setName(lang);
+    }
+    target.setStopwords(StringUtils.join(words, " "));
   }
 }
