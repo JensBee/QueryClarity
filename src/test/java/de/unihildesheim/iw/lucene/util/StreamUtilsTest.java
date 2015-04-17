@@ -19,8 +19,7 @@ package de.unihildesheim.iw.lucene.util;
 
 import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.lucene.EmptyBitSet;
-import org.apache.lucene.index.DocsAndPositionsEnum;
-import org.apache.lucene.index.DocsEnum;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -309,14 +308,8 @@ public class StreamUtilsTest
       }
 
       @Override
-      public DocsEnum docs(final Bits liveDocs, final DocsEnum reuse,
+      public PostingsEnum postings(final Bits liveDocs, final PostingsEnum reuse,
           final int flags) {
-        throw new UnsupportedOperationException();
-      }
-
-      @Override
-      public DocsAndPositionsEnum docsAndPositions(final Bits liveDocs,
-          final DocsAndPositionsEnum reuse, final int flags) {
         throw new UnsupportedOperationException();
       }
 

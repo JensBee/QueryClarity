@@ -18,9 +18,9 @@
 package de.unihildesheim.iw.lucene.search;
 
 import de.unihildesheim.iw.lucene.util.BitsUtils;
-import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSet;
@@ -120,12 +120,12 @@ public final class EmptyFieldFilter
         } else {
           @Nullable final Terms t = reader.terms(this.field);
           if (t != null) {
-            DocsEnum de = null;
+            PostingsEnum pe = null;
             final TermsEnum te = t.iterator(null);
             int docId;
             while (te.next() != null) {
-              de = te.docs(checkBits, de, DocsEnum.FLAG_NONE);
-              while ((docId = de.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+              pe = te.postings(checkBits, pe, (int) PostingsEnum.NONE);
+              while ((docId = pe.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
                 if (checkBits.getAndClear(docId)) {
                   finalBits.set(docId);
                 }
@@ -160,7 +160,7 @@ public final class EmptyFieldFilter
   }
 
   @Override
-  public String toString() {
+  public String toString(final String field) {
     return "EmptyFieldFilter [field=" + this.field +
         ", negate=" + this.negate + ']';
   }

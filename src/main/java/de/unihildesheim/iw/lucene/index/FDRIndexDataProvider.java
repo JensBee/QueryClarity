@@ -180,38 +180,6 @@ public final class FDRIndexDataProvider
     }
 
     return tf;
-
-////    Long tf = this.tfMap.get(term);
-////    if (tf == null) {
-//      long tf = this.index.reader.leaves().stream()
-//          .map(LeafReaderContext::reader)
-//          .filter(r -> r.numDocs() > 0)
-//          .mapToLong(r -> {
-//            try {
-//              return StreamSupport.stream(r.fields().spliterator(), false)
-//                  .mapToLong(f -> {
-//                    try {
-//                      @Nullable final Terms terms = r.terms(f);
-//                      if (terms == null) {
-//                        return 0L;
-//                      }
-//                      final TermsEnum termsEnum = terms.iterator(null);
-//                      return termsEnum.seekExact(term) ?
-//                          termsEnum.totalTermFreq() : 0L;
-//                    } catch (final IOException e) {
-//                      LOG.error("Error getting term frequency.", e);
-//                      throw new UncheckedIOException(e);
-//                    }
-//                  })
-//                  .sum();
-//            } catch (final IOException e) {
-//              LOG.error("Error getting term frequency.", e);
-//              throw new UncheckedIOException(e);
-//            }
-//          }).sum();
-////      this.tfMap.put(BytesRef.deepCopyOf(term), tf);
-////    }
-//    return tf;
   }
 
   @Override

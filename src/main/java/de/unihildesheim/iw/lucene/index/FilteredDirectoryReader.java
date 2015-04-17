@@ -26,8 +26,6 @@ import de.unihildesheim.iw.lucene.util.StreamUtils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.DocsAndPositionsEnum;
-import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
@@ -35,6 +33,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -115,6 +114,7 @@ public final class FilteredDirectoryReader
    * @param qFilter Filter to reduce the number of documents visible to the
    * reader
    * @param tFilter Term-filter
+   * @throws IOException Thrown on low-level i/o errors
    */
   @SuppressFBWarnings({"EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS",
       "LO_APPENDED_STRING_IN_FORMAT_STRING"})
@@ -124,7 +124,8 @@ public final class FilteredDirectoryReader
       @NotNull final Collection<String> vFields,
       final boolean negate,
       @Nullable final Filter qFilter,
-      @NotNull final TermFilter tFilter) {
+      @NotNull final TermFilter tFilter)
+      throws IOException {
     // all sub-readers get initialized when calling super
     super(dirReader, wrapper);
 
@@ -182,7 +183,8 @@ public final class FilteredDirectoryReader
 
   @Override
   protected FilteredDirectoryReader doWrapDirectoryReader(
-      final DirectoryReader dirReader) {
+      final DirectoryReader dirReader)
+      throws IOException {
     return new FilteredDirectoryReader(dirReader, this.subWrapper,
         this.fields, this.negateFields, this.filter, this.termFilter);
   }
@@ -756,7 +758,8 @@ public final class FilteredDirectoryReader
     @SuppressFBWarnings("RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE")
     @NotNull
     @Override
-    public FilteredDirectoryReader build() {
+    public FilteredDirectoryReader build()
+        throws BuildException {
       if (this.tf == null) {
         this.tf = new AcceptAll();
       }
@@ -778,8 +781,14 @@ public final class FilteredDirectoryReader
           }
         }
       };
-      return new FilteredDirectoryReader(
-          this.in, srw, this.f, this.fn, this.qf, this.tf);
+      final FilteredDirectoryReader fdr;
+      try {
+        fdr = new FilteredDirectoryReader(
+            this.in, srw, this.f, this.fn, this.qf, this.tf);
+      } catch (final IOException e) {
+        throw new BuildException("Failed to create filtered reader.", e);
+      }
+      return fdr;
     }
   }
 
@@ -1041,7 +1050,7 @@ public final class FilteredDirectoryReader
         throws IOException {
       // check, if term is contained in any visible document
       return DocIdSetIterator.NO_MORE_DOCS != this.in
-          .docs(this.ctx.getDocBitsOrNull(), null, DocsEnum.FLAG_NONE)
+          .postings(this.ctx.getDocBitsOrNull(), null, PostingsEnum.NONE)
           .nextDoc();
     }
 
@@ -1087,10 +1096,10 @@ public final class FilteredDirectoryReader
     @Override
     public int docFreq()
         throws IOException {
-      final DocsEnum de = this.in.docs(this.ctx.getDocBitsOrNull(),
-          null, DocsEnum.FLAG_NONE);
+      final PostingsEnum pe = this.in.postings(this.ctx.getDocBitsOrNull(),
+          null, PostingsEnum.NONE);
       int docFreq = 0;
-      while (de.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+      while (pe.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
         docFreq++;
       }
       return docFreq;
@@ -1101,7 +1110,7 @@ public final class FilteredDirectoryReader
         throws IOException {
       if (this.ttf < 0L) {
         long newTTF;
-        final DocsEnum de;
+        final PostingsEnum pe;
         if (this.ctx.numDocs > (this.ctx.maxDoc >> 1)) {
           // get initial value from all docs
           newTTF = this.in.totalTermFreq();
@@ -1112,21 +1121,23 @@ public final class FilteredDirectoryReader
             final FixedBitSet nonMatchingDocs = this.ctx.docBits.clone();
             // flip bits
             nonMatchingDocs.flip(0, nonMatchingDocs.length());
-            de = this.in.docs(nonMatchingDocs, null, DocsEnum.FLAG_FREQS);
+            pe = this.in.postings(nonMatchingDocs, null,
+                (int) PostingsEnum.FREQS);
 
             // subtract value for each doc
-            while (de.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-              newTTF -= (long) de.freq();
+            while (pe.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+              newTTF -= (long) pe.freq();
             }
           }
         } else {
           // less than half of the documents are enabled, so add up all
           // values manually for all enabled documents
-          de = this.in.docs(this.ctx.docBits, null, DocsEnum.FLAG_FREQS);
+          pe = this.in.postings(this.ctx.docBits, null,
+              (int) PostingsEnum.FREQS);
           // add up values
           newTTF = 0L;
-          while (de.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-            newTTF += (long) de.freq();
+          while (pe.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+            newTTF += (long) pe.freq();
           }
         }
         this.ttf = newTTF;
@@ -1136,37 +1147,20 @@ public final class FilteredDirectoryReader
 
     @SuppressWarnings("ObjectEquality")
     @Override
-    public DocsEnum docs(
+    public PostingsEnum postings(
         @Nullable final Bits liveDocs,
-        @Nullable final DocsEnum reuse,
+        @Nullable final PostingsEnum reuse,
         final int flags)
         throws IOException {
+      final PostingsEnum postings;
       if (liveDocs == null || liveDocs == this.ctx.getDocBitsOrNull()) {
-        return this.in.docs(this.ctx.getDocBitsOrNull(), reuse, flags);
+        postings = this.in.postings(this.ctx.getDocBitsOrNull(), reuse, flags);
       } else {
         final FixedBitSet liveBits = this.ctx.docBits.clone();
         liveBits.and(BitsUtils.bits2FixedBitSet(liveDocs));
-        return this.in.docs(liveBits, reuse, flags);
+        postings = this.in.postings(liveBits, reuse, flags);
       }
-    }
-
-    @SuppressWarnings("ObjectEquality")
-    @Override
-    public DocsAndPositionsEnum docsAndPositions(
-        @Nullable final Bits liveDocs,
-        @Nullable final DocsAndPositionsEnum reuse, final int flags)
-        throws IOException {
-      final DocsAndPositionsEnum dape;
-
-      if (liveDocs == null || liveDocs == this.ctx.getDocBitsOrNull()) {
-        dape =
-            this.in.docsAndPositions(this.ctx.getDocBitsOrNull(), reuse, flags);
-      } else {
-        final FixedBitSet liveBits = this.ctx.docBits.clone();
-        liveBits.and(BitsUtils.bits2FixedBitSet(liveDocs));
-        dape = this.in.docsAndPositions(liveBits, reuse, flags);
-      }
-      return dape;
+      return postings;
     }
   }
 
@@ -1230,12 +1224,12 @@ public final class FilteredDirectoryReader
     public boolean hasDoc()
         throws IOException {
       final TermsEnum termsEnum = iterator(null);
-      DocsEnum docsEnum = null;
+      PostingsEnum pe = null;
 
       while (termsEnum.next() != null) {
-        docsEnum = termsEnum.docs(this.ctx.getDocBitsOrNull(),
-            docsEnum, DocsEnum.FLAG_NONE);
-        if (docsEnum.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+        pe = termsEnum.postings(this.ctx.getDocBitsOrNull(),
+            pe, (int) PostingsEnum.NONE);
+        if (pe.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
           return true;
         }
       }

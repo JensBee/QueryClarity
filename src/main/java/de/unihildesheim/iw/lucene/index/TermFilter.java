@@ -19,12 +19,12 @@ package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader.FilteredFields;
 import de.unihildesheim.iw.lucene.util.BitsUtils;
-import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -234,7 +234,7 @@ public abstract class TermFilter {
         return false;
       }
 
-      DocsEnum de = null;
+      PostingsEnum pe = null;
       TermsEnum te = null;
       assert this.checkBits != null;
       final FixedBitSet hitBits = new FixedBitSet(this.checkBits.length());
@@ -266,10 +266,10 @@ public abstract class TermFilter {
                 return false;
               }
 
-              de = te.docs(checkBits, de);
+              pe = te.postings(checkBits, pe);
 
               int docId;
-              while ((docId = de.nextDoc()) !=
+              while ((docId = pe.nextDoc()) !=
                   DocIdSetIterator.NO_MORE_DOCS) {
                 if (!hitBits.getAndSet(docId)) {
                   // new doc
