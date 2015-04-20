@@ -21,7 +21,7 @@
     <properties>
         <jdk.version>1.8</jdk.version>
         <compiler.args>-Xlint:all</compiler.args>
-        <project.lucene.version>5.0.0</project.lucene.version>
+        <project.lucene.version>5.1.0</project.lucene.version>
         <project.name>queryClarity</project.name>
         <project.test.enableAssertions>true</project.test.enableAssertions>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
