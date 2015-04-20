@@ -27,6 +27,7 @@ import org.apache.lucene.analysis.standard.StandardFilter;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.analysis.util.StopwordAnalyzerBase;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * @author Jens Bertram
@@ -46,7 +47,7 @@ public final class GermanAnalyzer
    *
    * @param newStopwords stop words
    */
-  public GermanAnalyzer(final CharArraySet newStopwords) {
+  public GermanAnalyzer(@Nullable final CharArraySet newStopwords) {
     super(newStopwords);
   }
 

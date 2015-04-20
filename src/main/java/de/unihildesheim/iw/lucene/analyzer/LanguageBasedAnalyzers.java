@@ -84,7 +84,7 @@ public final class LanguageBasedAnalyzers {
   @NotNull
   public static Analyzer createInstance(
       @NotNull final Language lang,
-      @NotNull final CharArraySet stopWords) {
+      @Nullable final CharArraySet stopWords) {
     final Analyzer analyzer;
     switch (lang) {
       case DE:
@@ -113,23 +113,7 @@ public final class LanguageBasedAnalyzers {
    */
   @SuppressWarnings("resource")
   public static Analyzer createInstance(@NotNull final Language lang) {
-    @Nullable final Analyzer analyzer;
-    switch (lang) {
-      case DE:
-        analyzer = new GermanAnalyzer();
-        break;
-      case EN:
-        analyzer = new EnglishAnalyzer();
-        break;
-      case FR:
-        analyzer = new FrenchAnalyzer();
-        break;
-      default:
-        // should never be reached
-        analyzer = null;
-        break;
-    }
-    return analyzer;
+    return createInstance(lang, null);
   }
 
   /**

@@ -27,6 +27,7 @@ import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.apache.lucene.analysis.util.StopwordAnalyzerBase;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
 
@@ -59,7 +60,7 @@ public final class FrenchAnalyzer
    *
    * @param newStopwords stop words
    */
-  public FrenchAnalyzer(final CharArraySet newStopwords) {
+  public FrenchAnalyzer(@Nullable final CharArraySet newStopwords) {
     super(newStopwords);
     this.elisions.addAll(Arrays.asList(DEFAULT_ELISIONS));
   }

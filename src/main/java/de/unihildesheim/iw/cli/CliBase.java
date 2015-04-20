@@ -18,6 +18,7 @@
 package de.unihildesheim.iw.cli;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.kohsuke.args4j.ClassParser;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
@@ -73,13 +74,17 @@ public class CliBase {
    * @return Cli arguments parser instance
    */
   protected final CmdLineParser parseWithHelp(
-      @NotNull final Object bean, @NotNull final String... args) {
+      @Nullable final Object bean, @NotNull final String... args) {
     final CmdLineParser parser = parse(bean, args);
 
     if (!this.helpPrinted) {
       this.defaultCliParams.printHelpAndExit(parser, System.out, 0, false);
     }
     return parser;
+  }
+
+  protected final CmdLineParser parseWithHelp(@NotNull final String... args) {
+    return parseWithHelp(null, args);
   }
 
   /**
@@ -91,10 +96,11 @@ public class CliBase {
    * @return Cli arguments parser instance
    */
   final CmdLineParser parse(
-      @NotNull final Object bean, @NotNull final String... args) {
+      @Nullable final Object bean, @NotNull final String... args) {
     final CmdLineParser parser = new CmdLineParser(this.defaultCliParams);
-    final ClassParser beanOpts = new ClassParser();
-    beanOpts.parse(bean, parser);
+    if (bean != null) {
+      new ClassParser().parse(bean, parser);
+    }
 
     printHeader(System.out);
 
