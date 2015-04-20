@@ -18,6 +18,7 @@
 package de.unihildesheim.iw.lucene.index.builder;
 
 import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers.Language;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -25,13 +26,15 @@ import org.jetbrains.annotations.Nullable;
  */
 public interface PatentDocument {
   @SuppressWarnings("PublicInnerClass")
-  enum RequiredFields {
+  public enum RequiredFields {
     P_ID, DETD, CLAIMS, IPC
   }
 
   String getField(
-      final RequiredFields fld, @Nullable Language lng);
+      @NotNull final RequiredFields fld,
+      @Nullable Language lng);
 
   boolean hasField(
-      final RequiredFields fld, @Nullable Language lng);
+      @NotNull final RequiredFields fld,
+      @Nullable Language lng);
 }
