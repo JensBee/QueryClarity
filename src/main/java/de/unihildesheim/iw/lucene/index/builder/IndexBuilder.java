@@ -18,10 +18,12 @@
 package de.unihildesheim.iw.lucene.index.builder;
 
 import de.unihildesheim.iw.lucene.VecTextField;
+import de.unihildesheim.iw.lucene.analyzer.IPCFieldAnalyzer;
 import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers;
 import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers.Language;
 import de.unihildesheim.iw.lucene.index.builder.PatentDocument.RequiredFields;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field.Store;
@@ -31,10 +33,13 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 
@@ -58,8 +63,9 @@ public final class IndexBuilder
   private final IndexWriter writer;
 
   /**
-   * Create the writer object using a target directory a language and
-   * optionally a list of stopwords.
+   * Create the writer object using a target directory a language and optionally
+   * a list of stopwords.
+   *
    * @param target Target path
    * @param lang Language identifier
    * @param stopwords List of stopwords
@@ -77,8 +83,9 @@ public final class IndexBuilder
     }
 
     // get an analyzer for the target language
-    final Analyzer analyzer = LanguageBasedAnalyzers.createInstance(
-        lang, new CharArraySet(stopwords, true));
+    final Analyzer analyzer = getAnalyzerForLanguage(lang, stopwords);
+//        LanguageBasedAnalyzers.createInstance(
+//        lang, new CharArraySet(stopwords, true));
 
     // Lucene index setup
     final Directory index = FSDirectory.open(target);
@@ -88,8 +95,30 @@ public final class IndexBuilder
     this.language = lang;
   }
 
+  public static Analyzer getAnalyzerForLanguage(@NotNull final Language lang) {
+    return getAnalyzerForLanguage(lang, null);
+  }
+
+  public static Analyzer getAnalyzerForLanguage(
+      @NotNull final Language lang,
+      @Nullable final Set<String> stopwords) {
+    if (stopwords == null || stopwords.isEmpty()) {
+      return new PerFieldAnalyzerWrapper(
+          LanguageBasedAnalyzers.createInstance(lang),
+          Collections.singletonMap(LUCENE_CONF.FLD_IPC,
+              IPCFieldAnalyzer.getInstance()));
+    } else {
+      return new PerFieldAnalyzerWrapper(
+          LanguageBasedAnalyzers.createInstance(
+              lang, new CharArraySet(stopwords, true)),
+          Collections.singletonMap(LUCENE_CONF.FLD_IPC,
+              IPCFieldAnalyzer.getInstance()));
+    }
+  }
+
   /**
    * Index a single document.
+   *
    * @param patent Patent document
    * @throws IOException Thrown on low-level i/o-errors
    */
@@ -128,17 +157,19 @@ public final class IndexBuilder
 
       // test, if we can add ipcs
       if (patent.hasField(RequiredFields.IPC, null)) {
-        patDoc.add(new VecTextField(LUCENE_CONF.FLD_IPC,
-            patent.getField(RequiredFields.IPC, null), Store.YES));
+        final String ipcString = patent.getField(RequiredFields.IPC, null);
+        final String[] ipcs;
+        if (!ipcString.isEmpty()) {
+          ipcs = ipcString.split(" ");
+          Arrays.stream(ipcs).forEach(ipc -> {
+            patDoc.add(new VecTextField(LUCENE_CONF.FLD_IPC, ipc, Store.YES));
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("IPC={}", ipc);
+            }
+          });
+        }
       }
 
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("Add pat:{} [claims:{} detd:{} ipc:{}]",
-            patent.getField(RequiredFields.P_ID, null),
-            patent.hasField(RequiredFields.CLAIMS, this.language),
-            patent.hasField(RequiredFields.DETD, this.language),
-            patent.getField(RequiredFields.IPC, null));
-      }
       this.writer.addDocument(patDoc);
     } else {
       LOG.warn("No data to write. Skipping document.");
