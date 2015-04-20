@@ -4,6 +4,7 @@
 /*.log
 /*.unison.*
 /*.iml
+/*.txt
 /target/
 /data/
 /luke/
