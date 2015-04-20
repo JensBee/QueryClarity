@@ -163,9 +163,6 @@ public final class IndexBuilder
           ipcs = ipcString.split(" ");
           Arrays.stream(ipcs).forEach(ipc -> {
             patDoc.add(new VecTextField(LUCENE_CONF.FLD_IPC, ipc, Store.YES));
-            if (LOG.isDebugEnabled()) {
-              LOG.debug("IPC={}", ipc);
-            }
           });
         }
       }
