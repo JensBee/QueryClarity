@@ -19,6 +19,7 @@ package de.unihildesheim.iw.data;
 
 import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.data.IPCCode.IPCRecord;
+import de.unihildesheim.iw.data.IPCCode.IPCRecord.Field;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.LoggerFactory;
@@ -41,9 +42,11 @@ public class IPCCodeTest
       'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u',
       'v', 'w', 'x', 'y', 'z'};
 
+  @SuppressWarnings("ImplicitNumericConversion")
   @Test
   public void testParse_allValid()
       throws Exception {
+    final int expectedFieldsCount = Field.values().length;
     // section (a-h)
     Arrays.stream(A_TO_Z, 0, 8)
         .parallel().forEach(sec -> {
@@ -63,9 +66,9 @@ public class IPCCodeTest
                       final IPCRecord ipcRec = IPCCode.parse(
                           String.valueOf(sec) + clsStr + scls + grp +
                               IPCCode.DEFAULT_SEPARATOR + sgrpStr);
-                      Assert.assertTrue(
+                      Assert.assertEquals(
                           "Code expected to be valid (" + ipcRec + ").",
-                          ipcRec.isValid());
+                          ipcRec.getSetFields().size(), expectedFieldsCount);
                     });
               });
         });
@@ -73,10 +76,13 @@ public class IPCCodeTest
     });
   }
 
+  @SuppressWarnings("ImplicitNumericConversion")
   @Test
   public void testParse_customSeparator() {
+    final int expectedFieldsCount = Field.values().length;
     final IPCRecord ipc = IPCCode.parse("A61K0031-4166", '-');
-    Assert.assertTrue(
-        "Code expected to be valid (" + ipc + ").", ipc.isValid());
+    Assert.assertEquals(
+        "Code expected to be valid (" + ipc + ").",
+        ipc.getSetFields().size(), expectedFieldsCount);
   }
 }
