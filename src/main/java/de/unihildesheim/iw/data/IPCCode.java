@@ -17,6 +17,7 @@
 
 package de.unihildesheim.iw.data;
 
+import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.data.IPCCode.IPCRecord.Field;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -33,7 +34,7 @@ public class IPCCode {
   /**
    * Regular expression to match a section identifier.
    */
-  private static final Pattern RX_SECTION = Pattern.compile("^[a-hA-H]$");
+  static final Pattern RX_SECTION = Pattern.compile("^[a-hA-H]$");
   /**
    * Regular expression to match a class identifier.
    */
@@ -41,7 +42,7 @@ public class IPCCode {
   /**
    * Regular expression to match a subclass identifier.
    */
-  private static final Pattern RX_SUBCLASS = Pattern.compile("^[a-zA-Z]$");
+  static final Pattern RX_SUBCLASS = Pattern.compile("^[a-zA-Z]$");
   /**
    * Regular expression to match a main-group identifier.
    */
@@ -104,8 +105,9 @@ public class IPCCode {
     private boolean isValid = true;
 
     /**
-     * Set a record field. The passed in data is only checked for {@code
-     * null}. No validation is done and should be handled before.
+     * Set a record field. The passed in data is only checked for {@code null}.
+     * No validation is done and should be handled before.
+     *
      * @param f Field to add to
      * @param value Value to add
      * @return True if data was not null or empty
@@ -148,6 +150,7 @@ public class IPCCode {
 
     /**
      * Set validation flag for this record.
+     *
      * @param flag State
      */
     void setValid(final boolean flag) {
@@ -194,6 +197,7 @@ public class IPCCode {
 
     /**
      * Get a field of this record.
+     *
      * @param f Field to get
      * @return Field value. Empty, if no field value was set.
      */
@@ -205,6 +209,7 @@ public class IPCCode {
   /**
    * Tries to parse a IPC record from a string using the {@link
    * #DEFAULT_SEPARATOR default} separator char.
+   *
    * @param code IPC code
    * @return IPC data record extracted from the given string
    */
@@ -244,30 +249,33 @@ public class IPCCode {
     final int codeLength = code.length();
     // current position in string
     int pointer = 0;
-    // final record
-    final IPCRecord record = new IPCRecord();
+    // final record builder
+    final Builder record = new Builder();
     // flag indicating, if code looks valid
     boolean valid;
 
     // section [1]
-    valid = RX_SECTION.matcher(code).region(pointer, pointer + 1).matches() &&
-        record.set(Field.SECTION,
-            String.valueOf(code.charAt(pointer)));
-    pointer += 1;
+    valid = RX_SECTION.matcher(code).region(pointer, pointer + 1).matches();
+    if (valid) {
+      record.setSection(code.charAt(pointer));
+      pointer += 1;
+    }
 
     if (valid && codeLength >= pointer + 1) { // class [2-3]
-      valid =
-          RX_CLASS.matcher(code).region(pointer, pointer + 2).matches() &&
-              record.set(Field.CLASS, code.substring(pointer, pointer + 2));
-      pointer += 2;
+      valid = RX_CLASS.matcher(code).region(pointer, pointer + 2).matches();
+      if (valid) {
+        record.setClass(code.substring(pointer, pointer + 2));
+        pointer += 2;
+      }
     } else {
       valid = false;
     }
 
     if (valid && codeLength >= pointer + 1) { // subclass [4]
-      valid =
-          RX_SUBCLASS.matcher(code).region(pointer, pointer + 1).matches() &&
-              record.set(Field.SUBCLASS, code.substring(pointer, pointer + 1));
+      valid = RX_SUBCLASS.matcher(code).region(pointer, pointer + 1).matches();
+      if (valid) {
+        record.setSubclass(code.substring(pointer, pointer + 1));
+      }
       pointer += 1;
     } else {
       valid = false;
@@ -282,7 +290,7 @@ public class IPCCode {
           if (mgm.matches()) {
             final String match = mgm.group(1);
             if (match != null && !match.isEmpty()) {
-              valid = record.set(Field.MAINGROUP, match);
+              record.setMainGroup(match);
               pointer += match.length();
             }
           } else {
@@ -302,7 +310,7 @@ public class IPCCode {
         if (sgm.matches()) {
           final String match = sgm.group(1);
           if (match != null && !match.isEmpty()) {
-            valid = record.set(Field.SUBGROUP, match);
+            record.setSubGroup(match);
             //pointer += match.length();
           }
         } else {
@@ -312,6 +320,164 @@ public class IPCCode {
     }
 
     record.setValid(valid);
-    return record;
+    return record.build();
+  }
+
+  /**
+   * Builder for {@link IPCRecord} instances.
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public static final class Builder
+      implements Buildable<IPCRecord> {
+    /**
+     * Final record.
+     */
+    private final IPCRecord rec = new IPCRecord();
+
+    /**
+     * Set the class identifier.
+     *
+     * @param cls Any object whose value can be parsed to an int between >=1 and
+     * <= 99
+     * @return Self reference
+     */
+    public Builder setClass(@NotNull final Object cls) {
+      return Number.class.isInstance(cls) ?
+          setClass(((Number) cls).intValue()) :
+          setClass(Integer.parseInt(cls.toString()));
+    }
+
+    /**
+     * Set the class identifier.
+     *
+     * @param cls Number >=1 and <= 99
+     * @return Self reference
+     */
+    public Builder setClass(final int cls) {
+      if (cls < 1 || cls > 99) {
+        throw new IllegalArgumentException(
+            "Class identifier must be >=1 and <= 99.");
+      }
+      this.rec.set(Field.CLASS, cls);
+      return this;
+    }
+
+    /**
+     * Set the main-group identifier.
+     *
+     * @param mg Number >=1 and <= 9999
+     * @return Self reference
+     */
+    public Builder setMainGroup(final int mg) {
+      if (mg < 1 || mg > 9999) {
+        throw new IllegalArgumentException(
+            "Main-group identifier must be >=1 and <= 9999. Got " + mg + '.');
+      }
+      this.rec.set(Field.MAINGROUP, mg);
+      return this;
+    }
+
+    /**
+     * Set the main-group identifier.
+     *
+     * @param mg Any object whose value can be parsed to an int between >=1 and
+     * <= 9999
+     * @return Self reference
+     */
+    public Builder setMainGroup(@NotNull final Object mg) {
+      return Number.class.isInstance(mg) ?
+          setMainGroup(((Number) mg).intValue()) :
+          setMainGroup(Integer.parseInt(mg.toString()));
+    }
+
+    /**
+     * Set the section identifier.
+     *
+     * @param sec Any object whose value can be parsed to an char between a-h.
+     * @return Self reference
+     */
+    public Builder setSection(@NotNull final Object sec) {
+      return setSection(sec.toString().charAt(0));
+    }
+
+    /**
+     * Set the section identifier identifier.
+     *
+     * @param sec Char between a-h
+     * @return Self reference
+     */
+    public Builder setSection(final char sec) {
+      final String secStr = String.valueOf(sec);
+      if (!RX_SECTION.matcher(secStr).matches()) {
+        throw new IllegalArgumentException(
+            "Section identifier must be between a-h. Got " + sec + '.');
+      }
+      this.rec.set(Field.SECTION, secStr);
+      return this;
+    }
+
+    /**
+     * Set the subclass identifier.
+     *
+     * @param scls Any object whose value can be parsed to an char between a-z.
+     * @return Self reference
+     */
+    public Builder setSubclass(@NotNull final Object scls) {
+      return setSubclass(scls.toString().charAt(0));
+    }
+
+    /**
+     * Set the section identifier identifier.
+     *
+     * @param scls Char between a-h
+     * @return Self reference
+     */
+    public Builder setSubclass(final char scls) {
+      final String sclsStr = String.valueOf(scls);
+      if (!RX_SUBCLASS.matcher(sclsStr).matches()) {
+        throw new IllegalArgumentException(
+            "Subclass identifier must be between a-z. Got "+ scls + '.');
+      }
+      this.rec.set(Field.SUBCLASS, sclsStr);
+      return this;
+    }
+
+    /**
+     * Set the sub-group identifier.
+     *
+     * @param sg Number >=0 and <= 999999
+     * @return Self reference
+     */
+    public Builder setSubGroup(final int sg) {
+      if (sg < 0 || sg > 999999) {
+        throw new IllegalArgumentException(
+            "Sub-group identifier must be >=0 and <= 999999. Got " + sg + '.');
+      }
+      this.rec.set(Field.SUBGROUP, sg);
+      return this;
+    }
+
+    /**
+     * Set the main-group identifier.
+     *
+     * @param sg Any object whose value can be parsed to an int between >=0 and
+     * <= 999999
+     * @return Self reference
+     */
+    public Builder setSubGroup(@NotNull final Object sg) {
+      return Number.class.isInstance(sg) ?
+          setSubGroup(((Number) sg).intValue()) :
+          setSubGroup(Integer.parseInt(sg.toString()));
+    }
+
+    void setValid(final boolean state) {
+      this.rec.setValid(state);
+    }
+
+    @NotNull
+    @Override
+    public IPCRecord build() {
+      return this.rec;
+    }
   }
 }
