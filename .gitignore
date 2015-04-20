@@ -75,5 +75,10 @@ doc/
 *.Rproj
 
 *.log
+*.zip
+*.pdf
+*.csv
+*.tmp
+*.txt
 
 src/main/resources/nlpModels/
