@@ -470,6 +470,10 @@ public class IPCCode {
           setSubGroup(Integer.parseInt(sg.toString()));
     }
 
+    /**
+     * Set the validation state.
+     * @param state Flag
+     */
     void setValid(final boolean state) {
       this.rec.setValid(state);
     }
