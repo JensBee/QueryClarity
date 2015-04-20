@@ -31,6 +31,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
@@ -91,7 +92,8 @@ public final class EmptyFieldFilter
 
   @Override
   public DocIdSet getDocIdSet(
-      final LeafReaderContext context, @Nullable final Bits acceptDocs)
+      @NotNull final LeafReaderContext context,
+      @Nullable final Bits acceptDocs)
       throws IOException {
     FixedBitSet checkBits;
     final LeafReader reader = context.reader();
@@ -103,7 +105,7 @@ public final class EmptyFieldFilter
       if (checkBits == null) {
         // all live
         checkBits = new FixedBitSet(maxDoc);
-        ((FixedBitSet) checkBits).set(0, checkBits.length());
+        checkBits.set(0, checkBits.length());
       }
     } else {
       checkBits = BitsUtils.bits2FixedBitSet(acceptDocs);
