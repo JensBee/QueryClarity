@@ -30,7 +30,7 @@ import java.util.regex.Pattern;
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class IPCCode {
+public final class IPCCode {
   /**
    * Regular expression to match a section identifier.
    */
