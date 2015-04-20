@@ -40,7 +40,6 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.CachingWrapperFilter;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
@@ -382,14 +381,14 @@ public final class FilteredDirectoryReader
         final List<String> finalFields =
             new ArrayList<>(this.in.fields().size());
         for (final String field : fields) {
-          @Nullable Filter f =
-              this.flrContext.cachedFieldValueFilters.get(field);
-          if (f == null) {
-            f = new CachingWrapperFilter(new EmptyFieldFilter(field));
-            this.flrContext.cachedFieldValueFilters.put(field, f);
+          @Nullable DocIdSet docsWithField = this.flrContext
+              .cachedFieldValueFilters.get(field);
+          if (docsWithField == null) {
+            docsWithField = new EmptyFieldFilter(field)
+                .getDocIdSet(this.in.getContext(),
+                    null); // isAccepted all docs, no deletions
+            this.flrContext.cachedFieldValueFilters.put(field, docsWithField);
           }
-          @Nullable final DocIdSet docsWithField = f.getDocIdSet(
-              this.in.getContext(), null); // isAccepted all docs, no deletions
 
           // may be null, if no document matches
           if (docsWithField != null) {
@@ -781,14 +780,13 @@ public final class FilteredDirectoryReader
           }
         }
       };
-      final FilteredDirectoryReader fdr;
-      try {
-        fdr = new FilteredDirectoryReader(
-            this.in, srw, this.f, this.fn, this.qf, this.tf);
+
+      try (final FilteredDirectoryReader fdr = new FilteredDirectoryReader(
+          this.in, srw, this.f, this.fn, this.qf, this.tf)) {
+        return fdr;
       } catch (final IOException e) {
         throw new BuildException("Failed to create filtered reader.", e);
       }
-      return fdr;
     }
   }
 
@@ -941,7 +939,7 @@ public final class FilteredDirectoryReader
     /**
      * Store cached results of {@link EmptyFieldFilter}s.
      */
-    final Map<String, Filter> cachedFieldValueFilters;
+    final Map<String, DocIdSet> cachedFieldValueFilters;
     /**
      * Bits with visible documents bits turned on.
      */
@@ -976,6 +974,12 @@ public final class FilteredDirectoryReader
       this.cachedFieldValueFilters = new ConcurrentHashMap<>(15);
     }
 
+    /**
+     * Get the bits for all available documents or {@code null} if all
+     * documents in index are made available.
+     * @return {@code Null}, if all documents in index are available,
+     * otherwise a bitset with all enabled documents
+     */
     @Nullable
     FixedBitSet getDocBitsOrNull() {
       return this.allBitsSet ? null : this.docBits;
@@ -1050,7 +1054,7 @@ public final class FilteredDirectoryReader
         throws IOException {
       // check, if term is contained in any visible document
       return DocIdSetIterator.NO_MORE_DOCS != this.in
-          .postings(this.ctx.getDocBitsOrNull(), null, PostingsEnum.NONE)
+          .postings(this.ctx.getDocBitsOrNull(), null, (int) PostingsEnum.NONE)
           .nextDoc();
     }
 
@@ -1097,7 +1101,7 @@ public final class FilteredDirectoryReader
     public int docFreq()
         throws IOException {
       final PostingsEnum pe = this.in.postings(this.ctx.getDocBitsOrNull(),
-          null, PostingsEnum.NONE);
+          null, (int) PostingsEnum.NONE);
       int docFreq = 0;
       while (pe.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
         docFreq++;
@@ -1312,15 +1316,14 @@ public final class FilteredDirectoryReader
     @Override
     public int getDocCount()
         throws IOException {
-      @Nullable Filter f = this.ctx.cachedFieldValueFilters.get(this.field);
 
-      if (f == null) {
-        f = new CachingWrapperFilter(new EmptyFieldFilter(this.field));
-        this.ctx.cachedFieldValueFilters.put(this.field, f);
+      @Nullable DocIdSet docsWithField =
+          this.ctx.cachedFieldValueFilters.get(this.field);
+      if (docsWithField == null && this.ctx.originContext != null) {
+        docsWithField = new EmptyFieldFilter(this.field).getDocIdSet(
+            this.ctx.originContext, this.ctx.docBits);
+        this.ctx.cachedFieldValueFilters.put(this.field, docsWithField);
       }
-
-      @Nullable final DocIdSet docsWithField = f.getDocIdSet(
-          this.ctx.originContext, this.ctx.docBits);
 
       int count = 0;
       if (docsWithField != null) {
@@ -1367,10 +1370,14 @@ public final class FilteredDirectoryReader
      */
     private static final class DocFreqSpliterator
         implements OfLong {
+      /**
+       * Wrapped terms enumarator.
+       */
       private final TermsEnum te;
 
       /**
        * Create a new instance using the provided terms iterator.
+       *
        * @param te Iterator
        */
       DocFreqSpliterator(@NotNull final TermsEnum te) {
@@ -1378,7 +1385,7 @@ public final class FilteredDirectoryReader
       }
 
       @Override
-      public final boolean tryAdvance(final LongConsumer action) {
+      public boolean tryAdvance(final LongConsumer action) {
         try {
           final BytesRef nextTerm = this.te.next();
           if (nextTerm == null) {
@@ -1401,17 +1408,17 @@ public final class FilteredDirectoryReader
 
       @Override
       @Nullable
-      public final OfLong trySplit() {
+      public OfLong trySplit() {
         return null; // no split support
       }
 
       @Override
-      public final long estimateSize() {
+      public long estimateSize() {
         return Long.MAX_VALUE; // we don't know
       }
 
       @Override
-      public final int characteristics() {
+      public int characteristics() {
         return IMMUTABLE; // not mutable
       }
     }
