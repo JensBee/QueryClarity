@@ -21,17 +21,19 @@ import de.unihildesheim.iw.cli.CliBase;
 import de.unihildesheim.iw.cli.CliParams;
 import de.unihildesheim.iw.fiz.Defaults.ES_CONF;
 import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers;
+import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers.Language;
 import de.unihildesheim.iw.lucene.document.FeedbackQuery;
+import de.unihildesheim.iw.lucene.index.IndexUtils;
 import de.unihildesheim.iw.lucene.index.builder.IndexBuilder.LUCENE_CONF;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.lucene.query.TryExactTermsQuery;
 import de.unihildesheim.iw.lucene.util.StreamUtils;
 import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.StringUtils;
-import de.unihildesheim.iw.xml.TopicsXMLWriter;
-import de.unihildesheim.iw.xml.elements.Passage;
-import de.unihildesheim.iw.xml.elements.PassagesGroup;
-import io.searchbox.client.JestClient;
+import de.unihildesheim.iw.storage.xml.topics.PassagesList;
+import de.unihildesheim.iw.storage.xml.topics.PassagesList.Passages;
+import de.unihildesheim.iw.storage.xml.topics.PassagesListEntry;
+import de.unihildesheim.iw.storage.xml.topics.TopicsXML;
 import io.searchbox.client.JestClientFactory;
 import io.searchbox.client.config.HttpClientConfig.Builder;
 import opennlp.tools.sentdetect.SentenceDetector;
@@ -45,6 +47,7 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -57,7 +60,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -68,7 +70,6 @@ import java.util.stream.Collectors;
  */
 public final class ScoreTermSentenceExtractor
     extends CliBase {
-
   /**
    * Logger instance for this class.
    */
@@ -79,18 +80,32 @@ public final class ScoreTermSentenceExtractor
    */
   private final Params cliParams = new Params();
   /**
-   * Provides access to the topicsXML file.
+   * Provides access to the topicsReader file.
+   */
+  private TopicsXML topicsXML;
+  /**
+   * Provides access to the topicsReader file.
+   */
+  private TopicsXML topicsXMLResult;
+  /**
+   * Analyzer for query tokenizing.
    */
   @Nullable
-  private TopicsXMLWriter topicsXML;
-  @Nullable
-  private TopicsXMLWriter topicsTargetXML;
-  @Nullable
   private Analyzer analyzer;
+  /**
+   * Resusable searcher for queries.
+   */
   @Nullable
   private IndexSearcher searcher;
+  /**
+   * Sentence detector instance to split a result into sentences.
+   */
   @Nullable
   private SentenceDetector sentDec;
+  /**
+   * Compares two sentences by roughly estimating the number of words.
+   */
+  private final Comparator sentenceComparator = new SentenceComparator();
 
   /**
    * Default private constructor passing a description to {@link CliBase}.
@@ -104,8 +119,9 @@ public final class ScoreTermSentenceExtractor
    * Main method.
    *
    * @param args Commandline arguments.
+   * @throws Exception Thrown on low-level i/o-errors
    */
-  public static void main(final String[] args)
+  public static void main(@NotNull final String... args)
       throws Exception {
     new ScoreTermSentenceExtractor().runMain(args);
     System.exit(0); // required to trigger shutdown-hooks
@@ -115,8 +131,9 @@ public final class ScoreTermSentenceExtractor
    * Class setup.
    *
    * @param args Commandline arguments.
+   * @throws Exception Thrown on low-level i/o-errors
    */
-  private void runMain(final String[] args)
+  private void runMain(@NotNull final String... args)
       throws Exception {
     new CmdLineParser(this.cliParams);
     parseWithHelp(this.cliParams, args);
@@ -124,34 +141,44 @@ public final class ScoreTermSentenceExtractor
     // check, if files and directories are sane
     this.cliParams.check();
 
-    // init topicsXML file
+    // init source file
     try {
-      this.topicsXML = new TopicsXMLWriter(this.cliParams.sourceFile);
+      this.topicsXML = new TopicsXML(this.cliParams.sourceFile);
     } catch (final JAXBException e) {
       LOG.error("Failed to load topics file.", e);
       System.exit(-1);
     }
-    this.topicsTargetXML = new TopicsXMLWriter(this.cliParams.targetFile);
+
+    // init target file
+    try {
+      this.topicsXMLResult = new TopicsXML();
+      this.topicsXMLResult.getRoot().setPassagesList(new PassagesList());
+    } catch (final JAXBException e) {
+      LOG.error("Failed to create topics file writer.", e);
+      System.exit(-1);
+    }
 
     // check, if we have an analyzer
     if (!LanguageBasedAnalyzers.hasAnalyzer(this.cliParams.lang)) {
       throw new IllegalArgumentException(
           "No analyzer for language '" + this.cliParams.lang + "'.");
     }
-    this.analyzer = LanguageBasedAnalyzers.createInstance(LanguageBasedAnalyzers
-            .getLanguage(this.cliParams.lang), CharArraySet.EMPTY_SET);
+    final Language lang = LanguageBasedAnalyzers
+        .getLanguage(this.cliParams.lang);
+    if (lang == null) {
+      throw new IllegalStateException("Unknown or unsupported language " +
+          '(' + this.cliParams.lang + ").");
+    }
+    this.analyzer = LanguageBasedAnalyzers.createInstance(lang, CharArraySet
+        .EMPTY_SET);
 
     // lucene searcher
-    this.searcher = new IndexSearcher(this.cliParams.idxReader);
+    this.searcher = IndexUtils.getSearcher(this.cliParams.idxReader);
 
     // setup ES REST client
     final JestClientFactory factory = new JestClientFactory();
     factory.setHttpClientConfig(new Builder(ES_CONF.URL)
         .multiThreaded(true).build());
-    /*
-    Client to ElasticSearch instance.
-   */
-    JestClient client = factory.getObject();
 
     // sentence detector (NLP)
     InputStream modelIn = null;
@@ -171,14 +198,29 @@ public final class ScoreTermSentenceExtractor
     }
 
     processTerms();
-    this.topicsTargetXML.writeResults(this.cliParams.targetFile, false);
+    this.topicsXML.writeToFile(this.cliParams.targetFile);
   }
 
+  /**
+   * Document fields to query.
+   */
   enum Field {
-    CLAIMS, DETD
+    /**
+     * Claims.
+     */
+    CLAIMS,
+    /**
+     * Detailed technical description.
+     */
+    DETD
   }
 
-  private Field isValidField(final String fld) {
+  /**
+   * Tries to get a field by name.
+   * @param fld Field name to get
+   * @return Field instance
+   */
+  private static Field isValidField(@NotNull final String fld) {
     for (final Field f : Field.values()) {
       if (f.name().equalsIgnoreCase(fld)) {
         return f;
@@ -187,39 +229,52 @@ public final class ScoreTermSentenceExtractor
     throw new IllegalArgumentException("Unknown field '" + fld + "'.");
   }
 
+  @SuppressWarnings("ObjectAllocationInLoop")
   private void processTerms()
       throws Exception {
     final String lang = this.cliParams.lang;
 
-    final Collection<PassagesGroup> pGroups =
-        this.topicsXML.getPassagesGroups();
+    final PassagesList pList = this.topicsXML.getPassagesList();
+    if (pList == null) {
+      throw new IllegalStateException("No passages found.");
+    }
+    final List<Passages> passages = pList.getPassages();
 
     int passageCounter = 0;
 
-    for (final PassagesGroup pg : pGroups) {
-      final String field = pg.getSource().split(":")[0];
-      final List<Passage> pl = pg.getPassages().stream()
-          .filter(p -> lang.equals(StringUtils.lowerCase(p.getLanguage())))
+    for (final Passages p : passages) {
+      final String src = p.getSource();
+      if (src == null) {
+        throw new IllegalStateException("Empty passage source attribute.");
+      }
+      final String field = src.split(":")[0];
+      final List<PassagesListEntry> pEntries = p.getP().stream()
+          .filter(pe -> lang.equals(StringUtils.lowerCase(pe.getLang())))
           .collect(Collectors.toList());
 
-      final PassagesGroup oPg = new PassagesGroup(pg.getSource());
-      for (final Passage p : pl) {
+      final Passages oP = new Passages();
+      oP.setSource(p.getSource());
+      for (final PassagesListEntry pEntry : pEntries) {
         LOG.info("Extracting [{}/{}], language {}.",
-            ++passageCounter, pl.size(), lang);
+            ++passageCounter, pEntries.size(), lang);
 //        LOG.debug("Term: {} Fld: {}", p.getContent(), field);
-        final List<String> refs = getMatchingDocs(p.getContent(), field);
+        final List<String> refs = getMatchingDocs(pEntry.getContent(), field);
 //        LOG.debug("Refs: {}", refs);
         final String sentence =
-            getRandomSentence(refs, lang, isValidField(field), p.getContent());
+            getRandomSentence(
+                refs, lang, isValidField(field), pEntry.getContent());
 //        LOG.debug("RSent: {}", sentence);
         if (!sentence.isEmpty()) {
-          oPg.getPassages().add(new Passage(lang, sentence));
+          final PassagesListEntry plEntry = new PassagesListEntry();
+          plEntry.setLang(lang);
+          plEntry.setContent(sentence);
+          oP.getP().add(plEntry);
         }
       }
-      if (oPg.getPassages().isEmpty()) {
-        LOG.warn("No content for source {}.", pg.getSource());
+      if (oP.getP().isEmpty()) {
+        LOG.warn("No content for source {}.", p.getSource());
       } else {
-        this.topicsTargetXML.getPassagesGroups().add(oPg);
+        this.topicsXMLResult.getPassagesList().getPassages().add(oP);
       }
 //      LOG.debug("==PG {}", this.topicsTargetXML.getPassagesGroups().size());
     }
@@ -302,8 +357,6 @@ public final class ScoreTermSentenceExtractor
 //    return pickSentence(analyzeSentence(sentence, term));
   }
 
-  private final SentenceComparator sentenceComparator =
-      new SentenceComparator();
   private String pickSentence(final List<String> sentences) {
     sentences.sort(this.sentenceComparator);
 
@@ -321,7 +374,9 @@ public final class ScoreTermSentenceExtractor
     } else {
       // get sentences from the upper thirds only
       final int lowerBound = items - (int) ((double) items / 3.5);
-      LOG.debug("sentence: pick {}->{}-{}", items, lowerBound, items);
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("sentence: pick {}->{}-{}", items, lowerBound, items);
+      }
       return sentences.get(RandomValue.getInteger(lowerBound, items - 1));
     }
   }
@@ -334,7 +389,7 @@ public final class ScoreTermSentenceExtractor
             .replaceAll("\\s+", " ")
     );
 
-    final List<String> matchingSentences = new ArrayList(50);
+    final List<String> matchingSentences = new ArrayList<>(50);
 
     for (final String s : sentences) {
       QueryUtils.tokenizeQueryString(s, this.analyzer).stream()
@@ -352,7 +407,7 @@ public final class ScoreTermSentenceExtractor
       throws ParseException, IOException {
     return StreamUtils.stream(
         FeedbackQuery.getMinMax(this.searcher, new TryExactTermsQuery(
-                this.analyzer, q, fld), 1, 500))
+            this.analyzer, q, fld), 1, 500))
         .mapToObj(id -> {
           try {
             return this.cliParams.idxReader.document(id,
@@ -370,47 +425,41 @@ public final class ScoreTermSentenceExtractor
    */
   private static final class Params {
     /**
+     * Logger instance for this class.
+     */
+    private static final Logger LOG = LoggerFactory.getLogger(Params.class);
+    /**
      * Source file containing extracted claims.
      */
-    @Nullable
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-i", metaVar = "FILE", required = true,
         usage = "Input file containing extracted passages")
     File sourceFile;
     /**
      * Target file file for writing scored claims.
      */
-    @Nullable
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-o", metaVar = "FILE", required = true,
         usage = "Output file for writing scored passages")
     File targetFile;
     /**
      * Directory containing the target Lucene index.
      */
-    @Nullable
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = CliParams.INDEX_DIR_P, metaVar = CliParams.INDEX_DIR_M,
         required = true, usage = CliParams.INDEX_DIR_U)
     File idxDir;
     /**
      * Single language.
      */
-    @Nullable
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-lang", metaVar = "language", required = true,
         usage = "Process for the defined language.")
     String lang;
     /**
      * {@link Directory} instance pointing at the Lucene index.
      */
-    @Nullable
     private Directory luceneDir;
     /**
      * {@link IndexReader} to use for accessing the Lucene index.
      */
     @SuppressWarnings("PackageVisibleField")
-    @Nullable
     IndexReader idxReader;
 
     /**
@@ -421,6 +470,8 @@ public final class ScoreTermSentenceExtractor
 
     /**
      * Check, if the defined files and directories are available.
+     *
+     * @throws IOException Thrown on low-level i/o-errors
      */
     void check()
         throws IOException {
@@ -452,11 +503,19 @@ public final class ScoreTermSentenceExtractor
     }
   }
 
+  /**
+   * Compares two sentences by roughly estimating the number of words.
+   */
   private static class SentenceComparator
       implements Comparator<String> {
+    SentenceComparator() {
+    }
+
     @Override
     public int compare(final String o1, final String o2) {
-      return Integer.compare(o1.split(" ").length, o2.split(" ").length);
+      return Integer.compare(
+          StringUtils.estimatedWordCount(o1),
+          StringUtils.estimatedWordCount(o2));
     }
   }
 }

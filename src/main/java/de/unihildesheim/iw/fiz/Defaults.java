@@ -114,6 +114,6 @@ public final class Defaults {
     /**
      * How many times to retry a connection.
      */
-    public static final int MAX_RETRY = 15;
+    public static final int MAX_RETRY = 50;
   }
 }

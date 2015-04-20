@@ -21,42 +21,43 @@ import de.unihildesheim.iw.Buildable.BuildableException;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.cli.CliBase;
-import de.unihildesheim.iw.cli.CliCommon;
 import de.unihildesheim.iw.cli.CliParams;
 import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers;
 import de.unihildesheim.iw.lucene.index.DataProviderException;
 import de.unihildesheim.iw.lucene.index.FDRIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.FDRIndexDataProvider.Builder;
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader;
-import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader.TermFilter.CommonTerms;
-import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader.TermFilter.StopwordWrapper;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
-import de.unihildesheim.iw.lucene.index.IndexUtils;
 import de.unihildesheim.iw.lucene.query.QueryParserType;
-import de.unihildesheim.iw.lucene.scoring.clarity.AbstractClarityScoreCalculation.AbstractBuilder;
+import de.unihildesheim.iw.lucene.scoring.clarity
+    .AbstractClarityScoreCalculation.AbstractCSCBuilder;
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation;
-import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation.ClarityScoreCalculationException;
+import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation
+    .ClarityScoreCalculationException;
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreResult;
 import de.unihildesheim.iw.lucene.scoring.clarity.DefaultClarityScore;
-import de.unihildesheim.iw.lucene.scoring.clarity.DefaultClarityScoreConfiguration;
+import de.unihildesheim.iw.lucene.scoring.clarity
+    .DefaultClarityScoreConfiguration;
 import de.unihildesheim.iw.lucene.scoring.clarity.ImprovedClarityScore;
-import de.unihildesheim.iw.lucene.scoring.clarity.ImprovedClarityScoreConfiguration;
+import de.unihildesheim.iw.lucene.scoring.clarity
+    .ImprovedClarityScoreConfiguration;
 import de.unihildesheim.iw.lucene.scoring.clarity.ScorerType;
 import de.unihildesheim.iw.lucene.scoring.clarity.SimplifiedClarityScore;
-import de.unihildesheim.iw.lucene.scoring.data.DefaultFeedbackProvider;
+import de.unihildesheim.iw.lucene.scoring.data.CommonTermsFeedbackProvider;
+import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
+import de.unihildesheim.iw.storage.xml.topics.PassagesListEntry;
+import de.unihildesheim.iw.storage.xml.topics.ScoreEntry;
+import de.unihildesheim.iw.storage.xml.topics.TopicsXML;
+import de.unihildesheim.iw.storage.xml.topics.TopicsXML.MetaTags;
 import de.unihildesheim.iw.util.Configuration;
-import de.unihildesheim.iw.util.StopwordsFileReader;
+import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
-import de.unihildesheim.iw.xml.TopicsXMLWriter;
-import de.unihildesheim.iw.xml.elements.Language;
-import de.unihildesheim.iw.xml.elements.Passage;
-import de.unihildesheim.iw.xml.elements.Passage.Score;
-import de.unihildesheim.iw.xml.elements.ScoreType;
-import de.unihildesheim.iw.xml.elements.TopicPassages;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.store.FSDirectory;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -67,22 +68,20 @@ import org.slf4j.LoggerFactory;
 import javax.xml.bind.JAXBException;
 import java.io.File;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
-import java.util.Set;
 
 /**
- * Reads a {@link TopicPassages} file and scores the extracted passages.
+ * Reads a {@link TopicsXML} file and scores the extracted passages.
  *
  * @author Jens Bertram
  */
 public final class ScoreTopicPassages
     extends CliBase {
-
   /**
    * Logger instance for this class.
    */
@@ -93,13 +92,9 @@ public final class ScoreTopicPassages
    */
   private final Params cliParams = new Params();
   /**
-   * Provides access to the topicsXML file.
+   * Provides access to the topicsReader file.
    */
-  private TopicsXMLWriter topicsXML;
-  /**
-   * Results writer.
-   */
-  private XmlResult xmlResult;
+  private TopicsXML topicsXML;
 
   /**
    * Default private constructor passing a description to {@link CliBase}.
@@ -113,9 +108,10 @@ public final class ScoreTopicPassages
    * Main method.
    *
    * @param args Commandline arguments.
-   * @throws DataProviderException
+   * @throws DataProviderException Thrown if creating the {@link
+   * IndexDataProvider} fails
    */
-  public static void main(final String[] args)
+  public static void main(final String... args)
       throws DataProviderException {
     new ScoreTopicPassages().runMain(args);
     System.exit(0); // required to trigger shutdown-hooks
@@ -125,10 +121,8 @@ public final class ScoreTopicPassages
    * Class setup.
    *
    * @param args Commandline arguments.
-   * @throws DataProviderException
    */
-  private void runMain(final String[] args)
-      throws DataProviderException {
+  private void runMain(final String... args) {
     final CmdLineParser parser = new CmdLineParser(this.cliParams);
     try {
       parser.parseArgument(args);
@@ -147,16 +141,18 @@ public final class ScoreTopicPassages
     // check, if files and directories are sane
     this.cliParams.check();
 
-    // init topicsXML file
+    // init source file
     try {
-      this.topicsXML = new TopicsXMLWriter(this.cliParams.sourceFile);
+      this.topicsXML = new TopicsXML(this.cliParams.sourceFile);
+      this.topicsXML.setMeta(MetaTags.TIMESTAMP,
+          new SimpleDateFormat("yyyy-MM-dd+HH:mm:ss").toString());
+      this.topicsXML.setMeta(MetaTags.IDX_FIELDS,
+          StringUtils.join(this.cliParams.getFields(), " "));
     } catch (final JAXBException e) {
       LOG.error("Failed to load topics file.", e);
       System.exit(-1);
     }
 
-    // init results writer
-    this.xmlResult = new XmlResult(this.topicsXML);
     if (!scoreByLanguage()) {
       System.exit(-1);
     }
@@ -165,7 +161,7 @@ public final class ScoreTopicPassages
   /**
    * Print a list of known scorer implementations.
    */
-  private static void printKnownScorers() {
+  static void printKnownScorers() {
     System.out.println("Scorers:");
     for (final ScorerType st : ScorerType.values()) {
       System.out.println(" * " + st.name() + ": " + st);
@@ -187,10 +183,9 @@ public final class ScoreTopicPassages
    * set by commandline parameters {@link Params#lang}. <br> Calls {@link
    * #scoreByLanguage(String)} for each language.
    *
-   * @return True, if scoring was successfull
+   * @return True, if scoring was successful
    */
-  private boolean scoreByLanguage()
-      throws DataProviderException {
+  private boolean scoreByLanguage() {
     // error flag
     boolean succeeded;
     // check for single language
@@ -203,7 +198,7 @@ public final class ScoreTopicPassages
       succeeded = false;
     }
     try {
-      this.topicsXML.writeResults(this.cliParams.targetFile, true);
+      this.topicsXML.writeToFile(this.cliParams.targetFile, true);
     } catch (final JAXBException e) {
       LOG.error("Failed to write scoring results.", e);
       succeeded = false;
@@ -215,13 +210,12 @@ public final class ScoreTopicPassages
    * Runs the scoring for a single language.
    *
    * @param lang Language to score. Uses a two-char language code.
-   * @return True, if scoring was successfull
-   * @throws IOException
-   * @throws BuildableException
-   * @throws DataProviderException
+   * @return True, if scoring was successful
+   * @throws IOException Thrown on low-level i/o-errors
+   * @throws BuildableException Thrown, if building the instance has failed
    */
   private boolean scoreByLanguage(final String lang)
-      throws IOException, BuildableException, DataProviderException {
+      throws IOException, BuildableException {
     // error flag
     boolean succeeded = true;
     // get an analyzer for the target language
@@ -232,40 +226,25 @@ public final class ScoreTopicPassages
           "No analyzer for language '" + lang + "'.");
     }
 
-    final Set<String> sWords = CliCommon.getStopwords(lang,
-        this.cliParams.stopFileFormat, this.cliParams.stopFilePattern);
-
-    // suffix all fields by language
-    final Set<String> langFields =
-        new HashSet<>(this.cliParams.fields.length);
-    Collections.addAll(langFields, this.cliParams.fields);
-
     // create the IndexDataProvider
     LOG.info("Initializing IndexDataProvider. lang={} fields={}", lang,
-        langFields);
+        this.cliParams.getFields());
 
     final DirectoryReader reader = DirectoryReader.open(
         FSDirectory.open(this.cliParams.idxDir.toPath()));
-    final IndexReader wReader = new FilteredDirectoryReader
+    final FilteredDirectoryReader idxReader = new FilteredDirectoryReader
         .Builder(reader)
-        .fields(langFields)
-        .termFilter(new StopwordWrapper(sWords,
-            new CommonTerms(this.cliParams.ctTreshold)))
+        .fields(this.cliParams.getFields())
         .build();
 
     try (final FDRIndexDataProvider dataProv = new Builder()
-        .indexReader(wReader)
+        .indexReader(idxReader)
         .build()) {
-
-      analyzer = LanguageBasedAnalyzers.createInstance(LanguageBasedAnalyzers
-          .getLanguage(lang), dataProv);
-
-      // reader to access the Lucene index
-      final IndexReader idxReader =
-          IndexUtils.openReader(this.cliParams.idxDir);
+      analyzer = LanguageBasedAnalyzers.createInstance(
+          LanguageBasedAnalyzers.getLanguage(lang));
 
       // build a list of scorers to use
-      final Collection<Tuple2<AbstractBuilder, Configuration>> scorer;
+      final Collection<Tuple2<AbstractCSCBuilder, Configuration>> scorer;
 
       // choose which scorers to use
       if (this.cliParams.scorerType == null) {
@@ -286,23 +265,23 @@ public final class ScoreTopicPassages
       final TimeMeasure runTime = new TimeMeasure().start();
 
       // iterate over all scorers
-      for (final Tuple2<AbstractBuilder, Configuration> scorerT2 : scorer) {
+      for (final Tuple2<AbstractCSCBuilder, Configuration> scorerT2 : scorer) {
         // scorer is auto-closable
         try {
           final ClarityScoreCalculation csc = scorerT2.a.build();
           final Configuration cscConf = scorerT2.b;
 
-          this.xmlResult.addScoreType(csc, cscConf);
-          this.xmlResult.addLanguageStopwords(lang, sWords);
+          this.topicsXML.addScorer(csc, cscConf);
 
           // get all passages for the current language
-          final List<Passage> passages = this.topicsXML.getPassages(lang);
+          final List<PassagesListEntry> passages =
+              this.topicsXML.getPassages(lang);
           int passageCounter;
           ClarityScoreResult result;
           passageCounter = 0;
 
           // iterate over all passages using the current scorer
-          for (final Passage p : passages) {
+          for (final PassagesListEntry p : passages) {
             LOG.info("Scoring {} passages for language {}, scorer {}.",
                 passages.size(), lang, csc.getIdentifier());
             try {
@@ -313,20 +292,19 @@ public final class ScoreTopicPassages
                   runTime.getTimeString());
               result = csc.calculateClarity(p.getContent());
               @SuppressWarnings("ObjectAllocationInLoop")
-              final Score score = new Score(csc.getIdentifier(),
-                  result.getScore(), result.isEmpty());
-              score.setResult(result.getXml());
+              final ScoreEntry scoreEntry = new ScoreEntry();
+              scoreEntry.setImpl(csc.getIdentifier());
+              scoreEntry.setScore(result.getScore());
+              scoreEntry.setEmpty(result.isEmpty());
+//              scoreEntry.setResult(result.getXml());
 
-              p.getScores().add(score);
+              p.getScore().add(scoreEntry);
               LOG.info("Score {}: {}", csc.getIdentifier(), result.getScore());
             } catch (final ClarityScoreCalculationException e) {
               LOG.error("Clarity score calculation ({}) failed.",
                   csc.getIdentifier(), e);
               succeeded = false;
             }
-
-            //LOG.debug("Updating results file");
-            //this.topicsXML.writeResults(this.cliParams.targetFile, true);
           }
         } catch (final Exception e) {
           LOG.error("Error running scorer.", e);
@@ -347,21 +325,22 @@ public final class ScoreTopicPassages
    * @param analyzer Lucene analyzer
    * @return Tuple containing a DataProvider instance and a configuration object
    * for the instance
-   * @throws IOException
    */
-  private Tuple2<AbstractBuilder, Configuration>
-  getScorer(final ScorerType st,
-      final IndexDataProvider dataProv,
-      final IndexReader idxReader,
-      final Analyzer analyzer) {
-    Tuple2<AbstractBuilder, Configuration> resTuple;
+  private static Tuple2<AbstractCSCBuilder, Configuration> getScorer(
+      @NotNull final ScorerType st,
+      @NotNull final IndexDataProvider dataProv,
+      @NotNull final IndexReader idxReader,
+      @NotNull final Analyzer analyzer) {
+    final Tuple2<AbstractCSCBuilder, Configuration> resTuple;
+    final FeedbackProvider fbProv = new CommonTermsFeedbackProvider();
     switch (st) {
       case DCS:
         final DefaultClarityScoreConfiguration dcsc = new
             DefaultClarityScoreConfiguration();
-        final AbstractBuilder dcs = new DefaultClarityScore.Builder()
+        final AbstractCSCBuilder dcs = new DefaultClarityScore.Builder()
             .indexDataProvider(dataProv)
             .indexReader(idxReader)
+            .feedbackProvider(fbProv)
             .configuration(dcsc)
             .analyzer(analyzer);
         resTuple = Tuple.tuple2(dcs, dcsc);
@@ -369,15 +348,16 @@ public final class ScoreTopicPassages
       case ICS:
         final ImprovedClarityScoreConfiguration icsc = new
             ImprovedClarityScoreConfiguration();
-        final AbstractBuilder ics = new ImprovedClarityScore.Builder()
+        final AbstractCSCBuilder ics = new ImprovedClarityScore.Builder()
             .indexDataProvider(dataProv)
             .indexReader(idxReader)
+            .feedbackProvider(fbProv)
             .configuration(icsc)
             .analyzer(analyzer);
         resTuple = Tuple.tuple2(ics, icsc);
         break;
       case SCS:
-        final AbstractBuilder scs = new SimplifiedClarityScore.Builder()
+        final AbstractCSCBuilder scs = new SimplifiedClarityScore.Builder()
             .indexDataProvider(dataProv)
             .indexReader(idxReader)
             .analyzer(analyzer);
@@ -387,65 +367,7 @@ public final class ScoreTopicPassages
         // should never be reached
         throw new IllegalArgumentException("Unknown scorer type: " + st);
     }
-
-    // check for custom configuration case
-    if (this.cliParams.queryParser != null) {
-      final QueryParserType qpt = QueryParserType.getByName(
-          this.cliParams.queryParser);
-      Objects.requireNonNull(qpt, "Unknown query parser (got null).");
-      LOG.info("Using query parser: ", qpt.name());
-      resTuple.a.feedbackProvider(
-          new DefaultFeedbackProvider().queryParser(qpt.getQClass()));
-    }
     return resTuple;
-  }
-
-  /**
-   * Create the xml result.
-   */
-  private static final class XmlResult {
-    /**
-     * XML file writer instance.
-     */
-    private final TopicsXMLWriter topicsXML;
-
-    /**
-     * New instance based on a initialized XML writer.
-     *
-     * @param newTopicsXML Writer to use
-     */
-    XmlResult(final TopicsXMLWriter newTopicsXML) {
-      this.topicsXML = newTopicsXML;
-    }
-
-    /**
-     * Add a scorer to the results. The type and configuration of the scorer is
-     * used to provide information in the result file.
-     *
-     * @param csc Scorer instance
-     * @param cscConf Configuration used by instance
-     */
-    void addScoreType(final ClarityScoreCalculation csc,
-        final Configuration cscConf) {
-      final ScoreType xmlScoreType = new ScoreType();
-      xmlScoreType.setImplementation(csc.getIdentifier());
-      xmlScoreType.setConfiguration(cscConf.entryMap());
-      this.topicsXML.addScoreType(xmlScoreType);
-    }
-
-    /**
-     * Set the list of stopwords used for a language.
-     *
-     * @param lang Language identifier
-     * @param sWords List of stopwords used
-     */
-    void addLanguageStopwords(final String lang,
-        final Collection<String> sWords) {
-      final Language xmlLanguage = new Language();
-      xmlLanguage.setLanguage(lang);
-      xmlLanguage.setStopwords(sWords);
-      this.topicsXML.addStopwordsList(xmlLanguage);
-    }
   }
 
   /**
@@ -453,74 +375,63 @@ public final class ScoreTopicPassages
    */
   private static final class Params {
     /**
-     * Stopwords file format.
+     * Logger instance for this class.
      */
-    @SuppressWarnings({"PackageVisibleField"})
-    @Option(name = "-stop-format", metaVar = "(plain|snowball)", required =
-        false, depends = "-stop", usage =
-        "Format of the stopwords file. 'plain' for a simple list of " +
-            "each stopword per line. 'snowball' for a list of words and " +
-            "comments starting with '|'. Defaults to 'plain'.")
-    String stopFileFormat = "plain";
+    private static final Logger LOG = LoggerFactory.getLogger(Params.class);
+
     /**
      * Source file containing extracted claims.
      */
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-i", metaVar = "FILE", required = true,
         usage = "Input file containing extracted passages")
     File sourceFile;
+
     /**
      * Target file file for writing scored claims.
      */
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-o", metaVar = "FILE", required = true,
         usage = "Output file for writing scored passages")
     File targetFile;
+
     /**
      * Directory containing the target Lucene index.
      */
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = CliParams.INDEX_DIR_P, metaVar = CliParams.INDEX_DIR_M,
         required = true, usage = CliParams.INDEX_DIR_U)
     File idxDir;
+
     /**
      * Document-fields to query.
      */
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-fields", metaVar = "list", required = true,
         handler = StringArrayOptionHandler.class,
         usage = "List of document fields separated by spaces to query. ")
     String[] fields;
 
     /**
-     * Pattern for stopwords files.
-     */
-    @SuppressWarnings("PackageVisibleField")
-    @Option(name = "-stop", metaVar = "pattern", required = false,
-        usage = "File naming pattern for stopword lists. " +
-            "The pattern will be suffixed by '_<lang>.txt'. Stopword files " +
-            "are expected to be UTF-8 encoded.")
-    String stopFilePattern;
-    /**
      * Single languages.
      */
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-lang", metaVar = "language", required = true,
         usage = "Process only the defined language.")
     String lang;
+
     /**
      * Single languages.
      */
+    @Nullable
     @SuppressWarnings("PackageVisibleField")
     @Option(name = "-scorer", metaVar = "scorerName", required = false,
         usage = "Process only using the defined scorer.")
     String scorer;
+
     /**
      * Concrete instance of the provided {@link #scorer}. Only set, if {@link
      * #scorer} is provided and valid.
      */
     @SuppressWarnings("PackageVisibleField")
+    @Nullable
     ScorerType scorerType;
+
     /**
      * List known scorers.
      */
@@ -528,21 +439,7 @@ public final class ScoreTopicPassages
     @Option(name = "-scorers", usage = "List known scorers",
         required = false)
     boolean listScorers;
-    /**
-     * Pre-defined configuration to use.
-     */
-    @SuppressWarnings("PackageVisibleField")
-    @Option(name = "-ct-threshold",
-        required = true,
-        usage = "Common-terms threshold value")
-    double ctTreshold;
-    /**
-     * Single languages.
-     */
-    @SuppressWarnings("PackageVisibleField")
-    @Option(name = "-qparser", metaVar = "queryParserName", required = false,
-        usage = "Use a specific query parser for getting feedback.")
-    String queryParser;
+
     /**
      * List known query parsers.
      */
@@ -557,10 +454,18 @@ public final class ScoreTopicPassages
     Params() {
     }
 
+    Collection<String> docFields;
+
+    Collection<String> getFields() {
+      return this.docFields;
+    }
+
     /**
      * Check, if the defined files and directories are available.
      */
     void check() {
+      this.docFields = new HashSet<>(this.fields.length);
+      Collections.addAll(this.docFields, this.fields);
       if (this.targetFile.exists()) {
         LOG.error("Target file '" + this.targetFile + "' already exist.");
         System.exit(-1);
@@ -571,12 +476,6 @@ public final class ScoreTopicPassages
       }
       if (!this.idxDir.exists()) {
         LOG.error("Index directory'" + this.idxDir + "' does not exist.");
-        System.exit(-1);
-      }
-      if (StopwordsFileReader.getFormatFromString(this.stopFileFormat) ==
-          null) {
-        LOG.error(
-            "Unknown stopwords file format '" + this.stopFileFormat + "'.");
         System.exit(-1);
       }
       if (this.scorer != null) {

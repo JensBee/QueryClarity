@@ -24,8 +24,8 @@ import de.unihildesheim.iw.fiz.Defaults.ES_CONF;
 import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers.Language;
 import de.unihildesheim.iw.lucene.index.builder.PatentDocument;
 import de.unihildesheim.iw.util.StringUtils;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.slf4j.Logger;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -41,12 +41,6 @@ import java.util.stream.StreamSupport;
  */
 public final class Patent
     implements PatentDocument {
-  /**
-   * Logger instance for this class.
-   */
-  static final Logger LOG = org.slf4j.LoggerFactory.getLogger(Patent.class);
-  private static final String[] STRINGS = {};
-
   /**
    * Claims by language.
    */
@@ -68,7 +62,7 @@ public final class Patent
   @Nullable
   private String patId;
 
-  public static PatentDocument fromJson(final JsonObject json) {
+  public static PatentDocument fromJson(@NotNull final JsonObject json) {
     Objects.requireNonNull(json);
     final Patent p = new Patent();
 
@@ -80,8 +74,8 @@ public final class Patent
           .filter(l -> hitFieldsJson.has(ES_CONF.FLD_CLAIM_PREFIX + l))
           .collect(HashMap<Language, String>::new,
               (map, l) -> map.put(l, StreamSupport.stream(hitFieldsJson
-                          .getAsJsonArray(ES_CONF.FLD_CLAIM_PREFIX + l)
-                      .spliterator(), false)
+                  .getAsJsonArray(ES_CONF.FLD_CLAIM_PREFIX + l)
+                  .spliterator(), false)
                   .map(JsonElement::toString)
                   .collect(Collectors.joining(" "))),
               HashMap<Language, String>::putAll);
@@ -105,7 +99,7 @@ public final class Patent
       if (hitFieldsJson.has(ES_CONF.FLD_IPC)) {
         p.ipcs = StreamSupport.stream(
             hitFieldsJson.getAsJsonArray(ES_CONF.FLD_IPC).spliterator(), false)
-            .map(JsonElement::toString)
+            .map(JsonElement::getAsString)
             .collect(Collectors.toSet());
       } else {
         p.ipcs = Collections.emptySet();
@@ -118,16 +112,17 @@ public final class Patent
   }
 
   @SuppressWarnings("TypeMayBeWeakened")
-  public static String joinJsonArray(final JsonArray jArr) {
+  public static String joinJsonArray(@NotNull final JsonArray jArr) {
     return StreamSupport.stream(jArr.spliterator(), false)
-        .map(JsonElement::toString)
+        .map(JsonElement::getAsString)
         .collect(Collectors.joining(" "));
   }
 
   @Override
   @Nullable
   public String getField(
-      final RequiredFields fld, final @Nullable Language lng) {
+      @NotNull final RequiredFields fld,
+      @Nullable final Language lng) {
     switch (fld) {
       case P_ID:
         if (this.patId == null) {
@@ -135,16 +130,19 @@ public final class Patent
         }
         return this.patId;
       case CLAIMS:
-        if (lng == null) {
+        if (lng == null || this.claimsByLanguage == null) {
           return "";
         }
         return this.claimsByLanguage.get(lng);
       case DETD:
-        if (lng == null) {
+        if (lng == null || this.detdByLanguage == null) {
           return "";
         }
         return this.detdByLanguage.get(lng);
       case IPC:
+        if (this.ipcs == null) {
+          return "";
+        }
         return StringUtils.join(this.ipcs, " ");
     }
     return "";
@@ -152,14 +150,19 @@ public final class Patent
 
   @Override
   public boolean hasField(
-      final RequiredFields fld, final @Nullable Language lng) {
+      @NotNull final RequiredFields fld,
+      @Nullable final Language lng) {
     switch (fld) {
       case P_ID:
         return this.patId != null && !this.patId.isEmpty();
       case CLAIMS:
-        return lng != null && this.claimsByLanguage.get(lng) != null;
+        return lng != null &&
+            this.claimsByLanguage != null &&
+            this.claimsByLanguage.get(lng) != null;
       case DETD:
-        return lng != null && this.detdByLanguage.get(lng) != null;
+        return lng != null &&
+            this.detdByLanguage != null &&
+            this.detdByLanguage.get(lng) != null;
       case IPC:
         return this.ipcs != null && !this.ipcs.isEmpty();
     }

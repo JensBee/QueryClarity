@@ -36,6 +36,7 @@ import io.searchbox.client.config.HttpClientConfig.Builder;
 import io.searchbox.core.Search;
 import io.searchbox.core.SearchScroll;
 import io.searchbox.params.Parameters;
+import org.jetbrains.annotations.NotNull;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 import org.kohsuke.args4j.spi.StringArrayOptionHandler;
@@ -84,49 +85,14 @@ final class BuildIndex
         "Create the local term index from the remote patents repository.");
   }
 
-//  /**
-//   * Prepare a Lucene index for the given language. This will initialize a
-//   * language specific analyzer and creates the directories necessary to contain
-//   * the index.
-//   *
-//   * @param lang Language
-//   * @return Writer targeting the language specific index
-//   * @throws IOException Thrown, if setting up the index target fails
-//   */
-//  private IndexWriter getIndexWriter(final Language lang)
-//      throws IOException {
-//    // check, if we've an analyzer for the current language
-//    if (!LanguageBasedAnalyzers.hasAnalyzer(lang.toString())) {
-//      throw new IllegalArgumentException(
-//          "No analyzer for language '" + lang + "'.");
-//    }
-//
-//    // get an analyzer for the target language
-//    final Set<String> sWords = CliCommon.getStopwords(lang.toString(),
-//        this.cliParams.stopFileFormat, this.cliParams.stopFilePattern);
-//    final Analyzer analyzer = LanguageBasedAnalyzers.createInstance
-//        (LanguageBasedAnalyzers.getLanguage(lang.toString()),
-//            LuceneDefaults.VERSION, new CharArraySet(sWords, true));
-//
-//    // create Lucene index in language specific sub-directory
-//    final File target = new File(this.cliParams.dataDir.getAbsolutePath() + File
-//        .separator + lang);
-//    Files.createDirectories(target.toPath());
-//
-//    // Lucene index setup
-//    final Directory index = FSDirectory.open(target.toPath());
-//    final IndexWriterConfig config = new IndexWriterConfig(analyzer);
-//
-//    return new IndexWriter(index, config);
-//  }
-
   /**
    * Index the documents for a specific language.
    *
    * @param lang Language to index.
    * @throws Exception Thrown on REST request errors
    */
-  private void indexByLanguage(final Language lang)
+  @SuppressWarnings({"ObjectAllocationInLoop", "BusyWait"})
+  private void indexByLanguage(@NotNull final Language lang)
       throws Exception {
     LOG.info("Creating index for: {}", lang);
 
@@ -135,6 +101,7 @@ final class BuildIndex
 
     // get all claims from patents in the specific language including
     // detailed technical description, if available
+    @SuppressWarnings("HardcodedLineSeparator")
     final String query =
         "{\n" +
             // match all documents - filter later on
@@ -185,29 +152,9 @@ final class BuildIndex
             "      }\n" +
             "    ]\n" +
             "  }\n" +
-            "}";
-
-//    final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-//    searchSourceBuilder.query(QueryBuilders.filteredQuery(
-//        QueryBuilders.matchAllQuery(),
-//        FilterBuilders.orFilter(
-//            FilterBuilders.existsFilter(fld_claim),
-//            FilterBuilders.andFilter(
-//                FilterBuilders.termFilter(ES_CONF.FLD_DESC_LNG,
-//                    lang.toString()),
-//                FilterBuilders.existsFilter(ES_CONF.FLD_DESC)
-//            )
-//        )
-//    ));
-//    searchSourceBuilder.field(fld_claim); // claims
-//    searchSourceBuilder.field(ES_CONF.FLD_DOCID); // document id
-//    searchSourceBuilder.field(ES_CONF.FLD_DESC); // detailed description
-//    // detailed description language
-//    searchSourceBuilder.field(ES_CONF.FLD_DESC_LNG);
-//    searchSourceBuilder.field(ES_CONF.FLD_PATREF); // patent reference
+            '}';
 
     // setup the search using scan & scroll
-//    final Search search = new Search.Builder(searchSourceBuilder.toString())
     final Search search = new Search.Builder(query)
         // index to query
         .addIndex(ES_CONF.INDEX)
@@ -237,10 +184,11 @@ final class BuildIndex
         .get("total").toString();
     int currentResultSize = hits.size();
 
-    LOG.debug("{} - hits:{}/{} scroll-id:{}", lang, currentResultSize,
-        hitsTotal, scrollId);
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("{} - hits:{}/{} scroll-id:{}", lang, currentResultSize,
+          hitsTotal, scrollId);
+    }
 
-//    final IndexWriter writer = getIndexWriter(lang);
     final Path targetPath = new File(this.cliParams.dataDir.getAbsolutePath() +
         File.separator + lang).toPath();
     Files.createDirectories(targetPath);
@@ -292,7 +240,9 @@ final class BuildIndex
    * @throws IOException Thrown, if writing the Lucene index fails
    */
   @SuppressWarnings("ObjectAllocationInLoop")
-  private void indexResults(final IndexBuilder writer, final JsonArray hits)
+  private static void indexResults(
+      @NotNull final IndexBuilder writer,
+      @NotNull final JsonArray hits)
       throws IOException {
     if (hits.size() <= 0) {
       LOG.warn("No hits! ({})", hits.size());
@@ -303,51 +253,6 @@ final class BuildIndex
     for (final JsonElement hit : hits) {
       // parse JSON data to model
       writer.index(Patent.fromJson(hit.getAsJsonObject()));
-//      // create Lucene document from model
-//      final Document patDoc = new Document();
-//      boolean hasData = false;
-//
-//      patDoc.add(new StringField(IndexBuilder.LUCENE_CONF.FLD_DOC_ID,
-//          p.getId(), Store.YES));
-//      patDoc.add(new StringField(IndexBuilder.LUCENE_CONF.FLD_PAT_ID,
-//          p.getPatId(), Store.YES));
-//
-//      if (p.getPatId().isEmpty()) {
-//        LOG.warn("Patent reference was empty! id:{}", p.getId());
-//      }
-//
-//      // test, if we have claim data
-//      if (p.hasClaims(lang)) {
-//        if (this.cliParams.useTermVectors) {
-//          patDoc.add(new VecTextField(IndexBuilder.LUCENE_CONF.FLD_CLAIMS,
-//              p.getClaimsAsString(lang), Store.NO));
-//        } else {
-//          patDoc.add(new TextField(IndexBuilder.LUCENE_CONF.FLD_CLAIMS,
-//              p.getClaimsAsString(lang), Store.NO));
-//        }
-//        hasData = true;
-//      }
-//
-//      // test, if we have detailed description data
-//      if (p.hasDetd(lang)) {
-//        if (this.cliParams.useTermVectors) {
-//          patDoc.add(new VecTextField(IndexBuilder.LUCENE_CONF.FLD_DETD,
-//              p.getDetd(lang), Store.NO));
-//        } else {
-//          patDoc.add(new TextField(IndexBuilder.LUCENE_CONF.FLD_DETD,
-//              p.getDetd(lang), Store.NO));
-//        }
-//        hasData = true;
-//      }
-//
-//      // check if there's something to index
-//      if (hasData) {
-//        LOG.trace("Add doc:{} pat:{} [claims:{} detd:{}]",
-//            p.getId(), p.getPatId(), p.hasClaims(lang), p.hasDetd(lang));
-//        writer.addDocument(patDoc);
-//      } else {
-//        LOG.warn("No data to write for docId:{}", p.getId());
-//      }
     }
   }
 
@@ -358,7 +263,7 @@ final class BuildIndex
    * @param args Commandline arguments.
    * @throws IOException Thrown, if target directory is not accessible
    */
-  private void runMain(final String[] args)
+  private void runMain(@NotNull final String... args)
       throws Exception {
     new CmdLineParser(this.cliParams);
 
@@ -412,7 +317,7 @@ final class BuildIndex
       try {
         indexByLanguage(lng);
       } catch (final Exception e) {
-        LOG.error("Indexing failed. lang={} {}", lng, e);
+        LOG.error("Indexing failed. lang={}", lng, e);
         throw e;
       }
     }
@@ -427,7 +332,7 @@ final class BuildIndex
    * @param args Commandline arguments
    * @throws Exception Forwarded
    */
-  public static void main(final String[] args)
+  public static void main(@NotNull final String... args)
       throws Exception {
     new BuildIndex().runMain(args);
     System.exit(0); // required to trigger shutdown-hooks
@@ -438,9 +343,13 @@ final class BuildIndex
    */
   private static final class Params {
     /**
+     * Logger instance for this class.
+     */
+    private static final Logger LOG =
+        org.slf4j.LoggerFactory.getLogger(Params.class);
+    /**
      * Directory for storing working data.
      */
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = CliParams.DATA_DIR_P, metaVar = CliParams.DATA_DIR_M,
         required = true, usage = CliParams.DATA_DIR_U)
     File dataDir;
@@ -448,17 +357,15 @@ final class BuildIndex
     /**
      * Pattern for stopwords files.
      */
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-stop", metaVar = "pattern", required = false,
         usage = "File naming pattern for stopword lists. " +
             "The pattern will be suffixed by '_<lang>.txt' (all lower case). " +
             "Stopword files are expected to be UTF-8 encoded.")
-    String stopFilePattern;
+    String stopFilePattern = "";
 
     /**
      * Stopwords file format.
      */
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-stop-format", metaVar = "(plain|snowball)",
         required = false, depends = "-stop",
         usage = "Format of the stopwords file. 'plain' for a simple list of " +
@@ -469,7 +376,6 @@ final class BuildIndex
     /**
      * Single languages.
      */
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-only-lang", metaVar = "language", required = false,
         usage = "Process only the defined language. Overrides -skip-lang'.")
     String onlyLang;
@@ -477,7 +383,7 @@ final class BuildIndex
     /**
      * Skip languages.
      */
-    @SuppressWarnings({"PackageVisibleField", "ZeroLengthArrayAllocation"})
+    @SuppressWarnings("ZeroLengthArrayAllocation")
     @Option(name = "-skip-lang", metaVar = "<languages>", required = false,
         handler = StringArrayOptionHandler.class,
         usage = "Skip the listed languages while processing. Separate each " +
@@ -485,9 +391,17 @@ final class BuildIndex
     String[] skipLang = {};
 
     /**
+     * Empty constructor to allow access from outer class.
+     */
+    Params() {
+      // empty
+    }
+
+    /**
      * Check, if the defined files and directories are available.
      */
     void check() {
+      assert this.dataDir != null;
       if (!this.dataDir.exists()) {
         LOG.info("Data directory'{}' does not exist and will be created.",
             this.dataDir);
@@ -499,8 +413,8 @@ final class BuildIndex
 
       if (StopwordsFileReader.getFormatFromString(this.stopFileFormat) ==
           null) {
-        LOG.error(
-            "Unknown stopwords file format '" + this.stopFileFormat + "'.");
+        LOG.error("Unknown stopwords file format '" +
+            this.stopFileFormat + "'.");
         System.exit(-1);
       }
     }

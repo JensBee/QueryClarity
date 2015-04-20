@@ -21,6 +21,7 @@ import de.unihildesheim.iw.fiz.Defaults.ES_CONF;
 import io.searchbox.action.Action;
 import io.searchbox.client.JestClient;
 import io.searchbox.client.JestResult;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 
 import java.net.SocketTimeoutException;
@@ -35,18 +36,24 @@ public final class ESUtils {
    */
   private static final Logger LOG =
       org.slf4j.LoggerFactory.getLogger(ESUtils.class);
-  /** Used to generate randomized delays for request throttling. */
-  private static final Random rand = new Random();
+  /**
+   * Used to generate randomized delays for request throttling.
+   */
+  private static final Random RAND = new Random();
 
   /**
    * Runs a REST request against the ES instance. Optionally retrying the
    * request {@link ES_CONF#MAX_RETRY} times, if a request has timed out.
+   *
+   * @param client Jest client
    * @param action Request action
    * @return Request result
    * @throws Exception Thrown on any error while performing the request
    */
-  public static JestResult runRequest(final JestClient client, final Action
-      action)
+  @SuppressWarnings("BusyWait")
+  public static JestResult runRequest(
+      @NotNull final JestClient client,
+      @NotNull final Action action)
       throws Exception {
     int tries = 0;
     while (tries < ES_CONF.MAX_RETRY) {
@@ -54,15 +61,16 @@ public final class ESUtils {
         return client.execute(action);
       } catch (final SocketTimeoutException ex) {
         // connection timed out - retry after a short delay
-        final int delay = (1 + rand.nextInt(10)) * 100;
+        final int delay = (1 + RAND.nextInt(10)) * 100;
         LOG.warn("Timeout - retry ~{}..", delay);
         Thread.sleep((long) delay);
         tries++;
       }
     }
     // retries maxed out
-    throw new RuntimeException("Giving up trying to connect after "+tries+" " +
-        "retries.");
+    throw new RuntimeException(
+        "Giving up trying to connect after " + tries + ' ' +
+            "retries.");
   }
 
 }

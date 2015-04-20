@@ -19,10 +19,10 @@ package de.unihildesheim.iw.fiz.cli;
 
 import au.com.bytecode.opencsv.CSVReader;
 import de.unihildesheim.iw.cli.CliBase;
-import de.unihildesheim.iw.xml.elements.Passage;
-import de.unihildesheim.iw.xml.elements.PassagesGroup;
-import de.unihildesheim.iw.xml.elements.TopicPassages;
-import org.jetbrains.annotations.Nullable;
+import de.unihildesheim.iw.storage.xml.topics.PassagesList;
+import de.unihildesheim.iw.storage.xml.topics.PassagesList.Passages;
+import de.unihildesheim.iw.storage.xml.topics.PassagesListEntry;
+import de.unihildesheim.iw.storage.xml.topics.TopicPassages;
 import org.kohsuke.args4j.Option;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,9 +36,11 @@ import java.io.IOException;
 
 /**
  * Convert term dumps listed as CSV file to scoring XML format.
+ *
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public final class TermDumpToScoringXml extends CliBase {
+public final class TermDumpToScoringXml
+    extends CliBase {
   /**
    * Logger instance for this class.
    */
@@ -61,7 +63,7 @@ public final class TermDumpToScoringXml extends CliBase {
    * Main method.
    *
    * @param args Commandline arguments.
-   * @throws IOException
+   * @throws IOException Thrown on low-level i/o-errors
    */
   public static void main(final String[] args)
       throws IOException, JAXBException {
@@ -79,7 +81,6 @@ public final class TermDumpToScoringXml extends CliBase {
   private enum CSV_FLD {
     INDEX(0), TERM(1), RELDF(2), BIN(3), FIELD(4);
 
-
     final int idx;
 
     CSV_FLD(final int newIdx) {
@@ -89,40 +90,54 @@ public final class TermDumpToScoringXml extends CliBase {
 
   /**
    * Reads the CSV term list and converts them to XML.
+   * @throws IOException Thrown on low-level i/o-errors
+   * @throws JAXBException Thrown, if generating XML content fails
    */
+  @SuppressWarnings("ObjectAllocationInLoop")
   private void runExtraction()
       throws IOException, JAXBException {
+    try (final CSVReader csvReader =
+             new CSVReader(new FileReader(this.cliParams.csvFile))) {
 
-    final CSVReader csvReader = new CSVReader(new FileReader(this.cliParams
-        .csvFile));
+      final JAXBContext jaxbContext =
+          JAXBContext.newInstance(TopicPassages.class);
+      final Marshaller jaxbMarshaller = jaxbContext.createMarshaller();
+      // pretty-print output
+      jaxbMarshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);
 
-    final JAXBContext jaxbContext = JAXBContext.newInstance(
-        TopicPassages.class,
-        PassagesGroup.class,
-        Passage.class);
-    final Marshaller jaxbMarshaller = jaxbContext.createMarshaller();
-    // pretty-print output
-    jaxbMarshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);
+      final TopicPassages topicPassages = new TopicPassages();
+      PassagesList passagesList = topicPassages.getPassagesList();
+      if (passagesList == null) {
+        topicPassages.setPassagesList(new PassagesList());
+        passagesList = topicPassages.getPassagesList();
+      }
 
-    final TopicPassages topicPassages = new TopicPassages();
+      // line[] = index, term, reldf, bin, field
+      String[] line = csvReader.readNext();
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("header: {}", line);
+      }
 
-    // line[] = index, term, reldf, bin, field
-    String[] line = csvReader.readNext();
-    LOG.debug("header: {}", line);
-    line = csvReader.readNext();
-    while (line != null) {
-      final PassagesGroup pGroup = new PassagesGroup(
-          line[CSV_FLD.FIELD.idx] + ':' + line[CSV_FLD.BIN.idx] + ':' +
-              line[CSV_FLD.RELDF.idx]);
-      pGroup.getPassages().add(
-          new Passage(this.cliParams.lang, line[CSV_FLD.TERM.idx]));
-
-      topicPassages.getPassageGroups().add(pGroup);
       line = csvReader.readNext();
+      while (line != null) {
+        final Passages passages = new Passages();
+        passages.setSource(line[CSV_FLD.FIELD.idx] + ':' +
+            line[CSV_FLD.BIN.idx] + ':' +
+            line[CSV_FLD.RELDF.idx]);
+        final PassagesListEntry passage = new PassagesListEntry();
+        passage.setLang(this.cliParams.lang);
+        passage.setContent(line[CSV_FLD.TERM.idx]);
+        passages.getP().add(passage);
+        passagesList.getPassages().add(passages);
+        line = csvReader.readNext();
 
-      LOG.debug("read: {}", line);
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("read: {}", line);
+        }
+      }
+
+      jaxbMarshaller.marshal(topicPassages, this.cliParams.targetFile);
     }
-    jaxbMarshaller.marshal(topicPassages, this.cliParams.targetFile);
   }
 
   /**
@@ -130,29 +145,32 @@ public final class TermDumpToScoringXml extends CliBase {
    */
   private static final class Params {
     /**
+     * Logger instance for this class.
+     */
+    private static final Logger LOG = LoggerFactory.getLogger(Params.class);
+
+    /**
      * Target file for extracted claims.
      */
-    @Nullable
-    @SuppressWarnings("PackageVisibleField")
     @Option(name = "-out", aliases = "-o", usage = "Output file",
         metaVar = "FILE", required = true)
     File targetFile;
+
     /**
      * Topics file.
      */
-    @Nullable
     @Option(name = "-csvfile", metaVar = "FILE",
         required = true,
         usage = "CSV file containing the dumped term list")
-    private File csvFile;
+    File csvFile;
+
     /**
      * Language.
      */
-    @Nullable
     @Option(name = "-lang", metaVar = "language",
         required = true,
         usage = "CSV file terms language (2 char code)")
-    private String lang;
+    String lang;
 
     /**
      * Accessor for parent class.
