@@ -49,7 +49,11 @@ public abstract class TestCase {
   public TestRule watcher = new TestWatcher() {
     @Override
     protected void starting(final Description description) {
-      log.info("{} being run...", description.getMethodName());
+      TestCase.this.log.info("{} being run...", description.getMethodName());
     }
   };
+
+  protected Logger getLog() {
+    return this.log;
+  }
 }
