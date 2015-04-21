@@ -1303,11 +1303,6 @@ public final class FilteredDirectoryReader
         throws IOException {
       final DocIdSet docsWithField = new EmptyFieldFilter(this.field)
           .getDocIdSet(this.ctx.originContext, this.ctx.docBits);
-
-      //int count = 0;
-      //if (docsWithField != null) {
-        //count = DocIdSetUtils.cardinality(docsWithField);
-      //}
       return DocIdSetUtils.cardinality(docsWithField);
     }
 
@@ -1370,13 +1365,6 @@ public final class FilteredDirectoryReader
           if (nextTerm == null) {
             return false;
           } else {
-            //noinspection ConstantConditions
-            /* already checked in TermsEnum
-            if (FilteredTerms.this.ctx.termFilter == null ||
-                FilteredTerms.this.ctx
-                    .termFilter.isAccepted(te, nextTerm)) {
-              action.accept((long) te.docFreq());
-            }*/
             action.accept((long) this.te.docFreq());
             return true;
           }
