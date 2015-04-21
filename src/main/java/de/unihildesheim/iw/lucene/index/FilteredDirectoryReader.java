@@ -381,20 +381,13 @@ public final class FilteredDirectoryReader
         final List<String> finalFields =
             new ArrayList<>(this.in.fields().size());
         for (final String field : fields) {
-          @Nullable DocIdSet docsWithField = this.flrContext
-              .cachedFieldValueFilters.get(field);
-          if (docsWithField == null) {
-            docsWithField = new EmptyFieldFilter(field)
+          final DocIdSet docsWithField = new EmptyFieldFilter(field)
                 .getDocIdSet(this.in.getContext(),
                     null); // isAccepted all docs, no deletions
-            this.flrContext.cachedFieldValueFilters.put(field, docsWithField);
-          }
 
           // may be null, if no document matches
-          if (docsWithField != null) {
             finalFields.add(field);
             StreamUtils.stream(docsWithField).forEach(filterBits::set);
-          }
         }
 
         fields = finalFields.isEmpty() ? NO_FIELDS :
@@ -939,10 +932,6 @@ public final class FilteredDirectoryReader
   @SuppressWarnings("PackageVisibleInnerClass")
   static final class FLRContext {
     /**
-     * Store cached results of {@link EmptyFieldFilter}s.
-     */
-    final Map<String, DocIdSet> cachedFieldValueFilters;
-    /**
      * Bits with visible documents bits turned on.
      */
     FixedBitSet docBits;
@@ -968,13 +957,6 @@ public final class FilteredDirectoryReader
      * True, if all bits are set (all documents are enabled).
      */
     boolean allBitsSet;
-
-    /**
-     * Context object constructor.
-     */
-    FLRContext() {
-      this.cachedFieldValueFilters = new ConcurrentHashMap<>(15);
-    }
 
     /**
      * Get the bits for all available documents or {@code null} if all documents
@@ -1319,20 +1301,14 @@ public final class FilteredDirectoryReader
     @Override
     public int getDocCount()
         throws IOException {
+      final DocIdSet docsWithField = new EmptyFieldFilter(this.field)
+          .getDocIdSet(this.ctx.originContext, this.ctx.docBits);
 
-      @Nullable DocIdSet docsWithField =
-          this.ctx.cachedFieldValueFilters.get(this.field);
-      if (docsWithField == null && this.ctx.originContext != null) {
-        docsWithField = new EmptyFieldFilter(this.field).getDocIdSet(
-            this.ctx.originContext, this.ctx.docBits);
-        this.ctx.cachedFieldValueFilters.put(this.field, docsWithField);
-      }
-
-      int count = 0;
-      if (docsWithField != null) {
-        count = DocIdSetUtils.cardinality(docsWithField);
-      }
-      return count;
+      //int count = 0;
+      //if (docsWithField != null) {
+        //count = DocIdSetUtils.cardinality(docsWithField);
+      //}
+      return DocIdSetUtils.cardinality(docsWithField);
     }
 
     @Override
