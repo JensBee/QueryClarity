@@ -444,7 +444,7 @@ public final class FilteredDirectoryReader
 
       if (LOG.isDebugEnabled()) {
         LOG.debug("Filter (doc): {} -> {}",
-            this.flrContext.maxDoc, filterBits.cardinality());
+            this.flrContext.docBits.cardinality(), filterBits.cardinality());
       }
       this.flrContext.docBits = filterBits;
     }
@@ -781,9 +781,11 @@ public final class FilteredDirectoryReader
         }
       };
 
-      try (final FilteredDirectoryReader fdr = new FilteredDirectoryReader(
-          this.in, srw, this.f, this.fn, this.qf, this.tf)) {
-        return fdr;
+
+      final FilteredDirectoryReader fdr;
+      try {
+        return new FilteredDirectoryReader(
+            this.in, srw, this.f, this.fn, this.qf, this.tf);
       } catch (final IOException e) {
         throw new BuildException("Failed to create filtered reader.", e);
       }
@@ -975,10 +977,11 @@ public final class FilteredDirectoryReader
     }
 
     /**
-     * Get the bits for all available documents or {@code null} if all
-     * documents in index are made available.
-     * @return {@code Null}, if all documents in index are available,
-     * otherwise a bitset with all enabled documents
+     * Get the bits for all available documents or {@code null} if all documents
+     * in index are made available.
+     *
+     * @return {@code Null}, if all documents in index are available, otherwise
+     * a bitset with all enabled documents
      */
     @Nullable
     FixedBitSet getDocBitsOrNull() {
