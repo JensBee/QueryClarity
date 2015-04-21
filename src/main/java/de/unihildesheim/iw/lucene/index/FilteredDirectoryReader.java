@@ -1121,7 +1121,8 @@ public final class FilteredDirectoryReader
         } else {
           // less than half of the documents are enabled, so add up all
           // values manually for all enabled documents
-          pe = this.in.postings(this.ctx.docBits, null,
+//          pe = this.in.postings(this.ctx.docBits, null,
+          pe = this.in.postings(this.ctx.getDocBitsOrNull(), null,
               (int) PostingsEnum.FREQS);
           // add up values
           newTTF = 0L;
@@ -1302,7 +1303,7 @@ public final class FilteredDirectoryReader
     public int getDocCount()
         throws IOException {
       final DocIdSet docsWithField = new EmptyFieldFilter(this.field)
-          .getDocIdSet(this.ctx.originContext, this.ctx.docBits);
+          .getDocIdSet(this.ctx.originContext, this.ctx.getDocBitsOrNull());
       return DocIdSetUtils.cardinality(docsWithField);
     }
 
