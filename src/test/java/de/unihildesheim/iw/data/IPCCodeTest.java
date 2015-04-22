@@ -20,6 +20,7 @@ package de.unihildesheim.iw.data;
 import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.data.IPCCode.IPCRecord;
 import de.unihildesheim.iw.data.IPCCode.IPCRecord.Field;
+import de.unihildesheim.iw.data.IPCCode.Parser;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.LoggerFactory;
@@ -32,6 +33,7 @@ import java.util.stream.IntStream;
  *
  * @author Jens Bertram (code@jens-bertram.net)
  */
+@SuppressWarnings("JavaDoc")
 public class IPCCodeTest
     extends TestCase {
   public IPCCodeTest() {
@@ -65,7 +67,7 @@ public class IPCCodeTest
                           sgrp < 10 ? "0" + sgrp : String.valueOf(sgrp);
                       final IPCRecord ipcRec = IPCCode.parse(
                           String.valueOf(sec) + clsStr + scls + grp +
-                              IPCCode.DEFAULT_SEPARATOR + sgrpStr);
+                              IPCCode.Parser.DEFAULT_SEPARATOR + sgrpStr);
                       Assert.assertEquals(
                           "Code expected to be valid (" + ipcRec + ").",
                           ipcRec.getSetFields().size(), expectedFieldsCount);
@@ -84,5 +86,44 @@ public class IPCCodeTest
     Assert.assertEquals(
         "Code expected to be valid (" + ipc + ").",
         ipc.getSetFields().size(), expectedFieldsCount);
+  }
+
+  @SuppressWarnings("ImplicitNumericConversion")
+  @Test
+  public void testParse_zeroPad() {
+    final Parser ipcParser = new Parser();
+    ipcParser.allowZeroPad(true);
+    ipcParser.separatorChar('-');
+    IPCRecord ipc;
+
+    ipc = ipcParser.parse("A61K0000-0000");
+    Assert.assertEquals(
+        "Code expected to be valid (" + ipc + ").",
+        3L, ipc.getSetFields().size());
+
+    ipc = ipcParser.parse("A61K0-0000");
+    Assert.assertEquals(
+        "Code expected to be valid (" + ipc + ").",
+        3L, ipc.getSetFields().size());
+
+    ipc = ipcParser.parse("A61K-0000");
+    Assert.assertEquals(
+        "Code expected to be valid (" + ipc + ").",
+        3L, ipc.getSetFields().size());
+
+    ipc = ipcParser.parse("A61K");
+    Assert.assertEquals(
+        "Code expected to be valid (" + ipc + ").",
+        3L, ipc.getSetFields().size());
+
+    ipc = ipcParser.parse("A61K0000");
+    Assert.assertEquals(
+        "Code expected to be valid (" + ipc + ").",
+        3L, ipc.getSetFields().size());
+
+    ipc = ipcParser.parse("A61K00-0");
+    Assert.assertEquals(
+        "Code expected to be valid (" + ipc + ").",
+        3L, ipc.getSetFields().size());
   }
 }
