@@ -17,13 +17,17 @@
 
 package de.unihildesheim.iw.cli;
 
-import de.unihildesheim.iw.data.IPCCode;
+import de.unihildesheim.iw.Buildable.BuildException;
+import de.unihildesheim.iw.data.IPCCode.Parser;
+import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader.Builder;
 import de.unihildesheim.iw.lucene.index.builder.IndexBuilder.LUCENE_CONF;
+import de.unihildesheim.iw.lucene.query.IPCClassQuery;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
@@ -60,12 +64,12 @@ public class DumpIPCs
   }
 
   public static void main(final String... args)
-      throws IOException {
+      throws IOException, BuildException {
     new DumpIPCs().runMain(args);
   }
 
   private void runMain(final String... args)
-      throws IOException {
+      throws IOException, BuildException {
     new CmdLineParser(this.cliParams);
     parseWithHelp(this.cliParams, args);
 
@@ -79,8 +83,21 @@ public class DumpIPCs
       return;
     }
 
+    final DirectoryReader reader = DirectoryReader.open(
+        FSDirectory.open(this.cliParams.idxDir.toPath()));
+    final Builder idxReaderBuilder = new Builder(reader);
+    if (this.cliParams.ipc != null) {
+      idxReaderBuilder.queryFilter(
+          new QueryWrapperFilter(IPCClassQuery.get(this.cliParams.ipc)));
+    }
+    final IndexReader idxReader = idxReaderBuilder.build();
+
+    final Parser ipcParser = new Parser();
+    ipcParser.separatorChar(this.cliParams.sep);
+    ipcParser.allowZeroPad(this.cliParams.zeroPad);
+
     final Terms terms =
-        MultiFields.getTerms(this.cliParams.idxReader, LUCENE_CONF.FLD_IPC);
+        MultiFields.getTerms(idxReader, LUCENE_CONF.FLD_IPC);
     TermsEnum termsEnum = TermsEnum.EMPTY;
     BytesRef term;
     if (terms != null) {
@@ -89,7 +106,13 @@ public class DumpIPCs
 
       while (term != null) {
         final String code = term.utf8ToString();
-        System.out.println(code + ' ' + IPCCode.parse(code, '-').toString());
+        String codeStr;
+        try {
+          codeStr = ipcParser.parse(code).toString();
+        } catch (final IllegalArgumentException e) {
+          codeStr = "INVALID (" + code + ')';
+        }
+        System.out.println(code + ' ' + codeStr);
         term = termsEnum.next();
       }
     }
@@ -111,11 +134,37 @@ public class DumpIPCs
     @Option(name = CliParams.INDEX_DIR_P, metaVar = CliParams.INDEX_DIR_M,
         required = true, usage = CliParams.INDEX_DIR_U)
     File idxDir;
+
+    /**
+     * Directory containing the target Lucene index.
+     */
+    @Nullable
+    @Option(name = "-ipc", metaVar = "IPC",
+        required = false,
+        usage = "IPC-code (fragment) to filter returned codes.")
+    String ipc;
+
+    /**
+     * Default separator char.
+     */
+    @Option(name = "-grpsep", metaVar = "[separator char]",
+        required = false,
+        usage = "Char to use for separating main- and sub-group.")
+    char sep = Parser.DEFAULT_SEPARATOR;
+
+    /**
+     * Allow zero padding.
+     */
+    @Option(name = "-zeropad", required = false,
+        usage = "Allows padding of missing information with zeros.")
+    boolean zeroPad = false;
+
     /**
      * {@link Directory} instance pointing at the Lucene index.
      */
     @Nullable
     private Directory luceneDir;
+
     /**
      * {@link IndexReader} to use for accessing the Lucene index.
      */
