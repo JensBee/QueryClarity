@@ -20,6 +20,7 @@ package de.unihildesheim.iw.data;
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.data.IPCCode.IPCRecord.Field;
 import de.unihildesheim.iw.util.StringUtils;
+import org.apache.lucene.search.RegexpQuery;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -40,6 +41,11 @@ public final class IPCCode {
   @SuppressWarnings("PublicInnerClass")
   public static class IPCRecord {
     /**
+     * Maximum length of a full IPC-code as produced by this implementation.
+     */
+    public static final int MAX_LENGTH = 15;
+
+    /**
      * Fields available in the record.
      */
     @SuppressWarnings("PublicInnerClass")
@@ -47,29 +53,69 @@ public final class IPCCode {
       /**
        * Section.
        */
-      SECTION,
+      SECTION(1, null),
       /**
        * Class.
        */
-      CLASS,
+      CLASS(2, '0'),
       /**
        * Sub class.
        */
-      SUBCLASS,
+      SUBCLASS(1, null),
       /**
        * Main group.
        */
-      MAINGROUP,
+      MAINGROUP(4, '0'),
       /**
        * Sub group.
        */
-      SUBGROUP;
+      SUBGROUP(6, '0');
+
+      /**
+       * Maximum number of chars this field can contain.
+       */
+      final int maxLength;
+      /**
+       * Character to use for padding the field to it's maximum length
+       */
+      @Nullable
+      final Character padChar;
+
+      /**
+       * Create a new instance setting the maximum length (in chars) of the
+       * field.
+       *
+       * @param numChars Maximum chars this field can take
+       * @param padChar Character to use for padding the field to it's maximum
+       * length
+       */
+      Field(final int numChars, @Nullable final Character padChar) {
+        this.maxLength = numChars;
+        this.padChar = padChar;
+      }
     }
 
     /**
      * Record data storage.
      */
     private final Map<Field, Object> data = new EnumMap<>(Field.class);
+
+    /**
+     * Order of fields in a IPC-code.
+     */
+    private static final Field[] FIELDS_ORDER = {
+        Field.SECTION, Field.CLASS, Field.SUBCLASS, Field.MAINGROUP,
+        Field.SUBGROUP
+    };
+    /**
+     * Number of fields used to build an IPC-code string.
+     */
+    private static final int FIELDS_COUNT = FIELDS_ORDER.length;
+    /**
+     * Position of the separator char in the {@link #FIELDS_ORDER} array. The
+     * separator gets inserted after this array index.
+     */
+    private static final int SEPARATOR_AFTER = 3;
 
     /**
      * Set a record field. The passed in data is only checked for {@code null}.
@@ -132,26 +178,56 @@ public final class IPCCode {
       return fields;
     }
 
+    /**
+     * Utility function to build a string representation of the current IPC-code
+     * data.
+     *
+     * @param sb StringBuilder to append to
+     * @param f Field name
+     * @param pre Pre-value (may be null)
+     * @param post Post-value (may be null)
+     * @param pad If true, all fields will be padded to their maximum width
+     * @return True, if a value was stored for the field
+     */
+    @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
+    private boolean appendIfExists(
+        @NotNull final StringBuilder sb,
+        @NotNull final Field f,
+        @Nullable final CharSequence pre,
+        @Nullable final CharSequence post,
+        final boolean pad) {
+      final String fData = String.valueOf(this.data.get(f));
+
+      if ("null".equalsIgnoreCase(fData)) {
+        return false;
+      } else {
+        if (pre != null) {
+          sb.append(pre);
+        }
+        if (pad && fData.length() < f.maxLength) {
+          for (int i = 0; i < f.maxLength - fData.length(); i++) {
+            sb.append(f.padChar);
+          }
+          sb.append(fData);
+        } else {
+          sb.append(fData);
+        }
+        if (post != null) {
+          sb.append(post);
+        }
+        return true;
+      }
+    }
+
     @Override
     public String toString() {
-      final StringBuilder sb = new StringBuilder(100);
-      if (this.data.get(Field.SECTION) != null) {
-        sb.append("SECTION=").append(this.data.get(Field.SECTION)).append(' ');
-      }
-      if (this.data.get(Field.CLASS) != null) {
-        sb.append("CLASS=").append(this.data.get(Field.CLASS)).append(' ');
-      }
-      if (this.data.get(Field.SUBCLASS) != null) {
-        sb.append("SUBCLASS=").append(this.data.get(Field.SUBCLASS))
-            .append(' ');
-      }
-      if (this.data.get(Field.MAINGROUP) != null) {
-        sb.append("MAINGROUP=")
-            .append(this.data.get(Field.MAINGROUP)).append(' ');
-      }
-      if (this.data.get(Field.SUBGROUP) != null) {
-        sb.append("SUBGROUP=")
-            .append(this.data.get(Field.SUBGROUP)).append(' ');
+      final StringBuilder sb = new StringBuilder(60);
+
+      for (int i = 0; i < FIELDS_COUNT; i++) {
+        if (!appendIfExists(sb, FIELDS_ORDER[i],
+            FIELDS_ORDER[i].name() + '=', " ", true)) {
+          break;
+        }
       }
       return StringUtils.upperCase(sb.toString());
     }
@@ -161,6 +237,7 @@ public final class IPCCode {
      * {@link Parser#DEFAULT_SEPARATOR default} separator char.
      *
      * @return IPC-code
+     * @see #toFormattedString(char)
      */
     public String toFormattedString() {
       return toFormattedString(Parser.DEFAULT_SEPARATOR);
@@ -173,27 +250,79 @@ public final class IPCCode {
      * @return IPC-code
      */
     public String toFormattedString(final char separator) {
-      final StringBuilder sb = new StringBuilder(50);
-      if (this.data.get(Field.SECTION) != null) {
-        sb.append(this.data.get(Field.SECTION));
-
-        if (this.data.get(Field.CLASS) != null) {
-          sb.append(this.data.get(Field.CLASS));
-
-          if (this.data.get(Field.SUBCLASS) != null) {
-            sb.append(this.data.get(Field.SUBCLASS));
-
-            if (this.data.get(Field.MAINGROUP) != null) {
-              sb.append(this.data.get(Field.MAINGROUP));
-
-              if (this.data.get(Field.SUBGROUP) != null) {
-                sb.append(separator).append(this.data.get(Field.SUBGROUP));
-              }
-            }
-          }
+      final StringBuilder sb = new StringBuilder(MAX_LENGTH);
+      for (int i = 0; i < FIELDS_COUNT; i++) {
+        if (!appendIfExists(sb, FIELDS_ORDER[i],
+            i == SEPARATOR_AFTER + 1 ? String.valueOf(separator) : null,
+            null, true)) {
+          break;
         }
       }
       return StringUtils.upperCase(sb.toString());
+    }
+
+    /**
+     * Get the IPC-code as regular expression usable in {@link RegexpQuery
+     * regular expression} queries. Uses the default {@link
+     * Parser#DEFAULT_SEPARATOR separator} char.
+     *
+     * @return Regular expression usable in {@link RegexpQuery regular
+     * expression} queries
+     * @see #toRegExpString(char)
+     */
+    public String toRegExpString() {
+      return toRegExpString(Parser.DEFAULT_SEPARATOR);
+    }
+
+    /**
+     * Get the IPC-code as regular expression usable in {@link RegexpQuery
+     * regular expression} queries.
+     *
+     * @param separator Separator char
+     * @return Regular expression usable in {@link RegexpQuery regular
+     * expression} queries
+     */
+    @SuppressWarnings("ImplicitNumericConversion")
+    public String toRegExpString(final char separator) {
+      final StringBuilder sb = new StringBuilder(MAX_LENGTH << 1);
+
+      // mask separator char for usage in RegExp, if needed
+      final String sep;
+      if (separator == '\\' ||
+          separator == '+' || separator == '-' || separator == '!' ||
+          separator == '(' || separator == ')' ||
+          separator == '[' || separator == ']' ||
+          separator == '{' || separator == '}' ||
+          separator == '<' || separator == '>' ||
+          separator == '\"' || separator == '~' ||
+          separator == '*' || separator == '?' ||
+          separator == '|' || separator == '&' || separator == '^') {
+        sep = "\\" + separator;
+      } else {
+        sep = String.valueOf(separator);
+      }
+
+      for (int i = 0; i < FIELDS_COUNT; i++) {
+        final Object fData = this.data.get(FIELDS_ORDER[i]);
+
+        if (fData == null) {
+          break;
+        }
+
+        final String fStr = fData.toString();
+        final int padAmount = FIELDS_ORDER[i].maxLength - fStr.length();
+
+        if (i == SEPARATOR_AFTER + 1) {
+          sb.append(sep);
+        }
+        if (padAmount > 0) {
+          sb.append(FIELDS_ORDER[i].padChar)
+              .append('{').append(0).append(',').append(padAmount)
+              .append('}');
+        }
+        sb.append(fStr);
+      }
+      return sb.toString();
     }
 
     /**
@@ -202,6 +331,7 @@ public final class IPCCode {
      * @param f Field to get
      * @return Field value. Empty, if no field value was set.
      */
+
     public String get(@NotNull final Field f) {
       return this.data.get(f) == null ? "" : this.data.get(f).toString();
     }
