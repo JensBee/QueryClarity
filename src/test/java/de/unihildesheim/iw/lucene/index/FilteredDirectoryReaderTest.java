@@ -1321,7 +1321,6 @@ public class FilteredDirectoryReaderTest
           .build();
 
       new LeafReaderInstanceTest() {
-
         @Override
         void testHasDeletions()
             throws Exception {
