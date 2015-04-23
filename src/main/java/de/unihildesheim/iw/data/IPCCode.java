@@ -289,7 +289,7 @@ public final class IPCCode {
 
     /**
      * Get the IPC-code as regular expression usable in {@link RegexpQuery
-     * regular expression} queries.
+     * regular expression} queries and {@link Pattern} expressions.
      *
      * @param separator Separator char
      * @return Regular expression usable in {@link RegexpQuery regular
