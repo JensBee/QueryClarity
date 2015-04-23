@@ -27,6 +27,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -102,6 +103,14 @@ public final class IPCCode {
     private final Map<Field, Object> data = new EnumMap<>(Field.class);
 
     /**
+     * Get the IPC-code {@link Field fields} in parsing order.
+     * @return List of {@link Field fields} in the order they are parsed
+     */
+    public static List<Field> getFieldOrder() {
+      return Arrays.asList(FIELDS_ORDER);
+    }
+
+    /**
      * Order of fields in a IPC-code.
      */
     private static final Field[] FIELDS_ORDER = {
@@ -141,12 +150,16 @@ public final class IPCCode {
           state = false;
         } else {
           switch (f) {
+            // integer type
             case CLASS:
             case MAINGROUP:
             case SUBGROUP:
-              this.data.put(f, valueStr);
+              // Parsing as integer removes leading zeros. This simplifies
+              // comparing values of two records.
+              this.data.put(f, Integer.valueOf(valueStr));
               state = true;
               break;
+            // char type
             case SECTION:
             case SUBCLASS:
               this.data.put(f, valueStr.charAt(0));
@@ -335,6 +348,9 @@ public final class IPCCode {
               .append('}');
         }
         sb.append(fStr);
+      }
+      if (this.getSetFields().size() != FIELDS_COUNT) {
+        sb.append(".*");
       }
       return sb.toString();
     }
