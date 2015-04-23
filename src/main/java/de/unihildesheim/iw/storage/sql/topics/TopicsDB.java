@@ -17,8 +17,7 @@
 
 package de.unihildesheim.iw.storage.sql.topics;
 
-import de.unihildesheim.iw.storage.sql.Table;
-import de.unihildesheim.iw.storage.sql.TableField;
+import de.unihildesheim.iw.storage.sql.AbstractDB;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,12 +26,12 @@ import java.io.File;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.sql.Statement;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public final class TopicsDB {
+public final class TopicsDB
+    extends AbstractDB {
   /**
    * Logger instance for this class.
    */
@@ -77,65 +76,68 @@ public final class TopicsDB {
     });
   }
 
-  /**
-   * Create all required tables, if the do not exist already.
-   *
-   * @param tables List of tables to create
-   * @throws SQLException Thrown on database errors
-   */
-  public void createTables(@NotNull final Table... tables)
-      throws SQLException {
-    createTables(false, tables);
-  }
+//  /**
+//   * Create all required tables, if the do not exist already.
+//   *
+//   * @param tables List of tables to create
+//   * @throws SQLException Thrown on database errors
+//   */
+//  public void createTables(@NotNull final Table... tables)
+//      throws SQLException {
+//    createTables(false, tables);
+//  }
+//
+//  /**
+//   * Create all required tables, if the do not exist already.
+//   *
+//   * @param force If true, deletes any table that already exists before
+// creating
+//   * it
+//   * @param tables List of tables to create
+//   * @throws SQLException Thrown on database errors
+//   */
+//  public void createTables(final boolean force, @NotNull final Table...
+// tables)
+//      throws SQLException {
+//    if (tables.length == 0) {
+//      throw new IllegalArgumentException("No tables specified.");
+//    }
+//    final Statement stmt = this.connection.createStatement();
+//
+//    for (final Table tbl : tables) {
+//      @SuppressWarnings("ObjectAllocationInLoop")
+//      final StringBuilder tblSql = new StringBuilder(
+//          "create table if not exists ")
+//          .append(tbl.getName()).append(" (");
+//
+//      String prefix = "";
+//      for (final TableField f : tbl.getFields()) {
+//        tblSql.append(prefix).append(f.getSql());
+//        prefix = ",";
+//      }
+//
+//      if (!tbl.getUniqueColumns().isEmpty()) {
+//        tblSql.append(", unique(");
+//        prefix = "";
+//        for (final String uf : tbl.getUniqueColumns()) {
+//          tblSql.append(prefix).append(uf);
+//          prefix = ",";
+//        }
+//        tblSql.append(')');
+//      }
+//
+//      tblSql.append(')');
+//
+//      if (force) {
+//        stmt.executeUpdate("drop table if exists " + tbl.getName());
+//      }
+//      LOG.debug("createSQL: {}", tblSql);
+//      stmt.executeUpdate(tblSql.toString());
+//    }
+//    stmt.close();
+//  }
 
-  /**
-   * Create all required tables, if the do not exist already.
-   *
-   * @param force If true, deletes any table that already exists before creating
-   * it
-   * @param tables List of tables to create
-   * @throws SQLException Thrown on database errors
-   */
-  public void createTables(final boolean force, @NotNull final Table... tables)
-      throws SQLException {
-    if (tables.length == 0) {
-      throw new IllegalArgumentException("No tables specified.");
-    }
-    final Statement stmt = this.connection.createStatement();
-
-    for (final Table tbl : tables) {
-      @SuppressWarnings("ObjectAllocationInLoop")
-      final StringBuilder tblSql = new StringBuilder(
-          "create table if not exists ")
-          .append(tbl.getName()).append(" (");
-
-      String prefix = "";
-      for (final TableField f : tbl.getFields()) {
-        tblSql.append(prefix).append(f.getSql());
-        prefix = ",";
-      }
-
-      if (!tbl.getUniqueColumns().isEmpty()) {
-        tblSql.append(", unique(");
-        prefix = "";
-        for (final String uf : tbl.getUniqueColumns()) {
-          tblSql.append(prefix).append(uf);
-          prefix = ",";
-        }
-        tblSql.append(')');
-      }
-
-      tblSql.append(')');
-
-      if (force) {
-        stmt.executeUpdate("drop table if exists " + tbl.getName());
-      }
-      LOG.debug("createSQL: {}", tblSql);
-      stmt.executeUpdate(tblSql.toString());
-    }
-    stmt.close();
-  }
-
+  @Override
   public Connection getConnection() {
     return this.connection;
   }
