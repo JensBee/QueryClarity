@@ -19,7 +19,6 @@ package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.data.IPCCode;
 import de.unihildesheim.iw.data.IPCCode.IPCRecord;
-import de.unihildesheim.iw.data.IPCCode.IPCRecord.Field;
 import de.unihildesheim.iw.data.IPCCode.Parser;
 import de.unihildesheim.iw.lucene.index.builder.IndexBuilder.LUCENE_CONF;
 import org.apache.lucene.index.Term;
@@ -96,15 +95,8 @@ public final class IPCClassQuery {
    */
   public static Query get(@NotNull final IPCRecord record,
       final char separator) {
-    final StringBuilder queryStr =
-        new StringBuilder(record.toRegExpString(separator));
-
-    if (record.getSetFields().size() != Field.values().length) {
-      queryStr.append(".*");
-    }
-
     final Query q = new RegexpQuery(new Term(
-        LUCENE_CONF.FLD_IPC, queryStr.toString()));
+        LUCENE_CONF.FLD_IPC, record.toRegExpString(separator)));
 
     if (LOG.isDebugEnabled()) {
       LOG.debug("IPCq: {}", q);
