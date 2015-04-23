@@ -72,6 +72,7 @@ public abstract class AbstractDB {
    * @param tables List of tables to create
    * @throws SQLException Thrown on database errors
    */
+  @SuppressWarnings("ReuseOfLocalVariable")
   public void createTables(final boolean force, @NotNull final Table... tables)
       throws SQLException {
     if (tables.length == 0) {
