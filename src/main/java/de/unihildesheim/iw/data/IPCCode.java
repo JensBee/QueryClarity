@@ -425,6 +425,23 @@ public final class IPCCode {
      */
     static final Pattern RX_INVALID_SEPARATOR =
         Pattern.compile("^[a-zA-Z0-9]$");
+
+    /**
+     * Get the separator char.
+     * @return Char used as separator for main- and sub-group
+     */
+    public char getSeparator() {
+      return this.separator;
+    }
+
+    /**
+     * Check, if zero padding of missing values is allowed.
+     * @return True, if zero padding is allowed
+     */
+    public boolean isAllowZeroPad() {
+      return this.allowZeroPad;
+    }
+
     /**
      * Separator char to use.
      */
