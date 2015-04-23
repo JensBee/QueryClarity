@@ -24,6 +24,7 @@ import org.apache.lucene.search.RegexpQuery;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
@@ -219,6 +220,17 @@ public final class IPCCode {
       }
     }
 
+    /**
+     * Test if a value is set for any field or this record is empty (no value
+     * is set for any field).
+     * @return True, if no value is present for any field
+     */
+    public boolean isEmpty() {
+      return !Arrays.stream(Field.values())
+          .filter(f -> this.data.get(f) != null)
+          .findFirst().isPresent();
+    }
+
     @Override
     public String toString() {
       final StringBuilder sb = new StringBuilder(60);
@@ -294,8 +306,8 @@ public final class IPCCode {
           separator == '[' || separator == ']' ||
           separator == '{' || separator == '}' ||
           separator == '<' || separator == '>' ||
-          separator == '\"' || separator == '~' ||
-          separator == '*' || separator == '?' ||
+          separator == '\"' || separator == '~' || separator == '#' ||
+          separator == '*' || separator == '?' || separator == '@' ||
           separator == '|' || separator == '&' || separator == '^') {
         sep = "\\" + separator;
       } else {
@@ -309,12 +321,13 @@ public final class IPCCode {
           break;
         }
 
-        final String fStr = fData.toString();
-        final int padAmount = FIELDS_ORDER[i].maxLength - fStr.length();
-
         if (i == SEPARATOR_AFTER + 1) {
           sb.append(sep);
         }
+
+        final String fStr = String.valueOf(fData);
+        final int padAmount = FIELDS_ORDER[i].maxLength - fStr.length();
+
         if (padAmount > 0) {
           sb.append(FIELDS_ORDER[i].padChar)
               .append('{').append(0).append(',').append(padAmount)
@@ -537,7 +550,7 @@ public final class IPCCode {
           // class [2-3]
           if (codeLength >= pointer + 1) {
             notFinished = RX_CLASS.matcher(code)
-                .region(pointer, pointer + 2).matches();
+                .region(pointer, Math.min(pointer + 2, codeLength)).matches();
             if (notFinished) {
               record.setClass(code.substring(pointer, pointer + 2));
               pointer += 2;
