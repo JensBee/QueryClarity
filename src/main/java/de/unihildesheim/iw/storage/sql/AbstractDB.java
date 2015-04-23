@@ -31,7 +31,8 @@ import java.util.Collection;
  *
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public abstract class AbstractDB {
+public abstract class AbstractDB
+    implements AutoCloseable {
   /**
    * Logger instance for this class.
    */
@@ -52,6 +53,19 @@ public abstract class AbstractDB {
    * @return Collection of allowed {@link Table} classes
    */
   protected abstract Collection<Class<? extends Table>> getAcceptedTables();
+
+  /**
+   * Constructor adding a shutdown hook to close the database on JVM exit.
+   */
+  AbstractDB() {
+    Runtime.getRuntime().addShutdownHook(new Thread() {
+      @SuppressWarnings("PrivateMemberAccessBetweenOuterAndInnerClass")
+      @Override
+      public void run() {
+        close();
+      }
+    });
+  }
 
   /**
    * Create all required tables, if the do not exist already.
@@ -113,9 +127,26 @@ public abstract class AbstractDB {
       if (force) {
         stmt.executeUpdate("drop table if exists " + tbl.getName());
       }
-      LOG.debug("createSQL: {}", tblSql);
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("createSQL: {}", tblSql);
+      }
       stmt.executeUpdate(tblSql.toString());
     }
     stmt.close();
+  }
+
+  @Override
+  public void close() {
+    try {
+      if (getConnection() != null && !getConnection().isClosed()) {
+        LOG.info("Closing database connection.");
+        getConnection().close();
+        if (getConnection().isClosed()) {
+          LOG.info("Database connection closed.");
+        }
+      }
+    } catch (final SQLException e) {
+      LOG.error("Error closing database connection.", e);
+    }
   }
 }
