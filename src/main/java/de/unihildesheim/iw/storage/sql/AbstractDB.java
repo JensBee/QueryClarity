@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Collection;
 
 /**
  * Abstract database class as basis for specifc implementations.
@@ -39,9 +40,18 @@ public abstract class AbstractDB {
 
   /**
    * Get the current connection object for this database.
+   *
    * @return Connection
    */
   public abstract Connection getConnection();
+
+  /**
+   * Get a collection of {@link Table} types allowed to be contained in this
+   * database.
+   *
+   * @return Collection of allowed {@link Table} classes
+   */
+  protected abstract Collection<Class<? extends Table>> getAcceptedTables();
 
   /**
    * Create all required tables, if the do not exist already.
@@ -68,8 +78,14 @@ public abstract class AbstractDB {
       throw new IllegalArgumentException("No tables specified.");
     }
     final Statement stmt = getConnection().createStatement();
+    final Collection<Class<? extends Table>> allowedTables =
+        getAcceptedTables();
 
     for (final Table tbl : tables) {
+      if (!allowedTables.contains(tbl.getClass())) {
+        throw new IllegalArgumentException("Table type " + tbl.getClass() +
+            " is not allowed in this database.");
+      }
       @SuppressWarnings("ObjectAllocationInLoop")
       final StringBuilder tblSql = new StringBuilder(
           "create table if not exists ")
