@@ -221,8 +221,9 @@ public final class IPCCode {
     }
 
     /**
-     * Test if a value is set for any field or this record is empty (no value
-     * is set for any field).
+     * Test if a value is set for any field or this record is empty (no value is
+     * set for any field).
+     *
      * @return True, if no value is present for any field
      */
     public boolean isEmpty() {
@@ -265,7 +266,7 @@ public final class IPCCode {
       final StringBuilder sb = new StringBuilder(MAX_LENGTH);
       for (int i = 0; i < FIELDS_COUNT; i++) {
         if (!appendIfExists(sb, FIELDS_ORDER[i],
-            i == SEPARATOR_AFTER + 1 ? String.valueOf(separator) : null,
+            i == SEPARATOR_AFTER + 1 ? Character.toString(separator) : null,
             null, true)) {
           break;
         }
@@ -422,7 +423,8 @@ public final class IPCCode {
     /**
      * Regular expression to match zero padded strings.
      */
-    private static final Pattern RX_ZEROS = Pattern.compile("^0*$");
+    static final Pattern RX_INVALID_SEPARATOR =
+        Pattern.compile("^[a-zA-Z0-9]$");
     /**
      * Separator char to use.
      */
@@ -451,9 +453,9 @@ public final class IPCCode {
      * @param sep Separator char
      */
     private static void checkSeparator(final char sep) {
-      if (Character.isDigit(sep)) {
-        throw new IllegalArgumentException(
-            "Digits are not allowed as separator character.");
+      if (RX_INVALID_SEPARATOR.matcher(Character.toString(sep)).matches()) {
+        throw new IllegalArgumentException("Invalid separator character " +
+            '\'' + sep + "'.");
       }
     }
 
@@ -514,6 +516,7 @@ public final class IPCCode {
      * @see #parse(CharSequence)
      * @see #separatorChar(char)
      */
+    @SuppressWarnings("ReuseOfLocalVariable")
     static IPCRecord parse(
         @NotNull final CharSequence codeStr,
         final char sep, final boolean allowZeroPad) {
@@ -657,6 +660,17 @@ public final class IPCCode {
       @NotNull final CharSequence code,
       final char separator) {
     return Parser.parse(code, separator);
+  }
+
+  @Nullable
+  public static Character detectSeparator(@NotNull final CharSequence code) {
+    final Matcher m = Parser.RX_INVALID_SEPARATOR.matcher(code);
+    for (int i=0; i< code.length(); i++) {
+      if (!m.region(i, i + 1).matches()) {
+        return code.charAt(i);
+      }
+    }
+    return null;
   }
 
   /**
