@@ -199,6 +199,30 @@ public final class IPCFieldFilter
 
     @Override
     public abstract String toString();
+
+    /**
+     * Optional: Require to match all IPC-Codes set for a document to get
+     * accepted.
+     *
+     * @return Self reference
+     * @throws UnsupportedOperationException Thrown, if not implemented by
+     * overriding class
+     */
+    public IPCFieldFilterFunc requireAllMatch() {
+      throw new UnsupportedOperationException("Not implemented");
+    }
+
+    /**
+     * Optional: Require only a single IPC-Code to match from all codes set for
+     * a document to get accepted.
+     *
+     * @return Self reference
+     * @throws UnsupportedOperationException Thrown, if not implemented by
+     * overriding class
+     */
+    public IPCFieldFilterFunc requireSingleMatch() {
+      throw new UnsupportedOperationException("Not implemented");
+    }
   }
 
   /**
