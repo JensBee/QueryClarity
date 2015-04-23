@@ -58,6 +58,7 @@ public final class TopicsDB {
     this.connection = DriverManager.getConnection("jdbc:sqlite:" + dbFile);
 
     Runtime.getRuntime().addShutdownHook(new Thread() {
+      @SuppressWarnings("PrivateMemberAccessBetweenOuterAndInnerClass")
       @Override
       public void run() {
         try {
