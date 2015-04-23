@@ -67,25 +67,6 @@ public final class TopicsDB
     Class.forName("org.sqlite.JDBC");
 
     this.connection = DriverManager.getConnection("jdbc:sqlite:" + dbFile);
-
-    Runtime.getRuntime().addShutdownHook(new Thread() {
-      @SuppressWarnings("PrivateMemberAccessBetweenOuterAndInnerClass")
-      @Override
-      public void run() {
-        try {
-          if (TopicsDB.this.connection != null &&
-              !TopicsDB.this.connection.isClosed()) {
-            LOG.info("Closing database connection.");
-            TopicsDB.this.connection.close();
-            if (TopicsDB.this.connection.isClosed()) {
-              LOG.info("Database connection closed.");
-            }
-          }
-        } catch (final SQLException e) {
-          LOG.error("Error closing database connection.", e);
-        }
-      }
-    });
   }
 
   @Override
