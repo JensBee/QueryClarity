@@ -49,6 +49,7 @@ public final class IPCClassQuery {
    * @param ipc (Partial) code to search for
    * @return Query to search for IPC-codes
    * @see #get(CharSequence, char)
+   * @see #get(IPCRecord, char)
    */
   public static Query get(@NotNull final CharSequence ipc) {
     return get(ipc, Parser.DEFAULT_SEPARATOR);
@@ -56,14 +57,12 @@ public final class IPCClassQuery {
 
   /**
    * Get a Query object for matching all IPC-codes that are like the one passed
-   * in. If a partial IPC-code (like {@code H05}) is given, all IPC-codes
-   * matching {@code H05.*} will be matched by the query. If a full code (like
-   * {@code H05K0005-04}) is given, the query will only search for IPC-codes
-   * matching exactly this code.
+   * in. Uses the passed in separator char.
    *
    * @param ipc (Partial) code to search for
    * @param separator Separator for main- and sub-group
    * @return Query to search for IPC-codes
+   * @see #get(IPCRecord, char)
    */
   public static Query get(
       @NotNull final CharSequence ipc,
@@ -81,7 +80,22 @@ public final class IPCClassQuery {
           "Cannot create a valid IPC code from '" + ipc + "'. Got '" +
               record.toFormattedString(separator) + '\'');
     }
+    return get(record, separator);
+  }
 
+  /**
+   * Get a Query object for matching all IPC-codes that are like the one passed
+   * in. If a partial IPC-code (like {@code H05}) is given, all IPC-codes
+   * matching {@code H05.*} will be matched by the query. If a full code (like
+   * {@code H05K0005-04}) is given, the query will only search for IPC-codes
+   * matching exactly this code.
+   *
+   * @param record IPC record to search for
+   * @param separator Separator for main- and sub-group
+   * @return Query to search for IPC-codes
+   */
+  public static Query get(@NotNull final IPCRecord record,
+      final char separator) {
     final StringBuilder queryStr =
         new StringBuilder(record.toRegExpString(separator));
 
