@@ -42,8 +42,34 @@ public final class PassagesEntryTable
    */
   private final List<TableField> fields;
 
+  /**
+   * Fields in this table.
+   */
   public enum Fields {
-    ID, IMPL, ISEMPTY, LANG, CONTENTREF, SCORE;
+    /**
+     * Auto-generated id.
+     */
+    ID,
+    /**
+     * Scorer implementation identifier.
+     */
+    IMPL,
+    /**
+     * Flag, indicating, if this result is empty.
+     */
+    ISEMPTY,
+    /**
+     * Language identifier.
+     */
+    LANG,
+    /**
+     * Reference to entry in {@link PassagesContentTable}.
+     */
+    CONTENTREF,
+    /**
+     * Scoring result value.
+     */
+    SCORE;
 
     @Override
     public String toString() {
@@ -57,7 +83,7 @@ public final class PassagesEntryTable
   @SuppressWarnings("PublicStaticCollectionField")
   public static final List<TableField> DEFAULT_FIELDS =
       Collections.unmodifiableList(Arrays.asList(
-          new TableField(Fields.ID.toString(), Fields.ID +
+          new TableField(Fields.ID.toString(), Fields.ID+
               " integer primary key not null"),
           new TableField(Fields.IMPL.toString(), Fields.IMPL +
               " char(3) not null"),
