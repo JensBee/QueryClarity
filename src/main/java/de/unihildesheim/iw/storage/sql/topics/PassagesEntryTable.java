@@ -45,6 +45,7 @@ public final class PassagesEntryTable
   /**
    * Fields in this table.
    */
+  @SuppressWarnings("PublicInnerClass")
   public enum Fields {
     /**
      * Auto-generated id.
@@ -101,7 +102,10 @@ public final class PassagesEntryTable
    */
   static final String TABLE_NAME = "PassagesEntry";
 
-  final Set<String> uniqueFields = new HashSet<>();
+  /**
+   * Collection of fields that are required to contain unique values.
+   */
+  final Set<String> uniqueFields = new HashSet<>(Fields.values().length);
 
   /**
    * Create a new instance using the default fields.
@@ -141,10 +145,10 @@ public final class PassagesEntryTable
 
   @Override
   public void addFieldToUnique(@NotNull final Object fld) {
-    final boolean validField = this.fields.stream()
+    final boolean invalidField = !this.fields.stream()
         .filter(f -> f.getName().equals(fld.toString())).findFirst()
         .isPresent();
-    if (!validField) {
+    if (invalidField) {
       throw new IllegalArgumentException("Unknown field '" + fld + '\'');
     }
     this.uniqueFields.add(fld.toString());
