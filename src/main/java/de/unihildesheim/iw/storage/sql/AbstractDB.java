@@ -57,7 +57,7 @@ public abstract class AbstractDB
   /**
    * Constructor adding a shutdown hook to close the database on JVM exit.
    */
-  AbstractDB() {
+  protected AbstractDB() {
     Runtime.getRuntime().addShutdownHook(new Thread() {
       @SuppressWarnings("PrivateMemberAccessBetweenOuterAndInnerClass")
       @Override
