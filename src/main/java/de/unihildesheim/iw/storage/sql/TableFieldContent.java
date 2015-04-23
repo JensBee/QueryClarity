@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.storage.sql.topics;
+package de.unihildesheim.iw.storage.sql;
 
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;

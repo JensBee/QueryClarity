@@ -17,6 +17,8 @@
 
 package de.unihildesheim.iw.storage.sql.topics;
 
+import de.unihildesheim.iw.storage.sql.Table;
+import de.unihildesheim.iw.storage.sql.TableField;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

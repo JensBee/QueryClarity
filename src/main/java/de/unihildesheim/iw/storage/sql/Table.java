@@ -15,48 +15,47 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.storage.sql.topics;
+package de.unihildesheim.iw.storage.sql;
 
 import org.jetbrains.annotations.NotNull;
+
+import java.util.List;
+import java.util.Set;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public final class TableField {
+public interface Table {
   /**
-   * Field name.
+   * Get a list of fields for this table. The returned list should not be
+   * modified by the caller.
+   * @return List of fields
    */
-  private final String name;
-  /**
-   * SQL statement to create the field.
-   */
-  private final String sql;
+  @NotNull
+  List<TableField> getFields();
 
   /**
-   *
-   * @param fieldName Field name
-   * @param sql SQL statement to create the field
+   * Get the name of the table.
+   * @return Table name
    */
-  public TableField(
-      @NotNull final String fieldName,
-      @NotNull final String sql) {
-    this.name = fieldName;
-    this.sql = sql;
-  }
+  @NotNull
+  String getName();
 
   /**
-   * Get the SQL statement to create the field.
-   * @return SQL statement to create the field
+   * Get a list of columns that for a unique constraint.
+   * @return List of columns that for a unique constraint
    */
-  public String getSql() {
-    return this.sql;
-  }
+  Set<String> getUniqueColumns();
 
   /**
-   * Get the field name.
-   * @return Field name
+   * Add a field to the list of fields forming a unique constraint.
+   * @param fld Field name to add. {@code toString()} is called on the passed
+   * in object.
    */
-  public String getName() {
-    return this.name;
-  }
+  void addFieldToUnique(@NotNull final Object fld);
+
+  /**
+   * Add all default fields to the list of fields forming a unique constraint.
+   */
+  void addDefaultFieldsToUnique();
 }

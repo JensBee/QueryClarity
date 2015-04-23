@@ -17,6 +17,9 @@
 
 package de.unihildesheim.iw.storage.sql.topics;
 
+import de.unihildesheim.iw.storage.sql.Table;
+import de.unihildesheim.iw.storage.sql.TableField;
+import de.unihildesheim.iw.storage.sql.TableWriter;
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.Connection;

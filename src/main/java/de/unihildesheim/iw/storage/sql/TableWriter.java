@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.storage.sql.topics;
+package de.unihildesheim.iw.storage.sql;
 
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -35,11 +35,6 @@ public abstract class TableWriter {
    */
   private static final Logger LOG =
       LoggerFactory.getLogger(TableWriter.class);
-
-  /**
-   * Database connection.
-   */
-  private final Connection con;
   /**
    * Table.
    */
@@ -53,7 +48,6 @@ public abstract class TableWriter {
       @NotNull final Connection con,
       @NotNull final Table table)
       throws SQLException {
-    this.con = con;
     this.tbl = table;
     this.stmt = con.createStatement();
   }
@@ -87,9 +81,11 @@ public abstract class TableWriter {
     sql.append(getTableName()).append(" where ")
         .append(tfContent.getSQLQueryString());
 
-    LOG.debug("querySQL '{}'", sql);
-    getStatement().execute(sql.toString());
-    final ResultSet rs =  getStatement().getResultSet();
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("querySQL '{}'", sql);
+    }
+    this.stmt.execute(sql.toString());
+    final ResultSet rs =  this.stmt.getResultSet();
     if (rs.next()) {
       return rs.getInt(1);
     } else {
@@ -108,7 +104,7 @@ public abstract class TableWriter {
    * inserted row.
    * @throws SQLException Declared for overriding implementations
    */
-  public int addContent(final TableFieldContent tfContent, boolean ignore)
+  public int addContent(final TableFieldContent tfContent, final boolean ignore)
       throws SQLException {
     if (!this.tbl.getClass().isInstance(tfContent.getTable())) {
       throw new IllegalArgumentException("Wrong table. Expected '" + this.tbl
@@ -123,8 +119,8 @@ public abstract class TableWriter {
         .append(getTableName()).append(' ')
         .append(tfContent.getSQLInsertString());
 
-    getStatement().executeUpdate(sql.toString());
-    return ignore ? -1 : getStatement().getGeneratedKeys().getInt(1);
+    this.stmt.executeUpdate(sql.toString());
+    return ignore ? -1 : this.stmt.getGeneratedKeys().getInt(1);
   }
 
   public String getTableName() {
