@@ -382,12 +382,12 @@ public final class FilteredDirectoryReader
             new ArrayList<>(this.in.fields().size());
         for (final String field : fields) {
           final DocIdSet docsWithField = new EmptyFieldFilter(field)
-                .getDocIdSet(this.in.getContext(),
-                    null); // isAccepted all docs, no deletions
+              .getDocIdSet(this.in.getContext(),
+                  null); // isAccepted all docs, no deletions
 
           // may be null, if no document matches
-            finalFields.add(field);
-            StreamUtils.stream(docsWithField).forEach(filterBits::set);
+          finalFields.add(field);
+          StreamUtils.stream(docsWithField).forEach(filterBits::set);
         }
 
         fields = finalFields.isEmpty() ? NO_FIELDS :
@@ -657,21 +657,21 @@ public final class FilteredDirectoryReader
      * Query filter.
      */
     @Nullable
-    Filter qf;
+    Filter queryFilter;
     /**
      * Term filter.
      */
     @Nullable
-    TermFilter tf;
+    TermFilter termFilter;
     /**
      * Flag indicating, if TermFilter should be negated.
      */
-    boolean fn;
+    boolean negateTermFilter;
     /**
      * Fields visible.
      */
     @Nullable
-    Collection<String> f;
+    Collection<String> visibleFields;
 
     @Override
     public String toString() {
@@ -694,7 +694,7 @@ public final class FilteredDirectoryReader
      * @return Self reference
      */
     public Builder queryFilter(@Nullable final Filter qFilter) {
-      this.qf = qFilter;
+      this.queryFilter = qFilter;
       return this;
     }
 
@@ -707,9 +707,9 @@ public final class FilteredDirectoryReader
      */
     public Builder fields(
         @NotNull final Collection<String> vFields) {
-      this.f = new HashSet<>(vFields.size());
-      this.f.addAll(vFields);
-      this.fn = false;
+      this.visibleFields = new HashSet<>(vFields.size());
+      this.visibleFields.addAll(vFields);
+      this.negateTermFilter = false;
       return this;
     }
 
@@ -725,9 +725,9 @@ public final class FilteredDirectoryReader
     @SuppressWarnings("BooleanParameter")
     public Builder fields(
         @NotNull final Collection<String> vFields, final boolean negate) {
-      this.f = new HashSet<>(vFields.size());
-      this.f.addAll(vFields);
-      this.fn = negate;
+      this.visibleFields = new HashSet<>(vFields.size());
+      this.visibleFields.addAll(vFields);
+      this.negateTermFilter = negate;
       return this;
     }
 
@@ -738,7 +738,7 @@ public final class FilteredDirectoryReader
      * @return Self reference
      */
     public Builder termFilter(@Nullable final TermFilter tFilter) {
-      this.tf = tFilter;
+      this.termFilter = tFilter;
       return this;
     }
 
@@ -752,31 +752,30 @@ public final class FilteredDirectoryReader
     @Override
     public FilteredDirectoryReader build()
         throws BuildException {
-      if (this.tf == null) {
-        this.tf = new AcceptAll();
+      if (this.termFilter == null) {
+        this.termFilter = new AcceptAll();
       }
-      if (this.f == null) {
-        this.f = Collections.emptySet();
+      if (this.visibleFields == null) {
+        this.visibleFields = Collections.emptySet();
       }
 
       final SubReaderWrapper srw = new SubReaderWrapper() {
-        @SuppressFBWarnings("RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE")
         @Override
         public LeafReader wrap(final LeafReader reader) {
-          assert Builder.this.f != null;
-          assert Builder.this.tf != null;
           try {
-            return new FilteredLeafReader(reader, Builder.this.f,
-                Builder.this.fn, Builder.this.qf, Builder.this.tf);
+            return new FilteredLeafReader(reader, Builder.this.visibleFields,
+                Builder.this.negateTermFilter, Builder.this.queryFilter,
+                Builder.this.termFilter);
           } catch (final IOException e) {
             throw new UncheckedIOException(e);
           }
         }
       };
-      
+
       try {
         return new FilteredDirectoryReader(
-            this.in, srw, this.f, this.fn, this.qf, this.tf);
+            this.in, srw, this.visibleFields,
+            this.negateTermFilter, this.queryFilter, this.termFilter);
       } catch (final IOException e) {
         throw new BuildException("Failed to create filtered reader.", e);
       }
