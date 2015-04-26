@@ -20,7 +20,8 @@ dump() {
   IPC=$1
   IPC_UC=$(echo $IPC | tr '[:lower:]' '[:upper:]')
   IPC_LC=$(echo $IPC | tr '[:upper:]' '[:lower:]')
-  ./exec_DumpTermData ${DMPLANG} -dbfile data/termDump-${DMPLANG}-${DMPFLD}-ipc_${IPC_LC}.sqlite -field ${DMPFLD} -ipc ${IPC_UC} | tee data/termDump-${DMPLANG}-${DMPFLD}-ipc_${IPC_LC}.log
+  mkdir -p data/${DMPLANG}
+  ./exec_DumpTermData ${DMPLANG} -dbfile data/${DMPLANG}/termDump-${DMPLANG}-${DMPFLD}-ipc_${IPC_LC}.sqlite -field ${DMPFLD} -ipc ${IPC_UC} | tee data/${DMPLANG}/termDump-${DMPLANG}-${DMPFLD}-ipc_${IPC_LC}.log
 }
 
 for IPC in "${IPC_SECS[@]}"; do
