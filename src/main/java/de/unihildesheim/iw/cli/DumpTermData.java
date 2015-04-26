@@ -20,6 +20,7 @@ package de.unihildesheim.iw.cli;
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.data.IPCCode.IPCRecord;
 import de.unihildesheim.iw.data.IPCCode.Parser;
+import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader;
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader.Builder;
 import de.unihildesheim.iw.lucene.query.IPCClassQuery;
 import de.unihildesheim.iw.lucene.search.IPCFieldFilter;
@@ -95,6 +96,8 @@ public class DumpTermData
    * @throws IOException Thrown on low-level i/o-errors
    * @throws ClassNotFoundException Thrown if JDBC driver could not be loaded
    * @throws SQLException Thrown, if connection to the database has failed
+   * @throws Buildable.BuildException Thrown, if building a {@link
+   * FilteredDirectoryReader} instance has failed
    */
   public static void main(final String... args)
       throws IOException, SQLException, ClassNotFoundException,
@@ -110,6 +113,8 @@ public class DumpTermData
    * @throws IOException Thrown on low-level i/o-errors
    * @throws ClassNotFoundException Thrown if JDBC driver could not be loaded
    * @throws SQLException Thrown, if connection to the database has failed
+   * @throws Buildable.BuildException Thrown, if building a {@link
+   * FilteredDirectoryReader} instance has failed
    */
   private void runMain(final String... args)
       throws IOException, SQLException, ClassNotFoundException,
