@@ -23,7 +23,7 @@ import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader.Builder;
 import de.unihildesheim.iw.lucene.index.builder.IndexBuilder.LUCENE_CONF;
 import de.unihildesheim.iw.lucene.query.IPCClassQuery;
 import de.unihildesheim.iw.lucene.search.IPCFieldFilter;
-import de.unihildesheim.iw.lucene.search.IPCFieldFilterFunctions.MaxIPCSections;
+import de.unihildesheim.iw.lucene.search.IPCFieldFilterFunctions;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
@@ -103,10 +103,9 @@ public class DumpIPCs
     if (this.cliParams.ipc != null) {
       final IPCRecord ipc = ipcParser.parse(this.cliParams.ipc);
       final BooleanQuery bq = new BooleanQuery();
-      rx_ipc = Pattern.compile(
-          ipc.toRegExpString(this.cliParams.sep) + ".*");
+      rx_ipc = Pattern.compile(ipc.toRegExpString(this.cliParams.sep));
       if (LOG.isDebugEnabled()) {
-        LOG.debug("IPC regExp: rx={} pat={}.*",
+        LOG.debug("IPC regExp: rx={} pat={}",
             ipc.toRegExpString(this.cliParams.sep),
             rx_ipc);
       }
@@ -115,44 +114,48 @@ public class DumpIPCs
           IPCClassQuery.get(ipc, this.cliParams.sep)), Occur.MUST);
       bq.add(new QueryWrapperFilter(
           new IPCFieldFilter(
-              new MaxIPCSections(1), ipcParser
+              new IPCFieldFilterFunctions.SloppyMatch(ipc), ipcParser
           )), Occur.MUST);
       idxReaderBuilder.queryFilter(new QueryWrapperFilter(bq));
     }
 
     final IndexReader idxReader = idxReaderBuilder.build();
 
-    final Terms terms =
-        MultiFields.getTerms(idxReader, LUCENE_CONF.FLD_IPC);
-    TermsEnum termsEnum = TermsEnum.EMPTY;
-    BytesRef term;
-    if (terms != null) {
-      termsEnum = terms.iterator(termsEnum);
-      term = termsEnum.next();
-
-      final int[] count = {0,0}; // match, exclude
-      while (term != null) {
-        final String code = term.utf8ToString();
-        if (rx_ipc == null || (rx_ipc.matcher(code).matches())) {
-          final IPCRecord record = ipcParser.parse(code);
-          try {
-            System.out.println(
-                code + ' ' + record +
-                    " (" + record.toFormattedString() + ") " +
-                    '[' + record.toRegExpString('-') + ']');
-          } catch (final IllegalArgumentException e) {
-            System.out.println(code + ' ' + "INVALID (" + code + ')');
-          }
-          count[0]++;
-        } else {
-          if (LOG.isDebugEnabled()) {
-            LOG.debug("Skip non matching IPC: {}", code);
-          }
-          count[1]++;
-        }
+    if (idxReader.numDocs() > 0) {
+      final Terms terms =
+          MultiFields.getTerms(idxReader, LUCENE_CONF.FLD_IPC);
+      TermsEnum termsEnum = TermsEnum.EMPTY;
+      BytesRef term;
+      if (terms != null) {
+        termsEnum = terms.iterator(termsEnum);
         term = termsEnum.next();
+
+        final int[] count = {0, 0}; // match, exclude
+        while (term != null) {
+          final String code = term.utf8ToString();
+          if (rx_ipc == null || (rx_ipc.matcher(code).matches())) {
+            final IPCRecord record = ipcParser.parse(code);
+            try {
+              System.out.println(
+                  code + ' ' + record +
+                      " (" + record.toFormattedString() + ") " +
+                      '[' + record.toRegExpString('-') + ']');
+            } catch (final IllegalArgumentException e) {
+              System.out.println(code + ' ' + "INVALID (" + code + ')');
+            }
+            count[0]++;
+          } else {
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("Skip non matching IPC: {}", code);
+            }
+            count[1]++;
+          }
+          term = termsEnum.next();
+        }
+        LOG.info("match={} skip={}", count[0], count[1]);
       }
-      LOG.info("match={} skip={}", count[0], count[1]);
+    } else {
+      LOG.info("No documents left after filtering.");
     }
   }
 
@@ -174,7 +177,7 @@ public class DumpIPCs
     File idxDir;
 
     /**
-     * Directory containing the target Lucene index.
+     * IPC code.
      */
     @Nullable
     @Option(name = "-ipc", metaVar = "IPC", required = false,
