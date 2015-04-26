@@ -763,6 +763,8 @@ public final class FilteredDirectoryReader
         @Override
         public LeafReader wrap(final LeafReader reader) {
           try {
+            assert Builder.this.termFilter != null;
+            assert Builder.this.visibleFields != null;
             return new FilteredLeafReader(reader, Builder.this.visibleFields,
                 Builder.this.negateTermFilter, Builder.this.queryFilter,
                 Builder.this.termFilter);
