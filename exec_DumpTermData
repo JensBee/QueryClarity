@@ -1,0 +1,18 @@
+#!/bin/sh
+if [ $# -lt 1 ]; then
+	printf "<language>\n"
+	exit 1
+fi
+
+SCORE_LANG=$1
+shift
+
+STOP_PAT=$(pwd)/stop/stop
+STOP_FORMAT=snowball
+
+IDX=/data/clef/Clarity/work/fiz/index/$(echo $SCORE_LANG | tr '[:lower:]' '[:upper:]')
+
+CLASS=cli.DumpTermData
+ARGS="-idx $IDX -stop $STOP_PAT -stop-format $STOP_FORMAT -lang $SCORE_LANG -grpsep - -zeropad"
+
+./run ${CLASS} ${ARGS} $*
