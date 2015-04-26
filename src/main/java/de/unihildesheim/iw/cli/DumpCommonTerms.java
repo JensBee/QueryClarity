@@ -230,6 +230,7 @@ final class DumpCommonTerms
     @Option(name = "-lang", metaVar = "language", required = true,
         usage = "Process for the defined language.")
     String lang;
+
     /**
      * Document frequency threshold.
      */
