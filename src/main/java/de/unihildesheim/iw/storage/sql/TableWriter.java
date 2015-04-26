@@ -25,11 +25,13 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public abstract class TableWriter {
+public abstract class TableWriter
+    implements AutoCloseable {
   /**
    * Logger instance for this class.
    */
@@ -43,13 +45,52 @@ public abstract class TableWriter {
    * Statement to execute commands.
    */
   private final Statement stmt;
+  /**
+   * Database connection.
+   */
+  private final Connection con;
+  /**
+   * Database insert counter for committing.
+   */
+  private final AtomicLong insertCount = new AtomicLong();
+  /**
+   * Run a commit after n inserts, if autocommit is disabled.
+   */
+  private static final long COMMIT_COUNT = 500L;
 
   public TableWriter(
       @NotNull final Connection con,
       @NotNull final Table table)
       throws SQLException {
     this.tbl = table;
+    this.con = con;
     this.stmt = con.createStatement();
+    this.con.setAutoCommit(false);
+  }
+
+  public void disableAutoCommit()
+      throws SQLException {
+    this.con.setAutoCommit(false);
+  }
+
+  public void enableAutoCommit()
+      throws SQLException {
+    this.con.setAutoCommit(true);
+  }
+
+  public void commit()
+      throws SQLException {
+    this.con.commit();
+  }
+
+  @Override
+  public void close()
+      throws SQLException {
+    LOG.debug("Closing down.");
+    if (!this.con.isClosed()) {
+      LOG.debug("Commiting changes to database before closing.");
+      commit();
+    }
   }
 
   /**
@@ -85,7 +126,7 @@ public abstract class TableWriter {
       LOG.debug("querySQL '{}'", sql);
     }
     this.stmt.execute(sql.toString());
-    final ResultSet rs =  this.stmt.getResultSet();
+    final ResultSet rs = this.stmt.getResultSet();
     if (rs.next()) {
       return rs.getInt(1);
     } else {
@@ -120,6 +161,10 @@ public abstract class TableWriter {
         .append(tfContent.getSQLInsertString());
 
     this.stmt.executeUpdate(sql.toString());
+    if (this.insertCount.incrementAndGet() >= COMMIT_COUNT) {
+      commit();
+      this.insertCount.set(0L);
+    }
     return ignore ? -1 : this.stmt.getGeneratedKeys().getInt(1);
   }
 
