@@ -773,9 +773,7 @@ public final class FilteredDirectoryReader
           }
         }
       };
-
-
-      final FilteredDirectoryReader fdr;
+      
       try {
         return new FilteredDirectoryReader(
             this.in, srw, this.f, this.fn, this.qf, this.tf);
