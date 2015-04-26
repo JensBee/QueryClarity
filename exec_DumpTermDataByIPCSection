@@ -9,7 +9,7 @@ if [ $# -lt 2 ]; then
 	exit 1
 fi
 
-DMPLANG=$1
+DMPLANG=$(echo $1 | tr '[:upper:]' '[:lower:]')
 shift
 DMPFLD=$1
 shift
