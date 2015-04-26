@@ -55,6 +55,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.sql.SQLException;
+import java.text.NumberFormat;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -159,7 +160,8 @@ public class DumpTermData
             @Override
             public void call(@NotNull final TimeMeasure tm) {
               LOG.info("Collected {} terms after {}.",
-                  count.get(), tm.getTimeString());
+                  NumberFormat.getIntegerInstance().format(count.get()),
+                  tm.getTimeString());
             }
           }).start();
 
@@ -186,7 +188,7 @@ public class DumpTermData
       }
       obs.stop();
       dataWriter.close();
-      LOG.info("Total of {} terms collected.", count);
+      LOG.info("Total of {} terms collected.", NumberFormat.getIntegerInstance().format(count));
     }
   }
 
