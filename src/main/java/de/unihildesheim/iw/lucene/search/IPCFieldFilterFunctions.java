@@ -156,8 +156,8 @@ public final class IPCFieldFilterFunctions {
             break;
           } else if (!this.matchSingle) {
             // non-match, skip document
-            if (LOG.isDebugEnabled()) {
-              LOG.debug("Non-matching IPC={} f={} {} != {}-> skip doc={}",
+            if (LOG.isTraceEnabled()) {
+              LOG.trace("Non-matching IPC={} f={} {} != {}-> skip doc={}",
                   c, f, this.rec.get(f), r.get(f), docId);
             }
             return false;
@@ -244,8 +244,8 @@ public final class IPCFieldFilterFunctions {
             break;
           } else if (!this.matchSingle) {
             // non-match, skip document
-            if (LOG.isDebugEnabled()) {
-              LOG.debug("Non-matching IPC={} f={} {} != {}-> skip doc={}",
+            if (LOG.isTraceEnabled()) {
+              LOG.trace("Non-matching IPC={} f={} {} != {}-> skip doc={}",
                   c, f, this.rec.get(f), r.get(f), docId);
             }
             return false;
@@ -329,8 +329,8 @@ public final class IPCFieldFilterFunctions {
           }
           hasMatch = true;
         } else if (!this.matchSingle) {
-          if (LOG.isDebugEnabled()) {
-            LOG.debug("Non-matching IPC={} -> skip doc={}", c, docId);
+          if (LOG.isTraceEnabled()) {
+            LOG.trace("Non-matching IPC={} -> skip doc={}", c, docId);
           }
           return false;
         }
@@ -398,8 +398,8 @@ public final class IPCFieldFilterFunctions {
         throws IOException {
       final Collection<Character> sections =
           getSections(ipcParser, getCodes(reader, docId));
-      if (LOG.isDebugEnabled() && sections.size() > this.maxSecs) {
-        LOG.debug("Section count exceeded. max={} current={} -> skip doc={}",
+      if (LOG.isTraceEnabled() && sections.size() > this.maxSecs) {
+        LOG.trace("Section count exceeded. max={} current={} -> skip doc={}",
             this.maxSecs, sections.size(), docId);
       }
       return sections.size() <= this.maxSecs;
