@@ -1,0 +1,363 @@
+
+ | A French stop word list. Comments begin with vertical bar. Each stop
+ | word is at the start of a line.
+
+a
+afin
+ai
+ainsi
+après
+attendu
+au             |  a + le
+aujourd
+auquel
+aussi
+autre
+autres
+aux            |  a + les
+auxquelles
+auxquels
+avait
+avant
+avec           |  with
+avoir
+c
+car
+ce             |  this
+ceci
+cela
+celle
+celles
+celui
+cependant
+certain
+certaine
+certaines
+certains
+ces            |  these
+cet
+cette
+ceux
+chez
+ci
+combien
+comme
+comment
+concernant
+contre
+d
+dans           |  with
+de             |  of
+debout
+dedans
+dehors
+delà
+depuis
+derrière
+des            |  de + les
+désormais
+desquelles
+desquels
+dessous
+dessus
+devant
+devers
+devra
+divers
+diverse
+diverses
+doit
+donc
+dont
+du             |  de + le
+duquel
+durant
+dès
+elle           |  she
+ellas
+en             |  `of them' etc
+entre
+environ
+est
+et             |  and
+etc
+etre
+eu
+eux            |  them
+excepté
+hormis
+hors
+hélas
+hui
+ils
+j
+il             |  he
+je             |  I
+jusqu
+jusque
+l
+la             |  the
+laquelle
+le             |  the
+lequel
+les
+lesquelles
+lesquels
+leur           |  their
+leurs
+lorsque
+lui            |  him
+là
+ma             |  my (fem)
+mais           |  but
+malgré
+me             |  me
+merci
+mes
+même           |  same; as in moi-même (myself) etc
+mes            |  me (pl)
+mien
+mienne
+miennes
+miens
+moi            |  me
+moins
+mon            |  my (masc)
+moyennant
+même
+mêmes
+n
+ne             |  not
+ni
+non
+nos            |  our (pl)
+nous
+néanmoins
+nôtre
+notre          |  our
+nôtres
+nous           |  we
+on             |  one
+ont
+ou             |  where
+outre
+où
+par            |  by
+parmi
+partant
+pas            |  not
+passé
+pendant
+plein
+plus
+plusieurs
+pour           |  for
+pourquoi
+qu             |  que before vowel
+que            |  that
+qui            |  who
+sa             |  his, her (fem)
+se             |  oneself
+ses            |  his (pl)
+son            |  his, her (masc)
+sur            |  on
+ta             |  thy (fem)
+te             |  thee
+tes            |  thy (pl)
+toi            |  thee
+ton            |  thy (masc)
+tu             |  thou
+un             |  a
+une            |  a
+vos            |  your (pl)
+votre          |  your
+vous           |  you
+
+               |  single letter forms
+
+c              |  c'
+d              |  d'
+j              |  j'
+l              |  l'
+à              |  to, at
+m              |  m'
+n              |  n'
+s              |  s'
+t              |  t'
+y              |  there
+
+               | forms of être (not including the infinitive):
+été
+étée
+étées
+étés
+étant
+suis
+es
+est
+sommes
+êtes
+sont
+serai
+seras
+sera
+serons
+serez
+seront
+serais
+serait
+serions
+seriez
+seraient
+étais
+était
+étions
+étiez
+étaient
+fus
+fut
+fûmes
+fûtes
+furent
+sois
+soit
+soyons
+soyez
+soient
+fusse
+fusses
+fût
+fussions
+fussiez
+fussent
+
+               | forms of avoir (not including the infinitive):
+ayant
+eu
+eue
+eues
+eus
+ai
+as
+avons
+avez
+ont
+aurai
+auras
+aura
+aurons
+aurez
+auront
+aurais
+aurait
+aurions
+auriez
+auraient
+avais
+avait
+avions
+aviez
+avaient
+eut
+eûmes
+eûtes
+eurent
+aie
+aies
+ait
+ayons
+ayez
+aient
+eusse
+eusses
+eût
+eussions
+eussiez
+eussent
+
+               | Later additions (from Jean-Christophe Deschamps)
+ceci           |  this
+cela           |  that (added 11 Apr 2012. Omission reported by Adrien Grand)
+celà           |  that (incorrect, though common)
+cet            |  this
+cette          |  this
+ici            |  here
+ils            |  they
+les            |  the (pl)
+leurs          |  their (pl)
+quel           |  which
+quels          |  which
+quelle         |  which
+quelles        |  which
+sans           |  without
+soi            |  oneself
+
+proche
+près
+puisque
+qu
+quand
+que
+quel
+quelle
+quelles
+quels
+qui
+quoi
+quoique
+revoici
+revoilà
+s
+sa
+sans
+sauf
+se
+selon
+seront
+ses
+si
+sien
+sienne
+siennes
+siens
+sinon
+soi
+soit
+son
+sont
+sous
+suivant
+sur
+ta
+te
+tes
+tien
+tienne
+tiennes
+tiens
+toi
+ton
+tous
+tout
+toute
+toutes
+tu
+un
+une
+va
+vers
+voici
+voilà
+vos
+votre
+vous
+vu
+vôtre
+vôtres
+y
+à
+ça
+ès
+été
+être
+ô
