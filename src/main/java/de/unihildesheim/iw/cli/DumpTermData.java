@@ -18,7 +18,7 @@
 package de.unihildesheim.iw.cli;
 
 import de.unihildesheim.iw.Buildable.BuildException;
-import de.unihildesheim.iw.data.IPCCode.IPCRecord;
+import de.unihildesheim.iw.data.IPCCode;
 import de.unihildesheim.iw.data.IPCCode.Parser;
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader;
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader.Builder;
@@ -30,7 +30,6 @@ import de.unihildesheim.iw.storage.sql.Table;
 import de.unihildesheim.iw.storage.sql.TableFieldContent;
 import de.unihildesheim.iw.storage.sql.termData.TermDataDB;
 import de.unihildesheim.iw.storage.sql.termData.TermsTable;
-import de.unihildesheim.iw.storage.sql.termData.TermsTable.Fields;
 import de.unihildesheim.iw.util.StopwordsFileReader;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TaskObserver;
@@ -131,7 +130,9 @@ public final class DumpTermData
     // table manager instance: Target database for term data
     try (final TermDataDB db = new TermDataDB(this.cliParams.dbFile)) {
       // create meta & data table
-      final Table termsTable = new TermsTable();
+      final Table termsTable = new TermsTable(
+          // include optional IPC field
+          TermsTable.FieldsOptional.IPC);
       final Table metaTable = new MetaTable();
       db.createTables(termsTable, metaTable);
 
@@ -182,6 +183,10 @@ public final class DumpTermData
                 }
               }).start();
 
+          // normalize some parameters
+          final String fieldName = StringUtils.lowerCase(this.cliParams.field);
+          final String langName = StringUtils.lowerCase(this.cliParams.lang);
+
           while (term != null) {
             final String termStr = term.utf8ToString();
             if (!sWords.contains(termStr.toLowerCase())) {
@@ -193,11 +198,17 @@ public final class DumpTermData
                   @SuppressWarnings("ObjectAllocationInLoop")
                   final TableFieldContent tfc =
                       new TableFieldContent(termsTable);
-                  tfc.setValue(Fields.TERM, termStr);
-                  tfc.setValue(Fields.DOCFREQ_REL, relDocFreq);
-                  tfc.setValue(Fields.DOCFREQ_ABS, docFreq);
-                  tfc.setValue(Fields.LANG, this.cliParams.lang);
-                  dataWriter.addContent(tfc);
+                  tfc.setValue(TermsTable.Fields.TERM, termStr);
+                  tfc.setValue(TermsTable.Fields.DOCFREQ_REL, relDocFreq);
+                  tfc.setValue(TermsTable.Fields.DOCFREQ_ABS, docFreq);
+                  tfc.setValue(TermsTable.Fields.LANG, langName);
+                  tfc.setValue(TermsTable.Fields.FIELD, fieldName);
+                  if (this.cliParams.ipcRec != null) {
+                    tfc.setValue(
+                        TermsTable.FieldsOptional.IPC,
+                        this.cliParams.ipcRec);
+                  }
+                  dataWriter.addContent(tfc, false);
                   count.incrementAndGet();
                 }
               }
@@ -245,6 +256,8 @@ public final class DumpTermData
     @Option(name = "-ipc", metaVar = "IPC", required = false,
         usage = "IPC-code (fragment) to filter returned codes.")
     String ipc;
+    @Nullable
+    IPCCode.IPCRecord ipcRec;
 
     /**
      * Default separator char.
@@ -354,20 +367,21 @@ public final class DumpTermData
 
           final Builder
               idxReaderBuilder = new Builder(reader);
-          final IPCRecord ipc = ipcParser.parse(this.ipc);
+          this.ipcRec = ipcParser.parse(this.ipc);
           final BooleanQuery bq = new BooleanQuery();
-          final Pattern rx_ipc = Pattern.compile(ipc.toRegExpString(this.sep));
+          final Pattern rx_ipc = Pattern.compile(
+              this.ipcRec.toRegExpString(this.sep));
           if (LOG.isDebugEnabled()) {
             LOG.debug("IPC regExp: rx={} pat={}",
-                ipc.toRegExpString(this.sep),
+                this.ipcRec.toRegExpString(this.sep),
                 rx_ipc);
           }
 
           bq.add(new QueryWrapperFilter(
-              IPCClassQuery.get(ipc, this.sep)), Occur.MUST);
+              IPCClassQuery.get(this.ipcRec, this.sep)), Occur.MUST);
           bq.add(new QueryWrapperFilter(
               new IPCFieldFilter(
-                  new SloppyMatch(ipc), ipcParser
+                  new SloppyMatch(this.ipcRec), ipcParser
               )), Occur.MUST);
           idxReaderBuilder.queryFilter(new QueryWrapperFilter(bq));
           this.idxReader = idxReaderBuilder.build();
