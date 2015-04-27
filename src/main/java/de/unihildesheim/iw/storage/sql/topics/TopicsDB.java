@@ -38,11 +38,6 @@ import java.util.Collections;
 public final class TopicsDB
     extends AbstractDB {
   /**
-   * Logger instance for this class.
-   */
-  private static final Logger LOG =
-      LoggerFactory.getLogger(TopicsDB.class);
-  /**
    * Database connection.
    */
   final Connection connection;
