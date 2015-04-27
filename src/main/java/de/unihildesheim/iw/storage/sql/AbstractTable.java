@@ -19,36 +19,11 @@ package de.unihildesheim.iw.storage.sql;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
 public abstract class AbstractTable
     implements Table {
-
-  public boolean hasField(
-      @NotNull final Connection con,
-      @NotNull final String field)
-      throws SQLException {
-    final Statement stmt = con.createStatement();
-    if (stmt.execute("pragma table_info(" + getName() + ')')) {
-      final ResultSet rs = stmt.getResultSet();
-      if (rs.next()) {
-        final int colIdx = rs.findColumn("name");
-        if (rs.getString(colIdx).equalsIgnoreCase(field)) {
-          return true;
-        }
-      }
-      return false;
-    } else {
-      throw new IllegalStateException("No response from pragma query.");
-    }
-  }
-
   /**
    * Check, if a field is present in the current tables fields list. Throws a
    * {@link IllegalArgumentException} if the field is not known (i.e. invalid).

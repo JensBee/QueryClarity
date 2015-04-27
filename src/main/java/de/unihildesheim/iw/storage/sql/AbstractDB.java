@@ -22,6 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Collection;
@@ -177,5 +178,32 @@ public abstract class AbstractDB
     } catch (final SQLException e) {
       LOG.error("Error closing database connection.", e);
     }
+  }
+
+  public static boolean hasTableField(
+      @NotNull final String tableName,
+      @NotNull final Connection con,
+      @NotNull final Object field)
+      throws SQLException {
+    final Statement stmt = con.createStatement();
+    if (stmt.execute("pragma table_info(" + tableName + ')')) {
+      final ResultSet rs = stmt.getResultSet();
+      if (rs.next()) {
+        final int colIdx = rs.findColumn("name");
+        if (rs.getString(colIdx).equalsIgnoreCase(field.toString())) {
+          return true;
+        }
+      }
+      return false;
+    } else {
+      throw new IllegalStateException("No response from pragma query.");
+    }
+  }
+
+  public boolean hasTableField(
+      @NotNull final String tableName,
+      @NotNull final Object field)
+      throws SQLException {
+    return hasTableField(tableName, this.getConnection(), field);
   }
 }
