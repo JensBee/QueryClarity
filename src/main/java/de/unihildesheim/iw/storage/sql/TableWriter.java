@@ -68,16 +68,10 @@ public abstract class TableWriter
     this.con.setAutoCommit(false);
   }
 
-  public void disableAutoCommit()
-      throws SQLException {
-    this.con.setAutoCommit(false);
-  }
-
-  public void enableAutoCommit()
-      throws SQLException {
-    this.con.setAutoCommit(true);
-  }
-
+  /**
+   * Commit changes to the database for this table.
+   * @throws SQLException Thrown on low-level SQL-errors
+   */
   public void commit()
       throws SQLException {
     this.con.commit();
