@@ -24,18 +24,17 @@ import org.jetbrains.annotations.NotNull;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class SentenceScoringTable
+public final class SentenceScoringTable
     implements Table {
   /**
    * Fields belonging to this table.
@@ -58,60 +57,56 @@ public class SentenceScoringTable
     /**
      * Auto-generated id.
      */
-    ID,
+    ID("id integer primary key not null"),
     /**
      * Term as string.
      */
-    SENTENCE,
+    SENTENCE("sentence text not null"),
     /**
      * Language the entry belongs to.
      */
-    LANG,
+    LANG("lang char(2) not null"),
     /**
      * Term reference.
      */
-    TERM_REF;
+    TERM_REF("foreign key (term_ref) references " +
+        TermScoringTable.TABLE_NAME + '(' + TermScoringTable.Fields.ID + ')');
+
+    /**
+     * SQL code to create this field.
+     */
+    private final String sqlStr;
+
+    /**
+     * Create a new field instance with the given SQL code to create the
+     * field in the database.
+     * @param sql SQL code to create this field.
+     */
+    Fields(@NotNull final String sql) {
+      this.sqlStr = sql;
+    }
 
     @Override
     public String toString() {
       return this.name().toLowerCase();
     }
-  }
 
-  /**
-   * Default fields for this table.
-   */
-  @SuppressWarnings("PublicStaticCollectionField")
-  public static final List<TableField> DEFAULT_FIELDS =
-      Collections.unmodifiableList(Arrays.asList(
-          new TableField(Fields.ID.toString(), Fields.ID +
-              " integer primary key not null"),
-          new TableField(Fields.SENTENCE.toString(), Fields.SENTENCE +
-              " text not null"),
-          new TableField(Fields.LANG.toString(), Fields.LANG +
-              " char(2) not null"),
-          new TableField(Fields.TERM_REF.toString(),
-              "foreign key (" + Fields.TERM_REF + ") references " +
-                  TermScoringTable.TABLE_NAME +
-                  '(' + TermScoringTable.Fields.ID + ')')));
+    /**
+     * Get the current field as {@link TableField} instance.
+     * @return {@link TableField} instance for the current field
+     */
+    public TableField getAsTableField() {
+      return new TableField(toString(), this.sqlStr);
+    }
+  }
 
   /**
    * Create a new instance using the default fields.
    */
   public SentenceScoringTable() {
-    this(DEFAULT_FIELDS);
+    this.fields = Arrays.stream(Fields.values())
+        .map(Fields::getAsTableField).collect(Collectors.toList());
     addDefaultFieldsToUnique();
-  }
-
-  /**
-   * Create a new instance using the specified fields.
-   *
-   * @param newFields Fields to use
-   */
-  public SentenceScoringTable(
-      @NotNull final Collection<TableField> newFields) {
-    this.fields = new ArrayList<>(newFields.size());
-    this.fields.addAll(newFields);
   }
 
   @NotNull

@@ -45,8 +45,6 @@ public final class TopicsDB
   private static final Collection<Class<? extends Table>> ACCEPTED_TABLES =
       Collections.unmodifiableList(Arrays.asList(
           MetaTable.class,
-          PassagesContentTable.class,
-          PassagesEntryTable.class,
           PassagesTable.class));
 
   /**

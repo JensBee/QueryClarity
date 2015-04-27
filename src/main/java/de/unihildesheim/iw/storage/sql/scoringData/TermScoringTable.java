@@ -24,13 +24,12 @@ import org.jetbrains.annotations.NotNull;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
@@ -58,70 +57,63 @@ public final class TermScoringTable
     /**
      * Auto-generated id.
      */
-    ID,
+    ID("id integer primary key not null"),
     /**
      * Term as string.
      */
-    TERM,
+    TERM("term text not null"),
     /**
      * Language the entry belongs to.
      */
-    LANG,
+    LANG("lang char(2) not null"),
     /**
      * Relative document frequency value.
      */
-    DOCFREQ_REL,
+    DOCFREQ_REL("docfreq_rel real not null"),
     /**
      * Absolute document frequency value.
      */
-    DOCFREQ_ABS,
+    DOCFREQ_ABS("docfreq_abs real not null"),
     /**
      * Bin (section/segment) the term was taken from.
      */
-    BIN;
+    BIN("bin integer not null");
+
+    /**
+     * SQL code to create this field.
+     */
+    private final String sqlStr;
+
+    /**
+     * Create a new field instance with the given SQL code to create the
+     * field in the database.
+     * @param sql SQL code to create this field.
+     */
+    Fields(@NotNull final String sql) {
+      this.sqlStr = sql;
+    }
 
     @Override
     public String toString() {
       return this.name().toLowerCase();
     }
-  }
 
-  /**
-   * Default fields for this table.
-   */
-  @SuppressWarnings("PublicStaticCollectionField")
-  public static final List<TableField> DEFAULT_FIELDS =
-      Collections.unmodifiableList(Arrays.asList(
-          new TableField(Fields.ID.toString(), Fields.ID +
-              " integer primary key not null"),
-          new TableField(Fields.TERM.toString(), Fields.TERM +
-              " text not null"),
-          new TableField(Fields.LANG.toString(), Fields.LANG +
-              " char(2) not null"),
-          new TableField(Fields.DOCFREQ_ABS.toString(), Fields.DOCFREQ_ABS +
-              " real not null"),
-          new TableField(Fields.DOCFREQ_REL.toString(), Fields.DOCFREQ_REL +
-              " real not null"),
-          new TableField(Fields.BIN.toString(), Fields.BIN +
-              " integer not null")));
+    /**
+     * Get the current field as {@link TableField} instance.
+     * @return {@link TableField} instance for the current field
+     */
+    public TableField getAsTableField() {
+      return new TableField(toString(), this.sqlStr);
+    }
+  }
 
   /**
    * Create a new instance using the default fields.
    */
   public TermScoringTable() {
-    this(DEFAULT_FIELDS);
+    this.fields = Arrays.stream(Fields.values())
+        .map(Fields::getAsTableField).collect(Collectors.toList());
     addDefaultFieldsToUnique();
-  }
-
-  /**
-   * Create a new instance using the specified fields.
-   *
-   * @param newFields Fields to use
-   */
-  public TermScoringTable(
-      @NotNull final Collection<TableField> newFields) {
-    this.fields = new ArrayList<>(newFields.size());
-    this.fields.addAll(newFields);
   }
 
   @NotNull

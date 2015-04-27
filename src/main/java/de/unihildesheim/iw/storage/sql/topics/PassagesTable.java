@@ -31,6 +31,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
@@ -51,58 +52,59 @@ public final class PassagesTable
     /**
      * Auto-generated id.
      */
-    ID,
+    ID("id integer primary key not null"),
     /**
      * Scorer implementation id.
      */
-    IMPL,
+    IMPL("impl char(3) not null"),
     /**
      * Flag indicating, if result is empty.
      */
-    ISEMPTY,
+    ISEMPTY("isempty boolean not null"),
     /**
      * Scored language.
      */
-    LANG,
+    LANG("lang char(2) not null"),
     /**
      * Scoring result value.
      */
-    SCORE,
+    SCORE("score real not null"),
     /**
      * Scored item source identifier.
      */
-    SOURCE,
+    SOURCE("source text not null"),
     /**
      * Scorng content.
      */
-    CONTENT;
+    CONTENT("content text not null");
+
+    /**
+     * SQL code to create this field.
+     */
+    private final String sqlStr;
+
+    /**
+     * Create a new field instance with the given SQL code to create the
+     * field in the database.
+     * @param sql SQL code to create this field.
+     */
+    Fields(@NotNull final String sql) {
+      this.sqlStr = sql;
+    }
 
     @Override
     public String toString() {
       return this.name().toLowerCase();
     }
-  }
 
-  /**
-   * Default fields for this table.
-   */
-  @SuppressWarnings("PublicStaticCollectionField")
-  public static final List<TableField> DEFAULT_FIELDS =
-      Collections.unmodifiableList(Arrays.asList(
-          new TableField(Fields.ID.toString(), Fields.ID +
-              " integer primary key not null"),
-          new TableField(Fields.SOURCE.toString(), Fields.SOURCE +
-              " text not null"),
-          new TableField(Fields.CONTENT.toString(), Fields.CONTENT +
-              " text not null"),
-          new TableField(Fields.IMPL.toString(), Fields.IMPL +
-              " char(3) not null"),
-          new TableField(Fields.ISEMPTY.toString(), Fields.ISEMPTY +
-              " boolean not null"),
-          new TableField(Fields.LANG.toString(), Fields.LANG +
-              " char(2) not null"),
-          new TableField(Fields.SCORE.toString(), Fields.SCORE +
-              " real not null")));
+    /**
+     * Get the current field as {@link TableField} instance.
+     * @return {@link TableField} instance for the current field
+     */
+    public TableField getAsTableField() {
+      return new TableField(toString(), this.sqlStr);
+    }
+  }
 
   /**
    * Table name.
@@ -112,13 +114,14 @@ public final class PassagesTable
   /**
    * Collection of fields that are required to contain unique values.
    */
-  final Set<String> uniqueFields = new HashSet<>(DEFAULT_FIELDS.size());
+  final Set<String> uniqueFields = new HashSet<>(Fields.values().length);
 
   /**
    * Create a new instance using the default fields.
    */
   public PassagesTable() {
-    this(DEFAULT_FIELDS);
+    this.fields = Arrays.stream(Fields.values())
+        .map(Fields::getAsTableField).collect(Collectors.toList());
     addDefaultFieldsToUnique();
   }
 
@@ -152,10 +155,10 @@ public final class PassagesTable
 
   @Override
   public void addFieldToUnique(@NotNull final Object fld) {
-    final boolean validField = this.fields.stream()
+    final boolean invalidField = !this.fields.stream()
         .filter(f -> f.getName().equals(fld.toString())).findFirst()
         .isPresent();
-    if (!validField) {
+    if (invalidField) {
       throw new IllegalArgumentException("Unknown field '" + fld + '\'');
     }
     this.uniqueFields.add(fld.toString());
