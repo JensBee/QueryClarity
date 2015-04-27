@@ -17,7 +17,7 @@
 
 package de.unihildesheim.iw.cli;
 
-import de.unihildesheim.iw.Buildable;
+import de.unihildesheim.iw.Buildable.BuildException;
 import de.unihildesheim.iw.data.IPCCode.IPCRecord;
 import de.unihildesheim.iw.data.IPCCode.Parser;
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader;
@@ -25,12 +25,14 @@ import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader.Builder;
 import de.unihildesheim.iw.lucene.query.IPCClassQuery;
 import de.unihildesheim.iw.lucene.search.IPCFieldFilter;
 import de.unihildesheim.iw.lucene.search.IPCFieldFilterFunctions.SloppyMatch;
+import de.unihildesheim.iw.storage.sql.MetaTable;
 import de.unihildesheim.iw.storage.sql.Table;
 import de.unihildesheim.iw.storage.sql.TableFieldContent;
 import de.unihildesheim.iw.storage.sql.termData.TermDataDB;
 import de.unihildesheim.iw.storage.sql.termData.TermsTable;
 import de.unihildesheim.iw.storage.sql.termData.TermsTable.Fields;
 import de.unihildesheim.iw.util.StopwordsFileReader;
+import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TaskObserver;
 import de.unihildesheim.iw.util.TaskObserver.TaskObserverMessage;
 import de.unihildesheim.iw.util.TimeMeasure;
@@ -63,23 +65,21 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 
 /**
+ * Commandline utility to dump terms from the Lucene index.
+ *
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class DumpTermData
+public final class DumpTermData
     extends CliBase {
   /**
    * Logger instance for this class.
    */
-  private static final Logger LOG =
+  static final Logger LOG =
       LoggerFactory.getLogger(DumpTermData.class);
   /**
    * Object wrapping commandline options.
    */
   private final Params cliParams = new Params();
-  /**
-   * Target database for term data.
-   */
-  private TermDataDB db;
 
   /**
    * Default private constructor passing a description to {@link CliBase}.
@@ -96,12 +96,12 @@ public class DumpTermData
    * @throws IOException Thrown on low-level i/o-errors
    * @throws ClassNotFoundException Thrown if JDBC driver could not be loaded
    * @throws SQLException Thrown, if connection to the database has failed
-   * @throws Buildable.BuildException Thrown, if building a {@link
+   * @throws BuildException Thrown, if building a {@link
    * FilteredDirectoryReader} instance has failed
    */
   public static void main(final String... args)
       throws IOException, SQLException, ClassNotFoundException,
-             Buildable.BuildException {
+             BuildException {
     new DumpTermData().runMain(args);
     Runtime.getRuntime().exit(0); // required to trigger shutdown-hooks
   }
@@ -113,12 +113,12 @@ public class DumpTermData
    * @throws IOException Thrown on low-level i/o-errors
    * @throws ClassNotFoundException Thrown if JDBC driver could not be loaded
    * @throws SQLException Thrown, if connection to the database has failed
-   * @throws Buildable.BuildException Thrown, if building a {@link
+   * @throws BuildException Thrown, if building a {@link
    * FilteredDirectoryReader} instance has failed
    */
   private void runMain(final String... args)
       throws IOException, SQLException, ClassNotFoundException,
-             Buildable.BuildException {
+             BuildException {
     new CmdLineParser(this.cliParams);
     parseWithHelp(this.cliParams, args);
 
@@ -127,73 +127,89 @@ public class DumpTermData
 
     LOG.info("Writing term-data to '{}'.", this.cliParams.dbFile);
 
-    // table manager instance
-    this.db = new TermDataDB(this.cliParams.dbFile);
+    // table manager instance: Target database for term data
+    try (final TermDataDB db = new TermDataDB(this.cliParams.dbFile)) {
+      // create meta & data table
+      final Table termsTable = new TermsTable();
+      final Table metaTable = new MetaTable();
+      db.createTables(termsTable, metaTable);
 
-    final Table termsTable = new TermsTable();
-    this.db.createTables(termsTable);
-    @SuppressWarnings("UnnecessarilyQualifiedInnerClassAccess")
-    final TermsTable.Writer dataWriter =
-        new TermsTable.Writer(this.db.getConnection());
+      try (@SuppressWarnings("UnnecessarilyQualifiedInnerClassAccess")
+           final TermsTable.Writer dataWriter =
+               new TermsTable.Writer(db.getConnection())) {
 
-    final Set<String> sWords;
-    if (this.cliParams.stopFilePattern != null) {
-      sWords = CliCommon.getStopwords(this.cliParams.lang,
-          this.cliParams.stopFileFormat, this.cliParams.stopFilePattern);
-    } else {
-      sWords = Collections.emptySet();
-    }
-
-    final int maxDoc = this.cliParams.idxReader.maxDoc();
-    if (maxDoc == 0) {
-      LOG.error("Empty index.");
-      return;
-    }
-
-    final Terms terms = MultiFields.getTerms(this.cliParams.idxReader,
-        this.cliParams.field);
-    TermsEnum termsEnum = TermsEnum.EMPTY;
-    BytesRef term;
-
-    if (terms != null) {
-      termsEnum = terms.iterator(termsEnum);
-      term = termsEnum.next();
-      final AtomicLong count = new AtomicLong(0L);
-
-      final TaskObserver obs = new TaskObserver(
-          new TaskObserverMessage() {
-            @Override
-            public void call(@NotNull final TimeMeasure tm) {
-              LOG.info("Collected {} terms after {}.",
-                  NumberFormat.getIntegerInstance().format(count.get()),
-                  tm.getTimeString());
-            }
-          }).start();
-
-      while (term != null) {
-        final String termStr = term.utf8ToString();
-        if (!sWords.contains(termStr.toLowerCase())) {
-          final double docFreq = (double) termsEnum.docFreq();
-          if (docFreq > 0d) {
-            final double relDocFreq = docFreq / (double) maxDoc;
-
-            if (relDocFreq > this.cliParams.threshold) {
-              @SuppressWarnings("ObjectAllocationInLoop")
-              final TableFieldContent tfc = new TableFieldContent(termsTable);
-              tfc.setValue(Fields.TERM, termStr);
-              tfc.setValue(Fields.DOCFREQ_REL, relDocFreq);
-              tfc.setValue(Fields.DOCFREQ_ABS, docFreq);
-              tfc.setValue(Fields.LANG, this.cliParams.lang);
-              dataWriter.addContent(tfc);
-              count.incrementAndGet();
-            }
-          }
+        // write meta-data
+        try (@SuppressWarnings("UnnecessarilyQualifiedInnerClassAccess")
+             final MetaTable.Writer metaWriter =
+                 new MetaTable.Writer(db.getConnection())) {
+          metaWriter.addContent(new TableFieldContent(metaTable)
+              .setValue(MetaTable.Fields.TABLE_NAME, termsTable.getName())
+              .setValue(MetaTable.Fields.CMD,
+                  StringUtils.join(args, " ")));
         }
-        term = termsEnum.next();
+
+        final Set<String> sWords;
+        if (this.cliParams.stopFilePattern != null) {
+          sWords = CliCommon.getStopwords(this.cliParams.lang,
+              this.cliParams.stopFileFormat, this.cliParams.stopFilePattern);
+        } else {
+          sWords = Collections.emptySet();
+        }
+
+        final int maxDoc = this.cliParams.idxReader.maxDoc();
+        if (maxDoc == 0) {
+          LOG.error("Empty index.");
+          return;
+        }
+
+        final Terms terms = MultiFields.getTerms(this.cliParams.idxReader,
+            this.cliParams.field);
+        TermsEnum termsEnum = TermsEnum.EMPTY;
+        BytesRef term;
+
+        if (terms != null) {
+          termsEnum = terms.iterator(termsEnum);
+          term = termsEnum.next();
+          final AtomicLong count = new AtomicLong(0L);
+
+          @SuppressWarnings("AnonymousInnerClassMayBeStatic")
+          final TaskObserver obs = new TaskObserver(
+              new TaskObserverMessage() {
+                @Override
+                public void call(@NotNull final TimeMeasure tm) {
+                  LOG.info("Collected {} terms after {}.",
+                      NumberFormat.getIntegerInstance().format(count.get()),
+                      tm.getTimeString());
+                }
+              }).start();
+
+          while (term != null) {
+            final String termStr = term.utf8ToString();
+            if (!sWords.contains(termStr.toLowerCase())) {
+              final double docFreq = (double) termsEnum.docFreq();
+              if (docFreq > 0d) {
+                final double relDocFreq = docFreq / (double) maxDoc;
+
+                if (relDocFreq > this.cliParams.threshold) {
+                  @SuppressWarnings("ObjectAllocationInLoop")
+                  final TableFieldContent tfc =
+                      new TableFieldContent(termsTable);
+                  tfc.setValue(Fields.TERM, termStr);
+                  tfc.setValue(Fields.DOCFREQ_REL, relDocFreq);
+                  tfc.setValue(Fields.DOCFREQ_ABS, docFreq);
+                  tfc.setValue(Fields.LANG, this.cliParams.lang);
+                  dataWriter.addContent(tfc);
+                  count.incrementAndGet();
+                }
+              }
+            }
+            term = termsEnum.next();
+          }
+          obs.stop();
+          LOG.info("Total of {} terms collected.",
+              NumberFormat.getIntegerInstance().format(count));
+        }
       }
-      obs.stop();
-      dataWriter.close();
-      LOG.info("Total of {} terms collected.", NumberFormat.getIntegerInstance().format(count));
     }
   }
 
@@ -297,16 +313,22 @@ public class DumpTermData
         usage = "Process for the defined language.")
     String lang;
 
+    /**
+     * Empty constructor to allow access from parent class.
+     */
     Params() {
+      // empty
     }
 
     /**
      * Check, if the defined files and directories are available.
      *
      * @throws IOException Thrown on low-level i/o-errors
+     * @throws BuildException Thrown, if a {@link FilteredDirectoryReader}
+     * failed to be build
      */
     void check()
-        throws IOException, Buildable.BuildException {
+        throws IOException, BuildException {
       if (this.idxDir.exists()) {
         // check, if path is a directory
         if (!this.idxDir.isDirectory()) {
@@ -335,7 +357,7 @@ public class DumpTermData
               idxReaderBuilder = new Builder(reader);
           final IPCRecord ipc = ipcParser.parse(this.ipc);
           final BooleanQuery bq = new BooleanQuery();
-          Pattern rx_ipc = Pattern.compile(ipc.toRegExpString(this.sep));
+          final Pattern rx_ipc = Pattern.compile(ipc.toRegExpString(this.sep));
           if (LOG.isDebugEnabled()) {
             LOG.debug("IPC regExp: rx={} pat={}",
                 ipc.toRegExpString(this.sep),
