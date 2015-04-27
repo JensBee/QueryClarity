@@ -116,6 +116,7 @@ public final class DumpTermData
    * @throws BuildException Thrown, if building a {@link
    * FilteredDirectoryReader} instance has failed
    */
+  @SuppressWarnings("UnnecessarilyQualifiedInnerClassAccess")
   private void runMain(final String... args)
       throws IOException, SQLException, ClassNotFoundException,
              BuildException {
@@ -134,13 +135,11 @@ public final class DumpTermData
       final Table metaTable = new MetaTable();
       db.createTables(termsTable, metaTable);
 
-      try (@SuppressWarnings("UnnecessarilyQualifiedInnerClassAccess")
-           final TermsTable.Writer dataWriter =
+      try (final TermsTable.Writer dataWriter =
                new TermsTable.Writer(db.getConnection())) {
 
         // write meta-data
-        try (@SuppressWarnings("UnnecessarilyQualifiedInnerClassAccess")
-             final MetaTable.Writer metaWriter =
+        try (final MetaTable.Writer metaWriter =
                  new MetaTable.Writer(db.getConnection())) {
           metaWriter.addContent(new TableFieldContent(metaTable)
               .setValue(MetaTable.Fields.TABLE_NAME, termsTable.getName())
