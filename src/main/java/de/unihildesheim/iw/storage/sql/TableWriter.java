@@ -86,9 +86,14 @@ public abstract class TableWriter
   @Override
   public void close()
       throws SQLException {
-    LOG.debug("Closing down.");
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Closing down table {}.", this.tbl.getName());
+    }
     if (!this.con.isClosed()) {
-      LOG.debug("Commiting changes to database before closing.");
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Commiting changes to database before closing table {}.",
+            this.tbl.getName());
+      }
       commit();
     }
   }
