@@ -48,7 +48,7 @@ public final class TermsTable
   /**
    * Table name.
    */
-  static final String TABLE_NAME = "Terms";
+  public static final String TABLE_NAME = "Terms";
 
   /**
    * Fields in this table.
@@ -163,7 +163,7 @@ public final class TermsTable
      * Create a new writer using the default table name.
      *
      * @param con Database connection
-     * @throws SQLException
+     * @throws SQLException Thrown on low-level SQL errors
      */
     public Writer(@NotNull final Connection con)
         throws SQLException {
@@ -175,7 +175,7 @@ public final class TermsTable
      *
      * @param con Database connection
      * @param tbl Table instance
-     * @throws SQLException
+     * @throws SQLException Thrown on low-level SQL errors
      */
     public Writer(
         @NotNull final Connection con,

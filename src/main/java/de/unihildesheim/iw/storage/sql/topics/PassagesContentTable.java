@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
+ * Scoring content (passages).
  * @author Jens Bertram (code@jens-bertram.net)
  */
 public final class PassagesContentTable
@@ -43,8 +44,23 @@ public final class PassagesContentTable
    */
   private final List<TableField> fields;
 
+  /**
+   * Fields in this table.
+   */
+  @SuppressWarnings("PublicInnerClass")
   public enum Fields {
-    ID, SOURCE, CONTENT;
+    /**
+     * Auto-generated id.
+     */
+    ID,
+    /**
+     * Content source identifier.
+     */
+    SOURCE,
+    /**
+     * Passage content.
+     */
+    CONTENT;
 
     @Override
     public String toString() {
@@ -55,6 +71,7 @@ public final class PassagesContentTable
   /**
    * Default fields for this table.
    */
+  @SuppressWarnings("PublicStaticCollectionField")
   public static final List<TableField> DEFAULT_FIELDS =
       Collections.unmodifiableList(Arrays.asList(
           new TableField(Fields.ID.toString(), Fields.ID +
@@ -67,9 +84,12 @@ public final class PassagesContentTable
   /**
    * Table name.
    */
-  static final String TABLE_NAME = "PassagesContent";
+  public static final String TABLE_NAME = "PassagesContent";
 
-  final Set<String> uniqueFields = new HashSet<>();
+  /**
+   * Collection of fields that are required to contain unique values.
+   */
+  final Set<String> uniqueFields = new HashSet<>(DEFAULT_FIELDS.size());
 
   /**
    * Create a new instance using the default fields.
@@ -95,6 +115,7 @@ public final class PassagesContentTable
     return Collections.unmodifiableList(this.fields);
   }
 
+  @NotNull
   @Override
   public String getName() {
     return TABLE_NAME;
@@ -111,7 +132,7 @@ public final class PassagesContentTable
      * Create a new writer using the default table name.
      *
      * @param con Database connection
-     * @throws SQLException
+     * @throws SQLException Thrown on low-level SQL errors
      */
     public Writer(@NotNull final Connection con)
         throws SQLException {
@@ -122,8 +143,8 @@ public final class PassagesContentTable
      * Create a new writer using the specified table name.
      *
      * @param con Database connection
-     * @param tbl
-     * @throws SQLException
+     * @param tbl Table instance
+     * @throws SQLException Thrown on low-level SQL errors
      */
     public Writer(
         @NotNull final Connection con,
@@ -140,10 +161,10 @@ public final class PassagesContentTable
 
   @Override
   public void addFieldToUnique(@NotNull final Object fld) {
-    final boolean validField = this.fields.stream()
+    final boolean invalidField = !this.fields.stream()
         .filter(f -> f.getName().equals(fld.toString())).findFirst()
         .isPresent();
-    if (!validField) {
+    if (invalidField) {
       throw new IllegalArgumentException("Unknown field '" + fld + '\'');
     }
     this.uniqueFields.add(fld.toString());

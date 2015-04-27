@@ -43,8 +43,39 @@ public final class PassagesTable
    */
   private final List<TableField> fields;
 
+  /**
+   * Fields in this table.
+   */
+  @SuppressWarnings("PublicInnerClass")
   public enum Fields {
-    ID, IMPL, ISEMPTY, LANG, SCORE, SOURCE, CONTENT;
+    /**
+     * Auto-generated id.
+     */
+    ID,
+    /**
+     * Scorer implementation id.
+     */
+    IMPL,
+    /**
+     * Flag indicating, if result is empty.
+     */
+    ISEMPTY,
+    /**
+     * Scored language.
+     */
+    LANG,
+    /**
+     * Scoring result value.
+     */
+    SCORE,
+    /**
+     * Scored item source identifier.
+     */
+    SOURCE,
+    /**
+     * Scorng content.
+     */
+    CONTENT;
 
     @Override
     public String toString() {
@@ -55,6 +86,7 @@ public final class PassagesTable
   /**
    * Default fields for this table.
    */
+  @SuppressWarnings("PublicStaticCollectionField")
   public static final List<TableField> DEFAULT_FIELDS =
       Collections.unmodifiableList(Arrays.asList(
           new TableField(Fields.ID.toString(), Fields.ID +
@@ -75,9 +107,12 @@ public final class PassagesTable
   /**
    * Table name.
    */
-  static final String TABLE_NAME = "Passages";
+  public static final String TABLE_NAME = "Passages";
 
-  final Set<String> uniqueFields = new HashSet<>();
+  /**
+   * Collection of fields that are required to contain unique values.
+   */
+  final Set<String> uniqueFields = new HashSet<>(DEFAULT_FIELDS.size());
 
   /**
    * Create a new instance using the default fields.
@@ -146,7 +181,7 @@ public final class PassagesTable
      * Create a new writer using the default table name.
      *
      * @param con Database connection
-     * @throws SQLException
+     * @throws SQLException Thrown on low-level SQL errors
      */
     public Writer(@NotNull final Connection con)
         throws SQLException {
@@ -158,7 +193,7 @@ public final class PassagesTable
      *
      * @param con Database connection
      * @param tbl Table instance
-     * @throws SQLException
+     * @throws SQLException Thrown on low-level SQL errors
      */
     public Writer(
         @NotNull final Connection con,

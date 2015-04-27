@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
+ * (Passage) Content scoring result.
  * @author Jens Bertram (code@jens-bertram.net)
  */
 public final class PassagesEntryTable
@@ -100,7 +101,7 @@ public final class PassagesEntryTable
   /**
    * Table name.
    */
-  static final String TABLE_NAME = "PassagesEntry";
+  public static final String TABLE_NAME = "PassagesEntry";
 
   /**
    * Collection of fields that are required to contain unique values.
@@ -173,7 +174,7 @@ public final class PassagesEntryTable
      * Create a new writer using the default table name.
      *
      * @param con Database connection
-     * @throws SQLException
+     * @throws SQLException Thrown on low-level SQL errors
      */
     public Writer(@NotNull final Connection con)
         throws SQLException {
@@ -185,7 +186,7 @@ public final class PassagesEntryTable
      *
      * @param con Database connection
      * @param tbl Table instance
-     * @throws SQLException
+     * @throws SQLException Thrown on low-level SQL errors
      */
     public Writer(
         @NotNull final Connection con,
