@@ -206,7 +206,7 @@ public final class DumpTermData
                   if (this.cliParams.ipcRec != null) {
                     tfc.setValue(
                         TermsTable.FieldsOptional.IPC,
-                        this.cliParams.ipcRec);
+                        this.cliParams.ipcRec.toFormattedString());
                   }
                   dataWriter.addContent(tfc, false);
                   count.incrementAndGet();
