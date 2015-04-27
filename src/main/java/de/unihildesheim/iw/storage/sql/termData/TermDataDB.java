@@ -18,6 +18,7 @@
 package de.unihildesheim.iw.storage.sql.termData;
 
 import de.unihildesheim.iw.storage.sql.AbstractDB;
+import de.unihildesheim.iw.storage.sql.MetaTable;
 import de.unihildesheim.iw.storage.sql.Table;
 import org.jetbrains.annotations.NotNull;
 
@@ -25,6 +26,7 @@ import java.io.File;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -41,8 +43,8 @@ public class TermDataDB
    * Tables allowed to be created in this database.
    */
   private static final Collection<Class<? extends Table>> ACCEPTED_TABLES =
-      Collections.unmodifiableList(Collections.singletonList(
-          TermsTable.class));
+      Collections.unmodifiableList(Arrays.asList(
+          MetaTable.class, TermsTable.class));
 
   /**
    * New instance.
@@ -86,6 +88,7 @@ public class TermDataDB
 
   /**
    * Get the number of terms stored.
+   *
    * @return Number of terms. Returns {@code 0} if the table does not exist.
    * @throws SQLException Thrown on low-level database errors
    */

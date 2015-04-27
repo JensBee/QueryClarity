@@ -18,6 +18,7 @@
 package de.unihildesheim.iw.storage.sql.topics;
 
 import de.unihildesheim.iw.storage.sql.AbstractDB;
+import de.unihildesheim.iw.storage.sql.MetaTable;
 import de.unihildesheim.iw.storage.sql.Table;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -50,6 +51,7 @@ public final class TopicsDB
    */
   private static final Collection<Class<? extends Table>> ACCEPTED_TABLES =
       Collections.unmodifiableList(Arrays.asList(
+          MetaTable.class,
           PassagesContentTable.class,
           PassagesEntryTable.class,
           PassagesTable.class));
