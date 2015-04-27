@@ -69,4 +69,32 @@ public class TermDataDB
   protected Collection<Class<? extends Table>> getAcceptedTables() {
     return ACCEPTED_TABLES;
   }
+
+  /**
+   * Check, if there are any terms stored in the database.
+   *
+   * @return True, if there are terms
+   * @throws SQLException Thrown on low-level database errors
+   */
+  public boolean hasTerms()
+      throws SQLException {
+    if (hasTable(TermsTable.TABLE_NAME)) {
+      return getNumberOfTerms() > 0L;
+    }
+    return false;
+  }
+
+  /**
+   * Get the number of terms stored.
+   * @return Number of terms. Returns {@code 0} if the table does not exist.
+   * @throws SQLException Thrown on low-level database errors
+   */
+  public long getNumberOfTerms()
+      throws SQLException {
+    if (hasTable(TermsTable.TABLE_NAME)) {
+      return getNumberOfRows(TermsTable.TABLE_NAME);
+    } else {
+      return 0L;
+    }
+  }
 }
