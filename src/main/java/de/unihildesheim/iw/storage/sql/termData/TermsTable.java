@@ -155,6 +155,11 @@ public final class TermsTable
     addDefaultFieldsToUnique();
   }
 
+  /**
+   * Create a new instance and add the given optional fields to the table.
+   * @param optFields Optional fields to add to the {@link Fields default}
+   * list of fields
+   */
   public TermsTable(@NotNull final FieldsOptional... optFields) {
     this();
     for (final FieldsOptional fld : optFields) {
