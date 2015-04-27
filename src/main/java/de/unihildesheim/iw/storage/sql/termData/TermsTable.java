@@ -18,6 +18,7 @@
 package de.unihildesheim.iw.storage.sql.termData;
 
 import de.unihildesheim.iw.data.IPCCode.IPCRecord;
+import de.unihildesheim.iw.storage.sql.AbstractTable;
 import de.unihildesheim.iw.storage.sql.Table;
 import de.unihildesheim.iw.storage.sql.TableField;
 import de.unihildesheim.iw.storage.sql.TableWriter;
@@ -36,7 +37,7 @@ import java.util.stream.Collectors;
  * @author Jens Bertram (code@jens-bertram.net)
  */
 public final class TermsTable
-    implements Table {
+    extends AbstractTable {
   /**
    * Fields belonging to this table.
    */
@@ -189,12 +190,7 @@ public final class TermsTable
 
   @Override
   public void addFieldToUnique(@NotNull final Object fld) {
-    final boolean invalidField = !this.fields.stream()
-        .filter(f -> f.getName().equals(fld.toString())).findFirst()
-        .isPresent();
-    if (invalidField) {
-      throw new IllegalArgumentException("Unknown field '" + fld + '\'');
-    }
+    checkFieldIsValid(fld);
     this.uniqueFields.add(fld.toString());
   }
 
