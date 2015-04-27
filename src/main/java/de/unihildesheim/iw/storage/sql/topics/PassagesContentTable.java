@@ -84,7 +84,7 @@ public final class PassagesContentTable
   /**
    * Table name.
    */
-  public static final String TABLE_NAME = "PassagesContent";
+  public static final String TABLE_NAME = "passagescontent";
 
   /**
    * Collection of fields that are required to contain unique values.

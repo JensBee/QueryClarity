@@ -101,7 +101,7 @@ public final class PassagesEntryTable
   /**
    * Table name.
    */
-  public static final String TABLE_NAME = "PassagesEntry";
+  public static final String TABLE_NAME = "passagesentry";
 
   /**
    * Collection of fields that are required to contain unique values.

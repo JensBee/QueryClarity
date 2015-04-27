@@ -48,7 +48,7 @@ public final class TermsTable
   /**
    * Table name.
    */
-  public static final String TABLE_NAME = "Terms";
+  public static final String TABLE_NAME = "terms";
 
   /**
    * Fields in this table.
