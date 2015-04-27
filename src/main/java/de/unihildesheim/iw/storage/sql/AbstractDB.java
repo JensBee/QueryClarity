@@ -68,6 +68,29 @@ public abstract class AbstractDB
   }
 
   /**
+   * Check, if the given table exists in the database.
+   *
+   * @param tableName Table name to check for
+   * @return True, if table exists
+   * @throws SQLException Thrown on database errors
+   */
+  public boolean hasTable(@NotNull final String tableName)
+      throws SQLException {
+    final Statement stmt = getConnection().createStatement();
+    return stmt.execute("SELECT name FROM sqlite_master WHERE type='table' " +
+        "AND name='" + tableName + '\'');
+  }
+
+  public long getNumberOfRows(@NotNull final String tableName)
+      throws SQLException {
+    final Statement stmt = getConnection().createStatement();
+    if (stmt.execute("SELECT count(*) from '" + tableName + '\'')) {
+      return stmt.getResultSet().getLong(1);
+    }
+    return 0L;
+  }
+
+  /**
    * Create all required tables, if the do not exist already.
    *
    * @param tables List of tables to create
