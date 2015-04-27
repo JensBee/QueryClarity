@@ -32,7 +32,7 @@ import java.util.Set;
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class MetaTable
+public final class MetaTable
     implements Table {
   /**
    * Fields belonging to this table.
@@ -135,7 +135,7 @@ public class MetaTable
 
   @Override
   public void addDefaultFieldsToUnique() {
-    this.uniqueFields.add(Fields.TABLE_NAME.toString());
+    // no unique fields
   }
 
   /**
