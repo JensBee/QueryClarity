@@ -21,8 +21,6 @@ import de.unihildesheim.iw.storage.sql.AbstractDB;
 import de.unihildesheim.iw.storage.sql.MetaTable;
 import de.unihildesheim.iw.storage.sql.Table;
 import org.jetbrains.annotations.NotNull;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.sql.Connection;
