@@ -113,7 +113,7 @@ public final class RandomValue {
    *
    * @param min Minimum value
    * @param max Maximum value
-   * @return Long value
+   * @return Long between min and max, inclusive.
    */
   public static long getLong(final long min, final long max) {
     return min + 1L + (max - min) * (long) RANDOM.nextDouble();
