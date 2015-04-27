@@ -1,0 +1,5 @@
+#!/bin/sh
+CLASS=cli.ExtractTerms
+ARGS=""
+
+./run ${CLASS} ${ARGS} $*
