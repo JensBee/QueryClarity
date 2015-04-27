@@ -116,7 +116,7 @@ public final class TermsTable
     /**
      * IPC code, if selection was restricted to any code.
      */
-    IPC("ipc char(" + IPCRecord.MAX_LENGTH + ") primary key not null");
+    IPC("ipc char(" + IPCRecord.MAX_LENGTH + ')');
 
     /**
      * SQL code to create this field.
