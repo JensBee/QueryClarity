@@ -72,7 +72,7 @@ public abstract class AbstractDB
    *
    * @param tableName Table name to check for
    * @return True, if table exists
-   * @throws SQLException Thrown on database errors
+   * @throws SQLException Thrown on low-level database errors
    */
   public boolean hasTable(@NotNull final String tableName)
       throws SQLException {
@@ -81,6 +81,12 @@ public abstract class AbstractDB
         "AND name='" + tableName + '\'');
   }
 
+  /**
+   * Get the number of row available in the named table.
+   * @param tableName Table to count rows for
+   * @return Number of rows in table
+   * @throws SQLException Thrown on low-level database errors
+   */
   public long getNumberOfRows(@NotNull final String tableName)
       throws SQLException {
     final Statement stmt = getConnection().createStatement();
@@ -94,7 +100,7 @@ public abstract class AbstractDB
    * Create all required tables, if the do not exist already.
    *
    * @param tables List of tables to create
-   * @throws SQLException Thrown on database errors
+   * @throws SQLException Thrown on low-level database errors
    */
   public void createTables(@NotNull final Table... tables)
       throws SQLException {
@@ -107,7 +113,7 @@ public abstract class AbstractDB
    * @param force If true, deletes any table that already exists before creating
    * it
    * @param tables List of tables to create
-   * @throws SQLException Thrown on database errors
+   * @throws SQLException Thrown on low-level database errors
    */
   @SuppressWarnings("ReuseOfLocalVariable")
   public void createTables(final boolean force, @NotNull final Table... tables)
