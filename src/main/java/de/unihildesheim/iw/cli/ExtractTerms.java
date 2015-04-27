@@ -57,10 +57,6 @@ public final class ExtractTerms
    * Object wrapping commandline options.
    */
   private final Params cliParams = new Params();
-  /**
-   * Target database for scoring data.
-   */
-  private ScoringDataDB scoreDb;
 
   /**
    * Default private constructor passing a description to {@link CliBase}.
