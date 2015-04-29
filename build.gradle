@@ -1,0 +1,249 @@
+/**
+ * Location to store any working-data.
+ */
+def workingDirectory = new File('data')
+
+/**
+ * Java runtime configuration.
+ */
+def confJava = [
+        /**
+         * Default Java package.
+         */
+        package  : 'de.unihildesheim.iw.',
+        /**
+         * Java ClassPath to use.
+         */
+        classPath: files('target/QueryClarity.jar')
+]
+
+/**
+ * Lucene configuration.
+ */
+def confLucene = [
+        /**
+         * Location of Lucene indices.
+         */
+        indexPath: '/data/clef/Clarity/work/fiz/index/'
+]
+
+/**
+ * Stopwords configuration.
+ */
+def confStopwords = [
+        /**
+         * Location of stopword files.
+         */
+        pathPattern: new File('stop/stop/').absolutePath,
+        /**
+         * Default stopwords file format.
+         */
+        format     : 'snowball'
+]
+
+/**
+ * Scoring configuration.
+ */
+def confScoring = [
+        /**
+         * Languages available for scoring.
+         */
+        languages: ['de', 'en', 'fr'],
+        /**
+         * Lucene fields available for scoring.
+         */
+        fields   : ['claims', 'detd']
+]
+
+def confIPC = [
+        /**
+         * List of all known IPC-section identifiers.
+         */
+        sections: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+]
+
+/**
+ * Pre-defined task group-names.
+ */
+def groupNames = [
+        intern     : "Internal",
+        termDump   : "Basic term-frequency data dumps",
+        termDumpIpc: "Term frequency dumps filtered by IPC-section"]
+
+/**
+ * Gradle wrapper task.
+ */
+task('wrapper', type: Wrapper) {
+    description "Create gradle wrapper for distribution."
+    group groupNames['intern']
+    gradleVersion = '2.3'
+}
+
+/**
+ * Prepare the output directory.
+ */
+task('prepareOutput') {
+    workingDirectory.mkdirs()
+}
+
+/**
+ * Dynamic generate term-frequency dump tasks.
+ * 'dumpTerms-de' will dump all terms for the fields 'claims' & 'detd' for the
+ *      language 'de' (german).
+ * 'dumpTerms-de-claims' will dump all terms for the field 'claims' for the
+ *      language 'de' (german).
+ */
+for (lang in confScoring['languages']) {
+    /**
+     * Default arguments for the main class.
+     */
+    def defaultArgs = [
+            '-grpsep', '-',
+            '-idx', confLucene['indexPath'] + lang.toUpperCase(),
+            '-lang', lang,
+            '-stop', confStopwords['pathPattern'],
+            '-stop-format', confStopwords['format'],
+            '-zeropad']
+    def baseFuncName = "dumpTermFreqs-${lang}"
+
+    /**
+     * Main class to execute from the generated tasks.
+     */
+    def mainClass = confJava['package'] + 'cli.DumpTermData'
+
+    /**
+     * Create tasks for each language & field combination.
+     */
+    for (field in confScoring['fields']) {
+        def funcName = "${baseFuncName}_${field}"
+
+        /**
+         * Dump term-frequencies for current language & field.
+         */
+        task(funcName, type: JavaExec) {
+            /**
+             * Target file that will be created
+             */
+            def target = workingDirectory.absolutePath +
+                    "/termDump-${lang}_${field}.sqlite"
+            description "TermFreq dump. " +
+                    "field=${field} lang=${lang} target=${target}."
+            group groupNames['termDump']
+
+            dependsOn 'prepareOutput'
+            outputs.files target
+
+            args = defaultArgs + [
+                    '-dbfile', target,
+                    '-field', field]
+            classpath = confJava['classPath']
+            main = mainClass
+        }
+
+        /**
+         * Dynamic generate term-dump tasks for all known IPC-Sections.
+         */
+        for (ipcSec in confIPC['sections']) {
+            /**
+             * Dump term-frequencies for current language, field & IPC-section.
+             */
+            task("${funcName}-ipc_${ipcSec}", type: JavaExec) {
+                /**
+                 * Target file that will be created
+                 */
+                def target = workingDirectory.absolutePath +
+                        "/termDump-${lang}_${field}-ipc_" +
+                        ipcSec.toLowerCase() + '.sqlite'
+                description "TermFreq dump. " +
+                        "field=${field} lang=${lang} " +
+                        "ipc=${ipcSec} target=${target}."
+                group groupNames['termDumpIpc']
+
+                dependsOn 'prepareOutput'
+                outputs.files target
+
+                args = defaultArgs + [
+                        '-dbfile', target,
+                        '-field', field,
+                        '-ipc', ipcSec]
+                classpath = confJava['classPath']
+                main = mainClass
+            }
+        }
+
+        /**
+         * Catch-all task to generate all IPC-class related dumps for the
+         * current language & field.
+         */
+        task(funcName + '-ipc') {
+            def depTasks = []
+            for (ipcSec in confIPC['sections']) {
+                depTasks.add(tasks["${funcName}-ipc_${ipcSec}"])
+            }
+            dependsOn depTasks
+            group groupNames['termDumpIpc']
+            description "Batch termFreq dump. " +
+                    "field=${field} lang=${lang} ipc=*."
+        }
+    }
+
+    /**
+     * Generate catch-all task for each language that will run tasks for each
+     * field of that language.
+     */
+    task(baseFuncName) {
+        def depTasks = []
+        for (field in confScoring['fields']) {
+            depTasks.add(tasks["${baseFuncName}_${field}"])
+        }
+        dependsOn depTasks
+        group groupNames['termDump']
+        description "Batch termFreq dump. field=* lang=${lang}."
+    }
+
+    /**
+     * Generate catch-all task for each language that will run tasks for each
+     * field of that language using an IPC-section filter.
+     */
+    task(baseFuncName + "-ipc") {
+        def depTasks = []
+        for (field in confScoring['fields']) {
+            for (ipcSec in confIPC['sections']) {
+                depTasks.add(tasks["${baseFuncName}_${field}-ipc_${ipcSec}"])
+            }
+        }
+        dependsOn depTasks
+        group groupNames['termDumpIpc']
+        description "Batch termFreq dump. field=* lang=${lang} ipc=*."
+    }
+}
+
+/**
+ * Catch-all task that will create tern-dumps for each language and field.
+ */
+task('dumpTermFreqs') {
+    def depTasks = []
+    for (lang in confScoring['languages']) {
+        depTasks.add(tasks["dumpTermFreqs-${lang}"])
+    }
+
+    description "Batch termFreq dump. field=* lang=*."
+    dependsOn depTasks
+    group groupNames['termDump']
+}
+
+/**
+ * Catch-all task that will create tern-dumps for each language, field and
+ * IPC-section.
+ */
+task('dumpTermFreqs-ipc') {
+    def depTasks = []
+    for (lang in confScoring['languages']) {
+        depTasks.add(tasks["dumpTermFreqs-${lang}-ipc"])
+    }
+
+    description "Batch termFreq dump. field=* lang=* ipc=*."
+    dependsOn depTasks
+    group groupNames['termDumpIpc']
+}
+
