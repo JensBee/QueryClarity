@@ -17,6 +17,7 @@
 
 package de.unihildesheim.iw.cli;
 
+import de.unihildesheim.iw.data.IPCCode;
 import de.unihildesheim.iw.storage.sql.MetaTable;
 import de.unihildesheim.iw.storage.sql.Table;
 import de.unihildesheim.iw.storage.sql.TableFieldContent;
@@ -26,6 +27,7 @@ import de.unihildesheim.iw.storage.sql.termData.TermDataDB;
 import de.unihildesheim.iw.storage.sql.termData.TermsTable;
 import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.StringUtils;
+import org.jetbrains.annotations.Nullable;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 import org.slf4j.Logger;
@@ -35,6 +37,7 @@ import java.io.File;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -102,32 +105,112 @@ public final class ExtractTerms
     LOG.info("Reading term-data from '{}'.", this.cliParams.dbSource);
     LOG.info("Writing scoring-data to '{}'.", this.cliParams.dbTarget);
 
+    // use relative document-frequency threshold?
+    final boolean useThreshold = this.cliParams.threshold > 0d;
+
+    // normalize some parameters
+    final String langName = StringUtils.lowerCase(this.cliParams.lang);
+    final String fieldName = StringUtils.lowerCase(this.cliParams.field);
+    final String ipcName;
+    if (this.cliParams.ipcRec != null) {
+      ipcName = this.cliParams.ipcRec
+          .toFormattedString(this.cliParams.sep);
+    } else {
+      ipcName = "";
+    }
+
     // table manager instance: Source database with term data
     try (final TermDataDB termDb = new TermDataDB(this.cliParams.dbSource)) {
 
       if (termDb.hasTerms()) {
+        final boolean includeIPC = termDb.hasTableField(TermsTable.TABLE_NAME,
+            TermsTable.FieldsOptional.IPC.toString());
+
+        // stop, if a IPC filter was given, but there are no IPC-codes stored
+        if (!includeIPC && this.cliParams.ipcRec != null) {
+          throw new IllegalStateException("IPC filter requested, but no " +
+              "IPC-codes are stored in the database.");
+        }
+
         // number of all terms in table
-        final long termCount = termDb.getNumberOfTerms();
+        final Statement preCheckStmt = termDb.getConnection().createStatement();
+        String preCheckSQL =
+            "select count(*) from " + TermsTable.TABLE_NAME +
+                " where " + TermsTable.Fields.LANG + "='" + langName +
+                "' and " + TermsTable.Fields.FIELD + "='" + fieldName + '\'';
+        if (useThreshold) {
+          preCheckSQL += " and " + TermsTable.Fields.DOCFREQ_REL +
+              " >= " + this.cliParams.threshold;
+        }
+        if (includeIPC && this.cliParams.ipcRec != null) {
+          preCheckSQL += " and " + TermsTable.FieldsOptional.IPC + " like '" +
+              ipcName + "%'";
+        }
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("PreCheckSQL: {}", preCheckSQL);
+        }
+
+        // pre-check, if there are any terms we can process
+        final long termCount;
+        if (preCheckStmt.execute(preCheckSQL)) {
+          final ResultSet rsPreCheck = preCheckStmt.getResultSet();
+          if (rsPreCheck.next()) {
+            termCount = rsPreCheck.getLong(1);
+          } else {
+            throw new IllegalStateException(
+                "No results returned from database.");
+          }
+        } else {
+          throw new IllegalStateException("No results returned from database.");
+        }
+        if (termCount <= 0) {
+          throw new IllegalStateException("No results returned from database.");
+        }
+
         // number of terms per bin
         final long binWidth = Math.floorDiv(termCount, this.cliParams.bins);
 
         // fields queries from source table
-        final String fields = TermsTable.Fields.TERM.toString() + ',' +
-            TermsTable.Fields.LANG + ',' +
-            TermsTable.Fields.DOCFREQ_REL + ',' +
-            TermsTable.Fields.DOCFREQ_ABS;
+        final String fields =
+            TermsTable.Fields.TERM.toString() + ',' +
+                TermsTable.Fields.LANG + ',' +
+                TermsTable.Fields.DOCFREQ_REL + ',' +
+                TermsTable.Fields.DOCFREQ_ABS + ',' +
+                TermsTable.Fields.FIELD +
+                (includeIPC ? "" : "," + TermsTable.FieldsOptional.IPC);
+
         // prepared statement to query terms from source table
-        final PreparedStatement pickStmt = termDb.getConnection()
-            .prepareStatement("SELECT " + fields + " from " +
-                TermsTable.TABLE_NAME +
+        final String querySQL =
+            "SELECT " + fields +
+                " from " + TermsTable.TABLE_NAME +
+                " where " + TermsTable.Fields.LANG + "='" + langName + '\'' +
+                (useThreshold ?
+                    " and " + TermsTable.Fields.DOCFREQ_REL +
+                        " >= " + this.cliParams.threshold : "") +
+                " and " + TermsTable.Fields.FIELD + "='" + fieldName + '\'' +
+                (includeIPC && this.cliParams.ipcRec != null ?
+                    " and " + TermsTable.FieldsOptional.IPC + " like '" +
+                        ipcName + "%'" : "") +
                 " order by " + TermsTable.Fields.DOCFREQ_REL +
-                " limit " + binWidth + " offset ?");
+                " limit " + binWidth + " offset ?";
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("querySQL: {}", querySQL);
+        }
+        final PreparedStatement pickStmt = termDb.getConnection()
+            .prepareStatement(querySQL);
 
         // table manager instance: Target database with scoring data
         try (final ScoringDataDB scoringDb =
                  new ScoringDataDB(this.cliParams.dbTarget)) {
           // data table
-          final TermScoringTable scoringTable = new TermScoringTable();
+          final TermScoringTable scoringTable;
+          if (includeIPC) {
+            scoringTable = new TermScoringTable(
+                TermScoringTable.FieldsOptional.IPC
+            );
+          } else {
+            scoringTable = new TermScoringTable();
+          }
           // meta table
           final Table metaTable = new MetaTable();
 
@@ -170,14 +253,29 @@ public final class ExtractTerms
                         (binWidth * (long) binNo) + (long) count);
                   }
                   // columns are defined in fields variable
-                  scoringWriter.addContent(new TableFieldContent(scoringTable)
-                      .setValue(TermScoringTable.Fields.TERM, rs.getString(1))
-                      .setValue(TermScoringTable.Fields.LANG, rs.getString(2))
-                      .setValue(TermScoringTable.Fields.DOCFREQ_REL,
-                          rs.getString(3))
-                      .setValue(TermScoringTable.Fields.DOCFREQ_ABS,
-                          rs.getString(4))
-                      .setValue(TermScoringTable.Fields.BIN, binNo + 1));
+                  final TableFieldContent tfc =
+                      new TableFieldContent(scoringTable)
+                          .setValue(TermScoringTable.Fields.TERM,
+                              rs.getString(1))
+                          .setValue(TermScoringTable.Fields.LANG,
+                              rs.getString(2))
+                          .setValue(
+                              TermScoringTable.Fields.DOCFREQ_REL,
+                              rs.getString(3))
+                          .setValue(
+                              TermScoringTable.Fields.DOCFREQ_ABS,
+                              rs.getString(4))
+                          .setValue(
+                              TermScoringTable.Fields.BIN,
+                              binNo + 1)
+                          .setValue(
+                              TermScoringTable.Fields.FIELD,
+                              rs.getString(5));
+                  if (includeIPC) {
+                    tfc.setValue(TermScoringTable.FieldsOptional.IPC,
+                        rs.getString(6));
+                  }
+                  scoringWriter.addContent(tfc, false);
                   samples.remove(count);
                 }
               }
@@ -241,8 +339,8 @@ public final class ExtractTerms
     @Option(name = "-threshold", metaVar = "float", required = false,
         usage = "Document frequency threshold (relative). If this is exceeded" +
             " a term will be treated as being too common (means gets skipped)" +
-            ". Default: 0")
-    Double threshold = 0d;
+            ". Default: 0.01")
+    Double threshold = 0.01;
 
     /**
      * Number of ranges (bins) to create to pick terms from.
@@ -265,6 +363,38 @@ public final class ExtractTerms
     @Option(name = "-picks", metaVar = "1-[bins]", required = false,
         usage = "Ranges to pick terms from. Default: 1,3,5.")
     Integer[] picks = {1, 3, 5};
+
+    /**
+     * Source field to process.
+     */
+    @Option(name = "-field", metaVar = "source field", required = true,
+        usage = "Process terms from the given field.")
+    String field;
+
+    /**
+     * Source field to process.
+     */
+    @Nullable
+    @Option(name = "-ipc", metaVar = "(partial) IPC-Code", required = false,
+        usage = "Process terms from the given (partial) IPC-code only.")
+    String ipc;
+    @Nullable
+    IPCCode.IPCRecord ipcRec;
+
+    /**
+     * Default separator char.
+     */
+    @Option(name = "-grpsep", metaVar = "[separator char]",
+        required = false,
+        usage = "Char to use for separating main- and sub-group.")
+    char sep = IPCCode.Parser.DEFAULT_SEPARATOR;
+
+    /**
+     * Language to process.
+     */
+    @Option(name = "-lang", metaVar = "language", required = true,
+        usage = "Process for the defined language.")
+    String lang;
 
     /**
      * Empty constructor to allow access from parent class.
@@ -300,6 +430,11 @@ public final class ExtractTerms
         throw new IllegalStateException(
             "Source database " + this.dbSource +
                 " does not exist or is a not a database file.");
+      }
+      if (this.ipc != null) {
+        final IPCCode.Parser ipcParser = new IPCCode.Parser();
+        ipcParser.separatorChar(this.sep);
+        this.ipcRec = ipcParser.parse(this.ipc);
       }
     }
   }
