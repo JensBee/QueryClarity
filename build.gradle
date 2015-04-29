@@ -410,8 +410,9 @@ for (lang in confScoring['languages']) {
             '-threshold', 0.01,
             '-bins', 5,
             '-binsize', 50,
-            '-picks', '1,3,5',
-            '-grpsep', confIPC['grpSeparator']]
+            '-picks', '1 3 5',
+            '-grpsep', confIPC['grpSeparator'],
+            '-lang', lang]
 
     /**
      * Main class to execute from the generated tasks.
@@ -436,8 +437,8 @@ for (lang in confScoring['languages']) {
             def infoStr = "Sample from TermFreq dump. " +
                     "field=${field} lang=${lang}"
             def cmdArgs = defaultArgs + [
-                    '-dbSource', source,
-                    '-dbTarget', target,
+                    '-dumpdb', source,
+                    '-scoredb', target.toString(),
                     '-field', field]
 
             description infoStr
@@ -471,16 +472,16 @@ for (lang in confScoring['languages']) {
                 /**
                  * Target file that will be created
                  */
-                def target = ExtractTerms.createDBFileName(
+                def target = new File(ExtractTerms.createDBFileName(
                         workingDirectory.absolutePath,
-                        lang, field, ipcSec.toLowerCase())
+                        lang, field, ipcSec.toLowerCase()))
                 def source = TermDump.createDBFileName(
                         workingDirectory.absolutePath, lang, field, ipcSec)
                 def infoStr = "Sample from TermFreq dump. " +
                         "field=${field} lang=${lang} ipc=${ipcSec}."
                 def cmdArgs = defaultArgs + [
-                        '-dbSource', source,
-                        '-dbTarget', target,
+                        '-dumpdb', source,
+                        '-scoredb', target.toString(),
                         '-field', field,
                         '-ipc', ipcSec]
 
