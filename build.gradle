@@ -62,7 +62,11 @@ def confIPC = [
         /**
          * List of all known IPC-section identifiers.
          */
-        sections: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+        sections    : ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'],
+        /**
+         * Char to use for separating main- and sub-group.
+         */
+        grpSeparator: '-'
 ]
 
 /*******************************************************************************
@@ -72,9 +76,120 @@ def confIPC = [
  * Pre-defined task group-names.
  */
 def groupNames = [
-        intern     : "Internal",
-        termDump   : "Basic term-frequency data dumps",
-        termDumpIpc: "Term frequency dumps filtered by IPC-section"]
+        intern         : "Internal",
+        termDump       : "Term-frequency data dumps: " +
+                "Base data",
+        termDumpIpc    : "Term frequency data dumps: " +
+                "Filtered by IPC-section",
+        extractTerms   : "Sample terms from term-frequency data dumps: " +
+                "Base data",
+        extractTermsIpc: "Sample terms from term-frequency data dumps: " +
+                "Filtered by IPC-section"]
+
+/*******************************************************************************
+ * Internal helper methods.
+ */
+class TermDump {
+    /**
+     * Database file name prefix.
+     */
+    static dbPrefix = 'termDump'
+    /**
+     * Task name prefix
+     */
+    static taskPrefix = 'dumpTermFreqs'
+
+    /**
+     * Create a task name.
+     * @param lang Language
+     * @param field Lucene field
+     * @param ipc IPC-Code (optional)
+     * @return Task-name String
+     */
+    static createTaskName(lang, field, ipc) {
+        if (lang == null) {
+            return taskPrefix;
+        } else {
+            if (field == null) {
+                return "${taskPrefix}-${lang}"
+            } else {
+                if (ipc == null) {
+                    return "${taskPrefix}-${lang}_${field}"
+                } else {
+                    return "${taskPrefix}-${lang}_${field}" +
+                            "-ipc_${ipc.toLowerCase()}"
+                }
+            }
+        }
+    }
+
+    /**
+     * Create a target database file name.
+     * @param dir Target directory
+     * @param lang Language
+     * @param field Lucene field
+     * @param ipc IPC-Code (optional)
+     * @return Filename String
+     */
+    static createDBFileName(dir, lang, field, ipc) {
+        if (ipc == null)
+            return "${dir}/${dbPrefix}-${lang}_${field}.sqlite"
+        else
+            return "${dir}/${dbPrefix}-${lang}_${field}" +
+                    "-ipc_${ipc.toLowerCase()}.sqlite"
+    }
+}
+
+class ExtractTerms {
+    /**
+     * Database file name prefix.
+     */
+    static dbPrefix = 'termDumpSample'
+    /**
+     * Task name prefix
+     */
+    static taskPrefix = 'extractTermFreqSamples'
+
+    /**
+     * Create a task name.
+     * @param lang Language
+     * @param field Lucene field
+     * @param ipc IPC-Code (optional)
+     * @return Task-name String
+     */
+    static createTaskName(lang, field, ipc) {
+        if (lang == null) {
+            return taskPrefix;
+        } else {
+            if (field == null) {
+                return "${taskPrefix}-${lang}"
+            } else {
+                if (ipc == null) {
+                    return "${taskPrefix}-${lang}_${field}"
+                } else {
+                    return "${taskPrefix}-${lang}_${field}" +
+                            "-ipc_${ipc.toLowerCase()}"
+                }
+            }
+        }
+    }
+
+    /**
+     * Create a target database file name.
+     * @param dir Target directory
+     * @param lang Language
+     * @param field Lucene field
+     * @param ipc IPC-Code (optional)
+     * @return Filename String
+     */
+    static createDBFileName(dir, lang, field, ipc) {
+        if (ipc == null)
+            return "${dir}/${dbPrefix}-${lang}_${field}.sqlite"
+        else
+            return "${dir}/${dbPrefix}-${lang}_${field}" +
+                    "-ipc_${ipc.toLowerCase()}.sqlite"
+    }
+}
 
 /*******************************************************************************
  * Internal tasks.
@@ -108,17 +223,15 @@ task('prepareOutput') {
 for (lang in confScoring['languages']) {
     /**
      * Default arguments for the main class.
-     * Parameter 'threshold' is not used so all terms will be extracted from
-     * the index.
      */
     def defaultArgs = [
-            '-grpsep', '-',
+            '-grpsep', confIPC['grpSeparator'],
             '-idx', confLucene['indexPath'] + lang.toUpperCase(),
             '-lang', lang,
             '-stop', confStopwords['pathPattern'],
             '-stop-format', confStopwords['format'],
+            '-threshold', 0d,
             '-zeropad']
-    def baseFuncName = "dumpTermFreqs-${lang}"
 
     /**
      * Main class to execute from the generated tasks.
@@ -129,29 +242,37 @@ for (lang in confScoring['languages']) {
      * Create tasks for each language & field combination.
      */
     for (field in confScoring['fields']) {
-        def funcName = "${baseFuncName}_${field}"
-
         /**
          * Dump term-frequencies for current language & field.
          */
-        task(funcName, type: JavaExec) {
+        task(TermDump.createTaskName(lang, field, null)) {
             /**
              * Target file that will be created
              */
-            def target = workingDirectory.absolutePath +
-                    "/termDump-${lang}_${field}.sqlite"
-            description "TermFreq dump. " +
-                    "field=${field} lang=${lang} target=${target}."
-            group groupNames['termDump']
+            def target = new File(TermDump.createDBFileName(
+                    workingDirectory.absolutePath, lang, field, null))
+            def infoStr = "TermFreq dump. field=${field} lang=${lang}."
 
+            description infoStr
+            logger.info("${infoStr} target=${target}")
+            group groupNames['termDump']
             dependsOn 'prepareOutput'
             outputs.files target
 
-            args = defaultArgs + [
-                    '-dbfile', target,
-                    '-field', field]
-            classpath = confJava['classPath']
-            main = mainClass
+            doLast {
+                if (target.exists()) {
+                    logger.info("Delete {} - since it's out of date.")
+                    //target.remove()
+                }
+
+                javaexec {
+                    args = defaultArgs + [
+                            '-dbfile', target.toString(),
+                            '-field', field]
+                    classpath = confJava['classPath']
+                    main = mainClass
+                }
+            }
         }
 
         /**
@@ -161,27 +282,37 @@ for (lang in confScoring['languages']) {
             /**
              * Dump term-frequencies for current language, field & IPC-section.
              */
-            task("${funcName}-ipc_${ipcSec}", type: JavaExec) {
+            task(TermDump.createTaskName(lang, field, ipcSec)) {
                 /**
                  * Target file that will be created
                  */
-                def target = workingDirectory.absolutePath +
-                        "/termDump-${lang}_${field}-ipc_" +
-                        ipcSec.toLowerCase() + '.sqlite'
-                description "TermFreq dump. " +
-                        "field=${field} lang=${lang} " +
-                        "ipc=${ipcSec} target=${target}."
-                group groupNames['termDumpIpc']
+                def target = new File(TermDump.createDBFileName(
+                        workingDirectory.absolutePath,
+                        lang, field, ipcSec.toLowerCase()))
+                def infoStr = "TermFreq dump. " +
+                        "field=${field} lang=${lang} ipc=${ipcSec}."
 
+                description infoStr
+                logger.info("${infoStr} target=${target}")
+                group groupNames['termDumpIpc']
                 dependsOn 'prepareOutput'
                 outputs.files target
 
-                args = defaultArgs + [
-                        '-dbfile', target,
-                        '-field', field,
-                        '-ipc', ipcSec]
-                classpath = confJava['classPath']
-                main = mainClass
+                doLast {
+                    if (target.exists()) {
+                        logger.info("Delete {} - since it's out of date.")
+                        //target.remove()
+                    }
+
+                    javaexec {
+                        args = defaultArgs + [
+                                '-dbfile', target.toString(),
+                                '-field', field,
+                                '-ipc', ipcSec]
+                        classpath = confJava['classPath']
+                        main = mainClass
+                    }
+                }
             }
         }
 
@@ -189,14 +320,15 @@ for (lang in confScoring['languages']) {
          * Catch-all task to generate all IPC-class related dumps for the
          * current language & field.
          */
-        task(funcName + '-ipc') {
+        task(TermDump.createTaskName(lang, field, null) + '-ipc') {
             def depTasks = []
             for (ipcSec in confIPC['sections']) {
-                depTasks.add(tasks["${funcName}-ipc_${ipcSec}"])
+                depTasks.add(tasks[
+                        TermDump.createTaskName(lang, field, ipcSec)])
             }
             dependsOn depTasks
             group groupNames['termDumpIpc']
-            description "Batch termFreq dump. " +
+            description "Batch TermFreq dump. " +
                     "field=${field} lang=${lang} ipc=*."
         }
     }
@@ -205,43 +337,46 @@ for (lang in confScoring['languages']) {
      * Generate catch-all task for each language that will run tasks for each
      * field of that language.
      */
-    task(baseFuncName) {
+    task(TermDump.createTaskName(lang, null, null)) {
         def depTasks = []
         for (field in confScoring['fields']) {
-            depTasks.add(tasks["${baseFuncName}_${field}"])
+            depTasks.add(tasks[
+                    TermDump.createTaskName(lang, field, null)])
         }
         dependsOn depTasks
         group groupNames['termDump']
-        description "Batch termFreq dump. field=* lang=${lang}."
+        description "Batch TermFreq dump. field=* lang=${lang}."
     }
 
     /**
      * Generate catch-all task for each language that will run tasks for each
      * field of that language using an IPC-section filter.
      */
-    task(baseFuncName + "-ipc") {
+    task(TermDump.createTaskName(lang, null, null) + "-ipc") {
         def depTasks = []
         for (field in confScoring['fields']) {
             for (ipcSec in confIPC['sections']) {
-                depTasks.add(tasks["${baseFuncName}_${field}-ipc_${ipcSec}"])
+                depTasks.add(tasks[
+                        TermDump.createTaskName(lang, field, ipcSec)])
             }
         }
         dependsOn depTasks
         group groupNames['termDumpIpc']
-        description "Batch termFreq dump. field=* lang=${lang} ipc=*."
+        description "Batch TermFreq dump. field=* lang=${lang} ipc=*."
     }
 }
 
 /**
  * Catch-all task that will create tern-dumps for each language and field.
  */
-task('dumpTermFreqs') {
+task(TermDump.createTaskName(null, null, null)) {
     def depTasks = []
     for (lang in confScoring['languages']) {
-        depTasks.add(tasks["dumpTermFreqs-${lang}"])
+        depTasks.add(tasks[
+                TermDump.createTaskName(lang, null, null)])
     }
 
-    description "Batch termFreq dump. field=* lang=*."
+    description "Batch TermFreq dump. field=* lang=*."
     dependsOn depTasks
     group groupNames['termDump']
 }
@@ -250,13 +385,14 @@ task('dumpTermFreqs') {
  * Catch-all task that will create tern-dumps for each language, field and
  * IPC-section.
  */
-task('dumpTermFreqs-ipc') {
+task(TermDump.createTaskName(null, null, null) + '-ipc') {
     def depTasks = []
     for (lang in confScoring['languages']) {
-        depTasks.add(tasks["dumpTermFreqs-${lang}-ipc"])
+        depTasks.add(tasks[
+                TermDump.createTaskName(lang, null, null) + '-ipc'])
     }
 
-    description "Batch termFreq dump. field=* lang=* ipc=*."
+    description "Batch TermFreq dump. field=* lang=* ipc=*."
     dependsOn depTasks
     group groupNames['termDumpIpc']
 }
@@ -265,5 +401,184 @@ task('dumpTermFreqs-ipc') {
  * Term-frequency dump sample extraction tasks.
  */
 for (lang in confScoring['languages']) {
+    /**
+     * Default arguments for the main class.
+     */
+    def defaultArgs = [
+            '-threshold', 0.01,
+            '-bins', 5,
+            '-binsize', 50,
+            '-picks', '1,3,5',
+            '-grpsep', confIPC['grpSeparator']]
 
+    /**
+     * Main class to execute from the generated tasks.
+     */
+    def mainClass = confJava['package'] + 'cli.ExtractTerms'
+
+    /**
+     * Create tasks for each language & field combination.
+     */
+    for (field in confScoring['fields']) {
+        /**
+         * Dump term-frequencies for current language & field.
+         */
+        task(ExtractTerms.createTaskName(lang, field, null)) {
+            /**
+             * Target file that will be created
+             */
+            def target = new File(ExtractTerms.createDBFileName(
+                    workingDirectory.absolutePath, lang, field, null))
+            def source = TermDump.createDBFileName(
+                    workingDirectory.absolutePath, lang, field, null)
+            def infoStr = "Sample from TermFreq dump. " +
+                    "field=${field} lang=${lang}"
+
+            description infoStr
+            logger.info("${infoStr} source=${source} target=${target}")
+            group groupNames['extractTerms']
+            dependsOn 'prepareOutput',
+                    TermDump.createTaskName(lang, field, null)
+            outputs.files target
+
+            doLast {
+                if (target.exists()) {
+                    logger.info("Delete {} - since it's out of date.")
+                    //target.delete()
+                }
+                javaexec {
+                    args = defaultArgs + [
+                            '-dbSource', source,
+                            '-dbTarget', target,
+                            '-field', field]
+                    classpath = confJava['classPath']
+                    main = mainClass
+                }
+            }
+        }
+
+        /**
+         * Dynamic generate term-dump tasks for all known IPC-Sections.
+         */
+        for (ipcSec in confIPC['sections']) {
+            /**
+             * Dump term-frequencies for current language, field & IPC-section.
+             */
+            task(ExtractTerms.createTaskName(lang, field, ipcSec)) {
+                /**
+                 * Target file that will be created
+                 */
+                def target = ExtractTerms.createDBFileName(
+                        workingDirectory.absolutePath,
+                        lang, field, ipcSec.toLowerCase())
+                def source = TermDump.createDBFileName(
+                        workingDirectory.absolutePath, lang, field, ipcSec)
+                def infoStr = "Sample from TermFreq dump. " +
+                        "field=${field} lang=${lang} ipc=${ipcSec}."
+
+                description infoStr
+                logger.info("${infoStr} target=${target}")
+                group groupNames['extractTermsIpc']
+                dependsOn 'prepareOutput',
+                        TermDump.createTaskName(lang, field, ipcSec)
+                outputs.files target
+
+                doLast {
+                    if (target.exists()) {
+                        logger.info("Delete {} - since it's out of date.")
+                        //target.delete()
+                    }
+                    javaexec {
+                        args = defaultArgs + [
+                                '-dbSource', source,
+                                '-dbTarget', target,
+                                '-field', field,
+                                '-ipc', ipcSec]
+                        classpath = confJava['classPath']
+                        main = mainClass
+                    }
+                }
+            }
+        }
+
+        /**
+         * Catch-all task to generate all IPC-class related dumps for the
+         * current language & field.
+         */
+        task(ExtractTerms.createTaskName(lang, field, null) + '-ipc') {
+            def depTasks = []
+            for (ipcSec in confIPC['sections']) {
+                depTasks.add(tasks[
+                        ExtractTerms.createTaskName(lang, field, ipcSec)])
+            }
+            dependsOn depTasks
+            group groupNames['extractTermsIpc']
+            description "Batch sample from TermFreq dump. " +
+                    "field=${field} lang=${lang} ipc=*."
+        }
+    }
+
+    /**
+     * Generate catch-all task for each language that will run tasks for each
+     * field of that language.
+     */
+    task(ExtractTerms.createTaskName(lang, null, null)) {
+        def depTasks = []
+        for (field in confScoring['fields']) {
+            depTasks.add(tasks[
+                    ExtractTerms.createTaskName(lang, field, null)])
+        }
+        dependsOn depTasks
+        group groupNames['extractTerms']
+        description "Batch sample from TermFreq dump. field=* lang=${lang}."
+    }
+
+    /**
+     * Generate catch-all task for each language that will run tasks for each
+     * field of that language using an IPC-section filter.
+     */
+    task(ExtractTerms.createTaskName(lang, null, null) + "-ipc") {
+        def depTasks = []
+        for (field in confScoring['fields']) {
+            for (ipcSec in confIPC['sections']) {
+                depTasks.add(tasks[
+                        ExtractTerms.createTaskName(lang, field, ipcSec)])
+            }
+        }
+        dependsOn depTasks
+        group groupNames['extractTermsIpc']
+        description "Batch sample from TermFreq dump. field=* lang=${lang} " +
+                "ipc=*."
+    }
+}
+
+/**
+ * Catch-all task that will sample terms for each language and field.
+ */
+task(ExtractTerms.createTaskName(null, null, null)) {
+    def depTasks = []
+    for (lang in confScoring['languages']) {
+        depTasks.add(tasks[
+                ExtractTerms.createTaskName(lang, null, null)])
+    }
+
+    description "Batch sample from TermFreq dump. field=* lang=*."
+    dependsOn depTasks
+    group groupNames['extractTerms']
+}
+
+/**
+ * Catch-all task that will sample terms from tern-dumps for each language,
+ * field and IPC-section.
+ */
+task(ExtractTerms.createTaskName(null, null, null) + '-ipc') {
+    def depTasks = []
+    for (lang in confScoring['languages']) {
+        depTasks.add(tasks[
+                ExtractTerms.createTaskName(lang, null, null) + '-ipc'])
+    }
+
+    description "Batch sample from TermFreq dump. field=* lang=* ipc=*."
+    dependsOn depTasks
+    group groupNames['extractTermsIpc']
 }
