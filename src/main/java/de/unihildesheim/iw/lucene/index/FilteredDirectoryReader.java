@@ -262,6 +262,10 @@ public final class FilteredDirectoryReader
      * Fields instance.
      */
     private final FilteredFields fieldsInstance;
+    /**
+     * The readers ord in the top-level's leaves array
+     */
+    private final int ord;
 
     /**
      * <p>Construct a FilterLeafReader based on the specified base reader.
@@ -290,6 +294,7 @@ public final class FilteredDirectoryReader
             "You should use a plain IndexReader to get better performance.");
       }
 
+      this.ord = wrap.getContext().ord;
       this.flrContext = new FLRContext();
 
       // all docs are initially live (no deletions allowed)
@@ -397,11 +402,10 @@ public final class FilteredDirectoryReader
       // update visible documents bits
       this.flrContext.docBits = filterBits;
 
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("Filter (fields): {} -> {}",
-            this.flrContext.docBits.cardinality(),
-            filterBits.cardinality());
-      }
+      // provide a status message
+      LOG.info("Applying field-filter on index-segment {} ({} -> {})",
+          this.ord,
+          this.flrContext.docBits.cardinality(), filterBits.cardinality());
 
       if (fields.length > 0) {
         // array needs to be sorted for binarySearch
@@ -435,10 +439,10 @@ public final class FilteredDirectoryReader
           this.in.getContext(), this.flrContext.getDocBitsOrNull()))
           .forEach(filterBits::set);
 
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("Filter (doc): {} -> {}",
-            this.flrContext.docBits.cardinality(), filterBits.cardinality());
-      }
+      // provide a status message
+      LOG.info("Applying document-filter on index-segment {} ({} -> {})",
+          this.ord,
+          this.flrContext.docBits.cardinality(), filterBits.cardinality());
       this.flrContext.docBits = filterBits;
     }
 
