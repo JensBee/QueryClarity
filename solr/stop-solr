@@ -1,6 +1,0 @@
-#!/bin/bash
-source $(dirname $0)/solr.conf.inc
-PWD=$(pwd)
-cd solr/${SOLR_PATH}/example
-java -DSTOP.KEY=solrcontrol -DSTOP.PORT=${SOLR_CONTROL_PORT} -jar start.jar --stop
-cd $PWD
