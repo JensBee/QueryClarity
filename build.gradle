@@ -1,3 +1,6 @@
+/*******************************************************************************
+ * General configuration.
+ */
 /**
  * Location to store any working-data.
  */
@@ -62,6 +65,9 @@ def confIPC = [
         sections: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
 ]
 
+/*******************************************************************************
+ * Internal configuration.
+ */
 /**
  * Pre-defined task group-names.
  */
@@ -70,6 +76,9 @@ def groupNames = [
         termDump   : "Basic term-frequency data dumps",
         termDumpIpc: "Term frequency dumps filtered by IPC-section"]
 
+/*******************************************************************************
+ * Internal tasks.
+ */
 /**
  * Gradle wrapper task.
  */
@@ -86,6 +95,9 @@ task('prepareOutput') {
     workingDirectory.mkdirs()
 }
 
+/*******************************************************************************
+ * Term-frequency dump tasks.
+ */
 /**
  * Dynamic generate term-frequency dump tasks.
  * 'dumpTerms-de' will dump all terms for the fields 'claims' & 'detd' for the
@@ -96,6 +108,8 @@ task('prepareOutput') {
 for (lang in confScoring['languages']) {
     /**
      * Default arguments for the main class.
+     * Parameter 'threshold' is not used so all terms will be extracted from
+     * the index.
      */
     def defaultArgs = [
             '-grpsep', '-',
@@ -247,3 +261,9 @@ task('dumpTermFreqs-ipc') {
     group groupNames['termDumpIpc']
 }
 
+/*******************************************************************************
+ * Term-frequency dump sample extraction tasks.
+ */
+for (lang in confScoring['languages']) {
+
+}
