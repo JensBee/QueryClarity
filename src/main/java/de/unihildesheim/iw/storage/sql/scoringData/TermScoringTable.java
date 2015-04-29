@@ -17,6 +17,7 @@
 
 package de.unihildesheim.iw.storage.sql.scoringData;
 
+import de.unihildesheim.iw.data.IPCCode;
 import de.unihildesheim.iw.storage.sql.AbstractTable;
 import de.unihildesheim.iw.storage.sql.Table;
 import de.unihildesheim.iw.storage.sql.TableField;
@@ -68,6 +69,10 @@ public final class TermScoringTable
      */
     LANG("lang char(2) not null"),
     /**
+     * Source field of this term.
+     */
+    FIELD("field text not null"),
+    /**
      * Relative document frequency value.
      */
     DOCFREQ_REL("docfreq_rel real not null"),
@@ -109,12 +114,65 @@ public final class TermScoringTable
   }
 
   /**
+   * Optional fields in this table.
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public enum FieldsOptional {
+    /**
+     * IPC code, if selection was restricted to any code.
+     */
+    IPC("ipc char(" + IPCCode.IPCRecord.MAX_LENGTH + ')');
+
+    /**
+     * SQL code to create this field.
+     */
+    private final String sqlStr;
+
+    /**
+     * Create a new field instance with the given SQL code to create the
+     * field in the database.
+     * @param sql SQL code to create this field.
+     */
+    FieldsOptional(@NotNull final String sql) {
+      this.sqlStr = sql;
+    }
+
+    @Override
+    public String toString() {
+      return this.name().toLowerCase();
+    }
+
+    /**
+     * Get the current field as {@link TableField} instance.
+     * @return {@link TableField} instance for the current field
+     */
+    public TableField getAsTableField() {
+      return new TableField(toString(), this.sqlStr);
+    }
+  }
+
+  /**
    * Create a new instance using the default fields.
    */
   public TermScoringTable() {
     this.fields = Arrays.stream(Fields.values())
         .map(Fields::getAsTableField).collect(Collectors.toList());
     addDefaultFieldsToUnique();
+  }
+
+  /**
+   * Create a new instance and add the given optional fields to the table.
+   * @param optFields Optional fields to add to the {@link Fields default}
+   * list of fields
+   */
+  public TermScoringTable(@NotNull final FieldsOptional... optFields) {
+    this();
+    for (final FieldsOptional fld : optFields) {
+      if (fld == FieldsOptional.IPC) {
+        this.uniqueFields.add(FieldsOptional.IPC.toString());
+        this.fields.add(FieldsOptional.IPC.getAsTableField());
+      }
+    }
   }
 
   @NotNull
@@ -143,6 +201,7 @@ public final class TermScoringTable
   @Override
   public void addDefaultFieldsToUnique() {
     this.uniqueFields.add(Fields.TERM.toString());
+    this.uniqueFields.add(Fields.FIELD.toString());
     this.uniqueFields.add(Fields.LANG.toString());
     this.uniqueFields.add(Fields.BIN.toString());
   }
