@@ -130,9 +130,14 @@ public final class DumpTermData
     // table manager instance: Target database for term data
     try (final TermDataDB db = new TermDataDB(this.cliParams.dbFile)) {
       // create meta & data table
-      final Table termsTable = new TermsTable(
-          // include optional IPC field
-          TermsTable.FieldsOptional.IPC);
+      final Table termsTable;
+      if (this.cliParams.ipcRec == null) {
+        termsTable = new TermsTable();
+      } else {
+        termsTable = new TermsTable(
+            // include optional IPC field
+            TermsTable.FieldsOptional.IPC);
+      }
       final Table metaTable = new MetaTable();
       db.createTables(termsTable, metaTable);
 
@@ -255,9 +260,9 @@ public final class DumpTermData
     @Nullable
     @Option(name = "-ipc", metaVar = "IPC", required = false,
         usage = "IPC-code (fragment) to filter returned codes.")
-    String ipc;
+    String ipc = null;
     @Nullable
-    IPCCode.IPCRecord ipcRec;
+    IPCCode.IPCRecord ipcRec = null;
 
     /**
      * Default separator char.
