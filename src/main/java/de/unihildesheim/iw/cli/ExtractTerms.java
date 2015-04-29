@@ -30,6 +30,7 @@ import de.unihildesheim.iw.util.StringUtils;
 import org.jetbrains.annotations.Nullable;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
+import org.kohsuke.args4j.spi.StringArrayOptionHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,9 +40,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Commandline utility to extract terms from term dumps created with {@link
@@ -361,8 +364,11 @@ public final class ExtractTerms
      * Bins to pick values from..
      */
     @Option(name = "-picks", metaVar = "1-[bins]", required = false,
-        usage = "Ranges to pick terms from. Default: 1,3,5.")
-    Integer[] picks = {1, 3, 5};
+        handler = StringArrayOptionHandler.class,
+        usage = "Ranges to pick terms from. Default: 1 3 5.")
+    String[] pickList = {"1", "3", "5"};
+    // final validated picks
+    int[] picks;
 
     /**
      * Source field to process.
@@ -414,10 +420,21 @@ public final class ExtractTerms
       if (this.bins <= 0) {
         throw new IllegalArgumentException("Number of bins must be >0.");
       }
-      if (this.picks.length <= 0) {
+
+      // check bin picks
+      final Set<String> pickSet = new HashSet<>(Arrays.asList(this.pickList));
+      if (pickSet.isEmpty()) {
         throw new IllegalArgumentException("Number of picks must be >0.");
       }
-      for (final int pick : this.picks) {
+      this.picks = new int[pickSet.size()];
+      int idx = 0;
+      for (final String pickStr : pickSet) {
+        final int pick;
+        try {
+          pick = Integer.parseInt(pickStr);
+        } catch (final NumberFormatException e) {
+          throw new IllegalArgumentException("Picks must be >0. Got "+ pickStr);
+        }
         if (pick <= 0) {
           throw new IllegalArgumentException("Picks must be >0.");
         }
@@ -425,7 +442,9 @@ public final class ExtractTerms
           throw new IllegalArgumentException("Pick " + pick +
               " exceeds number of bins (" + this.bins + ')');
         }
+        this.picks[idx++] = pick;
       }
+
       if (!this.dbSource.exists() || !this.dbSource.isFile()) {
         throw new IllegalStateException(
             "Source database " + this.dbSource +
