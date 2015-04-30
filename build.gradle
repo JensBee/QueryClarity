@@ -264,8 +264,8 @@ for (lang in confScoring['languages']) {
             doLast {
                 logger.info("${infoStr} target=${target}")
                 if (target.exists()) {
-                    logger.info("Delete {} - since it's out of date.")
-                    //target.remove()
+                    logger.info("Delete ${target} - since it's out of date.")
+                    target.remove()
                 }
 
                 javaexec {
@@ -305,8 +305,9 @@ for (lang in confScoring['languages']) {
                 doLast {
                     logger.info("${infoStr} target=${target}")
                     if (target.exists()) {
-                        logger.info("Delete {} - since it's out of date.")
-                        //target.remove()
+                        logger.info(
+                                "Delete ${target} - since it's out of date.")
+                        target.remove()
                     }
 
                     javaexec {
@@ -450,8 +451,8 @@ for (lang in confScoring['languages']) {
             doLast {
                 logger.info("${infoStr} source=${source} target=${target}")
                 if (target.exists()) {
-                    logger.info("Delete {} - since it's out of date.")
-                    //target.delete()
+                    logger.info("Delete ${target} - since it's out of date.")
+                    target.delete()
                 }
                 javaexec {
                     args = cmdArgs
@@ -494,8 +495,9 @@ for (lang in confScoring['languages']) {
                 doLast {
                     logger.info("${infoStr} target=${target}")
                     if (target.exists()) {
-                        logger.info("Delete {} - since it's out of date.")
-                        //target.delete()
+                        logger.info(
+                                "Delete ${target} - since it's out of date.")
+                        target.delete()
                     }
                     javaexec {
                         args = cmdArgs
