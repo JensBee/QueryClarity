@@ -353,14 +353,14 @@ public final class ExtractTerms
     /**
      * Source database file file with term-dump data.
      */
-    @Option(name = "-dumpdb", metaVar = "FILE", required = true,
+    @Option(name = "-dumpdb", metaVar = "<database file>", required = true,
         usage = "SQLite database with term-dump data.")
     File dbSource;
 
     /**
      * Target database file file.
      */
-    @Option(name = "-scoredb", metaVar = "FILE", required = true,
+    @Option(name = "-scoredb", metaVar = "<database file>", required = true,
         usage = "Target SQLite database with scoring data. Will be " +
             "created, if missing.")
     File dbTarget;
@@ -368,7 +368,7 @@ public final class ExtractTerms
     /**
      * Document frequency threshold.
      */
-    @Option(name = "-threshold", metaVar = "float", required = false,
+    @Option(name = "-threshold", metaVar = "<float>", required = false,
         usage = "Document frequency threshold (relative). If this is exceeded" +
             " a term will be treated as being too common (means gets skipped)" +
             ". Default: 0.01")
@@ -377,7 +377,7 @@ public final class ExtractTerms
     /**
      * Number of ranges (bins) to create to pick terms from.
      */
-    @Option(name = "-bins", metaVar = "number", required = false,
+    @Option(name = "-bins", metaVar = "<number>", required = false,
         usage = "Number of ranges (bins) to create for picking terms. " +
             "Default: 5.")
     Integer bins = 5;
@@ -385,14 +385,14 @@ public final class ExtractTerms
     /**
      * Number of terms to sample per bin.
      */
-    @Option(name = "-binsize", metaVar = "number", required = false,
+    @Option(name = "-binsize", metaVar = "<number>", required = false,
         usage = "Number of term to sample per bin. Default: 50.")
     Integer binSize = 50;
 
     /**
      * Bins to pick values from..
      */
-    @Option(name = "-picks", metaVar = "1-[bins]", required = false,
+    @Option(name = "-picks", metaVar = "<1-[bins]>", required = false,
         handler = StringArrayOptionHandler.class,
         usage = "Ranges to pick terms from. Default: 1 3 5.")
     String[] pickList = {"1", "3", "5"};
@@ -404,7 +404,7 @@ public final class ExtractTerms
     /**
      * Source field to process.
      */
-    @Option(name = "-field", metaVar = "source field", required = true,
+    @Option(name = "-field", metaVar = "<source field name>", required = true,
         usage = "Process terms from the given field.")
     String field;
 
@@ -412,7 +412,7 @@ public final class ExtractTerms
      * Source field to process.
      */
     @Nullable
-    @Option(name = "-ipc", metaVar = "(partial) IPC-Code", required = false,
+    @Option(name = "-ipc", metaVar = "<(partial) IPC-Code>", required = false,
         usage = "Process terms from the given (partial) IPC-code only.")
     String ipc;
     /**
@@ -424,7 +424,7 @@ public final class ExtractTerms
     /**
      * Default separator char.
      */
-    @Option(name = "-grpsep", metaVar = "[separator char]",
+    @Option(name = "-grpsep", metaVar = "<separator char>",
         required = false,
         usage = "Char to use for separating main- and sub-group.")
     char sep = Parser.DEFAULT_SEPARATOR;
@@ -432,7 +432,7 @@ public final class ExtractTerms
     /**
      * Language to process.
      */
-    @Option(name = "-lang", metaVar = "language", required = true,
+    @Option(name = "-lang", metaVar = "<language>", required = true,
         usage = "Process for the defined language.")
     String lang;
 
