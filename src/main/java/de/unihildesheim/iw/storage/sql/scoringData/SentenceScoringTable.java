@@ -70,7 +70,11 @@ public final class SentenceScoringTable
     /**
      * Term reference.
      */
-    TERM_REF("foreign key (term_ref) references " +
+    TERM_REF("term_ref integer not null"),
+    /**
+     * Term reference foreign key.
+     */
+    TERM_REF_FK("foreign key (" + TERM_REF + ") references " +
         TermScoringTable.TABLE_NAME + '(' + TermScoringTable.Fields.ID + ')');
 
     /**
@@ -79,8 +83,9 @@ public final class SentenceScoringTable
     private final String sqlStr;
 
     /**
-     * Create a new field instance with the given SQL code to create the
-     * field in the database.
+     * Create a new field instance with the given SQL code to create the field
+     * in the database.
+     *
      * @param sql SQL code to create this field.
      */
     Fields(@NotNull final String sql) {
@@ -94,6 +99,7 @@ public final class SentenceScoringTable
 
     /**
      * Get the current field as {@link TableField} instance.
+     *
      * @return {@link TableField} instance for the current field
      */
     public TableField getAsTableField() {
