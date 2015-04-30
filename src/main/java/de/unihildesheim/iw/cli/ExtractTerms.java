@@ -27,7 +27,6 @@ import de.unihildesheim.iw.storage.sql.scoringData.TermScoringTable;
 import de.unihildesheim.iw.storage.sql.termData.TermDataDB;
 import de.unihildesheim.iw.storage.sql.termData.TermsTable;
 import de.unihildesheim.iw.storage.sql.termData.TermsTable.FieldsOptional;
-import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -48,7 +47,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
@@ -176,24 +174,33 @@ public final class ExtractTerms
         }
 
         // pre-check, if there are any terms we can process
-        final long termCount;
+        long termCount = 0;
         if (preCheckStmt.execute(preCheckSQL)) {
           final ResultSet rsPreCheck = preCheckStmt.getResultSet();
           if (rsPreCheck.next()) {
             termCount = rsPreCheck.getLong(1);
-          } else {
-            throw new IllegalStateException(
-                "No results returned from database.");
           }
-        } else {
-          throw new IllegalStateException("No results returned from database.");
         }
+
         if (termCount <= 0L) {
-          throw new IllegalStateException("No results returned from database.");
+          LOG.warn("No results returned from database.");
         }
 
         // number of terms per bin
         final long binWidth = Math.floorDiv(termCount, this.cliParams.bins);
+
+        // check, if there are enough terms to sample per bin
+        final int finalBinSize;
+        if (binWidth < (long)this.cliParams.binSize) {
+          // reduce the number of terms to sample to the number of total
+          // terms available per bin
+          finalBinSize = (int) binWidth;
+          LOG.warn("Not enough terms to create {} samples per bin. " +
+              "Number of samples reduced to {} samples per bin.",
+              this.cliParams.binSize, finalBinSize);
+        } else {
+          finalBinSize = this.cliParams.binSize;
+        }
 
         // fields queries from source table
         final String fields =
@@ -254,95 +261,89 @@ public final class ExtractTerms
                 .setValue(MetaTable.Fields.CMD, StringUtils.join(args, " ")));
           }
 
-          // write term scoring data
-          try (final TermScoringTable.Writer scoringWriter =
-                   new TermScoringTable.Writer(scoringDb.getConnection())) {
-            // number of bins picked for scoring (and storing to target db)
-            final int pickAmount = this.cliParams.picks.length;
-            for (int pickIdx = 0; pickIdx < pickAmount; pickIdx++) {
-              final int binNo = this.cliParams.picks[pickIdx] - 1;
-              LOG.info("Bin-pick {}: bin={}({}) row {}-{}",
-                  pickIdx, binNo + 1, binNo, binWidth * (long) binNo,
-                  (binWidth * (long) binNo) + binWidth);
+          if (termCount > 0L) {
+            LOG.info("Generating sample seed.");
+            // range of numbers (0 to binWidth) to sample from
+            final List<Integer> sampleRange =  Arrays.asList(
+                IntStream.range(0, (int) binWidth)
+                    .boxed().toArray(Integer[]::new));
 
-              pickStmt.setLong(1, binWidth * (long) binNo);
-              final ResultSet rs = pickStmt.executeQuery();
-              final List<Integer> samples = new ArrayList<>(
-                  createSamples(this.cliParams.binSize, (int) binWidth));
-              Collections.sort(samples);
+            // write term scoring data
+            try (final TermScoringTable.Writer scoringWriter =
+                     new TermScoringTable.Writer(scoringDb.getConnection())) {
+              // number of bins picked for scoring (and storing to target db)
+              final int pickAmount = this.cliParams.picks.length;
+              for (int pickIdx = 0; pickIdx < pickAmount; pickIdx++) {
+                final int binNo = this.cliParams.picks[pickIdx] - 1;
+                LOG.info("Bin-pick {}: bin={}({}) row {}-{}",
+                    pickIdx, binNo + 1, binNo, binWidth * (long) binNo,
+                    (binWidth * (long) binNo) + binWidth);
 
-              if (LOG.isDebugEnabled()) {
-                LOG.debug("Pick-idx {}", samples);
-              }
+                pickStmt.setLong(1, binWidth * (long) binNo);
+                final ResultSet rs = pickStmt.executeQuery();
 
-              LOG.info("Picking {} from bin {}.", samples.size(), binNo + 1);
-
-              Integer count = 0;
-              while (!samples.isEmpty() && rs.next()) {
-                if (samples.contains(count)) {
-                  if (LOG.isTraceEnabled()) {
-                    LOG.trace("pick {}",
-                        (binWidth * (long) binNo) + (long) count);
-                  }
-                  // columns are defined in fields variable
-                  final TableFieldContent tfc =
-                      new TableFieldContent(scoringTable)
-                          .setValue(TermScoringTable.Fields.TERM,
-                              rs.getString(1))
-                          .setValue(TermScoringTable.Fields.LANG,
-                              rs.getString(2))
-                          .setValue(
-                              TermScoringTable.Fields.DOCFREQ_REL,
-                              rs.getString(3))
-                          .setValue(
-                              TermScoringTable.Fields.DOCFREQ_ABS,
-                              rs.getString(4))
-                          .setValue(
-                              TermScoringTable.Fields.BIN,
-                              binNo + 1)
-                          .setValue(
-                              TermScoringTable.Fields.FIELD,
-                              rs.getString(5));
-                  if (includeIPC) {
-                    tfc.setValue(TermScoringTable.FieldsOptional.IPC,
-                        rs.getString(6));
-                  }
-                  scoringWriter.addContent(tfc, false);
-                  samples.remove(count);
+                Collections.shuffle(sampleRange);
+                final List<Integer> samples = new ArrayList<>(finalBinSize);
+                for (int i=0; i<finalBinSize; i++) {
+                  samples.add(sampleRange.get(i));
                 }
-                count++;
-              }
-              if (!samples.isEmpty()) {
-                final String msg = "Not all samples retrieved. "
-                    + samples.size() + " remaining unresolved.";
-                LOG.error(msg);
-                throw new IllegalStateException(msg);
+                /*final List<Integer> samples = new ArrayList<>(
+                    createSamples(finalBinSize, (int) binWidth));*/
+                Collections.sort(samples);
+
+                if (LOG.isDebugEnabled()) {
+                  LOG.debug("Pick-idx {}", samples);
+                }
+
+                LOG.info("Picking {} from bin {}.", samples.size(), binNo + 1);
+
+                Integer count = 0;
+                while (!samples.isEmpty() && rs.next()) {
+                  if (samples.contains(count)) {
+                    if (LOG.isTraceEnabled()) {
+                      LOG.trace("pick {}",
+                          (binWidth * (long) binNo) + (long) count);
+                    }
+                    // columns are defined in fields variable
+                    final TableFieldContent tfc =
+                        new TableFieldContent(scoringTable)
+                            .setValue(TermScoringTable.Fields.TERM,
+                                rs.getString(1))
+                            .setValue(TermScoringTable.Fields.LANG,
+                                rs.getString(2))
+                            .setValue(
+                                TermScoringTable.Fields.DOCFREQ_REL,
+                                rs.getString(3))
+                            .setValue(
+                                TermScoringTable.Fields.DOCFREQ_ABS,
+                                rs.getString(4))
+                            .setValue(
+                                TermScoringTable.Fields.BIN,
+                                binNo + 1)
+                            .setValue(
+                                TermScoringTable.Fields.FIELD,
+                                rs.getString(5));
+                    if (includeIPC) {
+                      tfc.setValue(TermScoringTable.FieldsOptional.IPC,
+                          rs.getString(6));
+                    }
+                    scoringWriter.addContent(tfc, false);
+                    samples.remove(count);
+                  }
+                  count++;
+                }
+                if (!samples.isEmpty()) {
+                  final String msg = "Not all samples retrieved. "
+                      + samples.size() + " remaining unresolved.";
+                  LOG.error(msg);
+                  throw new IllegalStateException(msg);
+                }
               }
             }
           }
         }
       }
     }
-  }
-
-  /**
-   * Create a list of random samples to get.
-   *
-   * @param amount Amount of random values to get
-   * @param max Maximum value allowed (inclusive)
-   * @return {@code amount} number of random numbers between {@code 0}
-   * (inclusive) and {@code max} (exclusive)
-   */
-  private static Collection<Integer> createSamples(
-      final int amount, final int max) {
-    final List<Integer> samples =
-        IntStream.range(0, max).boxed().collect(Collectors.toList());
-
-    while (samples.size() > amount) {
-      samples.remove(RandomValue.getInteger(0, samples.size() -1));
-    }
-    
-    return samples;
   }
 
   /**
