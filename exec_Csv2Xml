@@ -1,7 +1,0 @@
-#!/bin/sh
-. "$(dirname $0)/mvn.inc.sh"
-
-CLASS=de.unihildesheim.iw.fiz.cli.TermDumpToScoringXml
-${MVN_CMD} -Dexec.mainClass="${CLASS}" -Dexec.args="${ARGS} $*"
-
-
