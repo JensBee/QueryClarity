@@ -20,6 +20,7 @@ package de.unihildesheim.iw.storage.sql;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.sqlite.SQLiteErrorCode;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -84,6 +85,7 @@ public abstract class AbstractDB
 
   /**
    * Get the number of row available in the named table.
+   *
    * @param tableName Table to count rows for
    * @return Number of rows in table
    * @throws SQLException Thrown on low-level database errors
@@ -180,26 +182,48 @@ public abstract class AbstractDB
     }
   }
 
+  /**
+   * Check, if a column is available in the given table.
+   * @param tableName Table name to check
+   * @param con Connection to the database
+   * @param field Field/Column to check for
+   * @return True, if it exists
+   * @throws SQLException Thrown on low-level SQL errors
+   */
   public static boolean hasTableField(
       @NotNull final String tableName,
       @NotNull final Connection con,
       @NotNull final Object field)
       throws SQLException {
     final Statement stmt = con.createStatement();
-    if (stmt.execute("pragma table_info(" + tableName + ')')) {
-      final ResultSet rs = stmt.getResultSet();
-      if (rs.next()) {
-        final int colIdx = rs.findColumn("name");
-        if (rs.getString(colIdx).equalsIgnoreCase(field.toString())) {
-          return true;
-        }
+    // Simply try to select from column. SQLite throws an exception, if it does
+    // not exist.
+    try {
+      stmt.execute("select " + field + " from " + tableName + " limit 1");
+    } catch (final SQLException e) {
+      final int eCode = e.getErrorCode();
+
+      if (eCode == SQLiteErrorCode.SQLITE_ERROR.code) {
+        // thrown, if column does not exist
+        return false;
+      } else {
+        // any other error is unhandled
+        LOG.error("Error checking table column existence.", e);
+        throw e;
       }
-      return false;
-    } else {
-      throw new IllegalStateException("No response from pragma query.");
     }
+    final ResultSet rs = stmt.getResultSet();
+    return rs.next();
   }
 
+  /**
+   * Check, if a column is available in the given table.
+   * @param tableName Table name to check
+   * @param field Field/Column to check for
+   * @return True, if it exists
+   * @throws SQLException Thrown on low-level SQL errors
+   * @see #hasTableField(String, Connection, Object)
+   */
   public boolean hasTableField(
       @NotNull final String tableName,
       @NotNull final Object field)
