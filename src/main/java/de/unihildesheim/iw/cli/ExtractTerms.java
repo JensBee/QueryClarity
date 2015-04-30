@@ -17,7 +17,8 @@
 
 package de.unihildesheim.iw.cli;
 
-import de.unihildesheim.iw.data.IPCCode;
+import de.unihildesheim.iw.data.IPCCode.IPCRecord;
+import de.unihildesheim.iw.data.IPCCode.Parser;
 import de.unihildesheim.iw.storage.sql.MetaTable;
 import de.unihildesheim.iw.storage.sql.Table;
 import de.unihildesheim.iw.storage.sql.TableFieldContent;
@@ -44,7 +45,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Set;
 
 /**
  * Commandline utility to extract terms from term dumps created with {@link
@@ -127,7 +127,7 @@ public final class ExtractTerms
 
       if (termDb.hasTerms()) {
         final boolean includeIPC = termDb.hasTableField(TermsTable.TABLE_NAME,
-            TermsTable.FieldsOptional.IPC.toString());
+            TermsTable.FieldsOptional.IPC);
 
         // stop, if a IPC filter was given, but there are no IPC-codes stored
         if (!includeIPC && this.cliParams.ipcRec != null) {
@@ -166,7 +166,7 @@ public final class ExtractTerms
         } else {
           throw new IllegalStateException("No results returned from database.");
         }
-        if (termCount <= 0) {
+        if (termCount <= 0L) {
           throw new IllegalStateException("No results returned from database.");
         }
 
@@ -367,7 +367,9 @@ public final class ExtractTerms
         handler = StringArrayOptionHandler.class,
         usage = "Ranges to pick terms from. Default: 1 3 5.")
     String[] pickList = {"1", "3", "5"};
-    // final validated picks
+    /**
+     * Final validated picks, parsed to int from input string.
+     */
     int[] picks;
 
     /**
@@ -384,8 +386,11 @@ public final class ExtractTerms
     @Option(name = "-ipc", metaVar = "(partial) IPC-Code", required = false,
         usage = "Process terms from the given (partial) IPC-code only.")
     String ipc;
+    /**
+     * Final IPC-Record created from user input (if specified).
+     */
     @Nullable
-    IPCCode.IPCRecord ipcRec;
+    IPCRecord ipcRec;
 
     /**
      * Default separator char.
@@ -393,7 +398,7 @@ public final class ExtractTerms
     @Option(name = "-grpsep", metaVar = "[separator char]",
         required = false,
         usage = "Char to use for separating main- and sub-group.")
-    char sep = IPCCode.Parser.DEFAULT_SEPARATOR;
+    char sep = Parser.DEFAULT_SEPARATOR;
 
     /**
      * Language to process.
@@ -422,7 +427,8 @@ public final class ExtractTerms
       }
 
       // check bin picks
-      final Set<String> pickSet = new HashSet<>(Arrays.asList(this.pickList));
+      final Collection<String> pickSet =
+          new HashSet<>(Arrays.asList(this.pickList));
       if (pickSet.isEmpty()) {
         throw new IllegalArgumentException("Number of picks must be >0.");
       }
@@ -451,7 +457,7 @@ public final class ExtractTerms
                 " does not exist or is a not a database file.");
       }
       if (this.ipc != null) {
-        final IPCCode.Parser ipcParser = new IPCCode.Parser();
+        final Parser ipcParser = new Parser();
         ipcParser.separatorChar(this.sep);
         this.ipcRec = ipcParser.parse(this.ipc);
       }
