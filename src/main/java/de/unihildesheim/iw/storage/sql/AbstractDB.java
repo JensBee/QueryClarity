@@ -79,8 +79,24 @@ public abstract class AbstractDB
   public boolean hasTable(@NotNull final String tableName)
       throws SQLException {
     final Statement stmt = getConnection().createStatement();
-    return stmt.execute("SELECT name FROM sqlite_master WHERE type='table' " +
-        "AND name='" + tableName + '\'');
+    // Simply try to select from column. SQLite throws an exception, if it does
+    // not exist.
+    try {
+      stmt.execute("select * from " + tableName + " limit 1");
+    } catch (final SQLException e) {
+      final int eCode = e.getErrorCode();
+
+      if (eCode == SQLiteErrorCode.SQLITE_ERROR.code) {
+        // thrown, if column does not exist
+        return false;
+      } else {
+        // any other error is unhandled
+        LOG.error("Error checking for table existence.", e);
+        throw e;
+      }
+    }
+    final ResultSet rs = stmt.getResultSet();
+    return rs.next();
   }
 
   /**
