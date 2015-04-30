@@ -407,8 +407,8 @@ for (lang in confScoring['languages']) {
      * Default arguments for the main class.
      */
     def defaultArgs = [
-            '-threshold', 0.01,
-            '-bins', 5,
+            '-threshold', 0, //0.01,
+            '-bins', 6,
             '-binsize', 50,
             '-picks', '1 3 5',
             '-grpsep', confIPC['grpSeparator'],
