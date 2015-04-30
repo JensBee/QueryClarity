@@ -26,8 +26,10 @@ import de.unihildesheim.iw.storage.sql.scoringData.ScoringDataDB;
 import de.unihildesheim.iw.storage.sql.scoringData.TermScoringTable;
 import de.unihildesheim.iw.storage.sql.termData.TermDataDB;
 import de.unihildesheim.iw.storage.sql.termData.TermsTable;
+import de.unihildesheim.iw.storage.sql.termData.TermsTable.FieldsOptional;
 import de.unihildesheim.iw.util.RandomValue;
 import de.unihildesheim.iw.util.StringUtils;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -45,6 +47,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Commandline utility to extract terms from term dumps created with {@link
@@ -81,10 +86,33 @@ public final class ExtractTerms
    * @throws SQLException Thrown, if connection to the database has failed
    * FilteredDirectoryReader} instance has failed
    */
-  public static void main(final String... args)
+  public static void main(@NotNull final String... args)
       throws SQLException, ClassNotFoundException {
     new ExtractTerms().runMain(args);
     Runtime.getRuntime().exit(0); // required to trigger shutdown-hooks
+  }
+
+  /**
+   * Check if terms-table has an IPC-Code column and if the existance of this
+   * column is required (IPC-Code specified on command-line). Throws an
+   * Exception, if table has no IPC-Code column and an IPC-Code filter is
+   * specified on command-line.
+   *
+   * @param termDb Database
+   * @return True, if table has IPC-Codes
+   * @throws SQLException Thrown on low-level SQL-errors
+   */
+  private boolean checkIPC(@NotNull final TermDataDB termDb)
+      throws SQLException {
+    final boolean hasIPCField = termDb.hasTableField(TermsTable.TABLE_NAME,
+        FieldsOptional.IPC);
+
+    // stop, if a IPC filter was given, but there are no IPC-codes stored
+    if (!hasIPCField && this.cliParams.ipcRec != null) {
+      throw new IllegalStateException("IPC filter requested, but no " +
+          "IPC-codes are stored in the database.");
+    }
+    return hasIPCField;
   }
 
   /**
@@ -124,16 +152,10 @@ public final class ExtractTerms
 
     // table manager instance: Source database with term data
     try (final TermDataDB termDb = new TermDataDB(this.cliParams.dbSource)) {
-
       if (termDb.hasTerms()) {
-        final boolean includeIPC = termDb.hasTableField(TermsTable.TABLE_NAME,
-            TermsTable.FieldsOptional.IPC);
-
-        // stop, if a IPC filter was given, but there are no IPC-codes stored
-        if (!includeIPC && this.cliParams.ipcRec != null) {
-          throw new IllegalStateException("IPC filter requested, but no " +
-              "IPC-codes are stored in the database.");
-        }
+        // Should we include IPC-data?
+        final boolean includeIPC = checkIPC(termDb) &&
+            (this.cliParams.ipcRec != null);
 
         // number of all terms in table
         final Statement preCheckStmt = termDb.getConnection().createStatement();
@@ -145,7 +167,7 @@ public final class ExtractTerms
           preCheckSQL += " and " + TermsTable.Fields.DOCFREQ_REL +
               " >= " + this.cliParams.threshold;
         }
-        if (includeIPC && this.cliParams.ipcRec != null) {
+        if (includeIPC) {
           preCheckSQL += " and " + TermsTable.FieldsOptional.IPC + " like '" +
               ipcName + "%'";
         }
@@ -180,7 +202,7 @@ public final class ExtractTerms
                 TermsTable.Fields.DOCFREQ_REL + ',' +
                 TermsTable.Fields.DOCFREQ_ABS + ',' +
                 TermsTable.Fields.FIELD +
-                (includeIPC ? "" : "," + TermsTable.FieldsOptional.IPC);
+                (includeIPC ? "," + TermsTable.FieldsOptional.IPC : "");
 
         // prepared statement to query terms from source table
         final String querySQL =
@@ -191,7 +213,7 @@ public final class ExtractTerms
                     " and " + TermsTable.Fields.DOCFREQ_REL +
                         " >= " + this.cliParams.threshold : "") +
                 " and " + TermsTable.Fields.FIELD + "='" + fieldName + '\'' +
-                (includeIPC && this.cliParams.ipcRec != null ?
+                (includeIPC ?
                     " and " + TermsTable.FieldsOptional.IPC + " like '" +
                         ipcName + "%'" : "") +
                 " order by " + TermsTable.Fields.DOCFREQ_REL +
@@ -201,6 +223,11 @@ public final class ExtractTerms
         }
         final PreparedStatement pickStmt = termDb.getConnection()
             .prepareStatement(querySQL);
+
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("terms={} bins={} binsize={}",
+              termCount, this.cliParams.bins, binWidth);
+        }
 
         // table manager instance: Target database with scoring data
         try (final ScoringDataDB scoringDb =
@@ -240,19 +267,21 @@ public final class ExtractTerms
 
               pickStmt.setLong(1, binWidth * (long) binNo);
               final ResultSet rs = pickStmt.executeQuery();
-              final Collection<Integer> samples = createSamples(
-                  this.cliParams.binSize, (int) binWidth);
-              Collections.sort(new ArrayList<>(samples));
+              final List<Integer> samples = new ArrayList<>(
+                  createSamples(this.cliParams.binSize, (int) binWidth));
+              Collections.sort(samples);
 
               if (LOG.isDebugEnabled()) {
-                LOG.debug("Samples: {}", samples.size());
+                LOG.debug("Pick-idx {}", samples);
               }
 
-              int count = 0;
+              LOG.info("Picking {} from bin {}.", samples.size(), binNo + 1);
+
+              Integer count = 0;
               while (!samples.isEmpty() && rs.next()) {
-                if (samples.contains(++count)) {
-                  if (LOG.isDebugEnabled()) {
-                    LOG.debug("pick {}",
+                if (samples.contains(count)) {
+                  if (LOG.isTraceEnabled()) {
+                    LOG.trace("pick {}",
                         (binWidth * (long) binNo) + (long) count);
                   }
                   // columns are defined in fields variable
@@ -281,6 +310,7 @@ public final class ExtractTerms
                   scoringWriter.addContent(tfc, false);
                   samples.remove(count);
                 }
+                count++;
               }
               if (!samples.isEmpty()) {
                 final String msg = "Not all samples retrieved. "
@@ -291,11 +321,6 @@ public final class ExtractTerms
             }
           }
         }
-
-        if (LOG.isDebugEnabled()) {
-          LOG.debug("terms={} bins={} binsize={}",
-              termCount, this.cliParams.bins, binWidth);
-        }
       }
     }
   }
@@ -305,15 +330,18 @@ public final class ExtractTerms
    *
    * @param amount Amount of random values to get
    * @param max Maximum value allowed (inclusive)
-   * @return {@code amount} number of random numbers between {@code 0} and
-   * {@code max} (each inclusive)
+   * @return {@code amount} number of random numbers between {@code 0}
+   * (inclusive) and {@code max} (exclusive)
    */
   private static Collection<Integer> createSamples(
       final int amount, final int max) {
-    final Collection<Integer> samples = new HashSet<>(amount);
-    while (samples.size() < amount) {
-      samples.add(RandomValue.getInteger(0, max));
+    final List<Integer> samples =
+        IntStream.range(0, max).boxed().collect(Collectors.toList());
+
+    while (samples.size() > amount) {
+      samples.remove(RandomValue.getInteger(0, samples.size() -1));
     }
+    
     return samples;
   }
 
@@ -439,7 +467,8 @@ public final class ExtractTerms
         try {
           pick = Integer.parseInt(pickStr);
         } catch (final NumberFormatException e) {
-          throw new IllegalArgumentException("Picks must be >0. Got "+ pickStr);
+          throw new IllegalArgumentException(
+              "Picks must be >0. Got " + pickStr);
         }
         if (pick <= 0) {
           throw new IllegalArgumentException("Picks must be >0.");
