@@ -126,7 +126,7 @@ public final class StringUtils {
    * @return Lower-cased input String or plain input String, if empty
    */
   public static CharSequence upperCase(@NotNull final CharSequence input) {
-    if (isStrippedEmpty(input) || isAllLower(input)) {
+    if (isStrippedEmpty(input) || isAllUpper(input)) {
       return input;
     }
     final StringBuilder sb = new StringBuilder(input.length());

@@ -151,6 +151,33 @@ public final class FeedbackQuery {
   }
 
   /**
+   * Tries to get all documents matching a query limited by a maximum number of
+   * results.
+   *
+   * @param searcher Searcher to issue queries
+   * @param query Relaxable query to get matching documents
+   * @param maxDocCount Maximum number of documents to get. {@code -1} for
+   * unlimited or greater than zero.
+   * @return List of documents matching the (relaxed) query. Ranking order is
+   * not preserved!
+   * @throws IOException Thrown on low-level I/O errors
+   */
+  public static DocIdSet getMax(
+      @NotNull final IndexSearcher searcher,
+      @NotNull final Query query,
+      final int maxDocCount)
+      throws IOException {
+    final int maxRetDocs = getMaxDocs(searcher.getIndexReader(), maxDocCount);
+    final FixedBitSet bits =
+        new FixedBitSet(searcher.getIndexReader().maxDoc());
+    bits.or(BitsUtils.arrayToBits(
+        getDocs(searcher, query, maxRetDocs)));
+
+    LOG.info("Returning {} documents.", bits.cardinality());
+    return new BitDocIdSet(bits);
+  }
+
+  /**
    * Tries to get the minimum number of document without {@link
    * RelaxableQuery#relax() relaxing} the query. If the minimum number of
    * documents is not reached without relaxing at most the maximum number of
