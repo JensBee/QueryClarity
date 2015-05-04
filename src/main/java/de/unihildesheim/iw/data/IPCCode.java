@@ -255,7 +255,7 @@ public final class IPCCode {
           break;
         }
       }
-      return StringUtils.upperCase(sb.toString());
+      return StringUtils.upperCase(sb.toString()).toString();
     }
 
     /**
@@ -284,7 +284,7 @@ public final class IPCCode {
           break;
         }
       }
-      return StringUtils.upperCase(sb.toString());
+      return StringUtils.upperCase(sb.toString()).toString();
     }
 
     /**

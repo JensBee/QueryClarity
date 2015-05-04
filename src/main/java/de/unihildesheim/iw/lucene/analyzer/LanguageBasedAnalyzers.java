@@ -56,9 +56,9 @@ public final class LanguageBasedAnalyzers {
    * @return Language instance
    */
   @Nullable
-  public static Language getLanguage(final String lang) {
+  public static Language getLanguage(final CharSequence lang) {
     if (hasAnalyzer(lang)) {
-      return Language.valueOf(StringUtils.upperCase(lang));
+      return Language.valueOf(StringUtils.upperCase(lang).toString());
     }
     return null;
   }
@@ -69,8 +69,8 @@ public final class LanguageBasedAnalyzers {
    * @param lang Language code (two-char)
    * @return True, if an analyzer exists
    */
-  public static boolean hasAnalyzer(final String lang) {
-    return LANG_LIST.contains(StringUtils.upperCase(lang));
+  public static boolean hasAnalyzer(final CharSequence lang) {
+    return LANG_LIST.contains(StringUtils.upperCase(lang).toString());
   }
 
   /**

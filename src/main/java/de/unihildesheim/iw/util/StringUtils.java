@@ -125,15 +125,13 @@ public final class StringUtils {
    * @param input String to convert to all lower-case
    * @return Lower-cased input String or plain input String, if empty
    */
-  public static String upperCase(@NotNull final String input) {
-    if (isStrippedEmpty(input) || isAllUpper(input)) {
+  public static CharSequence upperCase(@NotNull final CharSequence input) {
+    if (isStrippedEmpty(input) || isAllLower(input)) {
       return input;
     }
     final StringBuilder sb = new StringBuilder(input.length());
-    // manual transform to uppercase to avoid locale problems
-    for (int i = 0; i < input.length(); i++) {
-      sb.append(Character.toChars(Character.toUpperCase(input.codePointAt(i))));
-    }
+    // manual transform to lowercase to avoid locale problems
+    input.codePoints().forEach(cp -> sb.append(Character.toUpperCase(cp)));
     // string is now all lower case
     return sb.toString();
   }
@@ -146,16 +144,14 @@ public final class StringUtils {
    * @return True, if String will be empty after stripping those characters or
    * string was initially {@code null}.
    */
-  public static boolean isStrippedEmpty(@Nullable final String input) {
-    if (input == null || input.isEmpty() || isTrimmedEmpty(input)) {
-      return true;
-    }
-    for (int i = input.length() - 1; i >= 0; i--) {
-      if (!Character.isWhitespace(input.codePointAt(i))) {
-        return false;
-      }
-    }
-    return true;
+  public static boolean isStrippedEmpty(@Nullable final CharSequence input) {
+    return input == null ||
+        input.length() == 0 ||
+        isTrimmedEmpty(input) ||
+        !input.codePoints()
+            .filter(cp -> !Character.isWhitespace(cp))
+            .findFirst().isPresent();
+
   }
 
   /**
@@ -164,17 +160,12 @@ public final class StringUtils {
    * @param input String to check
    * @return True, if all letters are upper-case or input String was empty
    */
-  public static boolean isAllUpper(final String input) {
-    if (isStrippedEmpty(input)) {
-      return true;
-    }
-    for (int i = input.length() - 1; i >= 0; i--) {
-      if (Character.isLetter(input.codePointAt(i)) &&
-          !Character.isUpperCase(input.codePointAt(i))) {
-        return false;
-      }
-    }
-    return true;
+  public static boolean isAllUpper(final CharSequence input) {
+    return isStrippedEmpty(input) ||
+        !input.codePoints()
+            .filter(cp -> Character.isLetter(cp) && !Character.isUpperCase(cp))
+            .findFirst().isPresent();
+
   }
 
   /**
@@ -185,12 +176,8 @@ public final class StringUtils {
    * @return True, if String will be empty after stripping those characters
    */
   public static boolean isTrimmedEmpty(final CharSequence input) {
-    for (int i = input.length() - 1; i >= 0; i--) {
-      if ((int) input.charAt(i) > (int) ' ') {
-        return false;
-      }
-    }
-    return true;
+    return !input.chars().filter(c -> c > (int) ' ')
+        .findFirst().isPresent();
   }
 
   /**
@@ -226,11 +213,11 @@ public final class StringUtils {
    * @param locale Locale to use
    * @return Mapping of (all lower-cased) string and count
    */
-  public static Map<String, Integer> countWords(
+  public static Map<CharSequence, Integer> countWords(
       @NotNull final String text,
       @NotNull final Locale locale) {
     @SuppressWarnings("CollectionWithoutInitialCapacity")
-    final Map<String, Integer> wordCounts = new HashMap<>();
+    final Map<CharSequence, Integer> wordCounts = new HashMap<>();
 
     // short circuit, if string is empty
     if (isStrippedEmpty(text)) {
@@ -243,7 +230,7 @@ public final class StringUtils {
     int wordBoundaryIndex = breakIterator.first();
     int prevIndex = 0;
     while (wordBoundaryIndex != BreakIterator.DONE) {
-      final String word = lowerCase(text.substring(prevIndex,
+      final CharSequence word = lowerCase(text.substring(prevIndex,
           wordBoundaryIndex));
       if (isWord(word)) {
         @Nullable Integer wordCount = wordCounts.get(word);
@@ -267,16 +254,13 @@ public final class StringUtils {
    * @param input String to convert to all lower-case
    * @return Lower-cased input string
    */
-  public static String lowerCase(@NotNull final String input) {
+  public static CharSequence lowerCase(@NotNull final CharSequence input) {
     if (isStrippedEmpty(input) || isAllLower(input)) {
       return input;
     }
     final StringBuilder sb = new StringBuilder(input.length());
     // manual transform to lowercase to avoid locale problems
-    final int size = input.length();
-    for (int i = 0; i < size; i++) {
-      sb.append(Character.toChars(Character.toLowerCase(input.codePointAt(i))));
-    }
+    input.codePoints().forEach(cp -> sb.append(Character.toLowerCase(cp)));
     // string is now all lower case
     return sb.toString();
   }
@@ -289,7 +273,7 @@ public final class StringUtils {
    * @return True, if it's a character or number
    */
   @Contract("null -> false")
-  private static boolean isWord(@Nullable final String word) {
+  private static boolean isWord(@Nullable final CharSequence word) {
     if (word == null) {
       return false;
     }
@@ -307,26 +291,21 @@ public final class StringUtils {
    * @param input String to check
    * @return True, if all letters are lower-case or input String was empty
    */
-  public static boolean isAllLower(final String input) {
-    if (isStrippedEmpty(input)) {
-      return true;
-    }
-    for (int i = input.length() - 1; i >= 0; i--) {
-      if (Character.isLetter(input.codePointAt(i)) &&
-          !Character.isLowerCase(input.codePointAt(i))) {
-        return false;
-      }
-    }
-    return true;
+  public static boolean isAllLower(final CharSequence input) {
+    return isStrippedEmpty(input) ||
+        !input.codePoints()
+            .filter(cp -> Character.isLetter(cp) && !Character.isLowerCase(cp))
+            .findFirst().isPresent();
   }
 
   /**
    * Checks, if a string looks like it's all numeric.
+   *
    * @param input String to check
    * @return True, if string look all numeric
    */
   @SuppressWarnings("ImplicitNumericConversion")
-  public static boolean isNumeric(final String input) {
+  public static boolean isNumeric(final CharSequence input) {
     boolean isNumeric = true;
     for (int i = input.length() - 1; i >= 0 && isNumeric; i--) {
       char c = input.charAt(i);

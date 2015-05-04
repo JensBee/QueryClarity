@@ -138,8 +138,8 @@ public final class ExtractTerms
     final boolean useThreshold = this.cliParams.threshold > 0d;
 
     // normalize some parameters
-    final String langName = StringUtils.lowerCase(this.cliParams.lang);
-    final String fieldName = StringUtils.lowerCase(this.cliParams.field);
+    final CharSequence langName = StringUtils.lowerCase(this.cliParams.lang);
+    final CharSequence fieldName = StringUtils.lowerCase(this.cliParams.field);
     final String ipcName;
     if (this.cliParams.ipcRec != null) {
       ipcName = this.cliParams.ipcRec
@@ -287,8 +287,6 @@ public final class ExtractTerms
                 for (int i=0; i<finalBinSize; i++) {
                   samples.add(sampleRange.get(i));
                 }
-                /*final List<Integer> samples = new ArrayList<>(
-                    createSamples(finalBinSize, (int) binWidth));*/
                 Collections.sort(samples);
 
                 if (LOG.isDebugEnabled()) {
