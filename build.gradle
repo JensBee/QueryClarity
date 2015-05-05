@@ -133,10 +133,12 @@ class TermDump {
      * @return Filename String
      */
     static createDBFileName(dir, lang, field, ipc) {
+        def target = new File(dir + "/" + dbPrefix)
+        target.mkdirs()
         if (ipc == null)
-            return "${dir}/${dbPrefix}-${lang}_${field}.sqlite"
+            return "${target}/${dbPrefix}-${lang}_${field}.sqlite"
         else
-            return "${dir}/${dbPrefix}-${lang}_${field}" +
+            return "${target}/${dbPrefix}-${lang}_${field}" +
                     "-ipc_${ipc.toLowerCase()}.sqlite"
     }
 }
@@ -184,10 +186,12 @@ class ExtractTerms {
      * @return Filename String
      */
     static createDBFileName(dir, lang, field, ipc) {
+        def target = new File(dir + "/" + dbPrefix)
+        target.mkdirs()
         if (ipc == null)
-            return "${dir}/${dbPrefix}-${lang}_${field}.sqlite"
+            return "${target}/${dbPrefix}-${lang}_${field}.sqlite"
         else
-            return "${dir}/${dbPrefix}-${lang}_${field}" +
+            return "${target}/${dbPrefix}-${lang}_${field}" +
                     "-ipc_${ipc.toLowerCase()}.sqlite"
     }
 }
@@ -233,7 +237,7 @@ for (lang in confScoring.languages) {
         group groupNames.index
         description "Create index. lang=${lang}."
         dependsOn prepareOutput
-        outputs.files confLucene.indexPath + lang.toUpperCase()
+        outputs.files confLucene.indexPath + lang
 
         doLast {
             logger.info("Building index for language=${lang}")
@@ -274,7 +278,7 @@ for (lang in confScoring.languages) {
      */
     def defaultArgs = [
             '-grpsep', confIPC.grpSeparator,
-            '-idx', confLucene.indexPath + lang.toUpperCase(),
+            '-idx', confLucene.indexPath + lang,
             '-lang', lang,
             '-stop', confStopwords.pathPattern,
             '-stop-format', confStopwords.format,
