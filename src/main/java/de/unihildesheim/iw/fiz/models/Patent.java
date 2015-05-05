@@ -26,6 +26,8 @@ import de.unihildesheim.iw.lucene.index.builder.PatentDocument;
 import de.unihildesheim.iw.util.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -47,7 +49,11 @@ public final class Patent
    */
   @SuppressWarnings("HardcodedLineSeparator")
   private static final Pattern RX_SPECIAL_CHARS =
-      Pattern.compile("/[\\t\\n\\r]/");
+      Pattern.compile("\\n|\\\\n|\\r|\\\\r|\\t|\\\\t");
+  /**
+   * Fold multiple spaces into a single space character.
+   */
+  private static final Pattern RX_SPACE_FOLD = Pattern.compile("/\\s+/");
   /**
    * Claims by language.
    */
@@ -68,6 +74,11 @@ public final class Patent
    */
   @Nullable
   private String patId;
+  /**
+   * Logger instance for this class.
+   */
+  private static final Logger LOG =
+      LoggerFactory.getLogger(Patent.class);
 
   public static PatentDocument fromJson(@NotNull final JsonObject json) {
     Objects.requireNonNull(json);
@@ -78,13 +89,19 @@ public final class Patent
 
       // collect claims
       p.claimsByLanguage = Arrays.stream(Language.values())
-          .filter(l -> hitFieldsJson.has(ES_CONF.FLD_CLAIM_PREFIX + l))
-          .collect(HashMap<Language, String>::new,
+          .filter(l -> hitFieldsJson.has(
+              ES_CONF.FLD_CLAIM_PREFIX + l.toUpperCaseString()))
+          .collect(
+              HashMap<Language, String>::new,
               (map, l) -> map.put(l,
-                  StreamSupport.stream(hitFieldsJson.getAsJsonArray(
-                      ES_CONF.FLD_CLAIM_PREFIX + l).spliterator(), false)
-                      .map(c -> RX_SPECIAL_CHARS.matcher(c.toString())
-                          .replaceAll(" "))
+                  StreamSupport.stream(hitFieldsJson
+                      .getAsJsonArray(
+                          ES_CONF.FLD_CLAIM_PREFIX + l.toUpperCaseString())
+                      .spliterator(), false)
+                      .map(c ->
+                          RX_SPACE_FOLD.matcher(
+                              RX_SPECIAL_CHARS.matcher(c.getAsString())
+                                  .replaceAll(" ")).replaceAll(" "))
                       .collect(Collectors.joining(" "))),
               HashMap<Language, String>::putAll);
 
@@ -122,7 +139,9 @@ public final class Patent
   @SuppressWarnings("TypeMayBeWeakened")
   public static String joinJsonArray(@NotNull final JsonArray jArr) {
     return StreamSupport.stream(jArr.spliterator(), false)
-        .map(e -> RX_SPECIAL_CHARS.matcher(e.getAsString()).replaceAll(" "))
+        .map(e -> RX_SPACE_FOLD.matcher(
+            RX_SPECIAL_CHARS.matcher(e.getAsString()
+            ).replaceAll(" ")).replaceAll(" "))
         .collect(Collectors.joining(" "));
   }
 
