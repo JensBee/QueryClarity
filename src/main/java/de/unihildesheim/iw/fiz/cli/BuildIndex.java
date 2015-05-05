@@ -28,7 +28,6 @@ import de.unihildesheim.iw.fiz.models.Patent;
 import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers.Language;
 import de.unihildesheim.iw.lucene.index.builder.IndexBuilder;
 import de.unihildesheim.iw.util.StopwordsFileReader;
-import de.unihildesheim.iw.util.StringUtils;
 import io.searchbox.client.JestClient;
 import io.searchbox.client.JestClientFactory;
 import io.searchbox.client.JestResult;
@@ -193,7 +192,7 @@ final class BuildIndex
         File.separator + lang).toPath();
     Files.createDirectories(targetPath);
     final IndexBuilder iBuilder = new IndexBuilder(targetPath, lang,
-        CliCommon.getStopwords(StringUtils.lowerCase(lang.toString()),
+        CliCommon.getStopwords(lang.toString(),
             this.cliParams.stopFileFormat, this.cliParams.stopFilePattern));
     indexResults(iBuilder, hits);
 
