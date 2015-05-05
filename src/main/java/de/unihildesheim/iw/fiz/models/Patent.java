@@ -33,6 +33,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -41,6 +42,12 @@ import java.util.stream.StreamSupport;
  */
 public final class Patent
     implements PatentDocument {
+  /**
+   * Some special chars that will be replaced before indexing.
+   */
+  @SuppressWarnings("HardcodedLineSeparator")
+  private static final Pattern RX_SPECIAL_CHARS =
+      Pattern.compile("/[\\t\\n\\r]/");
   /**
    * Claims by language.
    */
@@ -73,11 +80,12 @@ public final class Patent
       p.claimsByLanguage = Arrays.stream(Language.values())
           .filter(l -> hitFieldsJson.has(ES_CONF.FLD_CLAIM_PREFIX + l))
           .collect(HashMap<Language, String>::new,
-              (map, l) -> map.put(l, StreamSupport.stream(hitFieldsJson
-                  .getAsJsonArray(ES_CONF.FLD_CLAIM_PREFIX + l)
-                  .spliterator(), false)
-                  .map(JsonElement::toString)
-                  .collect(Collectors.joining(" "))),
+              (map, l) -> map.put(l,
+                  StreamSupport.stream(hitFieldsJson.getAsJsonArray(
+                      ES_CONF.FLD_CLAIM_PREFIX + l).spliterator(), false)
+                      .map(c -> RX_SPECIAL_CHARS.matcher(c.toString())
+                          .replaceAll(" "))
+                      .collect(Collectors.joining(" "))),
               HashMap<Language, String>::putAll);
 
       // collect detd
@@ -114,7 +122,7 @@ public final class Patent
   @SuppressWarnings("TypeMayBeWeakened")
   public static String joinJsonArray(@NotNull final JsonArray jArr) {
     return StreamSupport.stream(jArr.spliterator(), false)
-        .map(JsonElement::getAsString)
+        .map(e -> RX_SPECIAL_CHARS.matcher(e.getAsString()).replaceAll(" "))
         .collect(Collectors.joining(" "));
   }
 
