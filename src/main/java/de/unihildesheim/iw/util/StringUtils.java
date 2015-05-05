@@ -125,13 +125,14 @@ public final class StringUtils {
    * @param input String to convert to all lower-case
    * @return Lower-cased input String or plain input String, if empty
    */
-  public static CharSequence upperCase(@NotNull final CharSequence input) {
+  public static String upperCase(@NotNull final CharSequence input) {
     if (isStrippedEmpty(input) || isAllUpper(input)) {
-      return input;
+      return input.toString();
     }
     final StringBuilder sb = new StringBuilder(input.length());
     // manual transform to lowercase to avoid locale problems
-    input.codePoints().forEach(cp -> sb.append(Character.toUpperCase(cp)));
+    input.codePoints().forEach(cp -> sb.append(
+        (char) Character.toUpperCase(cp)));
     // string is now all lower case
     return sb.toString();
   }
@@ -213,11 +214,11 @@ public final class StringUtils {
    * @param locale Locale to use
    * @return Mapping of (all lower-cased) string and count
    */
-  public static Map<CharSequence, Integer> countWords(
+  public static Map<String, Integer> countWords(
       @NotNull final String text,
       @NotNull final Locale locale) {
     @SuppressWarnings("CollectionWithoutInitialCapacity")
-    final Map<CharSequence, Integer> wordCounts = new HashMap<>();
+    final Map<String, Integer> wordCounts = new HashMap<>();
 
     // short circuit, if string is empty
     if (isStrippedEmpty(text)) {
@@ -230,7 +231,7 @@ public final class StringUtils {
     int wordBoundaryIndex = breakIterator.first();
     int prevIndex = 0;
     while (wordBoundaryIndex != BreakIterator.DONE) {
-      final CharSequence word = lowerCase(text.substring(prevIndex,
+      final String word = lowerCase(text.substring(prevIndex,
           wordBoundaryIndex));
       if (isWord(word)) {
         @Nullable Integer wordCount = wordCounts.get(word);
@@ -254,13 +255,14 @@ public final class StringUtils {
    * @param input String to convert to all lower-case
    * @return Lower-cased input string
    */
-  public static CharSequence lowerCase(@NotNull final CharSequence input) {
+  public static String lowerCase(@NotNull final CharSequence input) {
     if (isStrippedEmpty(input) || isAllLower(input)) {
-      return input;
+      return input.toString();
     }
     final StringBuilder sb = new StringBuilder(input.length());
     // manual transform to lowercase to avoid locale problems
-    input.codePoints().forEach(cp -> sb.append(Character.toLowerCase(cp)));
+    input.codePoints().forEach(cp -> sb.append(
+        (char) Character.toLowerCase(cp)));
     // string is now all lower case
     return sb.toString();
   }

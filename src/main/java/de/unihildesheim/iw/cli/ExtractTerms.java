@@ -138,8 +138,8 @@ public final class ExtractTerms
     final boolean useThreshold = this.cliParams.threshold > 0d;
 
     // normalize some parameters
-    final CharSequence langName = StringUtils.lowerCase(this.cliParams.lang);
-    final CharSequence fieldName = StringUtils.lowerCase(this.cliParams.field);
+    final String langName = StringUtils.lowerCase(this.cliParams.lang);
+    final String fieldName = StringUtils.lowerCase(this.cliParams.field);
     final String ipcName;
     if (this.cliParams.ipcRec != null) {
       ipcName = this.cliParams.ipcRec

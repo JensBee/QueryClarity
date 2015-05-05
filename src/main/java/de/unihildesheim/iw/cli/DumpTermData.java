@@ -189,9 +189,9 @@ public final class DumpTermData
               }).start();
 
           // normalize some parameters
-          final CharSequence fieldName =
+          final String fieldName =
               StringUtils.lowerCase(this.cliParams.field);
-          final CharSequence langName =
+          final String langName =
               StringUtils.lowerCase(this.cliParams.lang);
 
           while (term != null) {

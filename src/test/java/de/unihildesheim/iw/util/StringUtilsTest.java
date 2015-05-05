@@ -73,7 +73,7 @@ public class StringUtilsTest
       throws Exception {
     final String base = "foobar baz";
     final String expected = "FOOBAR BAZ";
-    final CharSequence result = StringUtils.upperCase(base);
+    final String result = StringUtils.upperCase(base);
 
     Assert.assertEquals("Uppercased string mismatch.", expected, result);
   }
@@ -83,7 +83,7 @@ public class StringUtilsTest
       throws Exception {
     final String base = "foo, bar-baz";
     final String expected = "FOO, BAR-BAZ";
-    final CharSequence result = StringUtils.upperCase(base);
+    final String result = StringUtils.upperCase(base);
 
     Assert.assertEquals("Uppercased string mismatch.", expected, result);
   }
@@ -126,7 +126,7 @@ Assert.assertEquals("Word count mismatch.", 5L,
       throws Exception {
     final String base = "FOOBAR BAZ";
     final String expected = "foobar baz";
-    final CharSequence result = StringUtils.lowerCase(base);
+    final String result = StringUtils.lowerCase(base);
 
     Assert.assertEquals("Lowercased string mismatch.", expected, result);
   }
@@ -136,7 +136,7 @@ Assert.assertEquals("Word count mismatch.", 5L,
       throws Exception {
     final String base = "FOO, BAR-BAZ";
     final String expected = "foo, bar-baz";
-    final CharSequence result = StringUtils.lowerCase(base);
+    final String result = StringUtils.lowerCase(base);
 
     Assert.assertEquals("Lowercased string mismatch.", expected, result);
   }
