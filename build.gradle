@@ -84,7 +84,8 @@ def groupNames = [
         extractTerms   : "Sample terms from term-frequency data dumps: " +
                 "Base data",
         extractTermsIpc: "Sample terms from term-frequency data dumps: " +
-                "Filtered by IPC-section"]
+                "Filtered by IPC-section",
+        index          : "Lucene index related tasks"]
 
 /*******************************************************************************
  * Internal helper methods.
@@ -199,7 +200,7 @@ class ExtractTerms {
  */
 task('wrapper', type: Wrapper) {
     description "Create gradle wrapper for distribution."
-    group groupNames['intern']
+    group groupNames.intern
     gradleVersion = '2.3'
 }
 
@@ -208,6 +209,53 @@ task('wrapper', type: Wrapper) {
  */
 task('prepareOutput') {
     workingDirectory.mkdirs()
+}
+
+/*******************************************************************************
+ * Index building tasks.
+ */
+for (lang in confScoring.languages) {
+    task("buildIndex-${lang}") {
+        /**
+         * Arguments for the main class.
+         */
+        def cmdArgs = [
+                '-data', confLucene.indexPath,
+                '-only-lang', lang,
+                '-stop', confStopwords.pathPattern,
+                '-stop-format', confStopwords.format]
+
+        /**
+         * Main class to execute from the generated tasks.
+         */
+        def mainClass = confJava.package + 'fiz.cli.BuildIndex'
+
+        group groupNames.index
+        description "Create index. lang=${lang}."
+        dependsOn prepareOutput
+        outputs.files confLucene.indexPath + lang.toUpperCase()
+
+        doLast {
+            logger.info("Building index for language=${lang}")
+
+            javaexec {
+                args = cmdArgs
+                classpath = confJava.classPath
+                main = mainClass
+            }
+        }
+    }
+}
+
+task('buildIndex') {
+    def depTasks = []
+    for (lang in confScoring.languages) {
+        depTasks.add(tasks["buildIndex-${lang}"])
+    }
+
+    group groupNames.index
+    description "Batch create index. lang=*."
+    dependsOn depTasks
 }
 
 /*******************************************************************************
@@ -220,28 +268,28 @@ task('prepareOutput') {
  * 'dumpTerms-de-claims' will dump all terms for the field 'claims' for the
  *      language 'de' (german).
  */
-for (lang in confScoring['languages']) {
+for (lang in confScoring.languages) {
     /**
      * Default arguments for the main class.
      */
     def defaultArgs = [
-            '-grpsep', confIPC['grpSeparator'],
-            '-idx', confLucene['indexPath'] + lang.toUpperCase(),
+            '-grpsep', confIPC.grpSeparator,
+            '-idx', confLucene.indexPath + lang.toUpperCase(),
             '-lang', lang,
-            '-stop', confStopwords['pathPattern'],
-            '-stop-format', confStopwords['format'],
+            '-stop', confStopwords.pathPattern,
+            '-stop-format', confStopwords.format,
             '-threshold', 0d,
             '-zeropad']
 
     /**
      * Main class to execute from the generated tasks.
      */
-    def mainClass = confJava['package'] + 'cli.DumpTermData'
+    def mainClass = confJava.package + 'cli.DumpTermData'
 
     /**
      * Create tasks for each language & field combination.
      */
-    for (field in confScoring['fields']) {
+    for (field in confScoring.fields) {
         /**
          * Dump term-frequencies for current language & field.
          */
@@ -257,7 +305,7 @@ for (lang in confScoring['languages']) {
                     '-field', field]
 
             description infoStr
-            group groupNames['termDump']
+            group groupNames.termDump
             dependsOn 'prepareOutput'
             outputs.files target
 
@@ -270,7 +318,7 @@ for (lang in confScoring['languages']) {
 
                 javaexec {
                     args = cmdArgs
-                    classpath = confJava['classPath']
+                    classpath = confJava.classPath
                     main = mainClass
                 }
             }
@@ -279,7 +327,7 @@ for (lang in confScoring['languages']) {
         /**
          * Dynamic generate term-dump tasks for all known IPC-Sections.
          */
-        for (ipcSec in confIPC['sections']) {
+        for (ipcSec in confIPC.sections) {
             /**
              * Dump term-frequencies for current language, field & IPC-section.
              */
@@ -298,7 +346,7 @@ for (lang in confScoring['languages']) {
                         '-ipc', ipcSec]
 
                 description infoStr
-                group groupNames['termDumpIpc']
+                group groupNames.termDumpIpc
                 dependsOn 'prepareOutput'
                 outputs.files target
 
@@ -312,7 +360,7 @@ for (lang in confScoring['languages']) {
 
                     javaexec {
                         args = cmdArgs
-                        classpath = confJava['classPath']
+                        classpath = confJava.classPath
                         main = mainClass
                     }
                 }
@@ -325,12 +373,12 @@ for (lang in confScoring['languages']) {
          */
         task(TermDump.createTaskName(lang, field, null) + '-ipc') {
             def depTasks = []
-            for (ipcSec in confIPC['sections']) {
+            for (ipcSec in confIPC.sections) {
                 depTasks.add(tasks[
                         TermDump.createTaskName(lang, field, ipcSec)])
             }
             dependsOn depTasks
-            group groupNames['termDumpIpc']
+            group groupNames.termDumpIpc
             description "Batch TermFreq dump. " +
                     "field=${field} lang=${lang} ipc=*."
         }
@@ -342,12 +390,12 @@ for (lang in confScoring['languages']) {
      */
     task(TermDump.createTaskName(lang, null, null)) {
         def depTasks = []
-        for (field in confScoring['fields']) {
+        for (field in confScoring.fields) {
             depTasks.add(tasks[
                     TermDump.createTaskName(lang, field, null)])
         }
         dependsOn depTasks
-        group groupNames['termDump']
+        group groupNames.termDump
         description "Batch TermFreq dump. field=* lang=${lang}."
     }
 
@@ -357,14 +405,14 @@ for (lang in confScoring['languages']) {
      */
     task(TermDump.createTaskName(lang, null, null) + "-ipc") {
         def depTasks = []
-        for (field in confScoring['fields']) {
-            for (ipcSec in confIPC['sections']) {
+        for (field in confScoring.fields) {
+            for (ipcSec in confIPC.sections) {
                 depTasks.add(tasks[
                         TermDump.createTaskName(lang, field, ipcSec)])
             }
         }
         dependsOn depTasks
-        group groupNames['termDumpIpc']
+        group groupNames.termDumpIpc
         description "Batch TermFreq dump. field=* lang=${lang} ipc=*."
     }
 }
@@ -374,14 +422,14 @@ for (lang in confScoring['languages']) {
  */
 task(TermDump.createTaskName(null, null, null)) {
     def depTasks = []
-    for (lang in confScoring['languages']) {
+    for (lang in confScoring.languages) {
         depTasks.add(tasks[
                 TermDump.createTaskName(lang, null, null)])
     }
 
     description "Batch TermFreq dump. field=* lang=*."
     dependsOn depTasks
-    group groupNames['termDump']
+    group groupNames.termDump
 }
 
 /**
@@ -390,20 +438,20 @@ task(TermDump.createTaskName(null, null, null)) {
  */
 task(TermDump.createTaskName(null, null, null) + '-ipc') {
     def depTasks = []
-    for (lang in confScoring['languages']) {
+    for (lang in confScoring.languages) {
         depTasks.add(tasks[
                 TermDump.createTaskName(lang, null, null) + '-ipc'])
     }
 
     description "Batch TermFreq dump. field=* lang=* ipc=*."
     dependsOn depTasks
-    group groupNames['termDumpIpc']
+    group groupNames.termDumpIpc
 }
 
 /*******************************************************************************
  * Term-frequency dump sample extraction tasks.
  */
-for (lang in confScoring['languages']) {
+for (lang in confScoring.languages) {
     /**
      * Default arguments for the main class.
      */
@@ -412,18 +460,18 @@ for (lang in confScoring['languages']) {
             '-bins', 6,
             '-binsize', 50,
             '-picks', '1 3 5',
-            '-grpsep', confIPC['grpSeparator'],
+            '-grpsep', confIPC.grpSeparator,
             '-lang', lang]
 
     /**
      * Main class to execute from the generated tasks.
      */
-    def mainClass = confJava['package'] + 'cli.ExtractTerms'
+    def mainClass = confJava.package + 'cli.ExtractTerms'
 
     /**
      * Create tasks for each language & field combination.
      */
-    for (field in confScoring['fields']) {
+    for (field in confScoring.fields) {
         /**
          * Dump term-frequencies for current language & field.
          */
@@ -443,7 +491,7 @@ for (lang in confScoring['languages']) {
                     '-field', field]
 
             description infoStr
-            group groupNames['extractTerms']
+            group groupNames.extractTerms
             dependsOn 'prepareOutput',
                     TermDump.createTaskName(lang, field, null)
             outputs.files target
@@ -456,7 +504,7 @@ for (lang in confScoring['languages']) {
                 }
                 javaexec {
                     args = cmdArgs
-                    classpath = confJava['classPath']
+                    classpath = confJava.classPath
                     main = mainClass
                 }
             }
@@ -465,7 +513,7 @@ for (lang in confScoring['languages']) {
         /**
          * Dynamic generate term-dump tasks for all known IPC-Sections.
          */
-        for (ipcSec in confIPC['sections']) {
+        for (ipcSec in confIPC.sections) {
             /**
              * Dump term-frequencies for current language, field & IPC-section.
              */
@@ -487,7 +535,7 @@ for (lang in confScoring['languages']) {
                         '-ipc', ipcSec]
 
                 description infoStr
-                group groupNames['extractTermsIpc']
+                group groupNames.extractTermsIpc
                 dependsOn 'prepareOutput',
                         TermDump.createTaskName(lang, field, ipcSec)
                 outputs.files target
@@ -514,12 +562,12 @@ for (lang in confScoring['languages']) {
          */
         task(ExtractTerms.createTaskName(lang, field, null) + '-ipc') {
             def depTasks = []
-            for (ipcSec in confIPC['sections']) {
+            for (ipcSec in confIPC.sections) {
                 depTasks.add(tasks[
                         ExtractTerms.createTaskName(lang, field, ipcSec)])
             }
             dependsOn depTasks
-            group groupNames['extractTermsIpc']
+            group groupNames.extractTermsIpc
             description "Batch sample from TermFreq dump. " +
                     "field=${field} lang=${lang} ipc=*."
         }
@@ -531,12 +579,12 @@ for (lang in confScoring['languages']) {
      */
     task(ExtractTerms.createTaskName(lang, null, null)) {
         def depTasks = []
-        for (field in confScoring['fields']) {
+        for (field in confScoring.fields) {
             depTasks.add(tasks[
                     ExtractTerms.createTaskName(lang, field, null)])
         }
         dependsOn depTasks
-        group groupNames['extractTerms']
+        group groupNames.extractTerms
         description "Batch sample from TermFreq dump. field=* lang=${lang}."
     }
 
@@ -546,14 +594,14 @@ for (lang in confScoring['languages']) {
      */
     task(ExtractTerms.createTaskName(lang, null, null) + "-ipc") {
         def depTasks = []
-        for (field in confScoring['fields']) {
-            for (ipcSec in confIPC['sections']) {
+        for (field in confScoring.fields) {
+            for (ipcSec in confIPC.sections) {
                 depTasks.add(tasks[
                         ExtractTerms.createTaskName(lang, field, ipcSec)])
             }
         }
         dependsOn depTasks
-        group groupNames['extractTermsIpc']
+        group groupNames.extractTermsIpc
         description "Batch sample from TermFreq dump. field=* lang=${lang} " +
                 "ipc=*."
     }
@@ -564,14 +612,14 @@ for (lang in confScoring['languages']) {
  */
 task(ExtractTerms.createTaskName(null, null, null)) {
     def depTasks = []
-    for (lang in confScoring['languages']) {
+    for (lang in confScoring.languages) {
         depTasks.add(tasks[
                 ExtractTerms.createTaskName(lang, null, null)])
     }
 
     description "Batch sample from TermFreq dump. field=* lang=*."
     dependsOn depTasks
-    group groupNames['extractTerms']
+    group groupNames.extractTerms
 }
 
 /**
@@ -580,12 +628,12 @@ task(ExtractTerms.createTaskName(null, null, null)) {
  */
 task(ExtractTerms.createTaskName(null, null, null) + '-ipc') {
     def depTasks = []
-    for (lang in confScoring['languages']) {
+    for (lang in confScoring.languages) {
         depTasks.add(tasks[
                 ExtractTerms.createTaskName(lang, null, null) + '-ipc'])
     }
 
     description "Batch sample from TermFreq dump. field=* lang=* ipc=*."
     dependsOn depTasks
-    group groupNames['extractTermsIpc']
+    group groupNames.extractTermsIpc
 }
