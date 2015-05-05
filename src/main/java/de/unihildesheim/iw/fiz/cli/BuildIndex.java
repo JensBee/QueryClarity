@@ -97,7 +97,7 @@ final class BuildIndex
     LOG.info("Creating index for: {}", lang);
 
     // claim by language
-    final String fld_claim = ES_CONF.FLD_CLAIM_PREFIX + lang;
+    final String fld_claim = ES_CONF.FLD_CLAIM_PREFIX + lang.toUpperCaseString();
 
     // get all claims from patents in the specific language including
     // detailed technical description, if available
@@ -222,9 +222,11 @@ final class BuildIndex
 
         LOG.info("{} - hits:{}/{}/{} page:{} scroll-id:{} ~{}",
             lang,
-            NumberFormat.getIntegerInstance().format(currentResultSize),
+            NumberFormat.getIntegerInstance().format((long) currentResultSize),
             NumberFormat.getIntegerInstance().format(dataCount),
-            NumberFormat.getIntegerInstance().format(hitsTotal),
+            hitsTotal.isEmpty() ? "?" :
+                NumberFormat.getIntegerInstance()
+                    .format(Long.valueOf(hitsTotal)),
             pageNumber++, scrollId, delay);
       } else {
         LOG.error("Result failed: {}. Trying to proceed.",
