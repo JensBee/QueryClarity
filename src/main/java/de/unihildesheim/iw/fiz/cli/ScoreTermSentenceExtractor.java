@@ -163,8 +163,8 @@ public final class ScoreTermSentenceExtractor
       throw new IllegalArgumentException(
           "No analyzer for language '" + this.cliParams.lang + "'.");
     }
-    final Language lang = LanguageBasedAnalyzers
-        .getLanguage(this.cliParams.lang);
+    final Language lang =
+        LanguageBasedAnalyzers.getLanguage(this.cliParams.lang);
     if (lang == null) {
       throw new IllegalStateException("Unknown or unsupported language " +
           '(' + this.cliParams.lang + ").");
