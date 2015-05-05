@@ -149,5 +149,10 @@ public final class LanguageBasedAnalyzers {
       }
       return null;
     }
+
+    @Override
+    public String toString() {
+      return StringUtils.lowerCase(this.name());
+    }
   }
 }
