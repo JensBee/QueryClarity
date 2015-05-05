@@ -45,6 +45,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.text.NumberFormat;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -220,8 +221,11 @@ final class BuildIndex
         dataCount += (long) currentResultSize;
 
         LOG.info("{} - hits:{}/{}/{} page:{} scroll-id:{} ~{}",
-            lang, currentResultSize, dataCount, hitsTotal, pageNumber++,
-            scrollId, delay);
+            lang,
+            NumberFormat.getIntegerInstance().format(currentResultSize),
+            NumberFormat.getIntegerInstance().format(dataCount),
+            NumberFormat.getIntegerInstance().format(hitsTotal),
+            pageNumber++, scrollId, delay);
       } else {
         LOG.error("Result failed: {}. Trying to proceed.",
             result.getErrorMessage());
