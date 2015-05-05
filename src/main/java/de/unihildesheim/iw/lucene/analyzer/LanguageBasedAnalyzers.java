@@ -39,7 +39,7 @@ public final class LanguageBasedAnalyzers {
   static {
     LANG_LIST = new HashSet<>(Language.values().length);
     for (final Language lang : Language.values()) {
-      LANG_LIST.add(lang.name());
+      LANG_LIST.add(lang.toUpperCaseString());
     }
   }
 
@@ -58,7 +58,7 @@ public final class LanguageBasedAnalyzers {
   @Nullable
   public static Language getLanguage(final CharSequence lang) {
     if (hasAnalyzer(lang)) {
-      return Language.valueOf(StringUtils.upperCase(lang).toString());
+      return Language.valueOf(StringUtils.upperCase(lang));
     }
     return null;
   }
@@ -70,7 +70,7 @@ public final class LanguageBasedAnalyzers {
    * @return True, if an analyzer exists
    */
   public static boolean hasAnalyzer(final CharSequence lang) {
-    return LANG_LIST.contains(StringUtils.upperCase(lang).toString());
+    return LANG_LIST.contains(StringUtils.upperCase(lang));
   }
 
   /**
@@ -150,9 +150,21 @@ public final class LanguageBasedAnalyzers {
       return null;
     }
 
+    /**
+     * Get the lower-cased identifier for the current language.
+     * @return Lower-cased language identifier
+     */
     @Override
     public String toString() {
       return StringUtils.lowerCase(this.name());
+    }
+
+    /**
+     * Get the upper-cased identifier for the current language.
+     * @return Upper-cased language identifier
+     */
+    public String toUpperCaseString() {
+      return StringUtils.upperCase(this.name());
     }
   }
 }
