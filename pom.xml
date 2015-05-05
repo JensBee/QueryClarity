@@ -19,9 +19,9 @@
 
     <properties>
         <jdk.version>1.8</jdk.version>
-        <project.es.version>1.3.1</project.es.version>
+        <project.es.version>1.3.4</project.es.version>
         <compiler.args>-Xlint:all</compiler.args>
-        <project.lucene.version>4.10.3</project.lucene.version>
+        <project.lucene.version>5.1.0</project.lucene.version>
         <project.name>QueryClarityFIZ</project.name>
         <project.test.enableAssertions>true</project.test.enableAssertions>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -97,11 +97,11 @@
             <version>4.11</version>
             <scope>test</scope>
         </dependency>
-        <dependency>
+        <!--<dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch</artifactId>
             <version>${project.es.version}</version>
-        </dependency>
+        </dependency>-->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
@@ -117,6 +117,7 @@
             <artifactId>args4j</artifactId>
             <version>2.0.26</version>
         </dependency>
+        <!--
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-core</artifactId>
@@ -137,6 +138,12 @@
             <artifactId>lucene-test-framework</artifactId>
             <version>${project.lucene.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-backward-codecs</artifactId>
+            <version>${project.lucene.version}</version>
+        </dependency>
+        -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
