@@ -115,12 +115,17 @@ public final class DumpIPCStats
     // index of all IPC-codes found
     final Map<IPCRecord, Integer> ipcCodeStats =
         new ConcurrentHashMap<>(70000);
-    // IPC-codes count by section
-    final Map<String, Integer> ipcCodeStatsBySection =
-        new ConcurrentHashMap<>(10);
-
+    // detailed IPC-code statistics
     final Map<IPCRecord, Integer> ipcCodeStatsDetailed =
         new ConcurrentHashMap<>(100000);
+
+    // record number of IPC codes assigned per document
+    final Map<Integer, Integer> numberOfIpcsPerDoc =
+        new ConcurrentHashMap<>(100);
+
+    // record number of IPC section codes assigned per document
+    final Map<Integer, Integer> numberOfIpcSectionsPerDoc =
+        new ConcurrentHashMap<>(IPCRecord.MAX_LENGTH << 1);
 
     @SuppressWarnings("AnonymousInnerClassMayBeStatic")
     final TaskObserver obs = new TaskObserver(
@@ -151,6 +156,17 @@ public final class DumpIPCStats
               Arrays.stream(doc.getValues(LUCENE_CONF.FLD_IPC))
                   .map(ipcParser::parse).collect(Collectors.toList());
 
+          // store/in counter for number of IPC-codes assigned
+          numberOfIpcsPerDoc.compute(
+              records.size(), (k, v) -> v == null ? 1 : v + 1);
+
+          // store/in counter for number of unique IPC-sections assigned
+          final Collection<String> secs = records.stream()
+              .map(code -> code.get(Field.SECTION))
+              .collect(Collectors.toSet());
+          numberOfIpcSectionsPerDoc.compute(
+              secs.size(), (k, v) -> v == null ? 1 : v + 1);
+
           // increase counter for each code we've found
           records.stream().forEach(code ->
               ipcCodeStats.compute(code, (k, v) -> v == null ? 1 : v + 1));
@@ -158,14 +174,6 @@ public final class DumpIPCStats
 
     obs.stop();
     LOG.info("Parsing results");
-
-    // count entries by IPC-section
-    ipcCodeStats.entrySet().parallelStream()
-        .forEach(e -> {
-          final String section = e.getKey().get(Field.SECTION);
-          ipcCodeStatsBySection.compute(section,
-              (k, v) -> v == null ? e.getValue() : v + e.getValue());
-        });
 
     ipcCodeStats.entrySet().parallelStream()
         .forEach(e -> {
@@ -213,7 +221,7 @@ public final class DumpIPCStats
           });
         });
 
-    System.out.println("== All IPCs ==");
+    System.out.println("== All IPCs from index ==");
     ipcCodeStats.entrySet().stream()
         .sorted((o1, o2) ->
             IPCRecord.COMPARATOR.compare(o1.getKey(), o2.getKey()))
@@ -221,17 +229,26 @@ public final class DumpIPCStats
             "ipc=" + e.getKey().toFormattedString() +
                 " count=" + e.getValue()));
 
-    System.out.println("\n== IPCs by Section ==");
-    ipcCodeStatsBySection.entrySet().stream()
-        .forEach(e -> System.out.println(
-            "section=" + e.getKey() + " count=" + e.getValue()));
-
     System.out.println("\n== Detailed distribution ==");
     ipcCodeStatsDetailed.entrySet().stream()
         .sorted((o1, o2) ->
             IPCRecord.COMPARATOR.compare(o1.getKey(), o2.getKey()))
         .forEach(e -> System.out.println(
             "ipc=" + e.getKey() + " count=" + e.getValue()));
+
+    System.out.println("\n== IPC-Codes per document ==");
+    numberOfIpcsPerDoc.entrySet().stream()
+        .sorted((o1, o2) ->
+            Integer.compare(o1.getKey(), o2.getKey()))
+        .forEach(e -> System.out.println(
+            "ipc-codes=" + e.getKey() + " count=" + e.getValue()));
+
+    System.out.println("\n== Distinct IPC-Sections per document ==");
+    numberOfIpcSectionsPerDoc.entrySet().stream()
+        .sorted((o1, o2) ->
+            Integer.compare(o1.getKey(), o2.getKey()))
+        .forEach(e -> System.out.println(
+            "ipc-sections=" + e.getKey() + " count=" + e.getValue()));
   }
 
   /**
