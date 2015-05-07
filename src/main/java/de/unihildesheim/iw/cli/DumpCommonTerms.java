@@ -43,9 +43,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Set;
 
 /**
- * Dump terms that will be skipped when using a CommonTerms feedback provider
- * oder query class. This will not exactly list those terms, but still gives an
- * impression on what may get excluded.
+ * Commandline utility to dump terms that will be skipped when using a
+ * CommonTerms feedback provider oder query class. This will not exactly list
+ * those terms, but still gives an impression on what may get excluded.
  *
  * @author Jens Bertram (code@jens-bertram.net)
  */
@@ -122,8 +122,8 @@ final class DumpCommonTerms
 
       assert this.cliParams.targetFile != null;
       try (CSVWriter csvWriter =
-          new CSVWriter(new OutputStreamWriter(new FileOutputStream(
-          this.cliParams.targetFile), StandardCharsets.UTF_8))){
+               new CSVWriter(new OutputStreamWriter(new FileOutputStream(
+                   this.cliParams.targetFile), StandardCharsets.UTF_8))) {
 
         // write header line
         csvWriter.writeNext(new String[]{"term", "relDF"});

@@ -48,6 +48,8 @@ import java.util.regex.Pattern;
 import static de.unihildesheim.iw.data.IPCCode.IPCRecord;
 
 /**
+ * Commandline utility to dump all IPC-codes from the Lucene index.
+ *
  * @author Jens Bertram (code@jens-bertram.net)
  */
 public class DumpIPCs
