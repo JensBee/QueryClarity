@@ -56,15 +56,16 @@ public final class ESUtils {
       @NotNull final Action action)
       throws Exception {
     int tries = 0;
-    while (tries < ES_CONF.MAX_RETRY) {
+    while (tries <= ES_CONF.MAX_RETRY) {
       try {
         return client.execute(action);
       } catch (final SocketTimeoutException ex) {
-        // connection timed out - retry after a short delay
-        final int delay = (1 + RAND.nextInt(10)) * 100;
-        LOG.warn("Timeout - retry ~{}..", delay);
-        Thread.sleep((long) delay);
         tries++;
+        // connection timed out - retry after a short delay
+        int delay = (1 + RAND.nextInt(10)) * 100 * tries;
+        LOG.warn("Timeout - retry {}/{} ~{}..",
+            tries, ES_CONF.MAX_RETRY, delay);
+        Thread.sleep((long) delay);
       }
     }
     // retries maxed out
@@ -72,5 +73,4 @@ public final class ESUtils {
         "Giving up trying to connect after " + tries + ' ' +
             "retries.");
   }
-
 }
