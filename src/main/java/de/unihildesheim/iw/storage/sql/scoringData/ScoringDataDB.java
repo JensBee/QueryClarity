@@ -33,7 +33,8 @@ import java.util.Collections;
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class ScoringDataDB extends AbstractDB {
+public class ScoringDataDB
+    extends AbstractDB {
   /**
    * Database connection.
    */
