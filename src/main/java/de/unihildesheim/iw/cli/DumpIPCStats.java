@@ -20,6 +20,7 @@ package de.unihildesheim.iw.cli;
 import de.unihildesheim.iw.Buildable;
 import de.unihildesheim.iw.data.IPCCode;
 import de.unihildesheim.iw.data.IPCCode.IPCRecord;
+import de.unihildesheim.iw.data.IPCCode.IPCRecord.Field;
 import de.unihildesheim.iw.data.IPCCode.Parser;
 import de.unihildesheim.iw.lucene.index.builder.IndexBuilder.LUCENE_CONF;
 import de.unihildesheim.iw.util.TaskObserver;
@@ -43,7 +44,9 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.text.NumberFormat;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -82,6 +85,7 @@ public final class DumpIPCStats
     new DumpIPCStats().runMain(args);
   }
 
+  @SuppressWarnings("HardcodedLineSeparator")
   private void runMain(final String... args)
       throws IOException, Buildable.BuildException {
     new CmdLineParser(this.cliParams);
@@ -108,8 +112,15 @@ public final class DumpIPCStats
     final Set<String> fields =
         Collections.singleton(LUCENE_CONF.FLD_IPC);
 
+    // index of all IPC-codes found
     final Map<IPCRecord, Integer> ipcCodeStats =
-        new ConcurrentHashMap<>(1000);
+        new ConcurrentHashMap<>(70000);
+    // IPC-codes count by section
+    final Map<String, Integer> ipcCodeStatsBySection =
+        new ConcurrentHashMap<>(10);
+
+    final Map<IPCRecord, Integer> ipcCodeStatsDetailed =
+        new ConcurrentHashMap<>(100000);
 
     @SuppressWarnings("AnonymousInnerClassMayBeStatic")
     final TaskObserver obs = new TaskObserver(
@@ -146,10 +157,81 @@ public final class DumpIPCStats
         });
 
     obs.stop();
+    LOG.info("Parsing results");
+
+    // count entries by IPC-section
+    ipcCodeStats.entrySet().parallelStream()
+        .forEach(e -> {
+          final String section = e.getKey().get(Field.SECTION);
+          ipcCodeStatsBySection.compute(section,
+              (k, v) -> v == null ? e.getValue() : v + e.getValue());
+        });
+
+    ipcCodeStats.entrySet().parallelStream()
+        .forEach(e -> {
+          final Collection<IPCRecord> recs = new HashSet<>(5);
+          final StringBuilder code = new StringBuilder(IPCRecord.MAX_LENGTH);
+
+          // section
+          final String sec = e.getKey().get(Field.SECTION);
+          if (!sec.isEmpty()) {
+            code.append(sec);
+            recs.add(IPCCode.parse(code));
+
+            // class
+            final String cls = e.getKey().get(Field.CLASS);
+            if (!cls.isEmpty()) {
+              code.append(cls);
+              recs.add(IPCCode.parse(code));
+
+              // subclass
+              final String sCls = e.getKey().get(Field.SUBCLASS);
+              if (!sCls.isEmpty()) {
+                code.append(sCls);
+                recs.add(IPCCode.parse(code));
+
+                // main-group
+                final String mGrp = e.getKey().get(Field.MAINGROUP);
+                if (!mGrp.isEmpty()) {
+                  code.append(mGrp);
+                  recs.add(IPCCode.parse(code));
+
+                  // sub-group
+                  final String sGrp = e.getKey().get(Field.SUBGROUP);
+                  if (!sGrp.isEmpty()) {
+                    code.append(Parser.DEFAULT_SEPARATOR).append(sGrp);
+                    recs.add(IPCCode.parse(code));
+                  }
+                }
+              }
+            }
+          }
+
+          recs.forEach(rec -> {
+            ipcCodeStatsDetailed.compute(rec,
+                (k, v) -> v == null ? e.getValue() : v + e.getValue());
+          });
+        });
+
+    System.out.println("== All IPCs ==");
     ipcCodeStats.entrySet().stream()
-        .forEach(e -> System.out
-            .println("ipc=" + e.getKey().toFormattedString() + " count=" +
-                e.getValue()));
+        .sorted((o1, o2) ->
+            IPCRecord.COMPARATOR.compare(o1.getKey(), o2.getKey()))
+        .forEach(e -> System.out.println(
+            "ipc=" + e.getKey().toFormattedString() +
+                " count=" + e.getValue()));
+
+    System.out.println("\n== IPCs by Section ==");
+    ipcCodeStatsBySection.entrySet().stream()
+        .forEach(e -> System.out.println(
+            "section=" + e.getKey() + " count=" + e.getValue()));
+
+    System.out.println("\n== Detailed distribution ==");
+    ipcCodeStatsDetailed.entrySet().stream()
+        .sorted((o1, o2) ->
+            IPCRecord.COMPARATOR.compare(o1.getKey(), o2.getKey()))
+        .forEach(e -> System.out.println(
+            "ipc=" + e.getKey() + " count=" + e.getValue()));
   }
 
   /**
