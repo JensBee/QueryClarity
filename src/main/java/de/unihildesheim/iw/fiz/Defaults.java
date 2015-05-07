@@ -79,7 +79,7 @@ public final class Defaults {
     /**
      * Number of results to get from each shard.
      */
-    public static final int PAGE_SIZE = 1200;
+    public static final int PAGE_SIZE = 500;
     /**
      * How long to keep the scroll open.
      */
@@ -114,6 +114,6 @@ public final class Defaults {
     /**
      * How many times to retry a connection.
      */
-    public static final int MAX_RETRY = 50;
+    public static final int MAX_RETRY = 100;
   }
 }
