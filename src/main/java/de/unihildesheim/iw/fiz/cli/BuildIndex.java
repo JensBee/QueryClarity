@@ -97,7 +97,8 @@ final class BuildIndex
     LOG.info("Creating index for: {}", lang);
 
     // claim by language
-    final String fld_claim = ES_CONF.FLD_CLAIM_PREFIX + lang.toUpperCaseString();
+    final String fld_claim =
+        ES_CONF.FLD_CLAIM_PREFIX + lang.toUpperCaseString();
 
     // get all claims from patents in the specific language including
     // detailed technical description, if available
