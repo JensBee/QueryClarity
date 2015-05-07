@@ -267,5 +267,4 @@ public final class IPCFieldFilter
       return sb.append(']').toString();
     }
   }
-
 }
