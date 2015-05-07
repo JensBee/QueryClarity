@@ -24,7 +24,9 @@ import org.apache.lucene.search.RegexpQuery;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
@@ -46,6 +48,11 @@ public final class IPCCode {
      * Maximum length of a full IPC-code as produced by this implementation.
      */
     public static final int MAX_LENGTH = 15;
+    /**
+     * Comparator for IPC-Records.
+     */
+    public static final Comparator<IPCRecord> COMPARATOR =
+        new IPCRecordComparator();
 
     /**
      * Fields available in the record.
@@ -104,6 +111,7 @@ public final class IPCCode {
 
     /**
      * Get the IPC-code {@link Field fields} in parsing order.
+     *
      * @return List of {@link Field fields} in the order they are parsed
      */
     public static List<Field> getFieldOrder() {
@@ -113,7 +121,7 @@ public final class IPCCode {
     /**
      * Order of fields in a IPC-code.
      */
-    private static final Field[] FIELDS_ORDER = {
+    static final Field[] FIELDS_ORDER = {
         Field.SECTION, Field.CLASS, Field.SUBCLASS, Field.MAINGROUP,
         Field.SUBGROUP
     };
@@ -399,6 +407,60 @@ public final class IPCCode {
     public int hashCode() {
       return this.data.hashCode();
     }
+
+    /**
+     * Comparator for {@link IPCRecord}s.
+     */
+    public static final class IPCRecordComparator
+        implements Comparator<IPCRecord>, Serializable {
+
+      @Override
+      public int compare(final IPCRecord o1, final IPCRecord o2) {
+        if (o1 == null || o2 == null) {
+          throw new NullPointerException();
+        }
+
+        if (o1.equals(o2)) {
+          return 0;
+        }
+
+        for (final Field f : FIELDS_ORDER) {
+          switch (f) {
+            // integer type
+            case CLASS:
+            case MAINGROUP:
+            case SUBGROUP:
+              final String o1Val = o1.get(f);
+              final String o2Val = o2.get(f);
+
+              if (!o1Val.equalsIgnoreCase(o2Val)) {
+                if (o1Val.isEmpty()) {
+                  return -1;
+                } else if (o2Val.isEmpty()) {
+                  return 1;
+                }
+                // Parsing as integer removes leading zeros. This simplifies
+                // comparing values of two records.
+                final int state =
+                    Integer.valueOf(o1Val).compareTo(Integer.valueOf(o2Val));
+                if (state != 0) {
+                  return state;
+                }
+              }
+              break;
+            // char type
+            case SECTION:
+            case SUBCLASS:
+              final int state = o1.get(f).compareToIgnoreCase(o2.get(f));
+              if (state != 0) {
+                return state;
+              }
+              break;
+          }
+        }
+        return 0;
+      }
+    }
   }
 
   /**
@@ -444,6 +506,7 @@ public final class IPCCode {
 
     /**
      * Get the separator char.
+     *
      * @return Char used as separator for main- and sub-group
      */
     public char getSeparator() {
@@ -452,6 +515,7 @@ public final class IPCCode {
 
     /**
      * Check, if zero padding of missing values is allowed.
+     *
      * @return True, if zero padding is allowed
      */
     public boolean isAllowZeroPad() {
@@ -698,7 +762,7 @@ public final class IPCCode {
   @Nullable
   public static Character detectSeparator(@NotNull final CharSequence code) {
     final Matcher m = Parser.RX_INVALID_SEPARATOR.matcher(code);
-    for (int i=0; i< code.length(); i++) {
+    for (int i = 0; i < code.length(); i++) {
       if (!m.region(i, i + 1).matches()) {
         return code.charAt(i);
       }
