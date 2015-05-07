@@ -81,18 +81,20 @@ public final class DumpIPCStats
   }
 
   public static void main(final String... args)
-      throws IOException, Buildable.BuildException {
+      throws IOException {
     new DumpIPCStats().runMain(args);
   }
 
   @SuppressWarnings("HardcodedLineSeparator")
   private void runMain(final String... args)
-      throws IOException, Buildable.BuildException {
+      throws IOException {
     new CmdLineParser(this.cliParams);
     parseWithHelp(this.cliParams, args);
 
     // check, if files and directories are sane
     this.cliParams.check();
+
+    LOG.info("Using index at {}", this.cliParams.idxDir.getAbsolutePath());
 
     assert this.cliParams.idxReader != null;
     final int maxDoc = this.cliParams.idxReader.maxDoc();
