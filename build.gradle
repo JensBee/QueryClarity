@@ -10,17 +10,18 @@ def workingDirectory = new File('data')
  * Target directories.
  */
 def confTargets = [
-        ipcDump       : workingDirectory.absolutePath + "/ipcStats",
-        plots         : workingDirectory.absolutePath + "/plots",
-        termDump      : workingDirectory.absolutePath + "/termDump",
-        termDumpSample: workingDirectory.absolutePath + "/termDumpSample"
+        index         : '/data/clef/Clarity/work/fiz/index/',
+        ipcDump       : workingDirectory.absolutePath + '/ipcStats',
+        plots         : workingDirectory.absolutePath + '/plots',
+        termDump      : workingDirectory.absolutePath + '/termDump',
+        termDumpSample: workingDirectory.absolutePath + '/termDumpSample'
 ]
 
 /**
  * GNU R configuration.
  */
 def confR = [
-        scriptPath: "rscripts"
+        scriptPath: 'rscripts'
 ]
 
 /**
@@ -35,16 +36,6 @@ def confJava = [
          * Java ClassPath to use.
          */
         classPath: files('target/QueryClarity.jar')
-]
-
-/**
- * Lucene configuration.
- */
-def confLucene = [
-        /**
-         * Location of Lucene indices.
-         */
-        indexPath: '/data/clef/Clarity/work/fiz/index/'
 ]
 
 /**
@@ -93,18 +84,18 @@ def confIPC = [
  * Pre-defined task group-names.
  */
 def groupNames = [
-        intern         : "Internal",
-        termDump       : "Term-frequency data dumps: " +
-                "Base data",
-        termDumpIpc    : "Term frequency data dumps: " +
-                "Filtered by IPC-section",
-        extractTerms   : "Sample terms from term-frequency data dumps: " +
-                "Base data",
-        extractTermsIpc: "Sample terms from term-frequency data dumps: " +
-                "Filtered by IPC-section",
-        index          : "Lucene index related tasks",
-        dumpIpcStats   : "Dump IPC-Data statistics",
-        plot           : "Data plotting"
+        intern         : 'Internal',
+        termDump       : 'Term-frequency data dumps: ' +
+                "Base data (${confTargets.termDump})",
+        termDumpIpc    : 'Term frequency data dumps: ' +
+                "Filtered by IPC-section (${confTargets.termDump})",
+        extractTerms   : 'Sample terms from term-frequency data dumps: ' +
+                "Base data (${confTargets.termDumpSample })",
+        extractTermsIpc: 'Sample terms from term-frequency data dumps: ' +
+                "Filtered by IPC-section (${confTargets.termDumpSample})",
+        index          : 'Lucene index related tasks',
+        dumpIpcStats   : "Dump IPC-Data statistics (${confTargets.ipcDump})",
+        plot           : "Data plotting (${confTargets.plots})"
 ]
 
 /*******************************************************************************
@@ -217,7 +208,7 @@ class ExtractTerms {
  * Gradle wrapper task.
  */
 task('wrapper', type: Wrapper) {
-    description "Create gradle wrapper for distribution."
+    description 'Create gradle wrapper for distribution.'
     group groupNames.intern
     gradleVersion = '2.3'
 }
@@ -238,7 +229,7 @@ for (lang in confScoring.languages) {
          * Arguments for the main class.
          */
         def cmdArgs = [
-                '-data', confLucene.indexPath,
+                '-data', confTargets.index,
                 '-only-lang', lang,
                 '-stop', confStopwords.pathPattern,
                 '-stop-format', confStopwords.format]
@@ -251,7 +242,7 @@ for (lang in confScoring.languages) {
         group groupNames.index
         description "Create index. lang=${lang}."
         dependsOn prepareOutput
-        outputs.files confLucene.indexPath + lang + "/"
+        outputs.files confTargets.index + lang + '/'
 
         doLast {
             logger.info("Building index for language=${lang}")
@@ -272,7 +263,7 @@ task('buildIndex') {
     }
 
     group groupNames.index
-    description "Batch create index. lang=*."
+    description 'Batch create index. lang=*.'
     dependsOn depTasks
 }
 
@@ -292,7 +283,7 @@ for (lang in confScoring.languages) {
      */
     def defaultArgs = [
             '-grpsep', confIPC.grpSeparator,
-            '-idx', confLucene.indexPath + lang,
+            '-idx', confTargets.index + lang,
             '-lang', lang,
             '-stop', confStopwords.pathPattern,
             '-stop-format', confStopwords.format,
@@ -354,9 +345,9 @@ for (lang in confScoring.languages) {
                  * Target file that will be created
                  */
                 def target = new File(confTargets.termDumpSample + '/' +
-                                TermDump.createDBFileName(lang, field,
-                                        ipcSec.toLowerCase()))
-                def infoStr = "TermFreq dump. " +
+                        TermDump.createDBFileName(lang, field,
+                                ipcSec.toLowerCase()))
+                def infoStr = 'TermFreq dump. ' +
                         "field=${field} lang=${lang} ipc=${ipcSec}."
                 def cmdArgs = defaultArgs + [
                         '-dbfile', target.toString(),
@@ -397,7 +388,7 @@ for (lang in confScoring.languages) {
             }
             dependsOn depTasks
             group groupNames.termDumpIpc
-            description "Batch TermFreq dump. " +
+            description 'Batch TermFreq dump. ' +
                     "field=${field} lang=${lang} ipc=*."
         }
     }
@@ -421,7 +412,7 @@ for (lang in confScoring.languages) {
      * Generate catch-all task for each language that will run tasks for each
      * field of that language using an IPC-section filter.
      */
-    task(TermDump.createTaskName(lang, null, null) + "-ipc") {
+    task(TermDump.createTaskName(lang, null, null) + '-ipc') {
         def depTasks = []
         for (field in confScoring.fields) {
             for (ipcSec in confIPC.sections) {
@@ -445,7 +436,7 @@ task(TermDump.createTaskName(null, null, null)) {
                 TermDump.createTaskName(lang, null, null)])
     }
 
-    description "Batch TermFreq dump. field=* lang=*."
+    description 'Batch TermFreq dump. field=* lang=*.'
     dependsOn depTasks
     group groupNames.termDump
 }
@@ -461,7 +452,7 @@ task(TermDump.createTaskName(null, null, null) + '-ipc') {
                 TermDump.createTaskName(lang, null, null) + '-ipc'])
     }
 
-    description "Batch TermFreq dump. field=* lang=* ipc=*."
+    description 'Batch TermFreq dump. field=* lang=* ipc=*.'
     dependsOn depTasks
     group groupNames.termDumpIpc
 }
@@ -498,10 +489,10 @@ for (lang in confScoring.languages) {
              * Target file that will be created
              */
             def target = new File(confTargets.termDumpSample + '/' +
-                            ExtractTerms.createDBFileName(lang, field, null))
+                    ExtractTerms.createDBFileName(lang, field, null))
             def source = confTargets.termDumpSample + '/' +
                     TermDump.createDBFileName(lang, field, null)
-            def infoStr = "Sample from TermFreq dump. " +
+            def infoStr = 'Sample from TermFreq dump. ' +
                     "field=${field} lang=${lang}"
             def cmdArgs = defaultArgs + [
                     '-dumpdb', source,
@@ -544,7 +535,7 @@ for (lang in confScoring.languages) {
                                 ipcSec.toLowerCase()))
                 def source = confTargets.termDumpSample + '/' +
                         TermDump.createDBFileName(lang, field, ipcSec)
-                def infoStr = "Sample from TermFreq dump. " +
+                def infoStr = 'Sample from TermFreq dump. ' +
                         "field=${field} lang=${lang} ipc=${ipcSec}."
                 def cmdArgs = defaultArgs + [
                         '-dumpdb', source,
@@ -586,7 +577,7 @@ for (lang in confScoring.languages) {
             }
             dependsOn depTasks
             group groupNames.extractTermsIpc
-            description "Batch sample from TermFreq dump. " +
+            description 'Batch sample from TermFreq dump. ' +
                     "field=${field} lang=${lang} ipc=*."
         }
     }
@@ -610,7 +601,7 @@ for (lang in confScoring.languages) {
      * Generate catch-all task for each language that will run tasks for each
      * field of that language using an IPC-section filter.
      */
-    task(ExtractTerms.createTaskName(lang, null, null) + "-ipc") {
+    task(ExtractTerms.createTaskName(lang, null, null) + '-ipc') {
         def depTasks = []
         for (field in confScoring.fields) {
             for (ipcSec in confIPC.sections) {
@@ -621,7 +612,7 @@ for (lang in confScoring.languages) {
         dependsOn depTasks
         group groupNames.extractTermsIpc
         description "Batch sample from TermFreq dump. field=* lang=${lang} " +
-                "ipc=*."
+                'ipc=*.'
     }
 }
 
@@ -635,7 +626,7 @@ task(ExtractTerms.createTaskName(null, null, null)) {
                 ExtractTerms.createTaskName(lang, null, null)])
     }
 
-    description "Batch sample from TermFreq dump. field=* lang=*."
+    description 'Batch sample from TermFreq dump. field=* lang=*.'
     dependsOn depTasks
     group groupNames.extractTerms
 }
@@ -651,7 +642,7 @@ task(ExtractTerms.createTaskName(null, null, null) + '-ipc') {
                 ExtractTerms.createTaskName(lang, null, null) + '-ipc'])
     }
 
-    description "Batch sample from TermFreq dump. field=* lang=* ipc=*."
+    description 'Batch sample from TermFreq dump. field=* lang=* ipc=*.'
     dependsOn depTasks
     group groupNames.extractTermsIpc
 }
@@ -669,7 +660,7 @@ for (lang in confScoring.languages) {
      * Default arguments for the main class.
      */
     def defaultArgs = [
-            '-idx', confLucene.indexPath + lang,
+            '-idx', confTargets.index + lang,
             '-grpsep', confIPC.grpSeparator,
             '-zeropad']
 
@@ -711,7 +702,7 @@ task('ipcStats') {
         depTasks.add(tasks["ipcStats-${lang}"])
     }
 
-    description "Batch dump IPC statistics. lang=*."
+    description 'Batch dump IPC statistics. lang=*.'
     dependsOn depTasks
     group groupNames.dumpIpcStats
 }
@@ -720,18 +711,18 @@ task('ipcStats') {
  * Plot IPC-Code Statistics
  */
 task('plotIpcStats') {
-    def infoStr = "Plot IPC statistics."
+    def infoStr = 'Plot IPC statistics.'
 
     def cmdArgs = [
             "${confR.scriptPath}/plotIPCStats.r",
             '-s', confTargets.ipcDump,
             '-t', confTargets.plots]
 
-    dependsOn "ipcStats"
+    dependsOn 'ipcStats'
     group groupNames.plot
     outputs.files files(
-            confTargets.plots + "/ipcStats-section_dist.pdf",
-            confTargets.plots + "/ipcStats-section_divcount.pdf",
+            confTargets.plots + '/ipcStats-section_dist.pdf',
+            confTargets.plots + '/ipcStats-section_divcount.pdf',
     )
 
     doLast {
@@ -741,9 +732,6 @@ task('plotIpcStats') {
         exec {
             executable 'Rscript'
             args cmdArgs
-//            commandline 'Rscript', "${confR.scriptPath}/plotIPCStats.r"
-//            "-s ${confTargets.ipcDump}" +
-//                    "-t ${confTargets.plots}"
         }
     }
 }
