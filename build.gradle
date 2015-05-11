@@ -85,7 +85,9 @@ def groupNames = [
                 "Base data",
         extractTermsIpc: "Sample terms from term-frequency data dumps: " +
                 "Filtered by IPC-section",
-        index          : "Lucene index related tasks"]
+        index          : "Lucene index related tasks",
+        dumpIpcStats   : "Dump IPC-Data statistics"
+]
 
 /*******************************************************************************
  * Internal helper methods.
@@ -237,7 +239,7 @@ for (lang in confScoring.languages) {
         group groupNames.index
         description "Create index. lang=${lang}."
         dependsOn prepareOutput
-        outputs.files confLucene.indexPath + lang
+        outputs.files confLucene.indexPath + lang + "/"
 
         doLast {
             logger.info("Building index for language=${lang}")
@@ -310,7 +312,7 @@ for (lang in confScoring.languages) {
 
             description infoStr
             group groupNames.termDump
-            dependsOn 'prepareOutput'
+            dependsOn 'prepareOutput', "buildIndex-${lang}"
             outputs.files target
 
             doLast {
@@ -351,7 +353,7 @@ for (lang in confScoring.languages) {
 
                 description infoStr
                 group groupNames.termDumpIpc
-                dependsOn 'prepareOutput'
+                dependsOn 'prepareOutput', "buildIndex-${lang}"
                 outputs.files target
 
                 doLast {
@@ -606,8 +608,8 @@ for (lang in confScoring.languages) {
         }
         dependsOn depTasks
         group groupNames.extractTermsIpc
-        description "Batch sample from TermFreq dump. field=* lang=${lang} " +
-                "ipc=*."
+//        description "Batch sample from TermFreq dump. field=* lang=${lang} " +
+//                "ipc=*."
     }
 }
 
@@ -640,4 +642,61 @@ task(ExtractTerms.createTaskName(null, null, null) + '-ipc') {
     description "Batch sample from TermFreq dump. field=* lang=* ipc=*."
     dependsOn depTasks
     group groupNames.extractTermsIpc
+}
+
+/*******************************************************************************
+ * IPC-Code Statistics
+ */
+for (lang in confScoring.languages) {
+    /**
+     * Main class to execute from the generated tasks.
+     */
+    def mainClass = confJava.package + 'cli.DumpIPCStats'
+    /**
+     * Default arguments for the main class.
+     */
+    def defaultArgs = [
+            '-idx', confLucene.indexPath + lang,
+            '-grpsep', confIPC.grpSeparator,
+            '-zeropad']
+
+    task("ipcStats-${lang}") {
+        def target = new File("${workingDirectory.absolutePath}" +
+                "/ipcStats/ipcStats-${lang}.sqlite")
+        def cmdArgs = defaultArgs + [
+                '-out', target]
+        def infoStr = "Dump IPC statistics. lang=${lang}."
+
+        description infoStr
+        group groupNames.dumpIpcStats
+        dependsOn 'prepareOutput', "buildIndex-${lang}"
+        outputs.files target
+
+        doLast {
+            logger.info("${infoStr} target=${target}")
+            if (target.exists()) {
+                logger.info("Delete ${target} - since it's out of date.")
+                target.delete()
+            }
+            javaexec {
+                args = cmdArgs
+                classpath = confJava['classPath']
+                main = mainClass
+            }
+        }
+    }
+}
+
+/**
+ * Catch-all task that will create all IPC-Statistics dumps.
+ */
+task('ipcStats') {
+    def depTasks = []
+    for (lang in confScoring.languages) {
+        depTasks.add(tasks["ipcStats-${lang}"])
+    }
+
+    description "Batch dump IPC statistics. lang=*."
+    dependsOn depTasks
+    group groupNames.dumpIpcStats
 }
