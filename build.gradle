@@ -7,6 +7,23 @@
 def workingDirectory = new File('data')
 
 /**
+ * Target directories.
+ */
+def confTargets = [
+        ipcDump       : workingDirectory.absolutePath + "/ipcStats",
+        plots         : workingDirectory.absolutePath + "/plots",
+        termDump      : workingDirectory.absolutePath + "/termDump",
+        termDumpSample: workingDirectory.absolutePath + "/termDumpSample"
+]
+
+/**
+ * GNU R configuration.
+ */
+def confR = [
+        scriptPath: "rscripts"
+]
+
+/**
  * Java runtime configuration.
  */
 def confJava = [
@@ -86,7 +103,8 @@ def groupNames = [
         extractTermsIpc: "Sample terms from term-frequency data dumps: " +
                 "Filtered by IPC-section",
         index          : "Lucene index related tasks",
-        dumpIpcStats   : "Dump IPC-Data statistics"
+        dumpIpcStats   : "Dump IPC-Data statistics",
+        plot           : "Data plotting"
 ]
 
 /*******************************************************************************
@@ -128,19 +146,16 @@ class TermDump {
 
     /**
      * Create a target database file name.
-     * @param dir Target directory
      * @param lang Language
      * @param field Lucene field
      * @param ipc IPC-Code (optional)
      * @return Filename String
      */
-    static createDBFileName(dir, lang, field, ipc) {
-        def target = new File(dir + "/" + dbPrefix)
-        target.mkdirs()
+    static createDBFileName(lang, field, ipc) {
         if (ipc == null)
-            return "${target}/${dbPrefix}-${lang}_${field}.sqlite"
+            return "${dbPrefix}-${lang}_${field}.sqlite"
         else
-            return "${target}/${dbPrefix}-${lang}_${field}" +
+            return "${dbPrefix}-${lang}_${field}" +
                     "-ipc_${ipc.toLowerCase()}.sqlite"
     }
 }
@@ -181,19 +196,16 @@ class ExtractTerms {
 
     /**
      * Create a target database file name.
-     * @param dir Target directory
      * @param lang Language
      * @param field Lucene field
      * @param ipc IPC-Code (optional)
      * @return Filename String
      */
-    static createDBFileName(dir, lang, field, ipc) {
-        def target = new File(dir + "/" + dbPrefix)
-        target.mkdirs()
+    static createDBFileName(lang, field, ipc) {
         if (ipc == null)
-            return "${target}/${dbPrefix}-${lang}_${field}.sqlite"
+            return "${dbPrefix}-${lang}_${field}.sqlite"
         else
-            return "${target}/${dbPrefix}-${lang}_${field}" +
+            return "${dbPrefix}-${lang}_${field}" +
                     "-ipc_${ipc.toLowerCase()}.sqlite"
     }
 }
@@ -303,8 +315,8 @@ for (lang in confScoring.languages) {
             /**
              * Target file that will be created
              */
-            def target = new File(TermDump.createDBFileName(
-                    workingDirectory.absolutePath, lang, field, null))
+            def target = new File(confTargets.termDumpSample + '/' +
+                    TermDump.createDBFileName(lang, field, null))
             def infoStr = "TermFreq dump. field=${field} lang=${lang}."
             def cmdArgs = defaultArgs + [
                     '-dbfile', target.toString(),
@@ -341,9 +353,9 @@ for (lang in confScoring.languages) {
                 /**
                  * Target file that will be created
                  */
-                def target = new File(TermDump.createDBFileName(
-                        workingDirectory.absolutePath,
-                        lang, field, ipcSec.toLowerCase()))
+                def target = new File(confTargets.termDumpSample + '/' +
+                                TermDump.createDBFileName(lang, field,
+                                        ipcSec.toLowerCase()))
                 def infoStr = "TermFreq dump. " +
                         "field=${field} lang=${lang} ipc=${ipcSec}."
                 def cmdArgs = defaultArgs + [
@@ -485,10 +497,10 @@ for (lang in confScoring.languages) {
             /**
              * Target file that will be created
              */
-            def target = new File(ExtractTerms.createDBFileName(
-                    workingDirectory.absolutePath, lang, field, null))
-            def source = TermDump.createDBFileName(
-                    workingDirectory.absolutePath, lang, field, null)
+            def target = new File(confTargets.termDumpSample + '/' +
+                            ExtractTerms.createDBFileName(lang, field, null))
+            def source = confTargets.termDumpSample + '/' +
+                    TermDump.createDBFileName(lang, field, null)
             def infoStr = "Sample from TermFreq dump. " +
                     "field=${field} lang=${lang}"
             def cmdArgs = defaultArgs + [
@@ -527,11 +539,11 @@ for (lang in confScoring.languages) {
                 /**
                  * Target file that will be created
                  */
-                def target = new File(ExtractTerms.createDBFileName(
-                        workingDirectory.absolutePath,
-                        lang, field, ipcSec.toLowerCase()))
-                def source = TermDump.createDBFileName(
-                        workingDirectory.absolutePath, lang, field, ipcSec)
+                def target = new File(confTargets.termDumpSample + '/' +
+                        ExtractTerms.createDBFileName(lang, field,
+                                ipcSec.toLowerCase()))
+                def source = confTargets.termDumpSample + '/' +
+                        TermDump.createDBFileName(lang, field, ipcSec)
                 def infoStr = "Sample from TermFreq dump. " +
                         "field=${field} lang=${lang} ipc=${ipcSec}."
                 def cmdArgs = defaultArgs + [
@@ -608,8 +620,8 @@ for (lang in confScoring.languages) {
         }
         dependsOn depTasks
         group groupNames.extractTermsIpc
-//        description "Batch sample from TermFreq dump. field=* lang=${lang} " +
-//                "ipc=*."
+        description "Batch sample from TermFreq dump. field=* lang=${lang} " +
+                "ipc=*."
     }
 }
 
@@ -647,6 +659,7 @@ task(ExtractTerms.createTaskName(null, null, null) + '-ipc') {
 /*******************************************************************************
  * IPC-Code Statistics
  */
+// create a dump function for each language
 for (lang in confScoring.languages) {
     /**
      * Main class to execute from the generated tasks.
@@ -660,9 +673,11 @@ for (lang in confScoring.languages) {
             '-grpsep', confIPC.grpSeparator,
             '-zeropad']
 
+    /**
+     * Create an IPC-Statistics dump for a single language.
+     */
     task("ipcStats-${lang}") {
-        def target = new File("${workingDirectory.absolutePath}" +
-                "/ipcStats/ipcStats-${lang}.sqlite")
+        def target = new File(confTargets.ipcDump + "/ipcStats-${lang}.sqlite")
         def cmdArgs = defaultArgs + [
                 '-out', target]
         def infoStr = "Dump IPC statistics. lang=${lang}."
@@ -699,4 +714,36 @@ task('ipcStats') {
     description "Batch dump IPC statistics. lang=*."
     dependsOn depTasks
     group groupNames.dumpIpcStats
+}
+
+/*******************************************************************************
+ * Plot IPC-Code Statistics
+ */
+task('plotIpcStats') {
+    def infoStr = "Plot IPC statistics."
+
+    def cmdArgs = [
+            "${confR.scriptPath}/plotIPCStats.r",
+            '-s', confTargets.ipcDump,
+            '-t', confTargets.plots]
+
+    dependsOn "ipcStats"
+    group groupNames.plot
+    outputs.files files(
+            confTargets.plots + "/ipcStats-section_dist.pdf",
+            confTargets.plots + "/ipcStats-section_divcount.pdf",
+    )
+
+    doLast {
+        logger.info("${infoStr} target=${confTargets.plots}")
+        new File(confTargets.plots).mkdirs()
+
+        exec {
+            executable 'Rscript'
+            args cmdArgs
+//            commandline 'Rscript', "${confR.scriptPath}/plotIPCStats.r"
+//            "-s ${confTargets.ipcDump}" +
+//                    "-t ${confTargets.plots}"
+        }
+    }
 }
