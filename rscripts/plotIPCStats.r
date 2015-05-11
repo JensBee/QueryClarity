@@ -2,7 +2,7 @@ library(reshape2)
 library(ggplot2)
 library(sqldf)
 library(scales)
-library("optparse")
+library(optparse)
 
 cmdOpts <- list(
   make_option(c("-s", "--source"), action="store", metavar="<PATH>",
@@ -17,8 +17,9 @@ opt <- parse_args(OptionParser(option_list=cmdOpts))
 # Distribution of IPC-Sections across all documents
 plotDistributionPerSection <- function() {
   loadDataByLang <- function(lang) {
-    df <- sqldf(paste0('select "section", count from ipc_distribution
-                       where class is null order by "section"'),
+    df <- sqldf(paste0('select "section", "count" ',
+                       'from "ipc_distribution" ',
+                       'where "class" is null order by "section"'),
                 dbname=paste0(opt$source, "/ipcStats-", lang, ".sqlite"))
     for (i in 1:nrow(df)) {
       df[i, "lang"] <- lang
@@ -47,7 +48,9 @@ plotDistributionPerSection <- function() {
 # Number of IPC-Sections assigned per document
 plotNumberOfSections <- function() {
   loadDataByLang <- function(lang) {
-    df <- sqldf(paste0('select sections,count from ipc_sections order by sections'),
+    df <- sqldf(paste0('select "sections", "count" ',
+                       'from "ipc_sections" ',
+                       'order by "sections"'),
                 dbname=paste0(opt$source, "/ipcStats-", lang, ".sqlite"))
     for (i in 1:nrow(df)) {
       df[i, "lang"] <- lang
