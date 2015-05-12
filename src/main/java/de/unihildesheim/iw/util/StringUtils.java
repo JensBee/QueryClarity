@@ -190,19 +190,19 @@ public final class StringUtils {
    */
   @SuppressWarnings({"AssignmentToForLoopParameter", "StatementWithEmptyBody"})
   public static int estimatedWordCount(final CharSequence s) {
-    int count = 0;
     final int chars = s.length();
+    int lastIdx = -1;
+    int count = 1;
+
     for (int i = 0; i < chars; i++) {
       if (Character.isWhitespace(s.charAt(i))) {
-        count++;
-        int j = i;
-        while (Character.isWhitespace(s.charAt(++j))) {
-          // NOP, just skip abjected whitespaces
+        if (i > lastIdx + 1) {
+          count++;
         }
-        i = j - 1;
+        lastIdx = i;
       }
     }
-    return count + 1;
+    return count;
   }
 
   /**
@@ -255,6 +255,7 @@ public final class StringUtils {
    * @param input String to convert to all lower-case
    * @return Lower-cased input string
    */
+
   public static String lowerCase(@NotNull final CharSequence input) {
     if (isStrippedEmpty(input) || isAllLower(input)) {
       return input.toString();
