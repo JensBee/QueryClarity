@@ -80,13 +80,13 @@ import java.util.List;
  *
  * @author Jens Bertram
  */
-public final class ScoreTopicPassages
+public final class ScoreTopicPassagesOLD
     extends CliBase {
   /**
    * Logger instance for this class.
    */
   private static final Logger LOG =
-      LoggerFactory.getLogger(ScoreTopicPassages.class);
+      LoggerFactory.getLogger(ScoreTopicPassagesOLD.class);
   /**
    * Object wrapping commandline options.
    */
@@ -99,7 +99,7 @@ public final class ScoreTopicPassages
   /**
    * Default private constructor passing a description to {@link CliBase}.
    */
-  private ScoreTopicPassages() {
+  private ScoreTopicPassagesOLD() {
     super("Scores passages from claims.",
         "Scores passages extracted from CLEF-IP documents.");
   }
@@ -113,7 +113,7 @@ public final class ScoreTopicPassages
    */
   public static void main(final String... args)
       throws DataProviderException {
-    new ScoreTopicPassages().runMain(args);
+    new ScoreTopicPassagesOLD().runMain(args);
     System.exit(0); // required to trigger shutdown-hooks
   }
 
