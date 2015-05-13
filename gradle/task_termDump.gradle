@@ -1,0 +1,192 @@
+/*
+ * Copyright (C) 2015 Jens Bertram (code@jens-bertram.net)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+// Term-frequency dump tasks.
+
+TaskConf.TermDump = [
+        /**
+         * Database file name prefix.
+         */
+        dbPrefix  : 'termDump',
+        /**
+         * Task name prefix
+         */
+        taskPrefix: 'dumpTermFreqs']
+
+/**
+ * Create a target database file name.
+ * @param lang Language
+ * @param field Lucene field
+ * @param ipc IPC-Code (optional)
+ * @return Filename String
+ */
+TaskConf.TermDump.createDBFileName = { lang, field, ipc ->
+    return "${TaskConf.TermDump.dbPrefix}-${lang}_${field}" +
+            (ipc == null ? '' : "-ipc_${ipc.toLowerCase()}") + '.sqlite'
+}
+
+/*******************************************************************************
+ * Tasks
+ */
+tasks.addRule("Pattern (${TaskConf.TermDump.taskPrefix}): " +
+        'Dump term-frequencies.\n' +
+        "  * ${TaskConf.TermDump.taskPrefix}: " +
+        'all languages, fields, IPC\n' +
+        "  * ${TaskConf.TermDump.taskPrefix}-<LANGUAGE>: " +
+        'only <LANGUAGE>, all fields, IPC\n' +
+        "  * ${TaskConf.TermDump.taskPrefix}-<LANGUAGE>-<FIELD>: " +
+        'only <LANGUAGE> and <FIELD>, all IPC\n' +
+        "  * ${TaskConf.TermDump.taskPrefix}-<LANGUAGE>-<FIELD>-<IPC-SECTION>: " +
+        'only <LANGUAGE>, <FIELD>, <IPC>') {
+    String taskName ->
+        if (taskName.startsWith(TaskConf.TermDump.taskPrefix)) {
+            task(taskName) {
+                /**
+                 * Runtime parameters derived from task name.
+                 */
+                ext.params = parseDataSuffix(taskName - TaskConf.TermDump.taskPrefix)
+                /**
+                 * If true, this task will not execute any Java task.
+                 */
+                ext.noAction = params.language == null || params.field == null
+                /**
+                 * Default arguments for the main class.
+                 */
+                ext.defaultCmdArgs = [
+                        '-grpsep', conf.ipc.grpSeparator,
+                        '-stop', conf.stopwords.pathPattern,
+                        '-stop-format', conf.stopwords.format,
+                        '-threshold', 0d,
+                        '-zeropad']
+
+                if (!noAction) {
+                    /**
+                     * Target file with term, frequency values.
+                     */
+                    ext.target = [
+                            fileName: TaskConf.TermDump.createDBFileName(
+                                    params.language, params.field,
+                                    params.ipcSec),
+                            path    : conf.targets.termDump]
+                    ext.target.file = file(new File(
+                            "${ext.target.path}/${ext.target.fileName}"))
+                }
+
+                dependsOn {
+                    def depTasks = ['prepareOutput']
+                    if (params.language == null) {
+                        for (lang in conf.scoring.languages) {
+                            for (field in conf.scoring.fields) {
+                                depTasks.add(tasks[
+                                        TaskConf.TermDump.taskPrefix +
+                                                '-' + lang +
+                                                '-' + field])
+                                for (ipcSec in conf.ipc.sections) {
+                                    depTasks.add(tasks[
+                                            TaskConf.TermDump.taskPrefix +
+                                                    '-' + lang +
+                                                    '-' + field +
+                                                    '-' + ipcSec])
+                                }
+                            }
+                        }
+                    } else if (params.field == null) {
+                        for (field in conf.scoring.fields) {
+                            depTasks.add(tasks[
+                                    TaskConf.TermDump.taskPrefix +
+                                            '-' + params.language +
+                                            '-' + field])
+                            for (ipcSec in conf.ipc.sections) {
+                                depTasks.add(tasks[
+                                        TaskConf.TermDump.taskPrefix +
+                                                '-' + params.language +
+                                                '-' + field +
+                                                '-' + ipcSec])
+                            }
+                        }
+                    } else if (params.ipcSec == null) {
+                        // avoid circular dependency
+                        def depTask = TaskConf.TermDump.taskPrefix +
+                                '-' + params.language +
+                                '-' + params.field
+                        if (name != depTask) {
+                            depTasks.add(tasks[depTask])
+                        }
+
+                        for (ipcSec in conf.ipc.sections) {
+                            depTasks.add(tasks[
+                                    TaskConf.TermDump.taskPrefix +
+                                            '-' + params.language +
+                                            '-' + params.field +
+                                            '-' + ipcSec])
+                        }
+                    }
+
+                    if (params.language != null) {
+                        depTasks.add("buildIndex-${params.language}")
+                    }
+                    depTasks
+                }
+
+                outputs.files {
+                    if (noAction) {
+                        return;
+                    }
+                    target.file
+                }
+
+                doLast {
+                    if (noAction) {
+                        return;
+                    }
+
+                    /**
+                     * Main class to execute from the generated tasks.
+                     */
+                    ext.mainClass = conf.java.package + 'cli.DumpTermData'
+                    /**
+                     * Command-line arguments for the main class.
+                     */
+                    ext.cmdArgs = defaultCmdArgs + [
+                            '-idx', conf.targets.index + params.language,
+                            '-lang', params.language,
+                            '-field', params.field,
+                            '-dbfile', target.file.toString()]
+
+                    if (params.ipcSec != null) {
+                        cmdArgs += ['-ipc', params.ipcSec]
+                    }
+
+                    // delete target DB, if present
+                    Validate.deleteIfPresent(target.file)
+
+                    // create target directory
+                    new File(ext.target.path.toString()).mkdirs()
+
+                    // run java
+                    javaexec {
+                        args = cmdArgs
+                        classpath = conf.java.classPath
+                        main = mainClass
+                    }
+
+                    // check, if output is present
+                    Validate.requireFile(target.file)
+                }
+            }
+        }
+}

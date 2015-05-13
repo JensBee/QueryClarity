@@ -1,0 +1,213 @@
+/*
+ * Copyright (C) 2015 Jens Bertram (code@jens-bertram.net)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+// Term-frequency dump sample extraction tasks.
+TaskConf.TermDumpSample = [
+        /**
+         * Database file name prefix.
+         */
+        dbPrefix  : 'termDumpSample',
+        /**
+         * Task name prefix
+         */
+        taskPrefix: 'extractTermFreqSamples']
+
+/**
+ * Create a target database file name.
+ * @param lang Language
+ * @param field Lucene field
+ * @param ipc IPC-Code (optional)
+ * @return Filename String
+ */
+TaskConf.TermDumpSample.createDBFileName = { lang, field, ipc ->
+    return "${TaskConf.TermDumpSample.dbPrefix}-${lang}_${field}" +
+            (ipc == null ? '' : "-ipc_${ipc.toLowerCase()}") + '.sqlite'
+}
+
+/*******************************************************************************
+ * Tasks
+ */
+tasks.addRule("Pattern (${TaskConf.TermDumpSample.taskPrefix}): " +
+        'Get sentences from TermFreq dump terms.\n' +
+        "  * ${TaskConf.TermDumpSample.taskPrefix}: " +
+        'all languages, fields, IPC\n' +
+        "  * ${TaskConf.TermDumpSample.taskPrefix}-<LANGUAGE>: " +
+        'only <LANGUAGE>, all fields, IPC\n' +
+        "  * ${TaskConf.TermDumpSample.taskPrefix}-<LANGUAGE>-<FIELD>: " +
+        'only <LANGUAGE> and <FIELD>, all IPC\n' +
+        "  * ${TaskConf.TermDumpSample.taskPrefix}-<LANGUAGE>-<FIELD>-<IPC-SECTION>: " +
+        'only <LANGUAGE>, <FIELD>, <IPC>') {
+    String taskName ->
+        if (taskName.startsWith(TaskConf.TermDumpSample.taskPrefix)) {
+            task(taskName) {
+                /**
+                 * Runtime parameters derived from task name.
+                 */
+                ext.params = parseDataSuffix(
+                        taskName - TaskConf.TermDumpSample.taskPrefix)
+                /**
+                 * If true, this task will not execute any Java task.
+                 */
+                ext.noAction = params.language == null || params.field == null
+                /**
+                 * Default arguments for the main class.
+                 */
+                ext.defaultCmdArgs = [
+                        '-threshold', 0, //0.01,
+                        '-bins', 6,
+                        '-binsize', 50,
+                        '-picks', '1 3 5',
+                        '-grpsep', conf.ipc.grpSeparator]
+
+                if (!noAction) {
+                    /**
+                     * Source file with terms & frequencies.
+                     */
+                    ext.source = [
+                            fileName: TaskConf.TermDump.createDBFileName(
+                                    params.language, params.field,
+                                    params.ipcSec),
+                            path    : conf.targets.termDump]
+                    ext.source.file = file(new File(
+                            "${ext.source.path}/${ext.source.fileName}"))
+                    /**
+                     * Target file with picked terms.
+                     */
+                    ext.target = [
+                            fileName: TaskConf.TermDumpSample.createDBFileName(
+                                    params.language, params.field,
+                                    params.ipcSec),
+                            path    : conf.targets.termDumpSample]
+                    ext.target.file = file(new File(
+                            "${ext.target.path}/${ext.target.fileName}"))
+                }
+
+                dependsOn {
+                    def depTasks = ['prepareOutput']
+                    def suffix = ""
+                    if (params.language == null) {
+                        for (lang in conf.scoring.languages) {
+                            for (field in conf.scoring.fields) {
+                                suffix = '-' + lang + '-' + field
+                                depTasks.add(tasks[TaskConf.TermDumpSample
+                                                .taskPrefix + suffix])
+                                depTasks.add(tasks[TaskConf.TermDump
+                                        .taskPrefix + suffix])
+                                for (ipcSec in conf.ipc.sections) {
+                                    suffix = '-' + lang + '-' +
+                                            field + '-' + ipcSec
+                                    depTasks.add(tasks[TaskConf.TermDumpSample
+                                            .taskPrefix + suffix])
+                                    depTasks.add(tasks[TaskConf.TermDump
+                                            .taskPrefix + suffix])
+                                }
+                            }
+                        }
+                    } else if (params.field == null) {
+                        for (field in conf.scoring.fields) {
+                            suffix = '-' + params.language + '-' + field
+                            depTasks.add(tasks[TaskConf.TermDumpSample
+                                    .taskPrefix + suffix])
+                            depTasks.add(tasks[TaskConf.TermDump
+                                    .taskPrefix + suffix])
+                            for (ipcSec in conf.ipc.sections) {
+                                suffix = '-' + params.language + '-' +
+                                        field + '-' + ipcSec
+                                depTasks.add(tasks[TaskConf.TermDumpSample
+                                        .taskPrefix + suffix])
+                                depTasks.add(tasks[TaskConf.TermDump
+                                        .taskPrefix + suffix])
+                            }
+                        }
+                    } else if (params.ipcSec == null) {
+                        // avoid circular dependency
+                        suffix = '-' + params.language + '-' + params.field
+                        def depTask = TaskConf.TermDumpSample.taskPrefix + suffix
+                        if (name != depTask) {
+                            depTasks.add(tasks[depTask])
+                        }
+
+                        depTasks.add(tasks[TaskConf.TermDump
+                                .taskPrefix + suffix])
+                        for (ipcSec in conf.ipc.sections) {
+                            suffix = '-' + params.language + '-' +
+                                    params.field + '-' + ipcSec
+                            depTasks.add(tasks[TaskConf.TermDumpSample
+                                    .taskPrefix + suffix])
+                            depTasks.add(tasks[TaskConf.TermDump
+                                    .taskPrefix + suffix])
+                        }
+                    } else {
+                        suffix = '-' + params.language + '-' +
+                                params.field + '-' + params.ipcSec
+                        depTasks.add(tasks[TaskConf.TermDump
+                                .taskPrefix + suffix])
+                    }
+                    depTasks
+                }
+
+                outputs.files {
+                    if (noAction) {
+                        return;
+                    }
+                    target.file
+                }
+
+                doLast {
+                    if (noAction) {
+                        return;
+                    }
+
+                    /**
+                     * Main class to execute from the generated tasks.
+                     */
+                    ext.mainClass = conf.java.package + 'cli.ExtractTerms'
+                    /**
+                     * Command-line arguments for the main class.
+                     */
+                    ext.cmdArgs = defaultCmdArgs + [
+                            '-dumpdb', source.file.toString(),
+                            '-scoredb', target.file.toString(),
+                            '-field', params.field,
+                            '-lang', params.language]
+
+                    if (params.ipcSec != null) {
+                        cmdArgs += ['-ipc', params.ipcSec]
+                    }
+
+                    // check, if source exists
+                    Validate.requireFile(source.file)
+
+                    // delete target DB, if present
+                    Validate.deleteIfPresent(target.file)
+
+                    // create target directory
+                    new File(ext.target.path.toString()).mkdirs()
+
+                    // run java
+                    javaexec {
+                        args = cmdArgs
+                        classpath = conf.java.classPath
+                        main = mainClass
+                    }
+
+                    // check, if output is present
+                    Validate.requireFile(target.file)
+                }
+            }
+        }
+}
