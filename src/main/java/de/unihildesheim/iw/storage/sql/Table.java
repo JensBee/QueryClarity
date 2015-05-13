@@ -28,14 +28,31 @@ import java.util.Set;
 public interface Table {
   /**
    * Get a list of fields for this table. The returned list should not be
-   * modified by the caller.
+   * modified by the caller. Fields returned by this method are also used for
+   * creating fields.
+   *
    * @return List of fields
    */
   @NotNull
   List<TableField> getFields();
 
   /**
+   * Get a list of fields that may contain content. The returned list should not
+   * be modified by the caller. Fields returned by this method are used for
+   * preparing insert statements. Any fields not used for content (e.g.
+   * foreign key fields) should not be returned. The default implementation
+   * returns the same content as {@link #getFields()}.
+   *
+   * @return List of fields
+   */
+  @NotNull
+  default List<TableField> getContentFields() {
+    return getFields();
+  }
+
+  /**
    * Get the name of the table.
+   *
    * @return Table name
    */
   @NotNull
@@ -43,14 +60,16 @@ public interface Table {
 
   /**
    * Get a list of columns that for a unique constraint.
+   *
    * @return List of columns that for a unique constraint
    */
   Set<String> getUniqueColumns();
 
   /**
    * Add a field to the list of fields forming a unique constraint.
-   * @param fld Field name to add. {@code toString()} is called on the passed
-   * in object.
+   *
+   * @param fld Field name to add. {@code toString()} is called on the passed in
+   * object.
    */
   void addFieldToUnique(@NotNull final Object fld);
 

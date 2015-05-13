@@ -42,6 +42,10 @@ public final class SentenceScoringTable
    */
   private final List<TableField> fields;
   /**
+   * Content fields belonging to this table.
+   */
+  private final List<TableField> contentFields;
+  /**
    * Collection of fields that are required to contain unique values.
    */
   final Set<String> uniqueFields = new HashSet<>(Fields.values().length);
@@ -113,6 +117,9 @@ public final class SentenceScoringTable
   public SentenceScoringTable() {
     this.fields = Arrays.stream(Fields.values())
         .map(Fields::getAsTableField).collect(Collectors.toList());
+    this.contentFields = Arrays.stream(Fields.values())
+        .filter(f -> !f.toString().toLowerCase().endsWith("_fk"))
+        .map(Fields::getAsTableField).collect(Collectors.toList());
     addDefaultFieldsToUnique();
   }
 
@@ -120,6 +127,12 @@ public final class SentenceScoringTable
   @Override
   public List<TableField> getFields() {
     return Collections.unmodifiableList(this.fields);
+  }
+
+  @NotNull
+  @Override
+  public List<TableField> getContentFields() {
+    return Collections.unmodifiableList(this.contentFields);
   }
 
   @NotNull
@@ -141,7 +154,7 @@ public final class SentenceScoringTable
 
   @Override
   public void addDefaultFieldsToUnique() {
-    this.uniqueFields.add(Fields.SENTENCE.toString());
+    this.uniqueFields.add(Fields.TERM_REF.toString());
     this.uniqueFields.add(Fields.LANG.toString());
   }
 
