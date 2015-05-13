@@ -23,3 +23,5 @@ gradle-app.setting
 /*.jar
 /src/main/resources/schema/*.xml
 /src/main/resources/nlpModels/
+Rplots.pdf
+configuration.properties
