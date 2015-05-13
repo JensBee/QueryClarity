@@ -21,11 +21,15 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.regex.Pattern;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
@@ -36,16 +40,13 @@ public class TableFieldContent {
    */
   private static final Logger LOG =
       LoggerFactory.getLogger(TableFieldContent.class);
-  private static final Pattern QUOTE_SINGLE = Pattern.compile("'");
-  private static final Pattern QUOTE_DOUBLE = Pattern.compile("\"");
-
   private final Table tbl;
   private final Map<String, String> content;
 
   public TableFieldContent(@NotNull final Table table) {
     this.tbl = table;
 
-    final Collection<TableField> fields = this.tbl.getFields();
+    final Collection<TableField> fields = this.tbl.getContentFields();
     this.content = new HashMap<>(fields.size());
     for (final TableField f : fields) {
       this.content.put(f.getName(), null);
@@ -66,61 +67,33 @@ public class TableFieldContent {
     return this;
   }
 
-  public String getValue(@NotNull final String fieldName) {
-    if (!this.content.containsKey(fieldName)) {
-      throw new IllegalArgumentException("Unknown field '" + fieldName + "'.");
-    }
-    return this.content.get(fieldName);
-  }
+  public PreparedStatement prepareInsert(
+      @NotNull final Connection con,
+      @NotNull final String sql)
+      throws SQLException {
+    final StringBuilder finalSql = new StringBuilder(sql);
+    final List<String> fieldNames = new ArrayList<>(this.content.keySet());
+    Collections.sort(fieldNames);
 
-  public String getSQLInsertString() {
-    final StringBuilder fld = new StringBuilder("(");
-    final StringBuilder cnt = new StringBuilder("(");
+    finalSql.append(" (");
 
     String fldPrefix = "";
-    String cntPrefix = "";
-    for (final Entry<String, String> ce : this.content.entrySet()) {
-      if (ce.getValue() != null) {
-        // column name
-        fld.append(fldPrefix);
-        final String colName = QUOTE_SINGLE.matcher(ce.getKey()).replaceAll("''");
-        fld.append('\'').append(colName).append('\'');
-
-        // column value
-        cnt.append(cntPrefix);
-        final String colVal = QUOTE_SINGLE.matcher(ce.getValue()).replaceAll("''");
-        cnt.append('\'').append(colVal).append('\'');
-
-        fldPrefix = ",";
-        cntPrefix = ",";
-      }
+    final StringBuilder valueStr = new StringBuilder("(");
+    for (final String fieldName : fieldNames) {
+      finalSql.append(fldPrefix).append(fieldName);
+      valueStr.append(fldPrefix).append('?');
+      fldPrefix = ",";
     }
-    fld.append(')');
-    cnt.append(')');
-    return fld + " values " + cnt;
-  }
 
-  public String getSQLQueryString() {
-    final StringBuilder sql = new StringBuilder();
+    finalSql.append(") values ").append(valueStr).append(')');
 
-    String prefix = "";
-    for (final Entry<String, String> ce : this.content.entrySet()) {
-      sql.append(prefix);
+    final PreparedStatement prep = con.prepareStatement(finalSql.toString());
 
-      // column name
-      sql.append('"').append(ce.getKey()).append('"');
-
-      // column value
-      if (ce.getValue() != null) {
-        final String colVal =
-            QUOTE_SINGLE.matcher(ce.getValue()).replaceAll("''");
-        sql.append("='").append(colVal).append('\'');
-      } else {
-        sql.append("is null");
-      }
-
-      prefix = " and ";
+    final int fieldCount = fieldNames.size();
+    for (int i = 1; i <= fieldCount; i++) {
+      prep.setString(i, this.content.get(fieldNames.get(i - 1)));
     }
-    return sql.toString();
+
+    return prep;
   }
 }

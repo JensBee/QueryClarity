@@ -22,7 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
-import java.sql.ResultSet;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.concurrent.atomic.AtomicLong;
@@ -42,10 +42,6 @@ public abstract class TableWriter
    */
   private final Table tbl;
   /**
-   * Statement to execute commands.
-   */
-  private final Statement stmt;
-  /**
    * Database connection.
    */
   private final Connection con;
@@ -64,7 +60,6 @@ public abstract class TableWriter
       throws SQLException {
     this.tbl = table;
     this.con = con;
-    this.stmt = con.createStatement();
     this.con.setAutoCommit(false);
   }
 
@@ -97,40 +92,13 @@ public abstract class TableWriter
    * {@code true}.
    *
    * @param tfContent Content to insert
-   * @return Always {@code -1}, since this implementation does not insert
-   * anything to the database
+   * @return Statement after execution
    * @throws SQLException SQLException Declared for overriding implementations
    * @see #addContent(TableFieldContent, boolean)
    */
-  public int addContent(final TableFieldContent tfContent)
+  public Statement addContent(final TableFieldContent tfContent)
       throws SQLException {
     return addContent(tfContent, true);
-  }
-
-  Statement getStatement() {
-    return this.stmt;
-  }
-
-  public Integer hasRowWithContent(final TableFieldContent tfContent)
-      throws SQLException {
-    if (!this.tbl.getClass().isInstance(tfContent.getTable())) {
-      throw new IllegalArgumentException("Wrong table. Expected '" + this.tbl
-          .getClass() + "' but got '" + tfContent.getTable().getClass() + "'.");
-    }
-    final StringBuilder sql = new StringBuilder("select from ");
-    sql.append(getTableName()).append(" where ")
-        .append(tfContent.getSQLQueryString());
-
-    if (LOG.isDebugEnabled()) {
-      LOG.debug("querySQL '{}'", sql);
-    }
-    this.stmt.execute(sql.toString());
-    final ResultSet rs = this.stmt.getResultSet();
-    if (rs.next()) {
-      return rs.getInt(1);
-    } else {
-      return null;
-    }
   }
 
   /**
@@ -140,11 +108,12 @@ public abstract class TableWriter
    * @param tfContent Content to insert
    * @param ignore If true, constraint violations should be ignored (new row
    * data is dropped)
-   * @return Always {@code -1}, if ignore is true. Otherwise the id of the last
-   * inserted row.
+   * @return Statement after execution.
    * @throws SQLException Declared for overriding implementations
    */
-  public int addContent(final TableFieldContent tfContent, final boolean ignore)
+  public Statement addContent(
+      @NotNull final TableFieldContent tfContent,
+      final boolean ignore)
       throws SQLException {
     if (!this.tbl.getClass().isInstance(tfContent.getTable())) {
       throw new IllegalArgumentException("Wrong table. Expected '" + this.tbl
@@ -155,16 +124,18 @@ public abstract class TableWriter
     if (ignore) {
       sql.append("or ignore ");
     }
-    sql.append("into ")
-        .append(getTableName()).append(' ')
-        .append(tfContent.getSQLInsertString());
+    sql.append("into ").append(getTableName());
 
-    this.stmt.executeUpdate(sql.toString());
+    final PreparedStatement pStmt = tfContent.prepareInsert(
+        this.con, sql.toString());
+
+    pStmt.executeUpdate();
+
     if (this.insertCount.incrementAndGet() >= COMMIT_COUNT) {
       commit();
       this.insertCount.set(0L);
     }
-    return ignore ? -1 : this.stmt.getGeneratedKeys().getInt(1);
+    return pStmt;
   }
 
   public String getTableName() {
