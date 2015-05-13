@@ -67,6 +67,7 @@ import java.io.InputStream;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.sql.ResultSet;
+import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -195,7 +196,7 @@ public final class ScoringTermSentenceExtractor
         // Loading sentence detection model
         modelIn = Thread.currentThread().getContextClassLoader()
             .getResourceAsStream("nlpModels/" +
-                this.cliParams.language.toString() + "-sent.bin");
+                this.cliParams.language + "-sent.bin");
         final SentenceModel sentenceModel = new SentenceModel(modelIn);
         modelIn.close();
 
@@ -207,6 +208,23 @@ public final class ScoringTermSentenceExtractor
       }
 
       processTerms(scoringDb, sentenceTable);
+
+      // check results
+      final long termCount = scoringDb
+          .getNumberOfRows(TermScoringTable.TABLE_NAME);
+      final long sentenceCount = scoringDb
+          .getNumberOfRows(SentenceScoringTable.TABLE_NAME);
+
+      LOG.info("Checking results.");
+      if (termCount != sentenceCount) {
+        final String msg = "Number of terms and retrieved " +
+            "sentences do not match. terms=" + termCount +
+            " sentences=" + sentenceCount;
+        LOG.error(msg);
+        throw new IllegalStateException(msg);
+      } else {
+        LOG.info("Ok. terms={} sentences={}", termCount, sentenceCount);
+      }
     }
   }
 
@@ -235,13 +253,16 @@ public final class ScoringTermSentenceExtractor
 
     try (final SentenceScoringTable.Writer sentenceWriter =
              new SentenceScoringTable.Writer(scoringDb.getConnection())) {
-      final Statement stmt = scoringDb.getConnection()
-          .createStatement();
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("querySQL: {}", querySQL);
-      }
+      final Statement stmt = scoringDb.getConnection().createStatement();
       stmt.execute(querySQL);
       final ResultSet rs = stmt.getResultSet();
+
+      long rowCount = scoringDb
+          .getNumberOfRows(SentenceScoringTable.TABLE_NAME);
+      long newRowCount = 0l;
+
+      Statement insertStmt;
+      SQLWarning insertWarn;
 
       while (rs.next()) {
         final Integer termId = rs.getInt(1);
@@ -258,6 +279,12 @@ public final class ScoringTermSentenceExtractor
         final List<String> refs = getMatchingDocs(
             this.cliParams.idxReader, searcher, term, field);
         final String sentence = getRandomSentence(refs, langName, field, term);
+        if (sentence.isEmpty()) {
+          throw new IllegalStateException("Empty sentence.");
+        }
+
+        LOG.debug("SENTENCE: {}\n  CP:{} t:{}", sentence,
+            sentence.codePointCount(0, sentence.length()), term);
 
         @SuppressWarnings("ObjectAllocationInLoop")
         final TableFieldContent tfc = new TableFieldContent(sentenceTable);
@@ -265,7 +292,22 @@ public final class ScoringTermSentenceExtractor
         tfc.setValue(SentenceScoringTable.Fields.TERM_REF, termId);
         tfc.setValue(SentenceScoringTable.Fields.SENTENCE, sentence);
         // write result
-        sentenceWriter.addContent(tfc);
+        insertStmt = sentenceWriter.addContent(tfc, false);
+        insertWarn = insertStmt.getWarnings();
+
+        newRowCount = scoringDb.getNumberOfRows(
+            SentenceScoringTable.TABLE_NAME);
+        if (newRowCount <= rowCount) {
+          if (insertWarn != null) {
+            SQLWarning sqlWarn;
+            while ((sqlWarn = insertWarn.getNextWarning()) != null) {
+              LOG.error("SQL-warning: {}", sqlWarn.getMessage());
+            }
+          }
+          throw new IllegalStateException("Sentence row not written.");
+        } else {
+          rowCount = newRowCount;
+        }
       }
     }
   }
@@ -360,21 +402,21 @@ public final class ScoringTermSentenceExtractor
     final Search search = new Builder(esQuery)
         // index to query
         .addIndex(ES_CONF.INDEX)
-        // document type to retrieve
+            // document type to retrieve
         .addType(ES_CONF.DOC_TYPE)
         .build();
 
-    if (LOG.isDebugEnabled()) {
-      LOG.debug("Term: {}", term);
-      LOG.debug("ESquery: {}", esQuery);
-    }
+//    if (LOG.isDebugEnabled()) {
+//      LOG.debug("Term: {}", term);
+//      LOG.debug("ESquery: {}", esQuery);
+//    }
 
     // initialize the scroll search
     final JestResult result = ESUtils.runRequest(this.client, search);
 
-    if (LOG.isDebugEnabled()) {
-      LOG.debug("ESQueryResult: {}", result.getJsonString());
-    }
+//    if (LOG.isDebugEnabled()) {
+//      LOG.debug("ESQueryResult: {}", result.getJsonString());
+//    }
 
     if (result.isSucceeded()) {
       final JsonArray hits = result.getJsonObject()
@@ -435,14 +477,14 @@ public final class ScoringTermSentenceExtractor
     final List<String> matchingSentences = new ArrayList<>(50);
 
     for (final String s : sentences) {
-      LOG.debug("Sentence: {}", s);
+//      LOG.debug("Sentence: {}", s);
       QueryUtils.tokenizeQueryString(s, this.analyzer).stream()
           .filter(l -> l.contains(term))
           .findFirst()
           .ifPresent(t -> {
-            if (LOG.isDebugEnabled()) {
-              LOG.debug("T={} C={} S={}", term, t, s);
-            }
+//            if (LOG.isDebugEnabled()) {
+//              LOG.debug("T={} C={} S={}", term, t, s);
+//            }
             matchingSentences.add(s);
           });
     }
@@ -461,13 +503,19 @@ public final class ScoringTermSentenceExtractor
     final int items = sentences.size();
 
     if (items == 0) {
-      LOG.debug("sentence: none");
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("sentence: none");
+      }
       return "";
     } else if (items == 1) {
-      LOG.debug("sentence: single");
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("sentence: single");
+      }
       return sentences.get(0);
     } else if (items <= 3) {
-      LOG.debug("sentence: 1 of 3");
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("sentence: 1 of 3");
+      }
       return sentences.get(RandomValue.getInteger(0, items - 1));
     } else {
       // get sentences from the upper thirds only
