@@ -66,7 +66,7 @@ public final class SentenceScoringResultTable
     /**
      * Flag indicating, if result is empty.
      */
-    IS_EMPTY("isempty boolean default 0"),
+    IS_EMPTY("is_empty boolean default 0"),
     /**
      * Scoring result value.
      */
