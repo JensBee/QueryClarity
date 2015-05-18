@@ -22,7 +22,6 @@ import de.unihildesheim.iw.lucene.util.BitsUtils;
 import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
 import de.unihildesheim.iw.lucene.util.StreamUtils;
 import de.unihildesheim.iw.util.RandomValue;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.IndexSearcher;
@@ -37,7 +36,7 @@ import org.jetbrains.annotations.Nullable;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -55,6 +54,7 @@ public final class FeedbackQuery {
    */
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       FeedbackQuery.class);
+  private static final int[] EMPTY_DOCIDS = new int[]{};
 
   /**
    * Private constructor for utility class.
@@ -140,14 +140,16 @@ public final class FeedbackQuery {
       }
     }
 
-    // extract document ids while keeping order
-    @SuppressFBWarnings("SUA_SUSPICIOUS_UNINITIALIZED_ARRAY")
-    final int[] docIds = new int[results.scoreDocs.length];
-    // add the matching documents to the list
-    IntStream.range(0, results.scoreDocs.length)
-        .forEach(i -> docIds[i] = results.scoreDocs[i].doc);
-
-    return docIds;
+    if (results.totalHits > 0) {
+      // extract document ids while keeping order
+      final int[] docIds = new int[results.scoreDocs.length];
+      // add the matching documents to the list
+      IntStream.range(0, results.scoreDocs.length)
+          .forEach(i -> docIds[i] = results.scoreDocs[i].doc);
+      return docIds;
+    } else {
+      return EMPTY_DOCIDS;
+    }
   }
 
   /**
@@ -216,11 +218,16 @@ public final class FeedbackQuery {
           " greater than zero.");
     }
 
+    int[] queriedDocs;
+
     final int maxRetDocs = getMaxDocs(searcher.getIndexReader(), maxDocs);
     final FixedBitSet bits =
         new FixedBitSet(searcher.getIndexReader().maxDoc());
-    bits.or(BitsUtils.arrayToBits(
-        getDocs(searcher, query.getQueryObj(), maxRetDocs)));
+
+    queriedDocs = getDocs(searcher, query.getQueryObj(), maxRetDocs);
+    IntStream.range(0, queriedDocs.length).forEach(i -> {
+      bits.set(queriedDocs[i]);
+    });
 
     // build a log-info string
     final String logInfo = "Got {} matching feedback documents. " +
@@ -230,6 +237,7 @@ public final class FeedbackQuery {
 
     int docsToGet;
     int bitsCount;
+
     while ((bitsCount = bits.cardinality()) < minDocs && query.relax()) {
       docsToGet = maxRetDocs - bitsCount;
       LOG.info(logInfo, bitsCount, docsToGet);
@@ -349,58 +357,99 @@ public final class FeedbackQuery {
       @NotNull final DocIdSet docIds,
       @Nullable final String... fields)
       throws IOException {
-    final int[] results = new int[amount];
-    Arrays.fill(results, -1);
-    // collect all provided document-ids, to skip them while choosing random
-    // ones
-    final int[] docIdsArr = StreamUtils.stream(docIds).sorted().toArray();
-    // count collected documents
-    int currentAmount = docIdsArr.length;
-    if (currentAmount > 0) {
-      // copy already provided doc-ids to results
-      System.arraycopy(docIdsArr, 0, results, 0, currentAmount);
-    }
 
-    LOG.info("Getting {}/{} random feedback documents. {} documents provided.",
-        amount - currentAmount, amount, currentAmount);
+    final List<Integer> collected = StreamUtils.stream(docIds)
+        .boxed().collect(Collectors.toList());
+    final int amountNeeded = amount - collected.size();
 
-    final List<Integer> haveDocs = dataProv
-        .getDocumentIds()
-            // skip ids already provided
-        .filter(id -> Arrays.binarySearch(docIdsArr, id) < 0)
-        .boxed()
-        .collect(Collectors.toList());
+    if (amountNeeded > 0) {
+      LOG.info(
+          "Getting {}/{} random feedback documents. {} documents provided.",
+          amountNeeded, amount, collected.size());
 
-    if (haveDocs.isEmpty()) {
-      LOG.warn("Giving up. No random documents. Got {} documents.",
-          currentAmount);
-    } else {
-      // add as many documents as possible, while no adding more than the
-      // amount specified
-      boolean hasTerms;
-      for (int i = Math.min(amount - currentAmount, haveDocs.size());
-           i > 0; i--) {
-        hasTerms = true;
-        final int docId = haveDocs.remove(
-            RandomValue.getInteger(0, haveDocs.size() - 1));
-        if (fields != null && fields.length > 0) {
-          hasTerms = dataProv.getDocumentTerms(docId, fields)
-              .findFirst().isPresent();
-        }
-        if (hasTerms) {
-          results[currentAmount++] = docId;
+      final List<Integer> docsAvailable = dataProv
+          .getDocumentIds().boxed()
+          // skip ids already provided
+          .filter(id -> !collected.contains(id))
+          .collect(Collectors.toList());
+
+      final int docsAvailableCount = docsAvailable.size();
+      if (docsAvailableCount == 0) {
+        LOG.warn("Giving up. No random documents. Got {} documents.",
+            collected.size());
+      } else if (docsAvailableCount <= amountNeeded) {
+        collected.addAll(docsAvailable);
+        LOG.warn("Giving up searching for random documents. " +
+                "Can only return {} documents due to index size.",
+            collected.size());
+      } else {
+        int idx;
+        while (collected.size() < amount && !docsAvailable.isEmpty()) {
+          idx = RandomValue.getInteger(0, docsAvailable.size());
+          collected.add(docsAvailable.get(idx));
+          docsAvailable.remove(idx);
         }
       }
-      if (currentAmount < amount && haveDocs.isEmpty()) {
-        LOG.warn("Giving up searching for random documents. Got {} documents.",
-            currentAmount);
-      }
     }
-    Arrays.sort(results);
-    final Builder result = new Builder(results[results.length - 1]);
-    Arrays.stream(results)
-        .filter(id -> id >= 0).distinct()
-        .forEach(result::add);
+
+    Collections.sort(collected);
+    final Builder result = new Builder(collected.get(collected.size() -1) + 1);
+    collected.stream().forEach(result::add);
+
+//    final int[] results = new int[amount];
+//    Arrays.fill(results, -1);
+//    // collect all provided document-ids, to skip them while choosing random
+//    // ones
+//    final int[] docIdsArr = StreamUtils.stream(docIds).sorted().toArray();
+//    // count collected documents
+//    int currentAmount = docIdsArr.length;
+//    if (currentAmount > 0) {
+//      // copy already provided doc-ids to results
+//      System.arraycopy(docIdsArr, 0, results, 0, currentAmount);
+//    }
+//
+//    LOG.info("Getting {}/{} random feedback documents. {} documents
+// provided.",
+//        amount - currentAmount, amount, currentAmount);
+//
+//    final List<Integer> haveDocs = dataProv
+//        .getDocumentIds()
+//            // skip ids already provided
+//        .filter(id -> Arrays.binarySearch(docIdsArr, id) < 0)
+//        .boxed()
+//        .collect(Collectors.toList());
+//
+//    if (haveDocs.isEmpty()) {
+//      LOG.warn("Giving up. No random documents. Got {} documents.",
+//          currentAmount);
+//    } else {
+//      // add as many documents as possible, while no adding more than the
+//      // amount specified
+//      boolean hasTerms;
+//      for (int i = Math.min(amount - currentAmount, haveDocs.size());
+//           i > 0; i--) {
+//        hasTerms = true;
+//        final int docId = haveDocs.remove(
+//            RandomValue.getInteger(0, haveDocs.size() - 1));
+//        if (fields != null && fields.length > 0) {
+//          hasTerms = dataProv.getDocumentTerms(docId, fields)
+//              .findFirst().isPresent();
+//        }
+//        if (hasTerms) {
+//          results[currentAmount++] = docId;
+//        }
+//      }
+//      if (currentAmount < amount && haveDocs.isEmpty()) {
+//        LOG.warn("Giving up searching for random documents. Got {}
+// documents.",
+//            currentAmount);
+//      }
+//    }
+//    Arrays.sort(results);
+//    final Builder result = new Builder(results[results.length - 1]);
+//    Arrays.stream(results)
+//        .filter(id -> id >= 0).distinct()
+//        .forEach(result::add);
     return result.build();
   }
 }
