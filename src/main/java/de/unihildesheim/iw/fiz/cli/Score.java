@@ -285,6 +285,10 @@ public class Score
                     result.isEmpty());
                 tfc.setValue(TermScoringResultTable.Fields.SCORE,
                     result.getScore());
+                if (result.isEmpty()) {
+                  tfc.setValue(TermScoringResultTable.Fields.EMPTY_REASON,
+                      result.getEmptyReason());
+                }
 
                 // write result
                 insertStmt = termWriter.addContent(tfc, false);
@@ -312,9 +316,9 @@ public class Score
             // query for data
             querySQL = "select " +
                 "s." + SentenceScoringTable.Fields.ID + ", " +
-                "s." + SentenceScoringTable.Fields.SENTENCE +
+                "s." + SentenceScoringTable.Fields.SENTENCE + ' ' +
                 "t." + TermScoringTable.Fields.LANG +
-                " from " + SentenceScoringTable.TABLE_NAME + " s" +
+                " from " + SentenceScoringTable.TABLE_NAME + " s " +
                 " inner join " +
                 TermScoringTable.TABLE_NAME + " t" +
                 " on (s." + SentenceScoringTable.Fields.TERM_REF +
@@ -349,6 +353,10 @@ public class Score
                     result.isEmpty());
                 tfc.setValue(SentenceScoringResultTable.Fields.SCORE,
                     result.getScore());
+                if (result.isEmpty()) {
+                  tfc.setValue(SentenceScoringResultTable.Fields.EMPTY_REASON,
+                      result.getEmptyReason());
+                }
 
                 // write result
                 insertStmt = sentenceWriter.addContent(tfc, false);
