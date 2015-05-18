@@ -177,27 +177,6 @@ public final class FDRIndexDataProvider
           });
       tf = newTf.get();
       this.cache_tf.put(BytesRef.deepCopyOf(term), tf);
-
-//      tf = 0L;
-//      for (final LeafReaderContext lrc : this.index.readerLeaves) {
-//        final LeafReader r = lrc.reader();
-//        if (r.numDocs() > 0) {
-//          try {
-//            for (final String s : r.fields()) {
-//              @Nullable final Terms terms = r.terms(s);
-//              if (terms != null) {
-//                final TermsEnum termsEnum = terms.iterator(null);
-//                if (termsEnum.seekExact(term)) {
-//                  tf += termsEnum.totalTermFreq();
-//                }
-//              }
-//            }
-//          } catch (final IOException e) {
-//            throw new UncheckedIOException(e);
-//          }
-//        }
-//      }
-//      this.cache_tf.put(BytesRef.deepCopyOf(term), tf);
     }
 
     return tf;
