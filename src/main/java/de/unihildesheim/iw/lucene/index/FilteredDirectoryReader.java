@@ -1013,6 +1013,16 @@ public final class FilteredDirectoryReader
     }
 
     @Override
+    public boolean seekExact(@NotNull final BytesRef term)
+        throws IOException {
+      this.ttf = -1L; // reset ttf value, since current term has changed
+
+      return this.in.seekCeil(term) == SeekStatus.FOUND && hasDoc() &&
+          (this.ctx.termFilter == null ||
+              this.ctx.termFilter.isAccepted(this.in, term()));
+    }
+
+    @Override
     public SeekStatus seekCeil(@NotNull final BytesRef term)
         throws IOException {
       this.ttf = -1L; // reset ttf value, since current term has changed
@@ -1102,7 +1112,9 @@ public final class FilteredDirectoryReader
       if (this.ttf < 0L) {
         long newTTF;
         final PostingsEnum pe;
+
         if (this.ctx.numDocs > (this.ctx.maxDoc >> 1)) {
+          // more than half of the documents are enabled
           // get initial value from all docs
           newTTF = this.in.totalTermFreq();
           // if all bits are set, take the ttf value we've got
