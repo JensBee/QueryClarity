@@ -31,6 +31,7 @@ ext.conf.targets = [
         index                 : '/data/clef/Clarity/work/fiz/index/',
         ipcDump               : workingDirectory.absolutePath + '/ipcStats',
         plots                 : workingDirectory.absolutePath + '/plots',
+        scoring               : workingDirectory.absolutePath + '/scoring',
         termDump              : workingDirectory.absolutePath + '/termDump',
         termDumpSample        : workingDirectory.absolutePath +
                 '/termDumpSample',
@@ -207,6 +208,7 @@ apply from: 'gradle/task_termDumpSample.gradle'
 apply from: 'gradle/task_getSentences.gradle'
 apply from: 'gradle/task_ipcStats.gradle'
 apply from: 'gradle/task_plot.gradle'
+apply from: 'gradle/task_score.gradle'
 
 task(all) {
     description 'Run all tasks'
@@ -214,6 +216,7 @@ task(all) {
             TaskConf.TermDump.taskPrefix,
             TaskConf.TermDumpSample.taskPrefix,
             TaskConf.GetSentences.taskPrefix,
+            TaskConf.Score.taskPrefix,
             TaskConf.IpcStats.taskPrefix,
             TaskConf.Plots.taskPrefix
 }
