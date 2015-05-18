@@ -244,8 +244,12 @@ public final class ScoringTermSentenceExtractor
     final String langName = this.cliParams.language.toString();
 
     // query for terms
-    final String querySQL = "select id, term, field from " +
-        TermScoringTable.TABLE_NAME + " where lang='" + langName + "';";
+    final String querySQL = "select " +
+        TermScoringTable.Fields.ID + ", " +
+        TermScoringTable.Fields.TERM + ", " +
+        TermScoringTable.Fields.FIELD +
+        " from " + TermScoringTable.TABLE_NAME +
+        " where lang='" + langName + "';";
 
     // lucene searcher
     final IndexSearcher searcher = IndexUtils.getSearcher(
@@ -288,7 +292,6 @@ public final class ScoringTermSentenceExtractor
 
         @SuppressWarnings("ObjectAllocationInLoop")
         final TableFieldContent tfc = new TableFieldContent(sentenceTable);
-        tfc.setValue(SentenceScoringTable.Fields.LANG, langName);
         tfc.setValue(SentenceScoringTable.Fields.TERM_REF, termId);
         tfc.setValue(SentenceScoringTable.Fields.SENTENCE, sentence);
         // write result
