@@ -46,7 +46,9 @@ public class ScoringDataDB
       Collections.unmodifiableList(Arrays.asList(
           MetaTable.class,
           TermScoringTable.class,
-          SentenceScoringTable.class));
+          TermScoringResultTable.class,
+          SentenceScoringTable.class,
+          SentenceScoringResultTable.class));
 
   /**
    * New instance.
