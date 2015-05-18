@@ -19,7 +19,6 @@ package de.unihildesheim.iw.lucene.scoring.clarity;
 import de.unihildesheim.iw.Tuple;
 import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.lucene.scoring.ScoringResult;
-import de.unihildesheim.iw.lucene.util.StreamUtils;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.Counter;
@@ -31,7 +30,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * Wrapper class enclosing the results of a clarity score calculation.
@@ -155,35 +153,6 @@ public abstract class ClarityScoreResult
   final void setQueryTerms(@NotNull final Collection<BytesRef> qTerms) {
     this.queryTerms = new BytesRefArray(Counter.newCounter(false));
     qTerms.stream().forEach(this.queryTerms::append);
-  }
-
-  /**
-   * Get the XML representation of (some) results stored.
-   *
-   * @param xml XML results instance
-   * @return Provided xml results instance updated in place
-   */
-  final ScoringResultXml getXml(final ScoringResultXml xml) {
-    if (this.queryTerms != null) {
-      // number of query terms
-      xml.getItems().put("queryTerms",
-          Integer.toString(this.queryTerms.size()));
-
-      // query terms
-      final String termStr = StreamUtils.stream(this.queryTerms)
-          .map(BytesRef::utf8ToString)
-          .collect(Collectors.joining(" "));
-      if (!termStr.isEmpty()) {
-        xml.getItems().put("queryTerms", termStr);
-      }
-    }
-
-    // messages
-    if (!this.messages.isEmpty()) {
-      xml.getLists().put("messages", this.messages);
-    }
-
-    return xml;
   }
 
   /**

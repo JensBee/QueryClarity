@@ -194,12 +194,5 @@ public final class SimplifiedClarityScore
     Result() {
       super(SimplifiedClarityScore.class);
     }
-
-    @Override
-    public ScoringResultXml getXml() {
-      final ScoringResultXml xml = new ScoringResultXml();
-      getXml(xml);
-      return xml;
-    }
   }
 }

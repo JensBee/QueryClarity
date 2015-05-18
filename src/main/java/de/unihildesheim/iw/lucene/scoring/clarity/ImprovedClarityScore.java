@@ -19,12 +19,9 @@ package de.unihildesheim.iw.lucene.scoring.clarity;
 import de.unihildesheim.iw.Buildable.BuildableException;
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
-import de.unihildesheim.iw.Tuple;
-import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
-import de.unihildesheim.iw.lucene.scoring.ScoringResult.ScoringResultXml.Keys;
 import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
 import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
@@ -35,7 +32,6 @@ import de.unihildesheim.iw.util.TimeMeasure;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
@@ -49,9 +45,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.math.MathContext;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -646,40 +640,6 @@ public final class ImprovedClarityScore
      */
     private static final String CONF_PREFIX = IDENTIFIER + "-result";
 
-    @Override
-    public ScoringResultXml getXml() {
-      final ScoringResultXml xml = new ScoringResultXml();
-
-      getXml(xml);
-      // number of feedback documents
-      if (this.feedbackDocIds == null) {
-        // unknown - maybe an error
-        xml.getItems().put(Keys.FEEDBACK_DOCUMENTS.toString(), "-1");
-      } else {
-        final int fbDocCount = this.feedbackDocIds.cardinality();
-        xml.getItems().put(
-            Keys.FEEDBACK_DOCUMENTS.toString(),
-            Integer.toString(fbDocCount));
-
-        // feedback documents
-        if (GlobalConfiguration.conf()
-            .getAndAddBoolean(CONF_PREFIX + "ListFeedbackDocuments", true)) {
-          final List<Tuple2<String, String>> fbDocsList =
-              new ArrayList<>(fbDocCount);
-
-          for (int i = this.feedbackDocIds.nextSetBit(0);
-               i != DocIdSetIterator.NO_MORE_DOCS;
-               i = this.feedbackDocIds.nextSetBit(++i)) {
-            fbDocsList.add(Tuple.tuple2(
-                Keys.FEEDBACK_DOCUMENT_KEY.toString(), Integer.toString(i)));
-          }
-          xml.getLists().put(
-              Keys.FEEDBACK_DOCUMENTS.toString(), fbDocsList);
-        }
-      }
-
-      return xml;
-    }
   }
 
   /**

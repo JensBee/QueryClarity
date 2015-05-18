@@ -16,14 +16,6 @@
  */
 package de.unihildesheim.iw.lucene.scoring;
 
-import de.unihildesheim.iw.Tuple.Tuple2;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
 /**
  * Wrapper to store scoring results.
  *
@@ -60,76 +52,4 @@ public abstract class ScoringResult {
    */
   public abstract Class getType();
 
-  /**
-   * Return some or all calculation related information to include in result XML
-   * documents.
-   *
-   * @return XML object
-   */
-  public abstract ScoringResultXml getXml();
-
-  /**
-   * Object wrapping result information for including in XML.
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public static final class ScoringResultXml {
-    /**
-     * Logger instance for this class.
-     */
-    private static final Logger LOG =
-        LoggerFactory.getLogger(ScoringResultXml.class);
-    /**
-     * XML element key names.
-     */
-    public enum Keys {
-      /**
-       * Number of feedback documents an list of feedback documents.
-       */
-      FEEDBACK_DOCUMENTS("feedbackDocuments"),
-      /**
-       * Key for listing feedback documents.
-       */
-      FEEDBACK_DOCUMENT_KEY("id");
-
-      /**
-       * Key name as written in XML result.
-       */
-      final String name;
-
-      /**
-       * Constructor setting XML string.
-       * @param newName XML string set by enum
-       */
-      Keys(final String newName) {
-        this.name = newName;
-      }
-
-      public String toString() {
-        return this.name;
-      }
-    }
-
-    /**
-     * List of simple String items. Mapped by key to value.
-     *
-     * @return List of key, value pairs
-     */
-    @SuppressWarnings("ReturnOfCollectionOrArrayField")
-    public Map<String, String> getItems() {
-      LOG.warn("XML items currently not supported!");
-      return Collections.emptyMap();
-    }
-
-    /**
-     * Map of list type (key, value) items, grouped by a global key.
-     *
-     * @return Map of key, value pairs grouped by key
-     */
-    @SuppressWarnings("ReturnOfCollectionOrArrayField")
-    public Map<String, List<Tuple2<String, String>>> getLists() {
-      //return this.lists;
-      LOG.warn("XML list currently not supported!");
-      return Collections.emptyMap();
-    }
-  }
 }
