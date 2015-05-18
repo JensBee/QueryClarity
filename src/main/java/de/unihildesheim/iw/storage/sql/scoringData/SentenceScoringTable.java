@@ -68,10 +68,6 @@ public final class SentenceScoringTable
      */
     SENTENCE("sentence text not null"),
     /**
-     * Language the entry belongs to.
-     */
-    LANG("lang char(2) not null"),
-    /**
      * Term reference.
      */
     TERM_REF("term_ref integer not null"),
@@ -155,7 +151,6 @@ public final class SentenceScoringTable
   @Override
   public void addDefaultFieldsToUnique() {
     this.uniqueFields.add(Fields.TERM_REF.toString());
-    this.uniqueFields.add(Fields.LANG.toString());
   }
 
   /**
