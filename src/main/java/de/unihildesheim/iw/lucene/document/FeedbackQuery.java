@@ -395,61 +395,6 @@ public final class FeedbackQuery {
     Collections.sort(collected);
     final Builder result = new Builder(collected.get(collected.size() -1) + 1);
     collected.stream().forEach(result::add);
-
-//    final int[] results = new int[amount];
-//    Arrays.fill(results, -1);
-//    // collect all provided document-ids, to skip them while choosing random
-//    // ones
-//    final int[] docIdsArr = StreamUtils.stream(docIds).sorted().toArray();
-//    // count collected documents
-//    int currentAmount = docIdsArr.length;
-//    if (currentAmount > 0) {
-//      // copy already provided doc-ids to results
-//      System.arraycopy(docIdsArr, 0, results, 0, currentAmount);
-//    }
-//
-//    LOG.info("Getting {}/{} random feedback documents. {} documents
-// provided.",
-//        amount - currentAmount, amount, currentAmount);
-//
-//    final List<Integer> haveDocs = dataProv
-//        .getDocumentIds()
-//            // skip ids already provided
-//        .filter(id -> Arrays.binarySearch(docIdsArr, id) < 0)
-//        .boxed()
-//        .collect(Collectors.toList());
-//
-//    if (haveDocs.isEmpty()) {
-//      LOG.warn("Giving up. No random documents. Got {} documents.",
-//          currentAmount);
-//    } else {
-//      // add as many documents as possible, while no adding more than the
-//      // amount specified
-//      boolean hasTerms;
-//      for (int i = Math.min(amount - currentAmount, haveDocs.size());
-//           i > 0; i--) {
-//        hasTerms = true;
-//        final int docId = haveDocs.remove(
-//            RandomValue.getInteger(0, haveDocs.size() - 1));
-//        if (fields != null && fields.length > 0) {
-//          hasTerms = dataProv.getDocumentTerms(docId, fields)
-//              .findFirst().isPresent();
-//        }
-//        if (hasTerms) {
-//          results[currentAmount++] = docId;
-//        }
-//      }
-//      if (currentAmount < amount && haveDocs.isEmpty()) {
-//        LOG.warn("Giving up searching for random documents. Got {}
-// documents.",
-//            currentAmount);
-//      }
-//    }
-//    Arrays.sort(results);
-//    final Builder result = new Builder(results[results.length - 1]);
-//    Arrays.stream(results)
-//        .filter(id -> id >= 0).distinct()
-//        .forEach(result::add);
     return result.build();
   }
 }
