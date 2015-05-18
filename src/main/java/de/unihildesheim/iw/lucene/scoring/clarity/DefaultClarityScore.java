@@ -427,7 +427,7 @@ public final class DefaultClarityScore
     }
 
     DocIdSet feedbackDocIds;
-    final int fbDocCount;
+    int fbDocCount;
     try {
       feedbackDocIds = this.fbProvider
           .query(query)
@@ -439,6 +439,7 @@ public final class DefaultClarityScore
         LOG.debug("Feedback amount too low, requesting random documents.");
         feedbackDocIds = FeedbackQuery.getRandom(this.dataProv,
             this.conf.getFeedbackDocCount(), feedbackDocIds);
+        fbDocCount = DocIdSetUtils.cardinality(feedbackDocIds);
       }
       if (LOG.isDebugEnabled()) {
         LOG.debug("Feedback size: {} documents.", fbDocCount);
