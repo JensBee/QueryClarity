@@ -24,7 +24,6 @@ import de.unihildesheim.iw.lucene.util.StreamUtils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.MultiTerms;
@@ -50,7 +49,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -90,7 +91,7 @@ public final class FDRIndexDataProvider
   /**
    * Size of the term-frequency LRU cache.
    */
-  static final int CACHE_TF_SIZE = 10000;
+  static final int CACHE_TF_SIZE = 500000;
   /**
    * LRU cache of term-frequency values.
    */
@@ -155,28 +156,48 @@ public final class FDRIndexDataProvider
     @Nullable
     Long tf = this.cache_tf.get(term);
     if (tf == null) {
-      tf = 0L;
-      for (final LeafReaderContext lrc : this.index.reader.leaves()) {
-        final LeafReader r = lrc.reader();
-        long fieldTf = 0L;
-        if (r.numDocs() > 0) {
-          try {
-            for (final String s : r.fields()) {
-              @Nullable final Terms terms = r.terms(s);
-              if (terms != null) {
-                final TermsEnum termsEnum = terms.iterator(null);
-                if (termsEnum.seekExact(term)) {
-                  fieldTf += termsEnum.totalTermFreq();
+      final AtomicLong newTf = new AtomicLong(0);
+      this.index.readerLeaves.stream().parallel()
+          .map(LeafReaderContext::reader)
+          .filter(r -> r.numDocs() > 0)
+          .forEach(r -> {
+            try {
+              for (final String s : r.fields()) {
+                @Nullable final Terms terms = r.terms(s);
+                if (terms != null) {
+                  final TermsEnum termsEnum = terms.iterator(null);
+                  if (termsEnum.seekExact(term)) {
+                    newTf.addAndGet(termsEnum.totalTermFreq());
+                  }
                 }
               }
+            } catch (final IOException e) {
+              throw new UncheckedIOException(e);
             }
-          } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-          }
-        }
-        tf += fieldTf;
-      }
+          });
+      tf = newTf.get();
       this.cache_tf.put(BytesRef.deepCopyOf(term), tf);
+
+//      tf = 0L;
+//      for (final LeafReaderContext lrc : this.index.readerLeaves) {
+//        final LeafReader r = lrc.reader();
+//        if (r.numDocs() > 0) {
+//          try {
+//            for (final String s : r.fields()) {
+//              @Nullable final Terms terms = r.terms(s);
+//              if (terms != null) {
+//                final TermsEnum termsEnum = terms.iterator(null);
+//                if (termsEnum.seekExact(term)) {
+//                  tf += termsEnum.totalTermFreq();
+//                }
+//              }
+//            }
+//          } catch (final IOException e) {
+//            throw new UncheckedIOException(e);
+//          }
+//        }
+//      }
+//      this.cache_tf.put(BytesRef.deepCopyOf(term), tf);
     }
 
     return tf;
@@ -404,6 +425,10 @@ public final class FDRIndexDataProvider
      */
     final FilteredDirectoryReader reader;
     /**
+     * {@link IndexReader}'s leaves.
+     */
+    final List<LeafReaderContext> readerLeaves;
+    /**
      * List of document-id of visible documents.
      */
     final FixedBitSet docIds;
@@ -438,6 +463,7 @@ public final class FDRIndexDataProvider
     LuceneIndex(@NotNull final FilteredDirectoryReader r)
         throws IOException {
       this.reader = r;
+      this.readerLeaves = r.leaves();
 
       // collect the ids of all documents in the index
       if (LOG.isDebugEnabled()) {
@@ -478,6 +504,7 @@ public final class FDRIndexDataProvider
         this.fields = StreamSupport.stream(fields.spliterator(), false)
             .toArray(String[]::new);
         this.ttf = Arrays.stream(this.fields)
+            .peek(f -> LOG.info("Collecting term counts (TTF) field={}", f))
             .mapToLong(f -> {
               try {
                 return this.reader.getSumTotalTermFreq(f);
@@ -490,7 +517,7 @@ public final class FDRIndexDataProvider
       // check for TermVectors
       if (this.fields.length > 0) {
         final boolean termVectorsMissing =
-            this.reader.getContext().leaves().stream()
+            this.readerLeaves.stream()
                 .filter(arc -> arc.reader().getFieldInfos().size() > 0)
                 .flatMap(
                     arc -> StreamSupport.stream(
@@ -518,7 +545,7 @@ public final class FDRIndexDataProvider
       } else {
         // gather sub-reader which have documents
         final LeafReaderContext[] leaves =
-            this.reader.leaves().stream()
+            this.readerLeaves.stream()
                 .filter(lrc -> lrc.reader().numDocs() > 0)
                 .toArray(LeafReaderContext[]::new);
 
@@ -531,7 +558,9 @@ public final class FDRIndexDataProvider
 
         // iterate all terms in all fields in all sub-readers
         this.uniqueTerms = Arrays.stream(this.fields)
-            // collect terms instances from all sub-readers
+            .peek(f -> LOG
+                .info("Collecting term counts (unique terms) field={}", f))
+                // collect terms instances from all sub-readers
             .map(f -> IntStream.range(0, leaves.length)
                 .mapToObj(i -> {
                   try {
