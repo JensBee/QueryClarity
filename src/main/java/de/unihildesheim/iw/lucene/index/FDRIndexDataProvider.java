@@ -72,7 +72,7 @@ public final class FDRIndexDataProvider
   /**
    * Size of the document-model LRU cache.
    */
-  private static final int CACHE_DOCMOD_SIZE = 10000;
+  static final int CACHE_DOCMOD_SIZE = 10000;
   /**
    * LRU cache of document models.
    */
@@ -90,7 +90,7 @@ public final class FDRIndexDataProvider
   /**
    * Size of the term-frequency LRU cache.
    */
-  private static final int CACHE_TF_SIZE = 10000;
+  static final int CACHE_TF_SIZE = 10000;
   /**
    * LRU cache of term-frequency values.
    */
@@ -106,7 +106,7 @@ public final class FDRIndexDataProvider
   /**
    * Size of the document-frequency LRU cache.
    */
-  private static final int CACHE_DF_SIZE = 10000;
+  static final int CACHE_DF_SIZE = 10000;
   /**
    * LRU cache of document-frequency values.
    */
