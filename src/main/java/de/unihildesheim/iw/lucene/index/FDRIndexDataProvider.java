@@ -473,7 +473,6 @@ public final class FDRIndexDataProvider
       assert this.docCount == numDocs;
 
       // collect summed total term frequency of all terms in the index
-      LOG.info("Collecting term counts (TTF)");
       @Nullable final Fields fields = MultiFields.getFields(this.reader);
       if (fields == null) {
         LOG.warn("Reader does not contain any postings.");
@@ -517,7 +516,6 @@ public final class FDRIndexDataProvider
       }
 
       // collect all unique terms from the index
-      LOG.info("Collecting term counts (unique terms)");
       if (this.fields.length == 0) {
         // still no postings
         this.uniqueTerms = 0L;
