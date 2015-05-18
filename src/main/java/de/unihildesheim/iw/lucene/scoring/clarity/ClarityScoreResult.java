@@ -16,8 +16,6 @@
  */
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
-import de.unihildesheim.iw.Tuple;
-import de.unihildesheim.iw.Tuple.Tuple2;
 import de.unihildesheim.iw.lucene.scoring.ScoringResult;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
@@ -26,9 +24,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -48,10 +44,9 @@ public abstract class ClarityScoreResult
    */
   private final Class<? extends ClarityScoreCalculation> type;
   /**
-   * Collect messages to include in result XML.
+   * Reason for this result being empty (optional).
    */
-  private final List<Tuple2<String, String>> messages = new
-      ArrayList<>(10);
+  private String emptyMessage;
   /**
    * Query terms used for calculation.
    */
@@ -61,10 +56,6 @@ public abstract class ClarityScoreResult
    * Flag indicating, if this result is empty.
    */
   private boolean isEmpty;
-
-  private enum MSG_TYPE {
-    EMPTY;
-  }
 
   /**
    * Create a new calculation result of the given type with no result.
@@ -93,7 +84,7 @@ public abstract class ClarityScoreResult
    * @param message Reason why this result is empty
    */
   public final void setEmpty(final String message) {
-    this.messages.add(Tuple.tuple2(MSG_TYPE.EMPTY.toString(), message));
+    this.emptyMessage = message;
     this.isEmpty = true;
     setScore(0d);
     LOG.warn("Score will be empty. reason={}", message);
@@ -104,13 +95,9 @@ public abstract class ClarityScoreResult
    * @return Message or empty string.
    */
   public final Optional<String> getEmptyReason() {
-    if (this.isEmpty) {
-      final Optional<Tuple2<String, String>> msg = this.messages.stream()
-          .filter(t -> t.a.equalsIgnoreCase(MSG_TYPE.EMPTY.toString()))
-          .findFirst();
-      if (msg.isPresent()) {
-        return Optional.of(msg.get().b);
-      }
+    if (this.isEmpty && this.emptyMessage != null &&
+        !this.emptyMessage.trim().isEmpty()) {
+        return Optional.of(this.emptyMessage);
     }
     return Optional.empty();
   }
