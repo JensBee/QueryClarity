@@ -68,6 +68,10 @@ public final class SentenceScoringResultTable
      */
     IS_EMPTY("is_empty boolean default 0"),
     /**
+     * If a result is empty this may contain a hint for the reason.
+     */
+    EMPTY_REASON("empty_reason text"),
+    /**
      * Scoring result value.
      */
     SCORE("score real not null"),

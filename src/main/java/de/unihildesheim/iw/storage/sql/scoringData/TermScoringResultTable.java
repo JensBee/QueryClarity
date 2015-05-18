@@ -51,7 +51,7 @@ public final class TermScoringResultTable extends AbstractTable {
   /**
    * Table name.
    */
-  public static final String TABLE_NAME = "scoring_sentences_results";
+  public static final String TABLE_NAME = "scoring_terms_results";
 
   /**
    * Fields in this table.
@@ -66,6 +66,10 @@ public final class TermScoringResultTable extends AbstractTable {
      * Flag indicating, if result is empty.
      */
     IS_EMPTY("is_empty boolean default 0"),
+    /**
+     * If a result is empty this may contain a hint for the reason.
+     */
+    EMPTY_REASON("empty_reason text"),
     /**
      * Scoring result value.
      */
