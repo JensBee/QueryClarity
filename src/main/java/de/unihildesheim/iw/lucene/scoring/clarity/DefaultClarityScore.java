@@ -489,9 +489,6 @@ public final class DefaultClarityScore
     result.setFeedbackDocIds(feedbackDocIds);
     result.setQueryTerms(queryTerms);
 
-//    // cache metrics instance getting used frequently
-//    final CollectionMetrics cMetrics = this.dataProv.metrics();
-
     // object containing all methods for model calculations
     if (MATH_LOW_PRECISION) {
       // low precision math
@@ -504,6 +501,7 @@ public final class DefaultClarityScore
       // calculate query models
       final ScoreTupleLowPrecision[] dataSets = this.vocProvider
           .documentIds(feedbackDocIds).get()
+          .parallel()
           .map(term -> new ScoreTupleLowPrecision(
               model.query(term), this.dataProv.getRelativeTermFrequency(term)))
           .toArray(ScoreTupleLowPrecision[]::new);
@@ -522,7 +520,6 @@ public final class DefaultClarityScore
       final ScoreTupleHighPrecision[] dataSets = this.vocProvider
           .documentIds(feedbackDocIds).get()
           .map(term -> new ScoreTupleHighPrecision(
-//              model.query(term), BigDecimal.valueOf(cMetrics.relTf(term))))
               model.query(term),
               BigDecimal.valueOf(this.dataProv.getRelativeTermFrequency(term))))
           .toArray(ScoreTupleHighPrecision[]::new);
