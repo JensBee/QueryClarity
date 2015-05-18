@@ -230,7 +230,7 @@ public class Score
       SQLWarning insertWarn;
 
       final String[] stateMsg = {"none", "none"};
-      
+
       try (TaskObserver obs = new TaskObserver(
           new TaskObserver.TaskObserverMessage() {
             @Override
@@ -261,8 +261,8 @@ public class Score
             stmt.execute(querySQL);
             final ResultSet rs = stmt.getResultSet();
 
-            long rowCount = scoringDb
-                .getNumberOfRows(SentenceScoringTable.TABLE_NAME);
+            long rowCount = scoringDb.getNumberOfRows(
+                TermScoringResultTable.TABLE_NAME);
 
             try (final TermScoringResultTable.Writer termWriter =
                      termTable.getWriter(scoringDb.getConnection())) {
@@ -324,8 +324,8 @@ public class Score
             stmt.execute(querySQL);
             final ResultSet rs = stmt.getResultSet();
 
-            long rowCount = scoringDb
-                .getNumberOfRows(SentenceScoringTable.TABLE_NAME);
+            long rowCount = scoringDb.getNumberOfRows(
+                SentenceScoringResultTable.TABLE_NAME);
 
             try (final SentenceScoringResultTable.Writer sentenceWriter =
                      sentenceTable.getWriter(scoringDb.getConnection())) {
