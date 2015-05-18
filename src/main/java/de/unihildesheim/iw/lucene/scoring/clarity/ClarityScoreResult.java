@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -63,6 +64,10 @@ public abstract class ClarityScoreResult
    */
   private boolean isEmpty;
 
+  private enum MSG_TYPE {
+    EMPTY;
+  }
+
   /**
    * Create a new calculation result of the given type with no result.
    *
@@ -90,10 +95,26 @@ public abstract class ClarityScoreResult
    * @param message Reason why this result is empty
    */
   public final void setEmpty(final String message) {
-    this.messages.add(Tuple.tuple2("EMPTY", message));
+    this.messages.add(Tuple.tuple2(MSG_TYPE.EMPTY.toString(), message));
     this.isEmpty = true;
     setScore(0d);
     LOG.warn("Score will be empty. reason={}", message);
+  }
+
+  /**
+   * Get the (optional) message stored when this result is empty.
+   * @return Message or empty string.
+   */
+  public final Optional<String> getEmptyReason() {
+    if (this.isEmpty) {
+      final Optional<Tuple2<String, String>> msg = this.messages.stream()
+          .filter(t -> t.a.equalsIgnoreCase(MSG_TYPE.EMPTY.toString()))
+          .findFirst();
+      if (msg.isPresent()) {
+        return Optional.of(msg.get().b);
+      }
+    }
+    return Optional.empty();
   }
 
   /**
