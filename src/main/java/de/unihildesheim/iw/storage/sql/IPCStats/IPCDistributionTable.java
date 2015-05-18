@@ -151,6 +151,12 @@ public final class IPCDistributionTable extends AbstractTable {
     this.uniqueFields.add(Fields.CODE.toString());
   }
 
+  @Override
+  public Writer getWriter(@NotNull final Connection con)
+      throws SQLException {
+    return new Writer(con);
+  }
+
   /**
    * Provides write access to the table.
    */

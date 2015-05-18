@@ -138,6 +138,12 @@ public final class MetaTable
     // no unique fields
   }
 
+  @Override
+  public Writer getWriter(@NotNull final Connection con)
+      throws SQLException {
+    return new Writer(con);
+  }
+
   /**
    * Provides write access to the table.
    */

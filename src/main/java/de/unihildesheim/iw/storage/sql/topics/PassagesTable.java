@@ -18,6 +18,7 @@
 package de.unihildesheim.iw.storage.sql.topics;
 
 import de.unihildesheim.iw.storage.sql.AbstractTable;
+import de.unihildesheim.iw.storage.sql.MetaTable;
 import de.unihildesheim.iw.storage.sql.Table;
 import de.unihildesheim.iw.storage.sql.TableField;
 import de.unihildesheim.iw.storage.sql.TableWriter;
@@ -167,6 +168,12 @@ public final class PassagesTable
     this.uniqueFields.add(Fields.CONTENT.toString());
     this.uniqueFields.add(Fields.SCORE.toString());
     this.uniqueFields.add(Fields.SOURCE.toString());
+  }
+
+  @Override
+  public Writer getWriter(@NotNull final Connection con)
+      throws SQLException {
+    return new Writer(con);
   }
 
   /**

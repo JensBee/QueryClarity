@@ -130,6 +130,12 @@ public final class IPCPerDocumentTable extends AbstractTable {
     this.uniqueFields.add(Fields.CODES.toString());
   }
 
+  @Override
+  public Writer getWriter(@NotNull final Connection con)
+      throws SQLException {
+    return new Writer(con);
+  }
+
   /**
    * Provides write access to the table.
    */

@@ -19,6 +19,8 @@ package de.unihildesheim.iw.storage.sql;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Set;
 
@@ -39,9 +41,9 @@ public interface Table {
   /**
    * Get a list of fields that may contain content. The returned list should not
    * be modified by the caller. Fields returned by this method are used for
-   * preparing insert statements. Any fields not used for content (e.g.
-   * foreign key fields) should not be returned. The default implementation
-   * returns the same content as {@link #getFields()}.
+   * preparing insert statements. Any fields not used for content (e.g. foreign
+   * key fields) should not be returned. The default implementation returns the
+   * same content as {@link #getFields()}.
    *
    * @return List of fields
    */
@@ -77,4 +79,15 @@ public interface Table {
    * Add all default fields to the list of fields forming a unique constraint.
    */
   void addDefaultFieldsToUnique();
+
+  /**
+   * Get a writer for this table (if the implementation supports this).
+   *
+   * @param con Database connection
+   * @return Table writer instance for this table
+   */
+  default TableWriter getWriter(@NotNull final Connection con)
+      throws SQLException {
+    throw new UnsupportedOperationException();
+  }
 }

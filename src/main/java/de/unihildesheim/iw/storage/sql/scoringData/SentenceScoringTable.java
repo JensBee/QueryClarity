@@ -153,6 +153,12 @@ public final class SentenceScoringTable
     this.uniqueFields.add(Fields.TERM_REF.toString());
   }
 
+  @Override
+  public Writer getWriter(@NotNull final Connection con)
+      throws SQLException {
+    return new Writer(con);
+  }
+
   /**
    * Provides write access to the table.
    */

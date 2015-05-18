@@ -206,6 +206,12 @@ public final class TermScoringTable
     this.uniqueFields.add(Fields.BIN.toString());
   }
 
+  @Override
+  public Writer getWriter(@NotNull final Connection con)
+      throws SQLException {
+    return new Writer(con);
+  }
+
   /**
    * Provides write access to the table.
    */
