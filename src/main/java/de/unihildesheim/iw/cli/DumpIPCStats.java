@@ -143,8 +143,7 @@ public final class DumpIPCStats
     final Map<Integer, Integer> numberOfIpcSectionsPerDoc =
         new ConcurrentHashMap<>(IPCRecord.MAX_LENGTH << 1);
 
-    @SuppressWarnings("AnonymousInnerClassMayBeStatic")
-    final TaskObserver obs = new TaskObserver(
+    try (TaskObserver obs = new TaskObserver(
         new TaskObserverMessage() {
           @Override
           public void call(@NotNull final TimeMeasure tm) {
@@ -153,42 +152,43 @@ public final class DumpIPCStats
                     (long) ipcCodeStats.size()),
                 tm.getTimeString());
           }
-        }).start();
+        }).start()) {
 
-    IntStream.range(0, reader.maxDoc())
-        .parallel()
-            // check, if document with current id exists
-        .filter(id -> liveDocs == null || liveDocs.get(id))
-            // get the document field values we're interested in
-        .mapToObj(id -> {
-          try {
-            return reader.document(id, fields);
-          } catch (IOException e) {
-            throw new UncheckedIOException(e);
-          }
-        })
-        .forEach(doc -> {
-          final List<IPCRecord> records =
-              Arrays.stream(doc.getValues(LUCENE_CONF.FLD_IPC))
-                  .map(ipcParser::parse).collect(Collectors.toList());
+      IntStream.range(0, reader.maxDoc())
+          .parallel()
+              // check, if document with current id exists
+          .filter(id -> liveDocs == null || liveDocs.get(id))
+              // get the document field values we're interested in
+          .mapToObj(id -> {
+            try {
+              return reader.document(id, fields);
+            } catch (IOException e) {
+              throw new UncheckedIOException(e);
+            }
+          })
+          .forEach(doc -> {
+            final List<IPCRecord> records =
+                Arrays.stream(doc.getValues(LUCENE_CONF.FLD_IPC))
+                    .map(ipcParser::parse).collect(Collectors.toList());
 
-          // store/in counter for number of IPC-codes assigned
-          numberOfIpcsPerDoc.compute(
-              records.size(), (k, v) -> v == null ? 1 : v + 1);
+            // store/in counter for number of IPC-codes assigned
+            numberOfIpcsPerDoc.compute(
+                records.size(), (k, v) -> v == null ? 1 : v + 1);
 
-          // store/in counter for number of unique IPC-sections assigned
-          final Collection<String> secs = records.stream()
-              .map(code -> code.get(Field.SECTION))
-              .collect(Collectors.toSet());
-          numberOfIpcSectionsPerDoc.compute(
-              secs.size(), (k, v) -> v == null ? 1 : v + 1);
+            // store/in counter for number of unique IPC-sections assigned
+            final Collection<String> secs = records.stream()
+                .map(code -> code.get(Field.SECTION))
+                .collect(Collectors.toSet());
+            numberOfIpcSectionsPerDoc.compute(
+                secs.size(), (k, v) -> v == null ? 1 : v + 1);
 
-          // increase counter for each code we've found
-          records.stream().forEach(code ->
-              ipcCodeStats.compute(code, (k, v) -> v == null ? 1 : v + 1));
-        });
+            // increase counter for each code we've found
+            records.stream().forEach(code ->
+                ipcCodeStats.compute(code, (k, v) -> v == null ? 1 : v + 1));
+          });
 
-    obs.stop();
+      obs.stop();
+    }
     LOG.info("Parsing results");
 
     ipcCodeStats.entrySet().parallelStream()

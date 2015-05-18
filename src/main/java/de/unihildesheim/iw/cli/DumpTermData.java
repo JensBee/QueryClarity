@@ -177,8 +177,7 @@ public final class DumpTermData
           term = termsEnum.next();
           final AtomicLong count = new AtomicLong(0L);
 
-          @SuppressWarnings("AnonymousInnerClassMayBeStatic")
-          final TaskObserver obs = new TaskObserver(
+          try (TaskObserver obs = new TaskObserver(
               new TaskObserverMessage() {
                 @Override
                 public void call(@NotNull final TimeMeasure tm) {
@@ -186,43 +185,44 @@ public final class DumpTermData
                       NumberFormat.getIntegerInstance().format(count.get()),
                       tm.getTimeString());
                 }
-              }).start();
+              }).start()) {
 
-          // normalize some parameters
-          final String fieldName =
-              StringUtils.lowerCase(this.cliParams.field);
-          final String langName =
-              StringUtils.lowerCase(this.cliParams.lang);
+            // normalize some parameters
+            final String fieldName =
+                StringUtils.lowerCase(this.cliParams.field);
+            final String langName =
+                StringUtils.lowerCase(this.cliParams.lang);
 
-          while (term != null) {
-            final String termStr = term.utf8ToString();
-            if (!sWords.contains(termStr.toLowerCase())) {
-              final double docFreq = (double) termsEnum.docFreq();
-              if (docFreq > 0d) {
-                final double relDocFreq = docFreq / (double) maxDoc;
+            while (term != null) {
+              final String termStr = term.utf8ToString();
+              if (!sWords.contains(termStr.toLowerCase())) {
+                final double docFreq = (double) termsEnum.docFreq();
+                if (docFreq > 0d) {
+                  final double relDocFreq = docFreq / (double) maxDoc;
 
-                if (relDocFreq > this.cliParams.threshold) {
-                  @SuppressWarnings("ObjectAllocationInLoop")
-                  final TableFieldContent tfc =
-                      new TableFieldContent(termsTable);
-                  tfc.setValue(TermsTable.Fields.TERM, termStr);
-                  tfc.setValue(TermsTable.Fields.DOCFREQ_REL, relDocFreq);
-                  tfc.setValue(TermsTable.Fields.DOCFREQ_ABS, docFreq);
-                  tfc.setValue(TermsTable.Fields.LANG, langName);
-                  tfc.setValue(TermsTable.Fields.FIELD, fieldName);
-                  if (this.cliParams.ipcRec != null) {
-                    tfc.setValue(
-                        TermsTable.FieldsOptional.IPC,
-                        this.cliParams.ipcRec.toFormattedString());
+                  if (relDocFreq > this.cliParams.threshold) {
+                    @SuppressWarnings("ObjectAllocationInLoop")
+                    final TableFieldContent tfc =
+                        new TableFieldContent(termsTable);
+                    tfc.setValue(TermsTable.Fields.TERM, termStr);
+                    tfc.setValue(TermsTable.Fields.DOCFREQ_REL, relDocFreq);
+                    tfc.setValue(TermsTable.Fields.DOCFREQ_ABS, docFreq);
+                    tfc.setValue(TermsTable.Fields.LANG, langName);
+                    tfc.setValue(TermsTable.Fields.FIELD, fieldName);
+                    if (this.cliParams.ipcRec != null) {
+                      tfc.setValue(
+                          TermsTable.FieldsOptional.IPC,
+                          this.cliParams.ipcRec.toFormattedString());
+                    }
+                    dataWriter.addContent(tfc, false);
+                    count.incrementAndGet();
                   }
-                  dataWriter.addContent(tfc, false);
-                  count.incrementAndGet();
                 }
               }
+              term = termsEnum.next();
             }
-            term = termsEnum.next();
+            obs.stop();
           }
-          obs.stop();
           LOG.info("Total of {} terms collected.",
               NumberFormat.getIntegerInstance().format(count));
         }

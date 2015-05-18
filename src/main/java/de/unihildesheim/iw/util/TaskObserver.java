@@ -23,7 +23,7 @@ import org.jetbrains.annotations.NotNull;
  * @author Jens Bertram (code@jens-bertram.net)
  */
 public class TaskObserver
-    implements Runnable {
+    implements Runnable, AutoCloseable {
   private final TaskObserverMessage tom;
   private long timeout = 15000L; // 15 sec
   private Thread t = new Thread(this);
@@ -63,6 +63,11 @@ public class TaskObserver
     } catch (final InterruptedException e) {
       // pass
     }
+  }
+
+  @Override
+  public void close() {
+    stop();
   }
 
   public static abstract class TaskObserverMessage {

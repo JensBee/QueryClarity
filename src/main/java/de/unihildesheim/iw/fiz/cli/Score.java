@@ -27,14 +27,18 @@ import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers.Language;
 import de.unihildesheim.iw.lucene.index.FDRIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
-import de.unihildesheim.iw.lucene.scoring.clarity.AbstractClarityScoreCalculation.AbstractCSCBuilder;
+import de.unihildesheim.iw.lucene.scoring.clarity
+    .AbstractClarityScoreCalculation.AbstractCSCBuilder;
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation;
-import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation.ClarityScoreCalculationException;
+import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation
+    .ClarityScoreCalculationException;
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreResult;
 import de.unihildesheim.iw.lucene.scoring.clarity.DefaultClarityScore;
-import de.unihildesheim.iw.lucene.scoring.clarity.DefaultClarityScoreConfiguration;
+import de.unihildesheim.iw.lucene.scoring.clarity
+    .DefaultClarityScoreConfiguration;
 import de.unihildesheim.iw.lucene.scoring.clarity.ImprovedClarityScore;
-import de.unihildesheim.iw.lucene.scoring.clarity.ImprovedClarityScoreConfiguration;
+import de.unihildesheim.iw.lucene.scoring.clarity
+    .ImprovedClarityScoreConfiguration;
 import de.unihildesheim.iw.lucene.scoring.clarity.ScorerType;
 import de.unihildesheim.iw.lucene.scoring.clarity.SimplifiedClarityScore;
 import de.unihildesheim.iw.lucene.scoring.data.CommonTermsFeedbackProvider;
@@ -226,147 +230,148 @@ public class Score
       SQLWarning insertWarn;
 
       final String[] stateMsg = {"none", "none"};
-
-      @SuppressWarnings("AnonymousInnerClassMayBeStatic")
-      final TaskObserver obs = new TaskObserver(
+      
+      try (TaskObserver obs = new TaskObserver(
           new TaskObserver.TaskObserverMessage() {
             @Override
             public void call(@NotNull final TimeMeasure tm) {
               LOG.info("Scorer {} is scoring {} (runtime: {}).",
                   stateMsg[0], stateMsg[1], tm.getTimeString());
             }
-          }).start();
+          })) {
+        obs.start();
+        // iterate over all scorers
+        for (final Tuple2<AbstractCSCBuilder, Configuration> scorerT2 :
+            scorer) {
+          // scorer is auto-closable
+          final ClarityScoreCalculation csc = scorerT2.a.build();
+          //final Configuration cscConf = scorerT2.b;
+          final String impl = csc.getIdentifier();
+          stateMsg[0] = impl;
 
-      // iterate over all scorers
-      for (final Tuple2<AbstractCSCBuilder, Configuration> scorerT2 :
-          scorer) {
-        // scorer is auto-closable
-        final ClarityScoreCalculation csc = scorerT2.a.build();
-        //final Configuration cscConf = scorerT2.b;
-        final String impl = csc.getIdentifier();
-        stateMsg[0] = impl;
+          if (termTable != null) {
+            stateMsg[1] = "terms";
+            // query for data
+            querySQL = "select " +
+                TermScoringTable.Fields.ID + ", " +
+                TermScoringTable.Fields.TERM +
+                " from " + TermScoringTable.TABLE_NAME +
+                " where " + TermScoringTable.Fields.LANG + "='" + langName +
+                "';";
+            stmt.execute(querySQL);
+            final ResultSet rs = stmt.getResultSet();
 
-        if (termTable != null) {
-          stateMsg[1] = "terms";
-          // query for data
-          querySQL = "select " +
-              TermScoringTable.Fields.ID + ", " +
-              TermScoringTable.Fields.TERM +
-              " from " + TermScoringTable.TABLE_NAME +
-              " where " + TermScoringTable.Fields.LANG + "='" + langName + "';";
-          stmt.execute(querySQL);
-          final ResultSet rs = stmt.getResultSet();
+            long rowCount = scoringDb
+                .getNumberOfRows(SentenceScoringTable.TABLE_NAME);
 
-          long rowCount = scoringDb
-              .getNumberOfRows(SentenceScoringTable.TABLE_NAME);
+            try (final TermScoringResultTable.Writer termWriter =
+                     termTable.getWriter(scoringDb.getConnection())) {
+              while (rs.next()) {
+                final Integer termId = rs.getInt(1);
+                final String term = rs.getString(2);
 
-          try (final TermScoringResultTable.Writer termWriter =
-                   termTable.getWriter(scoringDb.getConnection())) {
-            while (rs.next()) {
-              final Integer termId = rs.getInt(1);
-              final String term = rs.getString(2);
-
-              if (term == null) {
-                throw new IllegalStateException("Term was null.");
-              }
-
-              result = csc.calculateClarity(term);
-
-              @SuppressWarnings("ObjectAllocationInLoop")
-              final TableFieldContent tfc =
-                  new TableFieldContent(termTable);
-              tfc.setValue(TermScoringResultTable.Fields.TERM_REF, termId);
-              tfc.setValue(TermScoringResultTable.Fields.IMPL, impl);
-              tfc.setValue(TermScoringResultTable.Fields.IS_EMPTY,
-                  result.isEmpty());
-              tfc.setValue(TermScoringResultTable.Fields.SCORE,
-                  result.getScore());
-
-              // write result
-              insertStmt = termWriter.addContent(tfc, false);
-              insertWarn = insertStmt.getWarnings();
-
-              newRowCount = scoringDb.getNumberOfRows(
-                  TermScoringResultTable.TABLE_NAME);
-              if (newRowCount <= rowCount) {
-                if (insertWarn != null) {
-                  SQLWarning sqlWarn;
-                  while ((sqlWarn = insertWarn.getNextWarning()) != null) {
-                    LOG.error("SQL-warning: {}", sqlWarn.getMessage());
-                  }
+                if (term == null) {
+                  throw new IllegalStateException("Term was null.");
                 }
-                throw new IllegalStateException("Sentence row not written.");
-              } else {
-                rowCount = newRowCount;
+
+                result = csc.calculateClarity(term);
+
+                @SuppressWarnings("ObjectAllocationInLoop")
+                final TableFieldContent tfc =
+                    new TableFieldContent(termTable);
+                tfc.setValue(TermScoringResultTable.Fields.TERM_REF, termId);
+                tfc.setValue(TermScoringResultTable.Fields.IMPL, impl);
+                tfc.setValue(TermScoringResultTable.Fields.IS_EMPTY,
+                    result.isEmpty());
+                tfc.setValue(TermScoringResultTable.Fields.SCORE,
+                    result.getScore());
+
+                // write result
+                insertStmt = termWriter.addContent(tfc, false);
+                insertWarn = insertStmt.getWarnings();
+
+                newRowCount = scoringDb.getNumberOfRows(
+                    TermScoringResultTable.TABLE_NAME);
+                if (newRowCount <= rowCount) {
+                  if (insertWarn != null) {
+                    SQLWarning sqlWarn;
+                    while ((sqlWarn = insertWarn.getNextWarning()) != null) {
+                      LOG.error("SQL-warning: {}", sqlWarn.getMessage());
+                    }
+                  }
+                  throw new IllegalStateException("Sentence row not written.");
+                } else {
+                  rowCount = newRowCount;
+                }
               }
             }
           }
-        }
 
-        if (sentenceTable != null) {
-          stateMsg[1] = "sentences";
-          // query for data
-          querySQL = "select " +
-              "s." + SentenceScoringTable.Fields.ID + ", " +
-              "s." + SentenceScoringTable.Fields.SENTENCE +
-              "t." + TermScoringTable.Fields.LANG +
-              " from " + SentenceScoringTable.TABLE_NAME + " s" +
-              " inner join " +
-              TermScoringTable.TABLE_NAME + " t" +
-              " on (s." + SentenceScoringTable.Fields.TERM_REF +
-              " = t." + TermScoringTable.Fields.ID + ") " +
-              " where t." + TermScoringTable.Fields.LANG + "='" +
-              langName + "';";
-          stmt.execute(querySQL);
-          final ResultSet rs = stmt.getResultSet();
+          if (sentenceTable != null) {
+            stateMsg[1] = "sentences";
+            // query for data
+            querySQL = "select " +
+                "s." + SentenceScoringTable.Fields.ID + ", " +
+                "s." + SentenceScoringTable.Fields.SENTENCE +
+                "t." + TermScoringTable.Fields.LANG +
+                " from " + SentenceScoringTable.TABLE_NAME + " s" +
+                " inner join " +
+                TermScoringTable.TABLE_NAME + " t" +
+                " on (s." + SentenceScoringTable.Fields.TERM_REF +
+                " = t." + TermScoringTable.Fields.ID + ") " +
+                " where t." + TermScoringTable.Fields.LANG + "='" +
+                langName + "';";
+            stmt.execute(querySQL);
+            final ResultSet rs = stmt.getResultSet();
 
-          long rowCount = scoringDb
-              .getNumberOfRows(SentenceScoringTable.TABLE_NAME);
+            long rowCount = scoringDb
+                .getNumberOfRows(SentenceScoringTable.TABLE_NAME);
 
-          try (final SentenceScoringResultTable.Writer sentenceWriter =
-                   sentenceTable.getWriter(scoringDb.getConnection())) {
-            while (rs.next()) {
-              final Integer sentId = rs.getInt(1);
-              final String sent = rs.getString(2);
+            try (final SentenceScoringResultTable.Writer sentenceWriter =
+                     sentenceTable.getWriter(scoringDb.getConnection())) {
+              while (rs.next()) {
+                final Integer sentId = rs.getInt(1);
+                final String sent = rs.getString(2);
 
-              if (sent == null) {
-                throw new IllegalStateException("Sentence was null.");
-              }
-
-              result = csc.calculateClarity(sent);
-
-              @SuppressWarnings("ObjectAllocationInLoop")
-              final TableFieldContent tfc =
-                  new TableFieldContent(sentenceTable);
-              tfc.setValue(SentenceScoringResultTable.Fields.SENT_REF, sentId);
-              tfc.setValue(SentenceScoringResultTable.Fields.IMPL, impl);
-              tfc.setValue(SentenceScoringResultTable.Fields.IS_EMPTY,
-                  result.isEmpty());
-              tfc.setValue(SentenceScoringResultTable.Fields.SCORE,
-                  result.getScore());
-
-              // write result
-              insertStmt = sentenceWriter.addContent(tfc, false);
-              insertWarn = insertStmt.getWarnings();
-
-              newRowCount = scoringDb.getNumberOfRows(
-                  SentenceScoringResultTable.TABLE_NAME);
-              if (newRowCount <= rowCount) {
-                if (insertWarn != null) {
-                  SQLWarning sqlWarn;
-                  while ((sqlWarn = insertWarn.getNextWarning()) != null) {
-                    LOG.error("SQL-warning: {}", sqlWarn.getMessage());
-                  }
+                if (sent == null) {
+                  throw new IllegalStateException("Sentence was null.");
                 }
-                throw new IllegalStateException("Sentence row not written.");
-              } else {
-                rowCount = newRowCount;
+
+                result = csc.calculateClarity(sent);
+
+                @SuppressWarnings("ObjectAllocationInLoop")
+                final TableFieldContent tfc =
+                    new TableFieldContent(sentenceTable);
+                tfc.setValue(SentenceScoringResultTable.Fields.SENT_REF,
+                    sentId);
+                tfc.setValue(SentenceScoringResultTable.Fields.IMPL, impl);
+                tfc.setValue(SentenceScoringResultTable.Fields.IS_EMPTY,
+                    result.isEmpty());
+                tfc.setValue(SentenceScoringResultTable.Fields.SCORE,
+                    result.getScore());
+
+                // write result
+                insertStmt = sentenceWriter.addContent(tfc, false);
+                insertWarn = insertStmt.getWarnings();
+
+                newRowCount = scoringDb.getNumberOfRows(
+                    SentenceScoringResultTable.TABLE_NAME);
+                if (newRowCount <= rowCount) {
+                  if (insertWarn != null) {
+                    SQLWarning sqlWarn;
+                    while ((sqlWarn = insertWarn.getNextWarning()) != null) {
+                      LOG.error("SQL-warning: {}", sqlWarn.getMessage());
+                    }
+                  }
+                  throw new IllegalStateException("Sentence row not written.");
+                } else {
+                  rowCount = newRowCount;
+                }
               }
             }
           }
         }
       }
-      obs.stop();
     }
   }
 
