@@ -403,8 +403,7 @@ public final class FilteredDirectoryReader
       this.flrContext.docBits = filterBits;
 
       // provide a status message
-      LOG.info("Applying field-filter on index-segment {} ({} -> {})",
-          this.ord,
+      LOG.info("Applying field-filter on index-segment ({} -> {})",
           this.flrContext.docBits.cardinality(), filterBits.cardinality());
 
       if (fields.length > 0) {
