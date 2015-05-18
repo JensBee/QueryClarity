@@ -20,7 +20,6 @@ import de.unihildesheim.iw.Buildable.BuildableException;
 import de.unihildesheim.iw.GlobalConfiguration;
 import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
-import de.unihildesheim.iw.lucene.document.FeedbackQuery;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
@@ -429,12 +428,6 @@ public final class DefaultClarityScore
           .amount(this.conf.getFeedbackDocCount())
           .get();
       fbDocCount = DocIdSetUtils.cardinality(feedbackDocIds);
-      if (fbDocCount < this.conf.getFeedbackDocCount()) {
-        LOG.debug("Feedback amount too low, requesting random documents.");
-        feedbackDocIds = FeedbackQuery.getRandom(this.dataProv,
-            this.conf.getFeedbackDocCount(), feedbackDocIds);
-        fbDocCount = DocIdSetUtils.cardinality(feedbackDocIds);
-      }
       if (LOG.isDebugEnabled()) {
         LOG.debug("Feedback size: {} documents.", fbDocCount);
       }
