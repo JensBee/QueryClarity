@@ -78,6 +78,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Optional;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
@@ -285,9 +286,13 @@ public class Score
                     result.isEmpty());
                 tfc.setValue(TermScoringResultTable.Fields.SCORE,
                     result.getScore());
+                // get empty reason, if any
                 if (result.isEmpty()) {
-                  tfc.setValue(TermScoringResultTable.Fields.EMPTY_REASON,
-                      result.getEmptyReason());
+                  Optional<String> msg = result.getEmptyReason();
+                  if (msg.isPresent()) {
+                    tfc.setValue(TermScoringResultTable.Fields.EMPTY_REASON,
+                        msg.get());
+                  }
                 }
 
                 // write result
@@ -316,14 +321,14 @@ public class Score
             // query for data
             querySQL = "select " +
                 "s." + SentenceScoringTable.Fields.ID + ", " +
-                "s." + SentenceScoringTable.Fields.SENTENCE + ' ' +
-                "t." + TermScoringTable.Fields.LANG +
-                " from " + SentenceScoringTable.TABLE_NAME + " s " +
-                " inner join " +
-                TermScoringTable.TABLE_NAME + " t" +
-                " on (s." + SentenceScoringTable.Fields.TERM_REF +
-                " = t." + TermScoringTable.Fields.ID + ") " +
-                " where t." + TermScoringTable.Fields.LANG + "='" +
+                "s." + SentenceScoringTable.Fields.SENTENCE + ", " +
+                "t." + TermScoringTable.Fields.LANG + ' ' +
+                "from " + SentenceScoringTable.TABLE_NAME + " s " +
+                "inner join " +
+                TermScoringTable.TABLE_NAME + " t " +
+                "on (s." + SentenceScoringTable.Fields.TERM_REF +
+                "= t." + TermScoringTable.Fields.ID + ") " +
+                "where t." + TermScoringTable.Fields.LANG + "='" +
                 langName + "';";
             stmt.execute(querySQL);
             final ResultSet rs = stmt.getResultSet();
@@ -353,9 +358,13 @@ public class Score
                     result.isEmpty());
                 tfc.setValue(SentenceScoringResultTable.Fields.SCORE,
                     result.getScore());
+                // get empty reason, if any
                 if (result.isEmpty()) {
-                  tfc.setValue(SentenceScoringResultTable.Fields.EMPTY_REASON,
-                      result.getEmptyReason());
+                  Optional<String> msg = result.getEmptyReason();
+                  if (msg.isPresent()) {
+                    tfc.setValue(SentenceScoringResultTable.Fields.EMPTY_REASON,
+                        msg.get());
+                  }
                 }
 
                 // write result
