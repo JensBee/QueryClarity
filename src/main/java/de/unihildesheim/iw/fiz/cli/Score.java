@@ -288,7 +288,7 @@ public class Score
                     result.getScore());
                 // get empty reason, if any
                 if (result.isEmpty()) {
-                  Optional<String> msg = result.getEmptyReason();
+                  final Optional<String> msg = result.getEmptyReason();
                   if (msg.isPresent()) {
                     tfc.setValue(TermScoringResultTable.Fields.EMPTY_REASON,
                         msg.get());
@@ -360,7 +360,7 @@ public class Score
                     result.getScore());
                 // get empty reason, if any
                 if (result.isEmpty()) {
-                  Optional<String> msg = result.getEmptyReason();
+                  final Optional<String> msg = result.getEmptyReason();
                   if (msg.isPresent()) {
                     tfc.setValue(SentenceScoringResultTable.Fields.EMPTY_REASON,
                         msg.get());
