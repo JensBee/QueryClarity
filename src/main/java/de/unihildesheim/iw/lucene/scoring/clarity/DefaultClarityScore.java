@@ -501,7 +501,6 @@ public final class DefaultClarityScore
       // calculate query models
       final ScoreTupleLowPrecision[] dataSets = this.vocProvider
           .documentIds(feedbackDocIds).get()
-          .parallel()
           .map(term -> new ScoreTupleLowPrecision(
               model.query(term), this.dataProv.getRelativeTermFrequency(term)))
           .toArray(ScoreTupleLowPrecision[]::new);
