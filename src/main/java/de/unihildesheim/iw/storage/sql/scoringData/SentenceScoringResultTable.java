@@ -52,7 +52,7 @@ public final class SentenceScoringResultTable
   /**
    * Table name.
    */
-  public static final String TABLE_NAME = "scoring_terms_results";
+  public static final String TABLE_NAME = "scoring_sentence_results";
 
   /**
    * Fields in this table.
