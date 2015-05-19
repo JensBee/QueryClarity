@@ -66,7 +66,7 @@ public final class BitsUtils {
     }
     final FixedBitSet fbs;
     if (FixedBitSet.class.isInstance(bits)) {
-      fbs = (FixedBitSet) bits;
+      fbs = ((FixedBitSet) bits).clone();
     } else if (BitSet.class.isInstance(bits)) {
       fbs = new FixedBitSet(bits.length());
       StreamUtils.stream((BitSet) bits).forEach(fbs::set);
