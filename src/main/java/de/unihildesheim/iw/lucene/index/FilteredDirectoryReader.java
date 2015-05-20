@@ -22,8 +22,8 @@ import de.unihildesheim.iw.lucene.index.TermFilter.AcceptAll;
 import de.unihildesheim.iw.lucene.search.EmptyFieldFilter;
 import de.unihildesheim.iw.lucene.util.BitsUtils;
 import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
-import de.unihildesheim.iw.lucene.util.StreamUtils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import org.apache.commons.collections4.map.LRUMap;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
@@ -38,6 +38,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSet;
@@ -46,6 +47,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.FixedBitSet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -58,13 +60,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Spliterator.OfLong;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -132,6 +134,11 @@ public final class FilteredDirectoryReader
       throw new IllegalStateException(
           "Indices with deletions are not supported.");
     }
+
+    this.leaves().stream().forEach(lrc -> {
+      final FilteredLeafReader flr = (FilteredLeafReader) lrc.reader();
+      flr.setOrd(lrc.ord);
+    });
 
     // all sub-readers are now initialized
     if (LOG.isDebugEnabled()) {
@@ -233,10 +240,6 @@ public final class FilteredDirectoryReader
     private static final Logger LOG =
         LoggerFactory.getLogger(FilteredLeafReader.class);
     /**
-     * Constant value if no fields are selected.
-     */
-    private static final String[] NO_FIELDS = new String[0];
-    /**
      * Constant value if no fieldsInfos are available.
      */
     private static final FieldInfos NO_FIELDINFOS =
@@ -245,7 +248,7 @@ public final class FilteredDirectoryReader
      * Set of field names visible. Must be sorted to use {@link
      * Arrays#binarySearch(Object[], Object)}.
      */
-    private final String[] fields;
+    private final Set<String> fields;
     /**
      * Contextual meta-data.
      */
@@ -262,10 +265,6 @@ public final class FilteredDirectoryReader
      * Fields instance.
      */
     private final FilteredFields fieldsInstance;
-    /**
-     * The readers ord in the top-level's leaves array
-     */
-    private final int ord;
 
     /**
      * <p>Construct a FilterLeafReader based on the specified base reader.
@@ -294,24 +293,21 @@ public final class FilteredDirectoryReader
             "You should use a plain IndexReader to get better performance.");
       }
 
-      this.ord = wrap.getContext().ord;
-      this.flrContext = new FLRContext();
-
       // all docs are initially live (no deletions allowed)
-      this.flrContext.docBits = new FixedBitSet(this.in.maxDoc());
-      this.flrContext.docBits.set(0, this.flrContext.docBits.length());
+      final FixedBitSet ctxDocBits = new FixedBitSet(this.in.maxDoc());
+      ctxDocBits.set(0, ctxDocBits.length());
 
       // reduce the number of visible fields, if desired
       if (vFields.isEmpty()) {
         // all fields are visible
         this.fieldInfos = this.in.getFieldInfos();
+
         this.fields = StreamSupport.stream(
             this.in.fields().spliterator(), false)
-            // array needs to be sorted for binarySearch
-            .sorted().toArray(String[]::new);
+            .collect(Collectors.toSet());
       } else {
-        this.fields = applyFieldFilter(vFields, negate);
-        this.fieldInfos = this.fields.length == 0 ? NO_FIELDINFOS :
+        this.fields = applyFieldFilter(ctxDocBits, vFields, negate);
+        this.fieldInfos = this.fields.isEmpty() ? NO_FIELDINFOS :
             new FieldInfos(StreamSupport.stream(
                 this.in.getFieldInfos().spliterator(), false)
                 .filter(fi -> hasField(fi.name))
@@ -320,96 +316,77 @@ public final class FilteredDirectoryReader
 
       if (qFilter != null) {
         // user document filter gets applied
-        applyDocFilter(qFilter);
+        applyDocFilter(ctxDocBits, qFilter);
       }
 
-      // find max value
-      final int maxBit = this.flrContext.docBits.length() - 1;
-      if (this.flrContext.docBits.get(maxBit)) {
-        // highest bit is set
-        this.flrContext.maxDoc = maxBit + 1;
-      } else {
-        // get the first bit set starting from the highest one
-        final int maxDoc = this.flrContext.docBits.prevSetBit(maxBit);
-        this.flrContext.maxDoc = maxDoc >= 0 ? maxDoc + 1 : 1;
-      }
-
-      // number of documents enabled after filtering
-      this.flrContext.numDocs = this.flrContext.docBits.cardinality();
-      // check, if all bits are turned on
-      if (this.flrContext.numDocs == this.flrContext.docBits.length()) {
-        this.flrContext.allBitsSet = true;
-      }
+      this.flrContext = new FLRContext(
+          ctxDocBits, tFilter, this.in.getContext()
+      );
 
       if (LOG.isDebugEnabled()) {
         LOG.debug("Final state: numDocs={} maxDoc={} fields={}",
-            this.flrContext.numDocs, this.flrContext.maxDoc,
-            Arrays.toString(this.fields));
+            this.flrContext.numDocs, this.flrContext.maxDoc, this.fields);
       }
-
-      // create context
-      this.flrContext.termFilter = tFilter;
-      this.flrContext.originContext = this.in.getContext();
 
       this.fieldsInstance = new FilteredFields(this.flrContext,
           this.in.fields(), this.fields);
     }
 
+    /**
+     * Set the ord value for this reader. (Available after initializing the
+     * parent reader.)
+     *
+     * @param ord Ord value
+     */
+    void setOrd(final int ord) {
+      this.flrContext.ord = ord;
+    }
+
     @Override
     public String toString() {
-      return "FilteredFields [" + this.in + ']';
+      return "FilteredFields [" + this.in + "] (" + this + ')';
     }
 
     /**
+     * @param ctxDocBits LiveDoc bits (gets modified in place)
      * @param vFields Collection of fields visible to the reader
      * @param negate If true, given fields should be negated
      * @return Fields with fields without documents removed
      * @throws IOException Thrown on low-level I/O-errors
      */
     @SuppressWarnings("ObjectAllocationInLoop")
-    private String[] applyFieldFilter(
-        final Collection<String> vFields, final boolean negate)
+    private Set<String> applyFieldFilter(
+        @NotNull final FixedBitSet ctxDocBits,
+        @NotNull final Collection<String> vFields,
+        final boolean negate)
         throws IOException {
 
-      String[] fields = StreamSupport.stream(
+      Set<String> fields = StreamSupport.stream(
           this.in.fields().spliterator(), false)
           .filter(f -> negate ^ vFields.contains(f))
-          .toArray(String[]::new);
+          .collect(Collectors.toSet());
 
-      // Bit-set indicating valid documents (after filtering).
-      // A document whose bit is on is valid.
-      final FixedBitSet filterBits = new FixedBitSet(this.in.maxDoc());
+      final int preFilter = ctxDocBits.cardinality();
 
-      if (fields.length == 0) {
-        fields = NO_FIELDS;
+      if (fields.isEmpty()) {
+        fields = Collections.emptySet();
       } else {
-        final List<String> finalFields =
-            new ArrayList<>(this.in.fields().size());
-        for (final String field : fields) {
-          final DocIdSet docsWithField = new EmptyFieldFilter(field)
-              .getDocIdSet(this.in.getContext(),
-                  null); // isAccepted all docs, no deletions
-
-          // may be null, if no document matches
-          finalFields.add(field);
-          StreamUtils.stream(docsWithField).forEach(filterBits::set);
+        final Iterator<String> fieldsIt = fields.iterator();
+        while (fieldsIt.hasNext()) {
+          final DocIdSet docsWithField = new EmptyFieldFilter(fieldsIt.next())
+              .getDocIdSet(this.in.getContext(), null);
+          if (DocIdSetUtils.cardinality(docsWithField) > 0) {
+            ctxDocBits.and(docsWithField.iterator());
+          } else {
+            fieldsIt.remove();
+          }
         }
-
-        fields = finalFields.isEmpty() ? NO_FIELDS :
-            finalFields.toArray(new String[finalFields.size()]);
       }
-
-      // update visible documents bits
-      this.flrContext.docBits = filterBits;
 
       // provide a status message
-      LOG.info("Applying field-filter on index-segment ({} -> {})",
-          this.flrContext.docBits.cardinality(), filterBits.cardinality());
+      LOG.info("Applying field-filter on index-segment ({} -> {}) fields={}",
+          preFilter, ctxDocBits.cardinality(), fields);
 
-      if (fields.length > 0) {
-        // array needs to be sorted for binarySearch
-        Arrays.sort(fields);
-      }
       return fields;
     }
 
@@ -420,29 +397,26 @@ public final class FilteredDirectoryReader
      * @return True, if valid (visible), false otherwise
      */
     boolean hasField(final String field) {
-      return this.fields.length != 0 &&
-          Arrays.binarySearch(this.fields, field) >= 0;
+      return this.fields.contains(field);
     }
 
     /**
+     * @param ctxDocBits LiveDoc bits (gets modified in place)
      * @param aFilter Filter to select documents provided by this reader
      * @throws IOException Thrown on low-level I/O errors
      */
-    private void applyDocFilter(final Filter aFilter)
+    private void applyDocFilter(
+        @NotNull final FixedBitSet ctxDocBits,
+        @NotNull final Filter aFilter)
         throws IOException {
+      final int preFilter = ctxDocBits.cardinality();
 
-      // Bit-set indicating valid documents (after filtering).
-      // A document whose bit is on is valid.
-      final FixedBitSet filterBits = new FixedBitSet(this.in.maxDoc());
-      StreamUtils.stream(aFilter.getDocIdSet(
-          this.in.getContext(), this.flrContext.getDocBitsOrNull()))
-          .forEach(filterBits::set);
+      ctxDocBits.and(aFilter.getDocIdSet(
+          this.in.getContext(), ctxDocBits).iterator());
 
       // provide a status message
-      LOG.info("Applying document-filter on index-segment {} ({} -> {})",
-          this.ord,
-          this.flrContext.docBits.cardinality(), filterBits.cardinality());
-      this.flrContext.docBits = filterBits;
+      LOG.info("Applying document-filter on index-segment ({} -> {})",
+          preFilter, ctxDocBits.cardinality());
     }
 
     @Override
@@ -506,8 +480,8 @@ public final class FilteredDirectoryReader
       // get a bit-set of matching docs from the original reader..
       // AND them with the allowed documents to get only visible matches
       @Nullable final BitSet filteredDocs;
-      filteredDocs = BitsUtils.bits2FixedBitSet(
-          this.in.getDocsWithField(field));
+      filteredDocs =
+          BitsUtils.bits2FixedBitSet(this.in.getDocsWithField(field));
       if (filteredDocs == null) {
         return null;
       }
@@ -539,7 +513,7 @@ public final class FilteredDirectoryReader
     @Override
     @Nullable
     public BitSet getLiveDocs() {
-      return this.flrContext.docBits;
+      return this.flrContext.docBits.clone();
     }
 
     @Override
@@ -635,7 +609,7 @@ public final class FilteredDirectoryReader
      * @return True, if filtered
      */
     private boolean isFieldsFiltered() {
-      return this.fields.length != 0;
+      return !this.fields.isEmpty();
     }
 
 
@@ -794,19 +768,14 @@ public final class FilteredDirectoryReader
   static final class FilteredFields
       extends Fields {
     /**
-     * Logger instance for this class.
-     */
-    private static final Logger LOG =
-        LoggerFactory.getLogger(FilteredFields.class);
-    /**
      * Fields collected from all visible documents.
      */
-    private final String[] fields;
+    private final Set<String> fields;
     /**
-     * Caches total document/term frequency values from any FilteredTerms
-     * instance.
+     * Caches total document/term frequency & and docCount values from any
+     * FilteredTerms instance.
      */
-    private final Map<String, long[]> fieldTermsSumCache;
+    private final Map<String, long[]> fieldValues;
     /**
      * Context information for FilteredLeafReader.
      */
@@ -815,10 +784,8 @@ public final class FilteredDirectoryReader
      * The underlying Fields instance.
      */
     private final Fields in;
-    /**
-     * Static value for empty field list.
-     */
-    private static final String[] NO_FIELDS = {};
+
+    private final TermsEnumTermContextMap tetcMap;
 
     /**
      * Creates a new FilterFields.
@@ -829,19 +796,28 @@ public final class FilteredDirectoryReader
      * Useful in combination with Field instances from TermVectors.
      * @param fld Visible fields
      */
+    @SuppressWarnings("ObjectAllocationInLoop")
     FilteredFields(
         final FLRContext flr, final Fields wrap, final boolean skipDocCheck,
-        final String... fld) {
+        final Collection<String> fld) {
       this.in = wrap;
       this.ctx = flr;
-      if (fld.length == 0) {
-        this.fieldTermsSumCache = Collections.emptyMap();
-        this.fields = NO_FIELDS;
+
+      if (fld.isEmpty()) {
+        this.fieldValues = Collections.emptyMap();
+        this.fields = Collections.emptySet();
       } else {
-        this.fieldTermsSumCache = new ConcurrentHashMap<>(fld.length << 1);
-        // collect visible document fields
-        this.fields = getFields(skipDocCheck, fld);
+        this.fieldValues = Collections.synchronizedMap(
+            new HashMap<>(fld.size() << 1));
+        this.fields = new HashSet<>(fld.size());
+        this.fields.addAll(fld);
+        for (final String field : this.fields) {
+          this.fieldValues.put(field, new long[]{-1L, -1L, -1L});
+        }
       }
+
+      // create map to store term contexts
+      this.tetcMap = new TermsEnumTermContextMap(this.fields);
     }
 
     /**
@@ -852,34 +828,8 @@ public final class FilteredDirectoryReader
      * @param fld Visible fields
      */
     FilteredFields(
-        final FLRContext flr, final Fields wrap, final String... fld) {
+        final FLRContext flr, final Fields wrap, final Collection<String> fld) {
       this(flr, wrap, false, fld);
-    }
-
-    /**
-     * Get a list of all visible document fields that have any content.
-     *
-     * @param skipDocCheck Skip check, if a document exists with a given field.
-     * Usable with TermVector Fields instances.
-     * @param fld Field initially set visible
-     * @return List of available document fields
-     */
-    @SuppressFBWarnings("EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS")
-    private String[] getFields(
-        final boolean skipDocCheck, final String... fld) {
-      return StreamSupport.stream(this.in.spliterator(), false)
-          .filter(f -> {
-            try {
-              return (Arrays.binarySearch(fld, f) >= 0) &&
-                  (skipDocCheck || new FilteredTerms(
-                      this.ctx, this, this.in.terms(f), f).hasDoc());
-            } catch (final IOException e) {
-              LOG.error("Error parsing terms in field '{}'.", f, e);
-              throw new UncheckedIOException(e);
-            }
-          })
-          .sorted()
-          .toArray(String[]::new);
     }
 
     /**
@@ -888,30 +838,34 @@ public final class FilteredDirectoryReader
      * @return Visible fields
      */
     public String[] getFields() {
-      return this.fields.clone();
+      return this.fields.toArray(new String[this.fields.size()]);
     }
 
     @Override
     public String toString() {
-      return "FilteredFields [" + this.in + ']';
+      return "FilteredFields [" + this.in + "] (" + this + ')';
     }
 
     @Override
     public Iterator<String> iterator() {
-      return Arrays.stream(this.fields).iterator();
+      return this.fields.iterator();
     }
 
     @Override
     @Nullable
     public Terms terms(final String field)
         throws IOException {
-      return Arrays.binarySearch(this.fields, field) >= 0 ?
-          new FilteredTerms(this.ctx, this, this.in.terms(field), field) : null;
+      if (this.fields.contains(field)) {
+        return new FilteredTerms(this.ctx, this.fieldValues.get(field),
+            this.tetcMap, this.in.terms(field), field);
+      } else {
+        return null;
+      }
     }
 
     @Override
     public int size() {
-      return this.fields.length;
+      return this.fields.size();
     }
 
     /**
@@ -936,29 +890,64 @@ public final class FilteredDirectoryReader
     /**
      * Bits with visible documents bits turned on.
      */
-    FixedBitSet docBits;
+    private final FixedBitSet docBits;
     /**
      * Term filter in use.
      */
-    @Nullable
-    TermFilter termFilter;
+    private final TermFilter termFilter;
     /**
      * Context of wrapped reader.
      */
-    @Nullable
-    LeafReaderContext originContext;
+    private final LeafReaderContext originContext;
     /**
      * Number of visible documents.
      */
-    int numDocs;
+    private final int numDocs;
     /**
      * Highest document number.
      */
-    int maxDoc;
+    private final int maxDoc;
     /**
      * True, if all bits are set (all documents are enabled).
      */
-    boolean allBitsSet;
+    private final boolean allBitsSet;
+    /**
+     * Readers ord. Set after main Composite instance is initialized.
+     */
+    int ord = -1;
+
+    /**
+     * Create a context object containing information about this reader.
+     *
+     * @param ctxDocBits Live documents bits
+     * @param tFilter Term filter
+     * @param originCtx Original context of this reader
+     */
+    FLRContext(
+        @NotNull final FixedBitSet ctxDocBits,
+        @NotNull final TermFilter tFilter,
+        @NotNull final LeafReaderContext originCtx
+    ) {
+      this.docBits = ctxDocBits.clone();
+      this.originContext = originCtx;
+      this.termFilter = tFilter;
+
+      // find max docBits value
+      final int maxBit = this.docBits.length() - 1;
+      if (this.docBits.get(maxBit)) {
+        // highest bit is set
+        this.maxDoc = maxBit + 1;
+      } else {
+        // get the first bit set starting from the highest one
+        final int maxDoc = this.docBits.prevSetBit(maxBit);
+        this.maxDoc = maxDoc >= 0 ? maxDoc + 1 : 1;
+      }
+
+      // number of documents enabled after filtering
+      this.numDocs = this.docBits.cardinality();
+      // check, if all bits are turned on
+      this.allBitsSet = this.numDocs == this.docBits.length();
+    }
 
     /**
      * Get the bits for all available documents or {@code null} if all documents
@@ -987,11 +976,8 @@ public final class FilteredDirectoryReader
      * Context information for FilteredLeafReader.
      */
     private final FLRContext ctx;
-    /**
-     * One-time calculated total term-frequency value for the current term.
-     * {@code -1}, if not calculated.
-     */
-    private volatile long ttf;
+    private final TermsEnumTermContextMap tetcMap;
+    private final String field;
 
     /**
      * Creates a new FilterTermsEnum.
@@ -1001,42 +987,85 @@ public final class FilteredDirectoryReader
      */
     FilteredTermsEnum(
         @NotNull final FLRContext flr,
+        @NotNull final TermsEnumTermContextMap tetcMap,
+        @NotNull final String fld,
         @NotNull final TermsEnum wrap) {
       this.in = wrap;
       this.ctx = flr;
-      this.ttf = -1L;
+      this.field = fld;
+
+      this.tetcMap = tetcMap;
     }
 
     @Override
     public String toString() {
-      return "FilteredTermsEnum [" + this.in + ']';
+      return "FilteredTermsEnum [" + this.in + "] (" + this + ')';
     }
 
+    @SuppressWarnings("UnnecessarilyQualifiedInnerClassAccess")
     @Override
     public boolean seekExact(@NotNull final BytesRef term)
         throws IOException {
-      this.ttf = -1L; // reset ttf value, since current term has changed
+      final TermsEnumTermContext termContext =
+          this.tetcMap.getContext(this.field, term);
 
-      return this.in.seekCeil(term) == SeekStatus.FOUND && hasDoc() &&
-          (this.ctx.termFilter == null ||
-              this.ctx.termFilter.isAccepted(this.in, term()));
+      // in every case do a seek to position the enum
+      final boolean isSeekedTo;
+      if (termContext.termState == null) {
+        isSeekedTo = this.in.seekExact(term);
+      } else {
+        isSeekedTo = true;
+        this.in.seekExact(term, termContext.termState);
+      }
+
+      if (termContext.vis == TermsEnumTermContext.VisState.UNDEFINED) {
+        if (isSeekedTo && hasDoc() &&
+            this.ctx.termFilter.isAccepted(this.in, term)) {
+          termContext.vis = TermsEnumTermContext.VisState.VISIBLE;
+        } else {
+          termContext.vis = TermsEnumTermContext.VisState.HIDDEN;
+        }
+      }
+      return termContext.vis == TermsEnumTermContext.VisState.VISIBLE;
     }
 
+    @SuppressWarnings("UnnecessarilyQualifiedInnerClassAccess")
     @Override
     public SeekStatus seekCeil(@NotNull final BytesRef term)
         throws IOException {
-      this.ttf = -1L; // reset ttf value, since current term has changed
-      // try seek to term
-      SeekStatus status = this.in.seekCeil(term);
+      final TermsEnumTermContext termContext =
+          this.tetcMap.getContext(this.field, term);
 
-      // check, if we hit the end of the term list
-      // or term is contained in any visible document
-      while (status != SeekStatus.END) {
-        if (hasDoc() && (this.ctx.termFilter == null ||
-            this.ctx.termFilter.isAccepted(this.in, term()))) {
-          break;
+      SeekStatus status;
+
+      if (termContext.termState == null) {
+        // try seek to term
+        if (seekExact(term)) {
+          status = SeekStatus.FOUND;
+        } else {
+          status = this.in.seekCeil(term);
+          // check, if we hit the end of the term list
+          // or term is contained in any visible document
+          while (status != SeekStatus.END) {
+            final BytesRef currTerm = this.in.term();
+            if (hasDoc() && this.ctx.termFilter.isAccepted(this.in, currTerm)) {
+              this.tetcMap.getContext(this.field, term).vis =
+                  TermsEnumTermContext.VisState.VISIBLE;
+              break;
+            } else {
+              this.tetcMap.getContext(this.field, term).vis =
+                  TermsEnumTermContext.VisState.HIDDEN;
+            }
+            status = next() == null ? SeekStatus.END : SeekStatus.NOT_FOUND;
+          }
         }
-        status = next() == null ? SeekStatus.END : SeekStatus.NOT_FOUND;
+      } else {
+        this.in.seekExact(term, termContext.termState);
+        if (termContext.vis == TermsEnumTermContext.VisState.VISIBLE) {
+          status = SeekStatus.FOUND;
+        } else {
+          status = next() == null ? SeekStatus.END : SeekStatus.NOT_FOUND;
+        }
       }
       return status;
     }
@@ -1062,18 +1091,25 @@ public final class FilteredDirectoryReader
      * @return Next term or {@code null}, if there's none left
      * @throws IOException Thrown on low-level I/O-errors
      */
-    @SuppressWarnings("StatementWithEmptyBody")
+    @SuppressWarnings({"StatementWithEmptyBody",
+        "UnnecessarilyQualifiedInnerClassAccess"})
     @Override
     @Nullable
     public BytesRef next()
         throws IOException {
-      this.ttf = -1L; // reset ttf value, since current term has changed
       BytesRef term;
 
-      while ((term = this.in.next()) != null && (!hasDoc() ||
-          (this.ctx.termFilter != null &&
-              !this.ctx.termFilter.isAccepted(this.in, term)))) {
-        // NOP, just skip terms we should ignore
+      while ((term = this.in.next()) != null) {
+        final TermsEnumTermContext termContext =
+            this.tetcMap.getContext(this.field, term);
+        if (termContext.vis == TermsEnumTermContext.VisState.VISIBLE) {
+          break;
+        } else if (hasDoc() && this.ctx.termFilter.isAccepted(this.in, term)) {
+          termContext.vis = TermsEnumTermContext.VisState.VISIBLE;
+          break;
+        } else {
+          termContext.vis = TermsEnumTermContext.VisState.HIDDEN;
+        }
       }
       return term;
     }
@@ -1090,26 +1126,36 @@ public final class FilteredDirectoryReader
     }
 
     @Override
-    public long ord() {
-      throw new UnsupportedOperationException();
+    public long ord()
+        throws IOException {
+      return this.in.ord();
     }
 
     @Override
     public int docFreq()
         throws IOException {
-      final PostingsEnum pe = this.in.postings(this.ctx.getDocBitsOrNull(),
-          null, (int) PostingsEnum.NONE);
-      int docFreq = 0;
-      while (pe.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-        docFreq++;
+      final TermsEnumTermContext termContext =
+          this.tetcMap.getContext(this.field, this.in.term());
+
+      if (termContext.docFreq < 0) {
+        final PostingsEnum pe = this.in.postings(this.ctx.getDocBitsOrNull(),
+            null, (int) PostingsEnum.NONE);
+        int docFreq = 0;
+        while (pe.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+          docFreq++;
+        }
+        termContext.docFreq = docFreq;
       }
-      return docFreq;
+      return termContext.docFreq;
     }
 
     @Override
     public long totalTermFreq()
         throws IOException {
-      if (this.ttf < 0L) {
+      final TermsEnumTermContext termContext =
+          this.tetcMap.getContext(this.field, this.in.term());
+
+      if (termContext.ttf < 0L) {
         long newTTF;
         final PostingsEnum pe;
 
@@ -1135,7 +1181,6 @@ public final class FilteredDirectoryReader
         } else {
           // less than half of the documents are enabled, so add up all
           // values manually for all enabled documents
-//          pe = this.in.postings(this.ctx.docBits, null,
           pe = this.in.postings(this.ctx.getDocBitsOrNull(), null,
               (int) PostingsEnum.FREQS);
           // add up values
@@ -1144,9 +1189,9 @@ public final class FilteredDirectoryReader
             newTTF += (long) pe.freq();
           }
         }
-        this.ttf = newTTF;
+        termContext.ttf = newTTF;
       }
-      return this.ttf;
+      return termContext.ttf;
     }
 
     @SuppressWarnings("ObjectEquality")
@@ -1179,31 +1224,35 @@ public final class FilteredDirectoryReader
      */
     private final String field;
     /**
-     * Cached values of total document/term frequency. Set once it's calculated,
-     * otherwise the value is -1.
+     * /** Caches total document/term frequency & and docCount values. Set once
+     * it's calculated, otherwise the value is -1.
      */
-    private final long[] sumFreqs;
+    private final long[] cachedTermValues;
     /**
      * Context information for FilteredLeafReader.
      */
-    final FLRContext ctx;
+    private final FLRContext ctx;
     /**
      * Original Terms instance being wrapped.
      */
     private final Terms in;
+    private final TermsEnumTermContextMap tetcMap;
 
     /**
      * Creates a new FilterTerms, passing a FilterFields instance. This gets
      * used, if the global instance has not yet initialized.
      *
+     * @param termValues Cached values of total document/term frequency & and
+     * docCount
      * @param wrap the underlying Terms instance
      * @param fld Current field.
      * @param flr Context information for FilteredLeafReader
-     * @param ffInstance FilteredFields instance, if not initialized already
      */
+    @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
     FilteredTerms(
         @NotNull final FLRContext flr,
-        @NotNull final FilteredFields ffInstance,
+        @NotNull final long[] termValues,
+        @NotNull final TermsEnumTermContextMap tetcMap,
         @NotNull final Terms wrap,
         @NotNull final String fld) {
       this.in = wrap;
@@ -1211,44 +1260,20 @@ public final class FilteredDirectoryReader
       this.field = fld;
 
       // initialized cached frequency values
-      @Nullable long[] sumFreqs = ffInstance.fieldTermsSumCache.get(this.field);
-      if (sumFreqs == null) {
-        sumFreqs = new long[]{-1L, -1L};
-        ffInstance.fieldTermsSumCache.put(this.field, sumFreqs);
-      }
-      this.sumFreqs = sumFreqs;
-    }
-
-    /**
-     * Checks, if a document with the current field is visible.
-     *
-     * @return True if any document contains any term in the current field
-     * @throws IOException Thrown on low-level I/O errors
-     */
-    public boolean hasDoc()
-        throws IOException {
-      final TermsEnum termsEnum = iterator(null);
-      PostingsEnum pe = null;
-
-      while (termsEnum.next() != null) {
-        pe = termsEnum.postings(this.ctx.getDocBitsOrNull(),
-            pe, (int) PostingsEnum.NONE);
-        if (pe.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-          return true;
-        }
-      }
-      return false;
+      this.cachedTermValues = termValues;
+      this.tetcMap = tetcMap;
     }
 
     @Override
     public String toString() {
-      return "FilteredTerms [" + this.in + ']';
+      return "FilteredTerms [" + this.in + "] (" + this + ')';
     }
 
     @Override
     public TermsEnum iterator(@Nullable final TermsEnum reuse)
         throws IOException {
-      return new FilteredTermsEnum(this.ctx, this.in.iterator(reuse));
+      return new FilteredTermsEnum(this.ctx, this.tetcMap, this.field,
+          this.in.iterator(reuse));
     }
 
     @Override
@@ -1257,11 +1282,12 @@ public final class FilteredDirectoryReader
     }
 
     @Override
-    public synchronized long getSumTotalTermFreq()
+    public long getSumTotalTermFreq()
         throws IOException {
-      if (this.sumFreqs[1] < 0L) {
+      // calculate only once. Lazy check, does not hurt, if calculated twice
+      if (this.cachedTermValues[1] < 0L) {
         final TermsEnum te = iterator(null);
-        this.sumFreqs[1] = StreamSupport.longStream(new OfLong() {
+        this.cachedTermValues[1] = StreamSupport.longStream(new OfLong() {
           @Override
           @Nullable
           public OfLong trySplit() {
@@ -1281,9 +1307,8 @@ public final class FilteredDirectoryReader
                 return false;
               } else {
                 //noinspection ConstantConditions
-                if (FilteredTerms.this.ctx.termFilter == null ||
-                    FilteredTerms.this.ctx
-                        .termFilter.isAccepted(te, nextTerm)) {
+                if (FilteredTerms.this.ctx.
+                    termFilter.isAccepted(te, nextTerm)) {
                   action.accept(te.totalTermFreq());
                 }
                 return true;
@@ -1299,26 +1324,31 @@ public final class FilteredDirectoryReader
           }
         }, false).sum();
       }
-      return this.sumFreqs[1];
+      return this.cachedTermValues[1];
     }
 
     @Override
-    public synchronized long getSumDocFreq()
+    public long getSumDocFreq()
         throws IOException {
-      if (this.sumFreqs[0] < 0L) {
+      // calculate only once. Lazy check, does not hurt, if calculated twice
+      if (this.cachedTermValues[0] < 0L) {
         final TermsEnum te = iterator(null);
-        this.sumFreqs[0] = StreamSupport.longStream(
+        this.cachedTermValues[0] = StreamSupport.longStream(
             new DocFreqSpliterator(te), false).sum();
       }
-      return this.sumFreqs[0];
+      return this.cachedTermValues[0];
     }
 
     @Override
     public int getDocCount()
         throws IOException {
-      final DocIdSet docsWithField = new EmptyFieldFilter(this.field)
-          .getDocIdSet(this.ctx.originContext, this.ctx.getDocBitsOrNull());
-      return DocIdSetUtils.cardinality(docsWithField);
+      if (this.cachedTermValues[2] < 0L) {
+        final DocIdSet docsWithField = new EmptyFieldFilter(this.field)
+            .getDocIdSet(this.ctx.originContext, this.ctx.getDocBitsOrNull());
+        this.cachedTermValues[2] =
+            (long) DocIdSetUtils.cardinality(docsWithField);
+      }
+      return (int) this.cachedTermValues[2];
     }
 
     @Override
@@ -1342,25 +1372,13 @@ public final class FilteredDirectoryReader
     }
 
     /**
-     * Get the original TermsEnum instance from the wrapped reader.
-     *
-     * @param reuse TermsEnum for reuse
-     * @return TermsEnum instance received from wrapped reader
-     * @throws IOException Thrown on low-level I/O-errors
-     */
-    public TermsEnum unfilteredIterator(@Nullable final TermsEnum reuse)
-        throws IOException {
-      return this.in.iterator(reuse);
-    }
-
-    /**
      * Simple spliterator for document-frequency calculation of the current
      * term.
      */
     private static final class DocFreqSpliterator
         implements OfLong {
       /**
-       * Wrapped terms enumarator.
+       * Wrapped terms enumerator.
        */
       private final TermsEnum te;
 
@@ -1404,5 +1422,93 @@ public final class FilteredDirectoryReader
         return IMMUTABLE; // not mutable
       }
     }
+  }
+
+  private static final class TermsEnumTermContext {
+    TermsEnumTermContext() {
+    }
+
+    enum VisState {
+      VISIBLE, HIDDEN, UNDEFINED;
+    }
+
+    int docFreq = -1;
+    long ttf = -1L;
+    TermState termState;
+    VisState vis = VisState.UNDEFINED; // 0=no 1=yes -1=unset
+  }
+
+  private static final class TermsEnumTermContextMap {
+    private final BytesRefHash termHash = new BytesRefHash();
+    private final String[] fields;
+    private final int fieldsCount;
+    private final List<Map<Integer, TermsEnumTermContext>> tetcMaps;
+    static final int MAX_MAP_SIZE = 50000;
+
+    TermsEnumTermContextMap(final Collection<String> newFields) {
+      final Set<String> uniqueFields = new HashSet<>(newFields);
+      this.fields = uniqueFields.toArray(new String[uniqueFields.size()]);
+      this.fieldsCount = this.fields.length;
+      this.tetcMaps = new ArrayList<>(this.fieldsCount);
+
+      for (int i = 0; i < this.fieldsCount; i++) {
+        this.tetcMaps.add(Collections.synchronizedMap(
+            new LRUMap<>(MAX_MAP_SIZE + 1, 0.75f)));
+      }
+    }
+
+    /**
+     * Get the context of a specific term.
+     *
+     * @param field Field the term belongs to
+     * @param term Term to lookup
+     * @return Term context
+     */
+    TermsEnumTermContext getContext(
+        @NotNull final String field,
+        @NotNull final BytesRef term) {
+      // get field id
+      int fieldId = -1;
+      for (int i = 0; i < this.fieldsCount; i++) {
+        if (field.equalsIgnoreCase(this.fields[i])) {
+          fieldId = i;
+          break;
+        }
+      }
+      if (fieldId < 0) {
+        throw new IllegalArgumentException("Unknown field '" + field + "'.");
+      }
+
+      // get term id
+      int termId = this.termHash.find(term);
+      if (termId < 0) {
+        termId = this.termHash.add(term);
+      }
+
+      final Map<Integer, TermsEnumTermContext> fieldMap =
+          this.tetcMaps.get(fieldId);
+      TermsEnumTermContext termContext = fieldMap.get(termId);
+      if (termContext == null) {
+        termContext = new TermsEnumTermContext();
+        fieldMap.put(termId, termContext);
+      }
+
+      return termContext;
+    }
+
+//    private static class SizedMap
+//        extends LinkedHashMap<Integer, TermsEnumTermContext> {
+//      private static final long serialVersionUID =
+//          -5989145810539886415L;
+//
+//      public SizedMap() {
+//        super(TermsEnumTermContextMap.MAX_MAP_SIZE + 1, .75F, true);
+//      }
+//
+//      @Override
+//      public boolean removeEldestEntry(final Map.Entry eldest) {
+//        return size() > MAX_MAP_SIZE;
+//      }
+//    }
   }
 }
