@@ -16,8 +16,7 @@
  */
 package de.unihildesheim.iw.util;
 
-import de.unihildesheim.iw.Tuple;
-import de.unihildesheim.iw.Tuple.Tuple2;
+import de.unihildesheim.iw.util.Tuple.Tuple2;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
