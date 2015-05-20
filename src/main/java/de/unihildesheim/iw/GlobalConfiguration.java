@@ -95,6 +95,10 @@ public final class GlobalConfiguration
     /**
      * Boolean flag. If true, low precision math is used.
      */
-    MATH_LOW_PRECISION
+    MATH_LOW_PRECISION,
+    /**
+     * Maximum number of parallel threads to use.
+     */
+    MAX_THREADS
   }
 }
