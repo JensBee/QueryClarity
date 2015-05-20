@@ -54,7 +54,7 @@ public final class FeedbackQuery {
    */
   private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(
       FeedbackQuery.class);
-  private static final int[] EMPTY_DOCIDS = new int[]{};
+  private static final int[] EMPTY_DOCIDS = {};
 
   /**
    * Private constructor for utility class.
@@ -218,7 +218,7 @@ public final class FeedbackQuery {
           " greater than zero.");
     }
 
-    int[] queriedDocs;
+    final int[] queriedDocs;
 
     final int maxRetDocs = getMaxDocs(searcher.getIndexReader(), maxDocs);
     final FixedBitSet bits =
@@ -231,7 +231,7 @@ public final class FeedbackQuery {
 
     // build a log-info string
     final String logInfo = "Got {} matching feedback documents. " +
-        "Relaxing query to " +
+        "Relaxed query to " +
         (maxDocCount > 0 ? "get additional" : "reach the minimum of") +
         " {} feedback documents...";
 
