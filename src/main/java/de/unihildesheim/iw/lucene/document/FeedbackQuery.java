@@ -22,6 +22,7 @@ import de.unihildesheim.iw.lucene.util.BitsUtils;
 import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
 import de.unihildesheim.iw.lucene.util.StreamUtils;
 import de.unihildesheim.iw.util.RandomValue;
+import de.unihildesheim.iw.util.TimeMeasure;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.IndexSearcher;
@@ -111,8 +112,10 @@ public final class FeedbackQuery {
     final TopDocs results;
     final int fbDocCnt;
     if (maxDocCount == -1) {
-      LOG.debug("Feedback doc count is unlimited. "
-          + "Running pre query to get total hits.");
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Feedback doc count is unlimited. "
+            + "Running pre query to get total hits.");
+      }
       final TotalHitCountCollector coll = new TotalHitCountCollector();
       searcher.search(query, coll);
       final int expResults = coll.getTotalHits();
@@ -125,7 +128,11 @@ public final class FeedbackQuery {
         LOG.debug("Post query returned {} feedback documents.", fbDocCnt);
       }
     } else {
+      final TimeMeasure tm = new TimeMeasure().start();
       results = searcher.search(query, maxDocCount);
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Search took {}", tm.stop().getTimeString());
+      }
       fbDocCnt = Math.min(results.totalHits, maxDocCount);
     }
 
