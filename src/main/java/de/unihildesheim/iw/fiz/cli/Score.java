@@ -18,8 +18,8 @@
 package de.unihildesheim.iw.fiz.cli;
 
 import de.unihildesheim.iw.Buildable.BuildableException;
-import de.unihildesheim.iw.Tuple;
-import de.unihildesheim.iw.Tuple.Tuple2;
+import de.unihildesheim.iw.util.Tuple;
+import de.unihildesheim.iw.util.Tuple.Tuple2;
 import de.unihildesheim.iw.cli.CliBase;
 import de.unihildesheim.iw.cli.CliParams;
 import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers;
@@ -79,6 +79,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
@@ -231,13 +232,15 @@ public class Score
       SQLWarning insertWarn;
 
       final String[] stateMsg = {"none", "none"};
+      final AtomicInteger currentItemCount = new AtomicInteger(0);
 
       try (TaskObserver obs = new TaskObserver(
           new TaskObserver.TaskObserverMessage() {
             @Override
             public void call(@NotNull final TimeMeasure tm) {
-              LOG.info("Scorer {} is scoring {} (runtime: {}).",
-                  stateMsg[0], stateMsg[1], tm.getTimeString());
+              LOG.info("Scorer {} is scoring {} ({} scored) (runtime: {}).",
+                  stateMsg[0], stateMsg[1], currentItemCount.get(),
+                  tm.getTimeString());
             }
           })) {
         obs.start();
@@ -249,72 +252,6 @@ public class Score
           //final Configuration cscConf = scorerT2.b;
           final String impl = csc.getIdentifier();
           stateMsg[0] = impl;
-
-          if (termTable != null) {
-            stateMsg[1] = "terms";
-            // query for data
-            querySQL = "select " +
-                TermScoringTable.Fields.ID + ", " +
-                TermScoringTable.Fields.TERM +
-                " from " + TermScoringTable.TABLE_NAME +
-                " where " + TermScoringTable.Fields.LANG + "='" + langName +
-                "';";
-            stmt.execute(querySQL);
-            final ResultSet rs = stmt.getResultSet();
-
-            long rowCount = scoringDb.getNumberOfRows(
-                TermScoringResultTable.TABLE_NAME);
-
-            try (final TermScoringResultTable.Writer termWriter =
-                     termTable.getWriter(scoringDb.getConnection())) {
-              while (rs.next()) {
-                final Integer termId = rs.getInt(1);
-                final String term = rs.getString(2);
-
-                if (term == null) {
-                  throw new IllegalStateException("Term was null.");
-                }
-
-                result = csc.calculateClarity(term);
-
-                @SuppressWarnings("ObjectAllocationInLoop")
-                final TableFieldContent tfc =
-                    new TableFieldContent(termTable);
-                tfc.setValue(TermScoringResultTable.Fields.TERM_REF, termId);
-                tfc.setValue(TermScoringResultTable.Fields.IMPL, impl);
-                tfc.setValue(TermScoringResultTable.Fields.IS_EMPTY,
-                    result.isEmpty());
-                tfc.setValue(TermScoringResultTable.Fields.SCORE,
-                    result.getScore());
-                // get empty reason, if any
-                if (result.isEmpty()) {
-                  final Optional<String> msg = result.getEmptyReason();
-                  if (msg.isPresent()) {
-                    tfc.setValue(TermScoringResultTable.Fields.EMPTY_REASON,
-                        msg.get());
-                  }
-                }
-
-                // write result
-                insertStmt = termWriter.addContent(tfc, false);
-                insertWarn = insertStmt.getWarnings();
-
-                newRowCount = scoringDb.getNumberOfRows(
-                    TermScoringResultTable.TABLE_NAME);
-                if (newRowCount <= rowCount) {
-                  if (insertWarn != null) {
-                    SQLWarning sqlWarn;
-                    while ((sqlWarn = insertWarn.getNextWarning()) != null) {
-                      LOG.error("SQL-warning: {}", sqlWarn.getMessage());
-                    }
-                  }
-                  throw new IllegalStateException("Sentence row not written.");
-                } else {
-                  rowCount = newRowCount;
-                }
-              }
-            }
-          }
 
           if (sentenceTable != null) {
             stateMsg[1] = "sentences";
@@ -338,6 +275,7 @@ public class Score
 
             try (final SentenceScoringResultTable.Writer sentenceWriter =
                      sentenceTable.getWriter(scoringDb.getConnection())) {
+              currentItemCount.set(0);
               while (rs.next()) {
                 final Integer sentId = rs.getInt(1);
                 final String sent = rs.getString(2);
@@ -346,6 +284,7 @@ public class Score
                   throw new IllegalStateException("Sentence was null.");
                 }
 
+                currentItemCount.incrementAndGet();
                 result = csc.calculateClarity(sent);
 
                 @SuppressWarnings("ObjectAllocationInLoop")
@@ -373,6 +312,74 @@ public class Score
 
                 newRowCount = scoringDb.getNumberOfRows(
                     SentenceScoringResultTable.TABLE_NAME);
+                if (newRowCount <= rowCount) {
+                  if (insertWarn != null) {
+                    SQLWarning sqlWarn;
+                    while ((sqlWarn = insertWarn.getNextWarning()) != null) {
+                      LOG.error("SQL-warning: {}", sqlWarn.getMessage());
+                    }
+                  }
+                  throw new IllegalStateException("Sentence row not written.");
+                } else {
+                  rowCount = newRowCount;
+                }
+              }
+            }
+          }
+
+          if (termTable != null) {
+            stateMsg[1] = "terms";
+            // query for data
+            querySQL = "select " +
+                TermScoringTable.Fields.ID + ", " +
+                TermScoringTable.Fields.TERM +
+                " from " + TermScoringTable.TABLE_NAME +
+                " where " + TermScoringTable.Fields.LANG + "='" + langName +
+                "';";
+            stmt.execute(querySQL);
+            final ResultSet rs = stmt.getResultSet();
+
+            long rowCount = scoringDb.getNumberOfRows(
+                TermScoringResultTable.TABLE_NAME);
+
+            try (final TermScoringResultTable.Writer termWriter =
+                     termTable.getWriter(scoringDb.getConnection())) {
+              currentItemCount.set(0);
+              while (rs.next()) {
+                final Integer termId = rs.getInt(1);
+                final String term = rs.getString(2);
+
+                if (term == null) {
+                  throw new IllegalStateException("Term was null.");
+                }
+
+                currentItemCount.incrementAndGet();
+                result = csc.calculateClarity(term);
+
+                @SuppressWarnings("ObjectAllocationInLoop")
+                final TableFieldContent tfc =
+                    new TableFieldContent(termTable);
+                tfc.setValue(TermScoringResultTable.Fields.TERM_REF, termId);
+                tfc.setValue(TermScoringResultTable.Fields.IMPL, impl);
+                tfc.setValue(TermScoringResultTable.Fields.IS_EMPTY,
+                    result.isEmpty());
+                tfc.setValue(TermScoringResultTable.Fields.SCORE,
+                    result.getScore());
+                // get empty reason, if any
+                if (result.isEmpty()) {
+                  final Optional<String> msg = result.getEmptyReason();
+                  if (msg.isPresent()) {
+                    tfc.setValue(TermScoringResultTable.Fields.EMPTY_REASON,
+                        msg.get());
+                  }
+                }
+
+                // write result
+                insertStmt = termWriter.addContent(tfc, false);
+                insertWarn = insertStmt.getWarnings();
+
+                newRowCount = scoringDb.getNumberOfRows(
+                    TermScoringResultTable.TABLE_NAME);
                 if (newRowCount <= rowCount) {
                   if (insertWarn != null) {
                     SQLWarning sqlWarn;
