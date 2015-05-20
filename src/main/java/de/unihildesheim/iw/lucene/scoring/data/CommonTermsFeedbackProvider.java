@@ -20,8 +20,8 @@ package de.unihildesheim.iw.lucene.scoring.data;
 import de.unihildesheim.iw.Buildable.BuildableException;
 import de.unihildesheim.iw.lucene.document.FeedbackQuery;
 import de.unihildesheim.iw.lucene.index.IndexUtils;
-import de.unihildesheim.iw.lucene.query.RelaxableCommonTermsQuery;
-import de.unihildesheim.iw.lucene.query.RelaxableCommonTermsQuery.Builder;
+import de.unihildesheim.iw.lucene.query.RxCommonTermsQuery;
+import de.unihildesheim.iw.lucene.query.RxCommonTermsQuery.Builder;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * {@link FeedbackProvider} using the {@link RelaxableCommonTermsQuery} for
+ * {@link FeedbackProvider} using the {@link RxCommonTermsQuery} for
  * retrieval.
  *
  * @author Jens Bertram
