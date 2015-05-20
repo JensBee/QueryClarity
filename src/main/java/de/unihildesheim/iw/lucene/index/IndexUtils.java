@@ -16,6 +16,8 @@
  */
 package de.unihildesheim.iw.lucene.index;
 
+import de.unihildesheim.iw.GlobalConfiguration;
+import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader
     .FilteredLeafReader;
 import de.unihildesheim.iw.lucene.search.FDRDefaultSimilarity;
@@ -23,11 +25,15 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.search.IndexSearcher;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.text.MessageFormat;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Simple utilities for working with a Lucene index.
@@ -35,6 +41,25 @@ import java.util.Set;
  * @author Jens Bertram
  */
 public final class IndexUtils {
+  /**
+   * Logger instance for this class.
+   */
+  private static final Logger LOG = LoggerFactory.getLogger(
+      IndexUtils.class);
+  /**
+   * Thread pool for parallel searchers.
+   */
+  private static final ExecutorService THREAD_POOL;
+
+  static {
+    final int threads = GlobalConfiguration.conf().getInteger(
+        DefaultKeys.MAX_THREADS.toString(),
+        Runtime.getRuntime().availableProcessors());
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("IndexSearcher thread-pool size: {}", threads);
+    }
+    THREAD_POOL = Executors.newFixedThreadPool(threads);
+  }
 
   /**
    * Private constructor for utility class.
@@ -88,13 +113,15 @@ public final class IndexUtils {
 
   /**
    * Get an {@link IndexSearcher} instance. If the reader is an instance of
-   * {@link FilteredDirectoryReader} the {@link FDRDefaultSimilarity}
-   * will be used.
+   * {@link FilteredDirectoryReader} the {@link FDRDefaultSimilarity} will be
+   * used.
+   *
    * @param reader Reader to use
    * @return Searcher instance
    */
   public static IndexSearcher getSearcher(final IndexReader reader) {
-    final IndexSearcher searcher = new IndexSearcher(reader);
+    final IndexSearcher searcher = new IndexSearcher(reader, THREAD_POOL);
+
     if (FilteredDirectoryReader.class.isInstance(reader) ||
         FilteredLeafReader.class.isInstance(reader)) {
       searcher.setSimilarity(new FDRDefaultSimilarity());
