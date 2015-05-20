@@ -24,11 +24,12 @@ import de.unihildesheim.iw.lucene.query.RelaxableCommonTermsQuery;
 import de.unihildesheim.iw.lucene.query.RelaxableCommonTermsQuery.Builder;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.IndexSearcher;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -41,6 +42,11 @@ import java.util.Objects;
  */
 public final class CommonTermsFeedbackProvider
     extends AbstractFeedbackProvider<CommonTermsFeedbackProvider> {
+  /**
+   * Logger instance for this class.
+   */
+  private static final Logger LOG = LoggerFactory.getLogger(
+      CommonTermsFeedbackProvider.class);
   /**
    * Reusable {@link IndexSearcher} instance.
    */
@@ -62,21 +68,28 @@ public final class CommonTermsFeedbackProvider
 
   @Override
   public DocIdSet get()
-      throws IOException, ParseException, BuildableException {
+      throws IOException, BuildableException {
     final RelaxableQuery qObj = new Builder()
         .analyzer(Objects.requireNonNull(this.analyzer,
             "Analyzer not set."))
         .fields(getDocumentFields())
         .reader(Objects.requireNonNull(this.reader,
             "IndexReader not set."))
-        .query(this.queryStr)
+        .query(Objects.requireNonNull(this.queryStr, "Empty query."))
         .build();
     if (this.useFixedAmount) {
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("using Fixed feedback amount={}", this.fixedAmount);
+      }
       return FeedbackQuery.getFixed(
           Objects.requireNonNull(this.searcher,
               "IndexReader (Searcher) not set."),
           Objects.requireNonNull(this.dataProv, "IndexDataProvider not set."),
           qObj, this.fixedAmount, getDocumentFields());
+    }
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("using MinMax feedback min={} max={}",
+          this.minAmount, this.maxAmount);
     }
     return FeedbackQuery.getMinMax(
         Objects.requireNonNull(this.searcher,
