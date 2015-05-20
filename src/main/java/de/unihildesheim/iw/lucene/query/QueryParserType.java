@@ -28,9 +28,9 @@ public enum QueryParserType {
    */
   TEQ("Try Exact Terms Query", TryExactTermsQuery.class),
   /**
-   * {@link RelaxableCommonTermsQuery} instance.
+   * {@link RxCommonTermsQuery} instance.
    */
-  CTQ("Common Terms Query", RelaxableCommonTermsQuery.class);
+  CTQ("Common Terms Query", RxCommonTermsQuery.class);
 
   /**
    * Current parser name.

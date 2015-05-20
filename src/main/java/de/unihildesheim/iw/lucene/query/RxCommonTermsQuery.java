@@ -31,16 +31,13 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -51,14 +48,13 @@ import java.util.List;
  *
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public final class RelaxableCommonTermsQuery
+public final class RxCommonTermsQuery
     implements TermsProvidingQuery, RelaxableQuery {
-
   /**
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(
-      RelaxableCommonTermsQuery.class);
+      RxCommonTermsQuery.class);
   /**
    * Final query object.
    */
@@ -75,164 +71,36 @@ public final class RelaxableCommonTermsQuery
    * @param builder {@link Builder} Instance builder
    * @throws IOException Thrown on low-level i/o-errors
    */
-  @SuppressWarnings({"ObjectAllocationInLoop", "ObjectEquality"})
-  RelaxableCommonTermsQuery(@NotNull final Builder builder)
+  RxCommonTermsQuery(@NotNull final Builder builder)
       throws IOException {
-    // get all query terms
     assert builder.queryStr != null;
     assert builder.analyzer != null;
+
     this.queryTerms = QueryUtils.tokenizeQueryString(
         builder.queryStr, builder.analyzer);
 
     // list of unique terms contained in the query (stopped, analyzed)
     final String[] uniqueQueryTerms = this.queryTerms.stream()
         .distinct().toArray(String[]::new);
-    final int uniqueTermsCount = uniqueQueryTerms.length;
 
-    // heavily based on code from org.apache.lucene.queries.CommonTermsQuery
-    assert builder.reader != null;
-    final List<LeafReaderContext> leaves = builder.reader.leaves();
-    final int maxDoc = builder.reader.maxDoc();
-    TermsEnum termsEnum = null;
-    final List<Query> subQueries = new ArrayList<>(10);
+    final WrappedCommonTermsQuery ctQuery = new WrappedCommonTermsQuery(
+        builder.highFreqOccur, builder.lowFreqOccur, builder.maxTermFrequency);
 
     assert builder.fields != null;
     for (final String field : builder.fields) {
-      final TermContext[] tcArray = new TermContext[uniqueTermsCount];
-      final BooleanQuery lowFreq = new BooleanQuery();
-      final BooleanQuery highFreq = new BooleanQuery();
-
-      // collect term statistics
-      for (int i = 0; i < uniqueTermsCount; i++) {
-        final Term term = new Term(field, uniqueQueryTerms[i]);
-        for (final LeafReaderContext context : leaves) {
-          final TermContext termContext = tcArray[i];
-          final Fields fields = context.reader().fields();
-          final Terms terms = fields.terms(field);
-          if (terms != null) {
-            // only, if field exists
-            termsEnum = terms.iterator(termsEnum);
-            if (termsEnum != TermsEnum.EMPTY) {
-              if (termsEnum.seekExact(term.bytes())) {
-                if (termContext == null) {
-                  tcArray[i] = new TermContext(
-                      builder.reader.getContext(),
-                      termsEnum.termState(),
-                      context.ord,
-                      termsEnum.docFreq(),
-                      termsEnum.totalTermFreq());
-                } else {
-                  termContext.register(
-                      termsEnum.termState(),
-                      context.ord,
-                      termsEnum.docFreq(),
-                      termsEnum.totalTermFreq());
-                }
-              }
-            }
-          }
-        }
-
-        // build query
-        if (tcArray[i] == null) {
-          lowFreq.add(new TermQuery(term), builder.lowFreqOccur);
-        } else {
-          if ((builder.maxTermFrequency >= 1f &&
-              (float) tcArray[i].docFreq() > builder.maxTermFrequency) ||
-              (tcArray[i].docFreq() > (int) Math.ceil(
-                  (double) (builder.maxTermFrequency * (float) maxDoc)))) {
-            highFreq.add(
-                new TermQuery(term, tcArray[i]), builder.highFreqOccur);
-          } else {
-            lowFreq.add(
-                new TermQuery(term, tcArray[i]), builder.lowFreqOccur);
-          }
-        }
-
-        final int numLowFreqClauses = lowFreq.clauses().size();
-        final int numHighFreqClauses = highFreq.clauses().size();
-        if (builder.lowFreqOccur == Occur.SHOULD && numLowFreqClauses > 0) {
-          lowFreq.setMinimumNumberShouldMatch(numLowFreqClauses);
-        }
-        if (builder.highFreqOccur == Occur.SHOULD && numHighFreqClauses > 0) {
-          highFreq.setMinimumNumberShouldMatch(numHighFreqClauses);
-        }
-      }
-
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("qLF={}", lowFreq);
-        LOG.debug("qHF={}", highFreq);
-      }
-
-      if (lowFreq.clauses().isEmpty()) {
-        subQueries.add(highFreq);
-      } else if (highFreq.clauses().isEmpty()) {
-        subQueries.add(lowFreq);
-      } else {
-        final BooleanQuery query = new BooleanQuery(true); // final query
-        query.add(highFreq, Occur.SHOULD);
-        query.add(lowFreq, Occur.MUST);
-        subQueries.add(query);
+      for (final String uniqueQueryTerm : uniqueQueryTerms) {
+        ctQuery.add(new Term(field, uniqueQueryTerm));
       }
     }
-    if (LOG.isDebugEnabled()) {
-      LOG.debug("qList={}", subQueries);
-    }
 
-    this.query = subQueries.size() == 1 ? subQueries.get(0) :
-        new DisjunctionMaxQuery(subQueries, 0.1f);
+    // at least one of the low-frequent terms must match
+    ctQuery.setLowFreqMinimumNumberShouldMatch(1.0F);
+
+    this.query = ctQuery.rewrite(builder.reader);
 
     if (LOG.isDebugEnabled()) {
       LOG.debug("RCTQ {} uQt={}", this.query, uniqueQueryTerms);
     }
-  }
-
-  /**
-   * Reduce the number of terms that must match by one.
-   *
-   * @return True, if query was relaxed, false, if no terms left to relax the
-   * query
-   */
-  @SuppressWarnings("ReuseOfLocalVariable")
-  @Override
-  public boolean relax() {
-    boolean relaxed = false;
-    if (BooleanQuery.class.isInstance(this.query)) {
-      // simple bool query
-      final BooleanQuery q = (BooleanQuery) this.query;
-      int mm = q.getMinimumNumberShouldMatch();
-      if (mm >= 1) {
-        if (mm == 1) {
-          mm = 0;
-        } else {
-          mm--;
-        }
-        q.setMinimumNumberShouldMatch(mm);
-        relaxed = true;
-        if (LOG.isDebugEnabled()) {
-          LOG.debug("Relaxed single clause query to {}", mm);
-        }
-      }
-    } else {
-      // disMax
-      final List<Query> dj = ((DisjunctionMaxQuery) this.query).getDisjuncts();
-      for (final Query q : dj) {
-        int mm = ((BooleanQuery) q).getMinimumNumberShouldMatch();
-        if (mm >= 1) {
-          if (mm == 1) {
-            mm = 0;
-          } else {
-            mm--;
-          }
-          ((BooleanQuery) q).setMinimumNumberShouldMatch(mm);
-          relaxed = true;
-          if (LOG.isDebugEnabled()) {
-            LOG.debug("Relaxed a clause to {}", mm);
-          }
-        }
-      }
-    }
-    return relaxed;
   }
 
   @NotNull
@@ -249,11 +117,126 @@ public final class RelaxableCommonTermsQuery
   }
 
   /**
-   * Builder to create a new {@link RelaxableCommonTermsQuery} instance.
+   * Simple wrapper for {@link CommonTermsQuery} to make the number of clauses
+   * available.
+   */
+  private static final class WrappedCommonTermsQuery
+      extends CommonTermsQuery {
+    /**
+     * Logger instance for this class.
+     */
+    private static final Logger LOG = LoggerFactory.getLogger(
+        WrappedCommonTermsQuery.class);
+
+    /**
+     * Creates a new wrapped {@link CommonTermsQuery}
+     *
+     * @param highFreqOccur {@link Occur} used for high frequency terms
+     * @param lowFreqOccur {@link Occur} used for low frequency terms
+     * @param maxTermFrequency a value in [0..1) (or absolute number &gt;=1)
+     * representing the maximum threshold of a terms document frequency to be
+     * considered a low frequency term.
+     */
+    WrappedCommonTermsQuery(
+        final Occur highFreqOccur,
+        final Occur lowFreqOccur, final float maxTermFrequency) {
+      super(highFreqOccur, lowFreqOccur, maxTermFrequency);
+    }
+
+    @Override
+    public Query rewrite(IndexReader reader) throws IOException {
+      if (this.terms.isEmpty()) {
+        return new BooleanQuery();
+      } else if (this.terms.size() == 1) {
+        final Query tq = newTermQuery(this.terms.get(0), null);
+        tq.setBoost(getBoost());
+        return tq;
+      }
+      final List<LeafReaderContext> leaves = reader.leaves();
+      final int maxDoc = reader.maxDoc();
+      final TermContext[] contextArray = new TermContext[terms.size()];
+
+      // TODO: filter non-collection terms here
+      final Term[] queryTerms = this.terms.toArray(new Term[0]);
+
+      collectTermContext(reader, leaves, contextArray, queryTerms);
+      return buildQuery(maxDoc, contextArray, queryTerms);
+    }
+
+    /**
+     * Copy of the original method, but excludes terms not found in the index.
+     *
+     * @param reader Index reader
+     * @param leaves Index reader leaves
+     * @param contextArray Array to store term contexts
+     * @param queryTerms Array of query terms
+     * @throws IOException Thrown on low-level i/o errors
+     */
+    @SuppressWarnings({"ObjectAllocationInLoop", "ObjectEquality"})
+    @Override
+    public void collectTermContext(
+        @NotNull final IndexReader reader,
+        @NotNull final List<LeafReaderContext> leaves,
+        @NotNull final TermContext[] contextArray,
+        @NotNull final Term[] queryTerms)
+        throws IOException {
+      final int queryLength = queryTerms.length;
+
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Collecting {} term contexts..", queryLength);
+      }
+
+      TermsEnum termsEnum = null;
+      for (final LeafReaderContext context : leaves) {
+        final Fields fields = context.reader().fields();
+        for (int i = 0; i < queryLength; i++) {
+          final Term term = queryTerms[i];
+          final TermContext termContext = contextArray[i];
+          @Nullable
+          final Terms terms = fields.terms(term.field());
+          // check, if field exists
+          if (terms != null) {
+            termsEnum = terms.iterator(termsEnum);
+            if (termsEnum != TermsEnum.EMPTY &&
+                termsEnum.seekExact(term.bytes())) {
+              final int docFreq = termsEnum.docFreq();
+              // check document frequency, if zero then ttf will also be zero
+              if (docFreq > 0) {
+                final long ttf = termsEnum.totalTermFreq();
+                assert ttf > 0L;
+                if (termContext == null) {
+                  contextArray[i] = new TermContext(reader.getContext(),
+                      termsEnum.termState(), context.ord, docFreq, ttf);
+                } else {
+                  termContext.register(
+                      termsEnum.termState(), context.ord, docFreq, ttf);
+                }
+              } else {
+                LOG.info("Removing term '{}' from query (docFreq==0).",
+                    term.text());
+              }
+            }
+          }
+        }
+      }
+
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Collecting {} term contexts. Done.", queryLength);
+      }
+    }
+
+    @Override
+    public String toString(@NotNull final String field) {
+      return "WrappedCommonTermsQuery[" + super.toString(field) + ']';
+    }
+  }
+
+  /**
+   * Builder to create a new {@link RxCommonTermsQuery} instance.
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class Builder
-      implements Buildable<RelaxableCommonTermsQuery> {
+      implements Buildable<RxCommonTermsQuery> {
     /**
      * IndexReader to access the Lucene index.
      */
@@ -294,11 +277,11 @@ public final class RelaxableCommonTermsQuery
     @SuppressFBWarnings("RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE")
     @NotNull
     @Override
-    public RelaxableCommonTermsQuery build()
+    public RxCommonTermsQuery build()
         throws BuildableException {
       validate();
       try {
-        return new RelaxableCommonTermsQuery(this);
+        return new RxCommonTermsQuery(this);
       } catch (final IOException e) {
         throw new BuildException(e);
       }
