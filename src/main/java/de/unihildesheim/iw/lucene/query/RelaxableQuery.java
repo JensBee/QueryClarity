@@ -25,12 +25,15 @@ import org.jetbrains.annotations.NotNull;
  */
 public interface RelaxableQuery {
   /**
-   * Relaxes (simplifies) the query, e.g. to get more results.
+   * Relaxes (simplifies) the query, e.g. to get more results. Default
+   * implementation always returns false.
    *
    * @return True, if query was relaxed, false otherwise
    */
   @SuppressWarnings("BooleanMethodNameMustStartWithQuestion")
-  boolean relax();
+  default boolean relax() {
+    return false;
+  }
 
   /**
    * Get the Query object.
