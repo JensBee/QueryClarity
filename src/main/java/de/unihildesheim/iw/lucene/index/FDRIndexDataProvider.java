@@ -22,6 +22,7 @@ import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils.MergingBytesRefHash;
 import de.unihildesheim.iw.lucene.util.StreamUtils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import org.apache.commons.collections4.map.LRUMap;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -98,12 +99,7 @@ public final class FDRIndexDataProvider
   @SuppressWarnings({"AnonymousInnerClassMayBeStatic",
       "CloneableClassWithoutClone", "serial"})
   private final Map<BytesRef, Long> cache_tf = Collections.synchronizedMap(
-      new LinkedHashMap<BytesRef, Long>(CACHE_TF_SIZE + 1, .75F, true) {
-        @Override
-        public boolean removeEldestEntry(final Map.Entry eldest) {
-          return size() > CACHE_TF_SIZE;
-        }
-      });
+      new LRUMap<>(CACHE_TF_SIZE + 1, 0.75F));
   /**
    * Size of the document-frequency LRU cache.
    */
@@ -114,12 +110,7 @@ public final class FDRIndexDataProvider
   @SuppressWarnings({"AnonymousInnerClassMayBeStatic",
       "CloneableClassWithoutClone", "serial"})
   private final Map<BytesRef, Integer> cache_df = Collections.synchronizedMap(
-      new LinkedHashMap<BytesRef, Integer>(CACHE_DF_SIZE + 1, .75F, true) {
-        @Override
-        public boolean removeEldestEntry(final Map.Entry eldest) {
-          return size() > CACHE_DF_SIZE;
-        }
-      });
+      new LRUMap<>(CACHE_DF_SIZE + 1, 0.75F));
 
   /**
    * Create instance by using {@link Builder}.
