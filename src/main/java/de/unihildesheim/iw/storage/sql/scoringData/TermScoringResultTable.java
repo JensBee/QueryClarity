@@ -157,6 +157,7 @@ public final class TermScoringResultTable extends AbstractTable {
 
   @Override
   public void addDefaultFieldsToUnique() {
+    this.uniqueFields.add(Fields.IMPL.toString());
     this.uniqueFields.add(Fields.TERM_REF.toString());
   }
 

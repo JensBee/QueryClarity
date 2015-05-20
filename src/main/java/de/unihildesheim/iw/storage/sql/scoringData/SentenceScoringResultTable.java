@@ -159,6 +159,7 @@ public final class SentenceScoringResultTable
 
   @Override
   public void addDefaultFieldsToUnique() {
+    this.uniqueFields.add(Fields.IMPL.toString());
     this.uniqueFields.add(Fields.SENT_REF.toString());
   }
 
