@@ -170,5 +170,11 @@
             <artifactId>opennlp-tools</artifactId>
             <version>1.5.3</version>
         </dependency>
+        <dependency>
+            <!-- Extended collection types -->
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
+            <version>4.0</version>
+        </dependency>
     </dependencies>
 </project>
