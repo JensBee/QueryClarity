@@ -34,7 +34,7 @@ public final class GlobalConfiguration
    * Default math context to use for high precision calculations.
    */
   public static final String DEFAULT_MATH_CONTEXT =
-      MathContext.DECIMAL64.toString();
+      MathContext.DECIMAL32.toString();
   /**
    * File name of the global configuration.
    */
