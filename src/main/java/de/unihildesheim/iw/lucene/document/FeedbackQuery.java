@@ -385,15 +385,31 @@ public final class FeedbackQuery {
         LOG.warn("Giving up. No random documents. Got {} documents.",
             collected.size());
       } else if (docsAvailableCount <= amountNeeded) {
-        collected.addAll(docsAvailable);
-        LOG.warn("Giving up searching for random documents. " +
-                "Can only return {} documents due to index size.",
-            collected.size());
+        if (fields == null) {
+          collected.addAll(docsAvailable);
+        } else {
+          for (final Integer docId : docsAvailable) {
+            if (dataProv.getDocumentTerms(docId, fields)
+                .findFirst().isPresent()) {
+              collected.add(docId);
+            }
+          }
+        }
+        if (collected.size() < amountNeeded) {
+          LOG.warn("Giving up searching for random documents. " +
+                  "Can only return {} documents due to index size.",
+              collected.size());
+        }
       } else {
         int idx;
         while (collected.size() < amount && !docsAvailable.isEmpty()) {
           idx = RandomValue.getInteger(0, docsAvailable.size() - 1);
-          collected.add(docsAvailable.get(idx));
+          final int docId = docsAvailable.get(idx);
+          // check, if any of the required fields have content
+          if (fields == null || dataProv.getDocumentTerms(docId, fields)
+              .findFirst().isPresent()) {
+            collected.add(docId);
+          }
           docsAvailable.remove(idx);
         }
       }
