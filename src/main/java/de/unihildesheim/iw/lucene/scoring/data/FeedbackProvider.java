@@ -22,6 +22,9 @@ import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.util.BytesRefArray;
+
+import java.util.Collection;
 
 /**
  * @author Jens Bertram
@@ -37,12 +40,34 @@ public interface FeedbackProvider {
       throws Exception;
 
   /**
-   * Set the query string to use for getting feedback documents.
+   * Set the query string to use for getting feedback documents. You should
+   * decide on one {@code query()} method to set the query (terms) since the
+   * implementation may choose the best one, if multiple values are set.
    *
    * @param query Query string
    * @return Self reference
    */
   FeedbackProvider query(final String query);
+
+  /**
+   * Set the query terms to use for getting feedback documents. You should
+   * decide on one {@code query()} method to set the query (terms) since the
+   * implementation may choose the best one, if multiple values are set.
+   *
+   * @param queryTerms Query terms
+   * @return Self reference
+   */
+  FeedbackProvider query(final Collection<String> queryTerms);
+
+  /**
+   * Set the query string to use for getting feedback documents. You should
+   * decide on one {@code query()} method to set the query (terms) since the
+   * implementation may choose the best one, if multiple values are set.
+   *
+   * @param queryTerms Query terms
+   * @return Self reference
+   */
+  FeedbackProvider query(final BytesRefArray queryTerms);
 
   /**
    * Set the number of feedback documents to get.

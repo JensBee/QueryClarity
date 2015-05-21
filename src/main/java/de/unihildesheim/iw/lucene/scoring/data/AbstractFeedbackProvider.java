@@ -25,10 +25,12 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.util.BytesRefArray;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Objects;
 import java.util.stream.StreamSupport;
 
@@ -81,6 +83,16 @@ public abstract class AbstractFeedbackProvider
   @Nullable
   String queryStr;
   /**
+   * Query terms.
+   */
+  @Nullable
+  Collection<String> queryTerms;
+  /**
+   * Query terms (BytesRef array).
+   */
+  @Nullable
+  BytesRefArray queryTermsArr;
+  /**
    * Document fields to query.
    */
   @Nullable
@@ -93,8 +105,27 @@ public abstract class AbstractFeedbackProvider
   RelaxableQuery queryParser;
 
   @Override
-  public I query(@NotNull final String query) {
-    this.queryStr = query;
+  public I query(final String q) {
+    if (q != null && !q.trim().isEmpty()) {
+      this.queryStr = q;
+    }
+    return getThis();
+  }
+
+  @Override
+  @SuppressWarnings("AssignmentToCollectionOrArrayFieldFromParameter")
+  public I query(final Collection<String> q) {
+    if (q != null && !q.isEmpty()) {
+      this.queryTerms = q;
+    }
+    return getThis();
+  }
+
+  @Override
+  public I query(final BytesRefArray q) {
+    if (q != null && q.size() > 0) {
+      this.queryTermsArr = q;
+    }
     return getThis();
   }
 
