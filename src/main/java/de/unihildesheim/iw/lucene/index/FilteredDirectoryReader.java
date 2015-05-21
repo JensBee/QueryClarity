@@ -370,17 +370,30 @@ public final class FilteredDirectoryReader
 
       if (fields.isEmpty()) {
         fields = Collections.emptySet();
+        // all docs are hidden
+        ctxDocBits.clear(0, ctxDocBits.length());
       } else {
         final Iterator<String> fieldsIt = fields.iterator();
+        final FixedBitSet docsWithAField =
+            new FixedBitSet(ctxDocBits.length());
+
         while (fieldsIt.hasNext()) {
           final DocIdSet docsWithField = new EmptyFieldFilter(fieldsIt.next())
               .getDocIdSet(this.in.getContext(), ctxDocBits);
-          if (DocIdSetUtils.cardinality(docsWithField) > 0) {
-            ctxDocBits.and(docsWithField.iterator());
-          } else {
+
+          boolean fieldIsEmpty = true;
+          int docId;
+          final DocIdSetIterator disi = docsWithField.iterator();
+          while ((docId = disi.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            docsWithAField.set(docId);
+            fieldIsEmpty = false;
+          }
+
+          if (fieldIsEmpty) {
             fieldsIt.remove();
           }
         }
+        ctxDocBits.and(docsWithAField);
       }
 
       // provide a status message
@@ -855,9 +868,10 @@ public final class FilteredDirectoryReader
     @Nullable
     public Terms terms(final String field)
         throws IOException {
-      if (this.fields.contains(field)) {
+      final Terms teIn = this.in.terms(field);
+      if (teIn != null && this.fields.contains(field)) {
         return new FilteredTerms(this.ctx, this.fieldValues.get(field),
-            this.tetcMap, this.in.terms(field), field);
+            this.tetcMap, teIn, field);
       } else {
         return null;
       }
