@@ -374,7 +374,7 @@ public final class FilteredDirectoryReader
         final Iterator<String> fieldsIt = fields.iterator();
         while (fieldsIt.hasNext()) {
           final DocIdSet docsWithField = new EmptyFieldFilter(fieldsIt.next())
-              .getDocIdSet(this.in.getContext(), null);
+              .getDocIdSet(this.in.getContext(), ctxDocBits);
           if (DocIdSetUtils.cardinality(docsWithField) > 0) {
             ctxDocBits.and(docsWithField.iterator());
           } else {
