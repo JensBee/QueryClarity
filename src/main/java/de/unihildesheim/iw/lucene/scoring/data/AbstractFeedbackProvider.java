@@ -212,10 +212,19 @@ public abstract class AbstractFeedbackProvider
   final RelaxableQuery getQueryParserInstance()
       throws ParseException, IOException {
     if (this.queryParser == null) {
-      this.queryParser = new RxTryExactTermsQuery(
-          Objects.requireNonNull(this.analyzer, "Analyzer not set."),
-          Objects.requireNonNull(this.queryStr, "Query string not set."),
-          getDocumentFields());
+      Objects.requireNonNull(this.analyzer, "Analyzer not set.");
+      if (this.queryTerms != null && !this.queryTerms.isEmpty()) {
+        this.queryParser = new RxTryExactTermsQuery(
+            this.analyzer, this.queryTerms, getDocumentFields());
+      } else if (this.queryTermsArr != null && this.queryTermsArr.size() >0) {
+        this.queryParser = new RxTryExactTermsQuery(
+            this.analyzer, this.queryTermsArr, getDocumentFields());
+      } else if (this.queryStr != null && !this.queryStr.trim().isEmpty()) {
+        this.queryParser = new RxTryExactTermsQuery(
+            this.analyzer, this.queryStr, getDocumentFields());
+      } else {
+       throw new IllegalArgumentException("Query is empty.");
+      }
     }
     return this.queryParser;
   }
