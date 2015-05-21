@@ -22,7 +22,6 @@ import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation.ScoreT
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation.ScoreTupleLowPrecision;
 import org.junit.Assert;
 import org.junit.Test;
-import org.nevec.rjm.BigDecimalMath;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
@@ -175,7 +174,7 @@ public class MathUtilsTest
     }
   }
 
-    @Test
+  @Test
   public void testklDivergence_bigDecimal()
       throws Exception {
     final ScoreTupleHighPrecision[] dataSet = {
@@ -191,23 +190,42 @@ public class MathUtilsTest
     final BigDecimal sumCModel = BigDecimal.valueOf(14L);
 
     final BigDecimal expected =
-        oneDivThree.multiply(BigDecimalMath.log(
+        oneDivThree.multiply(BigMathFunctions.ln(
             oneDivThree.divide(
                 BigDecimal.valueOf(3L).divide(sumCModel,
                     MathUtils.MATH_CONTEXT), MathUtils.MATH_CONTEXT
-            )
-        ), MathUtils.MATH_CONTEXT).add(oneDivThree.multiply(BigDecimalMath.log(
+            ), MathUtils.MATH_CONTEXT.getPrecision()
+        ), MathUtils.MATH_CONTEXT).add(oneDivThree.multiply(BigMathFunctions.ln(
             oneDivThree.divide(
                 BigDecimal.valueOf(10L).divide(sumCModel,
                     MathUtils.MATH_CONTEXT), MathUtils.MATH_CONTEXT
-            )
-        )), MathUtils.MATH_CONTEXT).add(oneDivThree.multiply(BigDecimalMath.log(
+            ), MathUtils.MATH_CONTEXT.getPrecision()
+        )), MathUtils.MATH_CONTEXT).add(oneDivThree.multiply(BigMathFunctions.ln(
             oneDivThree.divide(
                 BigDecimal.ONE.divide(sumCModel,
                     MathUtils.MATH_CONTEXT), MathUtils.MATH_CONTEXT
-            )
+            ), MathUtils.MATH_CONTEXT.getPrecision()
         )), MathUtils.MATH_CONTEXT)
             .divide(MathUtils.BD_LOG2, MathUtils.MATH_CONTEXT);
+
+//    final BigDecimal expected =
+//        oneDivThree.multiply(BigDecimalMath.log(
+//            oneDivThree.divide(
+//                BigDecimal.valueOf(3L).divide(sumCModel,
+//                    MathUtils.MATH_CONTEXT), MathUtils.MATH_CONTEXT
+//            )
+//        ), MathUtils.MATH_CONTEXT).add(oneDivThree.multiply(BigDecimalMath.log(
+//            oneDivThree.divide(
+//                BigDecimal.valueOf(10L).divide(sumCModel,
+//                    MathUtils.MATH_CONTEXT), MathUtils.MATH_CONTEXT
+//            )
+//        )), MathUtils.MATH_CONTEXT).add(oneDivThree.multiply(BigDecimalMath.log(
+//            oneDivThree.divide(
+//                BigDecimal.ONE.divide(sumCModel,
+//                    MathUtils.MATH_CONTEXT), MathUtils.MATH_CONTEXT
+//            )
+//        )), MathUtils.MATH_CONTEXT)
+//            .divide(MathUtils.BD_LOG2, MathUtils.MATH_CONTEXT);
 
     final BigDecimal result = MathUtils.klDivergence(dataSet);
 
@@ -230,18 +248,32 @@ public class MathUtilsTest
     final BigDecimal sumCModel = BigDecimal.valueOf(4L);
 
     final BigDecimal expected =
-        oneDivTwo.multiply(BigDecimalMath.log(
+        oneDivTwo.multiply(BigMathFunctions.ln(
             oneDivTwo.divide(
                 BigDecimal.valueOf(3L).divide(sumCModel,
                     MathUtils.MATH_CONTEXT), MathUtils.MATH_CONTEXT
-            )
-        ), MathUtils.MATH_CONTEXT).add(oneDivTwo.multiply(BigDecimalMath.log(
+            ), MathUtils.MATH_CONTEXT.getPrecision()
+        ), MathUtils.MATH_CONTEXT).add(oneDivTwo.multiply(BigMathFunctions.ln(
             oneDivTwo.divide(
                 BigDecimal.ONE.divide(sumCModel,
                     MathUtils.MATH_CONTEXT), MathUtils.MATH_CONTEXT
-            )
+            ), MathUtils.MATH_CONTEXT.getPrecision()
         )), MathUtils.MATH_CONTEXT)
             .divide(MathUtils.BD_LOG2, MathUtils.MATH_CONTEXT);
+
+//    final BigDecimal expected =
+//        oneDivTwo.multiply(BigDecimalMath.log(
+//            oneDivTwo.divide(
+//                BigDecimal.valueOf(3L).divide(sumCModel,
+//                    MathUtils.MATH_CONTEXT), MathUtils.MATH_CONTEXT
+//            )
+//        ), MathUtils.MATH_CONTEXT).add(oneDivTwo.multiply(BigDecimalMath.log(
+//            oneDivTwo.divide(
+//                BigDecimal.ONE.divide(sumCModel,
+//                    MathUtils.MATH_CONTEXT), MathUtils.MATH_CONTEXT
+//            )
+//        )), MathUtils.MATH_CONTEXT)
+//            .divide(MathUtils.BD_LOG2, MathUtils.MATH_CONTEXT);
 
     final BigDecimal result = MathUtils.klDivergence(dataSet);
 
@@ -264,18 +296,32 @@ public class MathUtilsTest
     final BigDecimal sumCModel = BigDecimal.valueOf(4L);
 
     final BigDecimal expected =
-        oneDivTwo.multiply(BigDecimalMath.log(
+        oneDivTwo.multiply(BigMathFunctions.ln(
             oneDivTwo.divide(
                 BigDecimal.valueOf(3L).divide(sumCModel,
                     MathUtils.MATH_CONTEXT), MathUtils.MATH_CONTEXT
-            )
-        ), MathUtils.MATH_CONTEXT).add(oneDivTwo.multiply(BigDecimalMath.log(
+            ), MathUtils.MATH_CONTEXT.getPrecision()
+        ), MathUtils.MATH_CONTEXT).add(oneDivTwo.multiply(BigMathFunctions.ln(
             oneDivTwo.divide(
                 BigDecimal.ONE.divide(sumCModel,
                     MathUtils.MATH_CONTEXT), MathUtils.MATH_CONTEXT
-            )
+            ), MathUtils.MATH_CONTEXT.getPrecision()
         )), MathUtils.MATH_CONTEXT)
             .divide(MathUtils.BD_LOG2, MathUtils.MATH_CONTEXT);
+
+//    final BigDecimal expected =
+//        oneDivTwo.multiply(BigDecimalMath.log(
+//            oneDivTwo.divide(
+//                BigDecimal.valueOf(3L).divide(sumCModel,
+//                    MathUtils.MATH_CONTEXT), MathUtils.MATH_CONTEXT
+//            )
+//        ), MathUtils.MATH_CONTEXT).add(oneDivTwo.multiply(BigDecimalMath.log(
+//            oneDivTwo.divide(
+//                BigDecimal.ONE.divide(sumCModel,
+//                    MathUtils.MATH_CONTEXT), MathUtils.MATH_CONTEXT
+//            )
+//        )), MathUtils.MATH_CONTEXT)
+//            .divide(MathUtils.BD_LOG2, MathUtils.MATH_CONTEXT);
 
     final BigDecimal result = MathUtils.klDivergence(dataSet);
 

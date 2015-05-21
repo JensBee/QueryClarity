@@ -16,13 +16,12 @@
  */
 package de.unihildesheim.iw.util;
 
-import de.unihildesheim.iw.util.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation.ScoreTupleHighPrecision;
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation.ScoreTupleLowPrecision;
+import de.unihildesheim.iw.util.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.util.concurrent.AtomicBigDecimal;
 import de.unihildesheim.iw.util.concurrent.AtomicDouble;
 import org.jetbrains.annotations.NotNull;
-import org.nevec.rjm.BigDecimalMath;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -121,7 +120,7 @@ public final class MathUtils {
       }
 
       this.divider = (this.values[1] - this.values[0]) == 0 ?
-              1d / this.values[1] : this.values[1] - this.values[0];
+          1d / this.values[1] : this.values[1] - this.values[0];
     }
 
     /**
@@ -267,10 +266,15 @@ public final class MathUtils {
             // r += (qModel/sums[qModel]) * log((qModel/sums[qModel]) /
             // (cModel /sums[cModel]))
             return qScaled.multiply(
-                BigDecimalMath.log(
-                    qScaled.divide(
-                        ds.cModel.divide(sums.cModel, MATH_CONTEXT),
-                        MATH_CONTEXT)), MATH_CONTEXT);
+                BigMathFunctions.ln(qScaled.divide(
+                    ds.cModel.divide(sums.cModel, MATH_CONTEXT),
+                    MATH_CONTEXT), MATH_CONTEXT.getPrecision()),
+                MATH_CONTEXT);
+//            return qScaled.multiply(
+//                BigDecimalMath.log(
+//                    qScaled.divide(
+//                        ds.cModel.divide(sums.cModel, MATH_CONTEXT),
+//                        MATH_CONTEXT)), MATH_CONTEXT);
           })
           .forEach(s -> result.addAndGet(s, MATH_CONTEXT));
 
@@ -325,9 +329,12 @@ public final class MathUtils {
           final BigDecimal qm = ds.qModel.divide(qms, MATH_CONTEXT);
           final BigDecimal cm = ds.cModel.divide(cms, MATH_CONTEXT);
           return qm.multiply(
-              BigDecimalMath.log(
-                  qm.divide(cm, MATH_CONTEXT)
-              ), MATH_CONTEXT
+              BigMathFunctions.ln(qm.divide(cm, MATH_CONTEXT),
+                  MATH_CONTEXT.getPrecision()),
+              MATH_CONTEXT
+//              BigDecimalMath.log(
+//                  qm.divide(cm, MATH_CONTEXT)
+//              ), MATH_CONTEXT
           );
         }).forEach(s -> result.add(s, MATH_CONTEXT));
     return result.get().divide(BD_LOG2, MATH_CONTEXT);

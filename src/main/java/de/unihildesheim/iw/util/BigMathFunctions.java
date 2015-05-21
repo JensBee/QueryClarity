@@ -4,23 +4,24 @@
  * work for additional information regarding copyright ownership.  The ASF
  * licenses this file to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- * http://www.apache.org/licenses/LICENSE-2.0
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
- * License for the specific language governing permissions and limitations under
- * the License.
+ * You may obtain a copy of the License at http://www.apache
+ * .org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in
+ * writing, software distributed under the License is distributed on an "AS IS"
+ * BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+ * implied.  See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package de.unihildesheim.iw.util;
 
-import java.math.BigInteger;
+import org.jetbrains.annotations.NotNull;
+
 import java.math.BigDecimal;
+import java.math.BigInteger;
 
 /**
- * Several useful BigDecimal mathematical functions.
- * Retrieved from https://github.com/tareknaj/BigFunctions 05/2015.
+ * Several useful BigDecimal mathematical functions. Retrieved from
+ * https://github.com/tareknaj/BigFunctions 05/2015.
  */
 public final class BigMathFunctions {
   /**
@@ -32,11 +33,11 @@ public final class BigMathFunctions {
    * @param scale the desired scale of the result
    * @return the result value
    */
-  public static BigDecimal intPower(BigDecimal x, long exponent,
-      int scale) {
+  public static BigDecimal intPower(
+      @NotNull BigDecimal x, long exponent, final int scale) {
     // If the exponent is negative, compute 1/(x^-exponent).
-    if (exponent < 0) {
-      return BigDecimal.valueOf(1)
+    if (exponent < 0L) {
+      return BigDecimal.valueOf(1L)
           .divide(intPower(x, -exponent, scale), scale,
               BigDecimal.ROUND_HALF_EVEN);
     }
@@ -44,10 +45,9 @@ public final class BigMathFunctions {
     BigDecimal power = BigDecimal.valueOf(1);
 
     // Loop to compute value^exponent.
-    while (exponent > 0) {
-
+    while (exponent > 0L) {
       // Is the rightmost bit a 1?
-      if ((exponent & 1) == 1) {
+      if ((exponent & 1L) == 1L) {
         power = power.multiply(x)
             .setScale(scale, BigDecimal.ROUND_HALF_EVEN);
       }
@@ -72,19 +72,18 @@ public final class BigMathFunctions {
    * @param scale the desired scale of the result
    * @return the result value
    */
-  public static BigDecimal intRoot(BigDecimal x, long index,
-      int scale) {
+  public static BigDecimal intRoot(
+      @NotNull BigDecimal x, final long index, final int scale) {
     // Check that x >= 0.
     if (x.signum() < 0) {
       throw new IllegalArgumentException("x < 0");
     }
 
-    int sp1 = scale + 1;
-    BigDecimal n = x;
-    BigDecimal i = BigDecimal.valueOf(index);
-    BigDecimal im1 = BigDecimal.valueOf(index - 1);
-    BigDecimal tolerance = BigDecimal.valueOf(5)
-        .movePointLeft(sp1);
+    final int sp1 = scale + 1;
+    final BigDecimal n = x;
+    final BigDecimal i = BigDecimal.valueOf(index);
+    final BigDecimal im1 = BigDecimal.valueOf(index - 1L);
+    final BigDecimal tolerance = BigDecimal.valueOf(5L).movePointLeft(sp1);
     BigDecimal xPrev;
 
     // The initial approximation is x/index.
@@ -94,22 +93,19 @@ public final class BigMathFunctions {
     // (two successive approximations are equal after rounding).
     do {
       // x^(index-1)
-      BigDecimal xToIm1 = intPower(x, index - 1, sp1);
+      final BigDecimal xToIm1 = intPower(x, index - 1, sp1);
 
       // x^index
-      BigDecimal xToI =
-          x.multiply(xToIm1)
-              .setScale(sp1, BigDecimal.ROUND_HALF_EVEN);
+      final BigDecimal xToI = x.multiply(xToIm1)
+          .setScale(sp1, BigDecimal.ROUND_HALF_EVEN);
 
       // n + (index-1)*(x^index)
-      BigDecimal numerator =
-          n.add(im1.multiply(xToI))
-              .setScale(sp1, BigDecimal.ROUND_HALF_EVEN);
+      final BigDecimal numerator = n.add(im1.multiply(xToI))
+          .setScale(sp1, BigDecimal.ROUND_HALF_EVEN);
 
       // (index*(x^(index-1))
-      BigDecimal denominator =
-          i.multiply(xToIm1)
-              .setScale(sp1, BigDecimal.ROUND_HALF_EVEN);
+      final BigDecimal denominator = i.multiply(xToIm1)
+          .setScale(sp1, BigDecimal.ROUND_HALF_EVEN);
 
       // x = (n + (index-1)*(x^index)) / (index*(x^(index-1)))
       xPrev = x;
@@ -130,7 +126,7 @@ public final class BigMathFunctions {
    * @param scale the desired scale of the result
    * @return the result value
    */
-  public static BigDecimal exp(BigDecimal x, int scale) {
+  public static BigDecimal exp(@NotNull BigDecimal x, int scale) {
     // e^0 = 1
     if (x.signum() == 0) {
       return BigDecimal.valueOf(1);
@@ -152,18 +148,16 @@ public final class BigMathFunctions {
     }
 
     // Compute the fraction part of x.
-    BigDecimal xFraction = x.subtract(xWhole);
+    final BigDecimal xFraction = x.subtract(xWhole);
 
     // z = 1 + fraction/whole
-    BigDecimal z = BigDecimal.valueOf(1)
-        .add(xFraction.divide(
-            xWhole, scale,
-            BigDecimal.ROUND_HALF_EVEN));
+    final BigDecimal z = BigDecimal.valueOf(1)
+        .add(xFraction.divide(xWhole, scale, BigDecimal.ROUND_HALF_EVEN));
 
     // t = e^z
-    BigDecimal t = expTaylor(z, scale);
+    final BigDecimal t = expTaylor(z, scale);
 
-    BigDecimal maxLong = BigDecimal.valueOf(Long.MAX_VALUE);
+    final BigDecimal maxLong = BigDecimal.valueOf(Long.MAX_VALUE);
     BigDecimal result = BigDecimal.valueOf(1);
 
     // Compute and return t^whole using intPower().
@@ -188,7 +182,7 @@ public final class BigMathFunctions {
    * @param scale the desired scale of the result
    * @return the result value
    */
-  private static BigDecimal expTaylor(BigDecimal x, int scale) {
+  private static BigDecimal expTaylor(@NotNull BigDecimal x, final int scale) {
     BigDecimal factorial = BigDecimal.valueOf(1);
     BigDecimal xPower = x;
     BigDecimal sumPrev;
@@ -208,7 +202,7 @@ public final class BigMathFunctions {
       factorial = factorial.multiply(BigDecimal.valueOf(i));
 
       // x^i/i!
-      BigDecimal term = xPower
+      final BigDecimal term = xPower
           .divide(factorial, scale,
               BigDecimal.ROUND_HALF_EVEN);
 
@@ -226,14 +220,14 @@ public final class BigMathFunctions {
   /**
    * Compute the natural logarithm of x to a given scale, x > 0.
    */
-  public static BigDecimal ln(BigDecimal x, int scale) {
+  public static BigDecimal ln(@NotNull BigDecimal x, final int scale) {
     // Check that x > 0.
     if (x.signum() <= 0) {
       throw new IllegalArgumentException("x <= 0");
     }
 
     // The number of digits to the left of the decimal point.
-    int magnitude = x.toString().length() - x.scale() - 1;
+    final int magnitude = x.toString().length() - x.scale() - 1;
 
     if (magnitude < 3) {
       return lnNewton(x, scale);
@@ -243,13 +237,13 @@ public final class BigMathFunctions {
     else {
 
       // x^(1/magnitude)
-      BigDecimal root = intRoot(x, magnitude, scale);
+      final BigDecimal root = intRoot(x, (long) magnitude, scale);
 
       // ln(x^(1/magnitude))
-      BigDecimal lnRoot = lnNewton(root, scale);
+      final BigDecimal lnRoot = lnNewton(root, scale);
 
       // magnitude*ln(x^(1/magnitude))
-      return BigDecimal.valueOf(magnitude).multiply(lnRoot)
+      return BigDecimal.valueOf((long) magnitude).multiply(lnRoot)
           .setScale(scale, BigDecimal.ROUND_HALF_EVEN);
     }
   }
@@ -258,13 +252,13 @@ public final class BigMathFunctions {
    * Compute the natural logarithm of x to a given scale, x > 0. Use Newton's
    * algorithm.
    */
-  private static BigDecimal lnNewton(BigDecimal x, int scale) {
-    int sp1 = scale + 1;
-    BigDecimal n = x;
+  private static BigDecimal lnNewton(@NotNull BigDecimal x, final int scale) {
+    final int sp1 = scale + 1;
+    final BigDecimal n = x;
     BigDecimal term;
 
     // Convergence tolerance = 5*(10^-(scale+1))
-    BigDecimal tolerance = BigDecimal.valueOf(5)
+    final BigDecimal tolerance = BigDecimal.valueOf(5)
         .movePointLeft(sp1);
 
     // Loop until the approximations converge
@@ -272,7 +266,7 @@ public final class BigMathFunctions {
     do {
 
       // e^x
-      BigDecimal eToX = exp(x, sp1);
+      final BigDecimal eToX = exp(x, sp1);
 
       // (e^x - n)/e^x
       term = eToX.subtract(n)
@@ -294,7 +288,7 @@ public final class BigMathFunctions {
    * @param scale the desired scale of the result
    * @return the result value
    */
-  public static BigDecimal arctan(BigDecimal x, int scale) {
+  public static BigDecimal arctan(@NotNull BigDecimal x, final int scale) {
     // Check that |x| < 1.
     if (x.abs().compareTo(BigDecimal.valueOf(1)) >= 0) {
       throw new IllegalArgumentException("|x| >= 1");
@@ -315,8 +309,9 @@ public final class BigMathFunctions {
    * @param scale the desired scale of the result
    * @return the result value
    */
-  private static BigDecimal arctanTaylor(BigDecimal x, int scale) {
-    int sp1 = scale + 1;
+  private static BigDecimal arctanTaylor(
+      @NotNull BigDecimal x, final int scale) {
+    final int sp1 = scale + 1;
     int i = 3;
     boolean addFlag = false;
 
@@ -325,7 +320,7 @@ public final class BigMathFunctions {
     BigDecimal term;
 
     // Convergence tolerance = 5*(10^-(scale+1))
-    BigDecimal tolerance = BigDecimal.valueOf(5)
+    final BigDecimal tolerance = BigDecimal.valueOf(5)
         .movePointLeft(sp1);
 
     // Loop until the approximations converge
@@ -360,17 +355,17 @@ public final class BigMathFunctions {
    * @param scale the desired scale of the result
    * @return the result value
    */
-  public static BigDecimal sqrt(BigDecimal x, int scale) {
+  public static BigDecimal sqrt(@NotNull BigDecimal x, final int scale) {
     // Check that x >= 0.
     if (x.signum() < 0) {
       throw new IllegalArgumentException("x < 0");
     }
 
     // n = x*(10^(2*scale))
-    BigInteger n = x.movePointRight(scale << 1).toBigInteger();
+    final BigInteger n = x.movePointRight(scale << 1).toBigInteger();
 
     // The first approximation is the upper half of n.
-    int bits = (n.bitLength() + 1) >> 1;
+    final int bits = (n.bitLength() + 1) >> 1;
     BigInteger ix = n.shiftRight(bits);
     BigInteger ixPrev;
 
