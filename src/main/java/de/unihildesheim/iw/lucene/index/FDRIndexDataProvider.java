@@ -441,6 +441,10 @@ public final class FDRIndexDataProvider
       }
       final int numDocs = this.reader.numDocs();
 
+      if (numDocs <= 0) {
+        throw new IllegalStateException("Index is empty");
+      }
+
       LOG.info("Collecting all ({}) documents from index.", numDocs);
       final Query q = new MatchAllDocsQuery();
       final IndexSearcher searcher = IndexUtils.getSearcher(this.reader);
