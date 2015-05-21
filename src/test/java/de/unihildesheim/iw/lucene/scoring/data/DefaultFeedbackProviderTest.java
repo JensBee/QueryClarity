@@ -97,9 +97,9 @@ public class DefaultFeedbackProviderTest
       dfp.indexReader(idx.getReader())
           .analyzer(new WhitespaceAnalyzer())
           .query("document1")
-          .fields("f2")
+          .fields("f1")
           .dataProvider(idx.getIdp())
-          .amount(idx.docs << 1);
+          .amount(1, idx.docs << 1);
       final DocIdSet fb = dfp.get();
 
       Assert.assertEquals("Amount of feedback mismatch.",
