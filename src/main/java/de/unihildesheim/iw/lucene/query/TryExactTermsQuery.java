@@ -17,7 +17,7 @@
 
 package de.unihildesheim.iw.lucene.query;
 
-import de.unihildesheim.iw.util.StringUtils;
+import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.ParseException;
@@ -26,10 +26,13 @@ import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.util.BytesRefArray;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -68,26 +71,28 @@ public final class TryExactTermsQuery
   private final Set<String> uniqueQueryTerms;
 
   /**
-   * New instance using the supplied query.
+   * New instance using the supplied query terms.
    *
    * @param analyzer Query analyzer
-   * @param queryStr Query string
+   * @param queryTerms Query terms
    * @param fields Fields to query
    * @throws ParseException Thrown, if the query could not be parsed
    */
   public TryExactTermsQuery(
       @NotNull final Analyzer analyzer,
-      @NotNull final String queryStr,
+      @NotNull final Collection<String> queryTerms,
       @NotNull final String... fields)
       throws ParseException {
     if (fields.length == 0) {
       throw new IllegalArgumentException("Empty fields list.");
     }
-    if (StringUtils.isStrippedEmpty(queryStr)) {
+
+    if (queryTerms.isEmpty()) {
       throw new IllegalArgumentException("Empty query.");
     }
 
-    this.queryTerms = QueryUtils.tokenizeQueryString(queryStr, analyzer);
+    this.queryTerms = new ArrayList<>(queryTerms.size());
+    this.queryTerms.addAll(queryTerms);
 
     final QueryParser qParser = new MultiFieldQueryParser(fields, analyzer);
 
@@ -104,6 +109,39 @@ public final class TryExactTermsQuery
     if (LOG.isDebugEnabled()) {
       LOG.debug("TEQ {} uQt={}", this.query, this.uniqueQueryTerms);
     }
+  }
+
+  /**
+   * New instance using the supplied query terms.
+   *
+   * @param analyzer Query analyzer
+   * @param queryTerms Query terms
+   * @param fields Fields to query
+   * @throws ParseException Thrown, if the query could not be parsed
+   * @throws IOException Thrown on low-level i/o errors
+   */
+  public TryExactTermsQuery(
+      @NotNull final Analyzer analyzer,
+      @NotNull final BytesRefArray queryTerms,
+      @NotNull final String... fields)
+      throws IOException, ParseException {
+    this(analyzer, BytesRefUtils.arrayToCollection(queryTerms), fields);
+  }
+
+  /**
+   * New instance using the supplied query.
+   *
+   * @param analyzer Query analyzer
+   * @param queryStr Query string
+   * @param fields Fields to query
+   * @throws ParseException Thrown, if the query could not be parsed
+   */
+  public TryExactTermsQuery(
+      @NotNull final Analyzer analyzer,
+      @NotNull final String queryStr,
+      @NotNull final String... fields)
+      throws ParseException {
+    this(analyzer, QueryUtils.tokenizeQueryString(queryStr, analyzer), fields);
   }
 
   /**
