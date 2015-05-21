@@ -376,7 +376,7 @@ public final class FeedbackQuery {
 
       final List<Integer> docsAvailable = dataProv
           .getDocumentIds().boxed()
-          // skip ids already provided
+              // skip ids already provided
           .filter(id -> !collected.contains(id))
           .collect(Collectors.toList());
 
@@ -392,7 +392,7 @@ public final class FeedbackQuery {
       } else {
         int idx;
         while (collected.size() < amount && !docsAvailable.isEmpty()) {
-          idx = RandomValue.getInteger(0, docsAvailable.size());
+          idx = RandomValue.getInteger(0, docsAvailable.size() - 1);
           collected.add(docsAvailable.get(idx));
           docsAvailable.remove(idx);
         }
@@ -400,7 +400,7 @@ public final class FeedbackQuery {
     }
 
     Collections.sort(collected);
-    final Builder result = new Builder(collected.get(collected.size() -1) + 1);
+    final Builder result = new Builder(collected.get(collected.size() - 1) + 1);
     collected.stream().forEach(result::add);
     return result.build();
   }
