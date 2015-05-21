@@ -323,6 +323,11 @@ public class Score
                 } else {
                   rowCount = newRowCount;
                 }
+
+                if (LOG.isDebugEnabled()) {
+                  LOG.debug("Committing result");
+                  sentenceWriter.commit();
+                }
               }
             }
           }
