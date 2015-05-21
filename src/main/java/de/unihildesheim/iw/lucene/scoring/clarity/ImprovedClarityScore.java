@@ -480,7 +480,7 @@ public final class ImprovedClarityScore
     final int fbDocCount;
     try {
       feedbackDocIds = this.fbProvider
-          .query(query)
+          .query(queryTerms)
           .fields(this.dataProv.getDocumentFields())
           .amount(
               this.conf.getMinFeedbackDocumentsCount(),

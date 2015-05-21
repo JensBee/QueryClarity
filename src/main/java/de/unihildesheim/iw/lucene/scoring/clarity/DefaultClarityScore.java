@@ -423,7 +423,7 @@ public final class DefaultClarityScore
     int fbDocCount;
     try {
       feedbackDocIds = this.fbProvider
-          .query(query)
+          .query(queryTerms)
           .fields(this.dataProv.getDocumentFields())
           .amount(this.conf.getFeedbackDocCount())
           .get();
