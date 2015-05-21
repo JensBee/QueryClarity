@@ -567,7 +567,7 @@ public final class ImprovedClarityScore
 
     if (LOG.isDebugEnabled()) {
       LOG.debug("Calculating improved clarity score for query {} "
-              + "with {} document models took {}. {}",
+              + "with {} document models took {}. score={}",
           query, fbDocCount,
           timeMeasure.stop().getTimeString(), result.getScore());
     }

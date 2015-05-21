@@ -452,7 +452,7 @@ public final class DefaultClarityScore
     if (LOG.isDebugEnabled()) {
       assert timeMeasure != null;
       LOG.debug("Calculating default clarity score for query '{}' "
-              + "with {} document models took {}. {}",
+              + "with {} document models took {}. score={}",
           query, fbDocCount, timeMeasure.stop().getTimeString(), r.getScore());
     }
     return r;

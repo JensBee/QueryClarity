@@ -145,9 +145,8 @@ public final class SimplifiedClarityScore
     final double score = MathUtils.klDivergence(dataSets).doubleValue();
 
     if (LOG.isDebugEnabled()) {
-      LOG.debug("Calculation results: query={} score={}.", query, score);
       LOG.debug("Calculating simplified clarity score for query {} "
-          + "took {}. {}", query, timeMeasure.getTimeString(), score);
+          + "took {}. score={}", query, timeMeasure.getTimeString(), score);
     }
 
     result.setScore(score);
