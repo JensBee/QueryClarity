@@ -19,7 +19,7 @@ package de.unihildesheim.iw.lucene.scoring.data;
 
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
-import de.unihildesheim.iw.lucene.query.TryExactTermsQuery;
+import de.unihildesheim.iw.lucene.query.RxTryExactTermsQuery;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
@@ -86,7 +86,7 @@ public abstract class AbstractFeedbackProvider
   @Nullable
   private String[] docFields;
   /**
-   * Query parser to use. Defaults to {@link TryExactTermsQuery}.
+   * Query parser to use. Defaults to {@link RxTryExactTermsQuery}.
    */
   @Nullable
   private
@@ -181,7 +181,7 @@ public abstract class AbstractFeedbackProvider
   final RelaxableQuery getQueryParserInstance()
       throws ParseException, IOException {
     if (this.queryParser == null) {
-      this.queryParser = new TryExactTermsQuery(
+      this.queryParser = new RxTryExactTermsQuery(
           Objects.requireNonNull(this.analyzer, "Analyzer not set."),
           Objects.requireNonNull(this.queryStr, "Query string not set."),
           getDocumentFields());

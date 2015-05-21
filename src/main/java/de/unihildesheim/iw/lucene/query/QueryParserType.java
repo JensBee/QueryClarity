@@ -24,9 +24,9 @@ import org.jetbrains.annotations.Nullable;
  */
 public enum QueryParserType {
   /**
-   * {@link TryExactTermsQuery} instance.
+   * {@link RxTryExactTermsQuery} instance.
    */
-  TEQ("Try Exact Terms Query", TryExactTermsQuery.class),
+  TEQ("Try Exact Terms Query", RxTryExactTermsQuery.class),
   /**
    * {@link RxCommonTermsQuery} instance.
    */

@@ -20,7 +20,7 @@ package de.unihildesheim.iw.lucene.scoring.data;
 import de.unihildesheim.iw.lucene.document.FeedbackQuery;
 import de.unihildesheim.iw.lucene.index.IndexUtils;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
-import de.unihildesheim.iw.lucene.query.TryExactTermsQuery;
+import de.unihildesheim.iw.lucene.query.RxTryExactTermsQuery;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.DocIdSet;
@@ -33,7 +33,7 @@ import java.util.Objects;
 
 /**
  * Default implementation of a {@link FeedbackProvider} using the {@link
- * TryExactTermsQuery} for retrieval, if no other Query type gets specified.
+ * RxTryExactTermsQuery} for retrieval, if no other Query type gets specified.
  *
  * @author Jens Bertram
  */

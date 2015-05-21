@@ -42,15 +42,15 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Test for {@link TryExactTermsQuery}.
+ * Test for {@link RxTryExactTermsQuery}.
  *
  * @author Jens Bertram
  */
 @SuppressWarnings("JavaDoc")
-public class TryExactTermsQueryTest
+public class RxTryExactTermsQueryTest
     extends TestCase {
-  public TryExactTermsQueryTest() {
-    super(LoggerFactory.getLogger(TryExactTermsQueryTest.class));
+  public RxTryExactTermsQueryTest() {
+    super(LoggerFactory.getLogger(RxTryExactTermsQueryTest.class));
   }
 
   @SuppressWarnings("ImplicitNumericConversion")
@@ -58,7 +58,7 @@ public class TryExactTermsQueryTest
   public void testRelax()
       throws Exception {
     @SuppressWarnings("TypeMayBeWeakened")
-    final TryExactTermsQuery teq= new TryExactTermsQuery(
+    final RxTryExactTermsQuery teq= new RxTryExactTermsQuery(
         new WhiteSpaceAnalyzer(),
         "foo bar baz bam",
         "foo");
@@ -73,7 +73,7 @@ public class TryExactTermsQueryTest
   @Test
   public void testGetQueryObj()
       throws Exception {
-    final BooleanQuery bq= new TryExactTermsQuery(
+    final BooleanQuery bq= new RxTryExactTermsQuery(
         new WhiteSpaceAnalyzer(),
         "foo bar baz bam",
         "foo").getQueryObj();
@@ -84,7 +84,7 @@ public class TryExactTermsQueryTest
   @Test
   public void testGetQueryTerms()
       throws Exception {
-    final Collection<String> qt = new TryExactTermsQuery(
+    final Collection<String> qt = new RxTryExactTermsQuery(
         new WhiteSpaceAnalyzer(),
         "foo bar baz bam",
         "foo").getQueryTerms();
@@ -96,7 +96,7 @@ public class TryExactTermsQueryTest
   public void test_usage()
       throws Exception {
     try (TestMemIndex idx = new TestMemIndex()) {
-      final RelaxableQuery teq = new TryExactTermsQuery(
+      final RelaxableQuery teq = new RxTryExactTermsQuery(
           new WhiteSpaceAnalyzer(),
           "field value document1 field1",
           "f1");

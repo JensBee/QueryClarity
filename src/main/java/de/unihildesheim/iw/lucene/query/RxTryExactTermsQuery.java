@@ -47,14 +47,14 @@ import java.util.Set;
  *
  * @author Jens Bertram
  */
-public final class TryExactTermsQuery
+public final class RxTryExactTermsQuery
     implements TermsProvidingQuery, RelaxableQuery {
 
   /**
    * Logger instance for this class.
    */
   private static final Logger LOG = LoggerFactory.getLogger(
-      TryExactTermsQuery.class);
+      RxTryExactTermsQuery.class);
 
   /**
    * Final query object.
@@ -78,7 +78,7 @@ public final class TryExactTermsQuery
    * @param fields Fields to query
    * @throws ParseException Thrown, if the query could not be parsed
    */
-  public TryExactTermsQuery(
+  public RxTryExactTermsQuery(
       @NotNull final Analyzer analyzer,
       @NotNull final Collection<String> queryTerms,
       @NotNull final String... fields)
@@ -120,7 +120,7 @@ public final class TryExactTermsQuery
    * @throws ParseException Thrown, if the query could not be parsed
    * @throws IOException Thrown on low-level i/o errors
    */
-  public TryExactTermsQuery(
+  public RxTryExactTermsQuery(
       @NotNull final Analyzer analyzer,
       @NotNull final BytesRefArray queryTerms,
       @NotNull final String... fields)
@@ -136,7 +136,7 @@ public final class TryExactTermsQuery
    * @param fields Fields to query
    * @throws ParseException Thrown, if the query could not be parsed
    */
-  public TryExactTermsQuery(
+  public RxTryExactTermsQuery(
       @NotNull final Analyzer analyzer,
       @NotNull final String queryStr,
       @NotNull final String... fields)

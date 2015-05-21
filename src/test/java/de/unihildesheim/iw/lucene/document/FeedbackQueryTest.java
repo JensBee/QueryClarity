@@ -25,7 +25,7 @@ import de.unihildesheim.iw.lucene.index.FDRIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
-import de.unihildesheim.iw.lucene.query.TryExactTermsQuery;
+import de.unihildesheim.iw.lucene.query.RxTryExactTermsQuery;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.document.Document;
@@ -79,7 +79,7 @@ public class FeedbackQueryTest
   public void testGetMinMax()
       throws Exception {
     try (TestIndex idx = new TestIndex(IndexType.FULL)) {
-      final RelaxableQuery rq = new TryExactTermsQuery(
+      final RelaxableQuery rq = new RxTryExactTermsQuery(
           new WhitespaceAnalyzer(), "field", "f1");
       final IndexSearcher src = new IndexSearcher(idx.getReader());
 
@@ -104,7 +104,7 @@ public class FeedbackQueryTest
   public void testGetMinMax_illegal()
       throws Exception {
     try (TestIndex idx = new TestIndex(IndexType.FULL)) {
-      final RelaxableQuery rq = new TryExactTermsQuery(
+      final RelaxableQuery rq = new RxTryExactTermsQuery(
           new WhitespaceAnalyzer(), "field", "f1");
       final IndexSearcher src = new IndexSearcher(idx.getReader());
 
@@ -131,7 +131,7 @@ public class FeedbackQueryTest
   public void testGetMinMax_maxAllDocs()
       throws Exception {
     try (TestIndex idx = new TestIndex(IndexType.FULL)) {
-      final RelaxableQuery rq = new TryExactTermsQuery(
+      final RelaxableQuery rq = new RxTryExactTermsQuery(
           new WhitespaceAnalyzer(), "field", "f1");
       final IndexSearcher src = new IndexSearcher(idx.getReader());
 
@@ -147,7 +147,7 @@ public class FeedbackQueryTest
   public void testGetFixed()
       throws Exception {
     try (TestIndex idx = new TestIndex(IndexType.FULL)) {
-      final RelaxableQuery rq = new TryExactTermsQuery(
+      final RelaxableQuery rq = new RxTryExactTermsQuery(
           new WhitespaceAnalyzer(), "field", "f1");
       final IndexSearcher src = new IndexSearcher(idx.getReader());
 
@@ -168,7 +168,7 @@ public class FeedbackQueryTest
   public void testGetFixed_withField()
       throws Exception {
     try (TestIndex idx = new TestIndex(IndexType.SPARE)) {
-      final RelaxableQuery rq = new TryExactTermsQuery(
+      final RelaxableQuery rq = new RxTryExactTermsQuery(
           new WhitespaceAnalyzer(), "field", "f1");
       final IndexSearcher src = new IndexSearcher(idx.getReader());
 
@@ -190,7 +190,7 @@ public class FeedbackQueryTest
   public void testGetFixed_useRandom()
       throws Exception {
     try (TestIndex idx = new TestIndex(IndexType.FULL)) {
-      final RelaxableQuery rq = new TryExactTermsQuery(
+      final RelaxableQuery rq = new RxTryExactTermsQuery(
           new WhitespaceAnalyzer(), "document1", "f1");
       final IndexSearcher src = new IndexSearcher(idx.getReader());
 
@@ -266,17 +266,17 @@ public class FeedbackQueryTest
       Query rq;
       int[] docs;
 
-      rq = new TryExactTermsQuery(
+      rq = new RxTryExactTermsQuery(
           new WhitespaceAnalyzer(), "document1", "f1").getQueryObj();
       docs = FeedbackQuery.getDocs(src, rq, 10);
       Assert.assertEquals("Number of docs returned differs.", 1L, docs.length);
 
-      rq = new TryExactTermsQuery(
+      rq = new RxTryExactTermsQuery(
           new WhitespaceAnalyzer(), "field", "f1").getQueryObj();
       docs = FeedbackQuery.getDocs(src, rq, 10);
       Assert.assertEquals("Number of docs returned differs.", 3L, docs.length);
 
-      rq = new TryExactTermsQuery(
+      rq = new RxTryExactTermsQuery(
           new WhitespaceAnalyzer(), "foo", "f1").getQueryObj();
       docs = FeedbackQuery.getDocs(src, rq, 10);
       Assert.assertEquals("Number of docs returned differs.", 0L, docs.length);
@@ -290,7 +290,7 @@ public class FeedbackQueryTest
     try (TestIndex idx = new TestIndex(IndexType.FULL)) {
       final IndexSearcher src = new IndexSearcher(idx.getReader());
 
-      final Query rq = new TryExactTermsQuery(
+      final Query rq = new RxTryExactTermsQuery(
           new WhitespaceAnalyzer(), "document1", "foo").getQueryObj();
       int[] docs = FeedbackQuery.getDocs(src, rq, 10);
       Assert.assertEquals("Number of docs returned differs.", 0L, docs.length);
