@@ -19,13 +19,18 @@ package de.unihildesheim.iw.lucene.util;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefHash;
+import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.Counter;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -132,6 +137,25 @@ public final class BytesRefUtils {
       ba.append(bh.get(i, br));
     }
     return ba;
+  }
+
+  /**
+   * Convert a {@link BytesRefArray} to a String Collection.
+   * @param ba Array
+   * @return Collection of Strings contained in the given array
+   * @throws IOException Thrown on low-level i/o errors
+   */
+  public static Collection<String> arrayToCollection(
+      @NotNull final BytesRefArray ba)
+      throws IOException {
+    final List<String> terms = new ArrayList<>(ba.size());
+    final BytesRefIterator bri = ba.iterator();
+
+    BytesRef br;
+    while ((br = bri.next()) != null) {
+      terms.add(br.utf8ToString());
+    }
+    return terms;
   }
 
   /**
