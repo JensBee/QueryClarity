@@ -191,12 +191,12 @@ public final class ExtractTerms
 
         // check, if there are enough terms to sample per bin
         final int finalBinSize;
-        if (binWidth < (long)this.cliParams.binSize) {
+        if (binWidth < (long) this.cliParams.binSize) {
           // reduce the number of terms to sample to the number of total
           // terms available per bin
           finalBinSize = (int) binWidth;
           LOG.warn("Not enough terms to create {} samples per bin. " +
-              "Number of samples reduced to {} samples per bin.",
+                  "Number of samples reduced to {} samples per bin.",
               this.cliParams.binSize, finalBinSize);
         } else {
           finalBinSize = this.cliParams.binSize;
@@ -239,15 +239,9 @@ public final class ExtractTerms
         // table manager instance: Target database with scoring data
         try (final ScoringDataDB scoringDb =
                  new ScoringDataDB(this.cliParams.dbTarget)) {
-          // data table
-          final TermScoringTable scoringTable;
-          if (includeIPC) {
-            scoringTable = new TermScoringTable(
-                TermScoringTable.FieldsOptional.IPC
-            );
-          } else {
-            scoringTable = new TermScoringTable();
-          }
+          // data table, always including ipc
+          final TermScoringTable scoringTable = new TermScoringTable(
+              TermScoringTable.FieldsOptional.IPC);
           // meta table
           final Table metaTable = new MetaTable();
 
@@ -264,7 +258,7 @@ public final class ExtractTerms
           if (termCount > 0L) {
             LOG.info("Generating sample seed.");
             // range of numbers (0 to binWidth) to sample from
-            final List<Integer> sampleRange =  Arrays.asList(
+            final List<Integer> sampleRange = Arrays.asList(
                 IntStream.range(0, (int) binWidth)
                     .boxed().toArray(Integer[]::new));
 
@@ -284,7 +278,7 @@ public final class ExtractTerms
 
                 Collections.shuffle(sampleRange);
                 final List<Integer> samples = new ArrayList<>(finalBinSize);
-                for (int i=0; i<finalBinSize; i++) {
+                for (int i = 0; i < finalBinSize; i++) {
                   samples.add(sampleRange.get(i));
                 }
                 Collections.sort(samples);
