@@ -288,7 +288,8 @@ public final class FilteredDirectoryReader
         throws IOException {
       this.in = wrap;
 
-      if (vFields.isEmpty() && qFilter == null) {
+      if (vFields.isEmpty() && qFilter == null &&
+          AcceptAll.class.isInstance(tFilter)) {
         LOG.warn("No filters specified. " +
             "You should use a plain IndexReader to get better performance.");
       }
