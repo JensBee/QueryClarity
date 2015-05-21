@@ -129,15 +129,8 @@ public final class DumpTermData
 
     // table manager instance: Target database for term data
     try (final TermDataDB db = new TermDataDB(this.cliParams.dbFile)) {
-      // create meta & data table
-      final Table termsTable;
-      if (this.cliParams.ipcRec == null) {
-        termsTable = new TermsTable();
-      } else {
-        termsTable = new TermsTable(
-            // include optional IPC field
-            TermsTable.FieldsOptional.IPC);
-      }
+      // create meta & data table including optional IPC field
+      final Table termsTable = new TermsTable(TermsTable.FieldsOptional.IPC);
       final Table metaTable = new MetaTable();
       db.createTables(termsTable, metaTable);
 
