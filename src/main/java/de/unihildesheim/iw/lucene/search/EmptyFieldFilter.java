@@ -61,8 +61,8 @@ public final class EmptyFieldFilter
 
   /**
    * @param field the field to filter
-   * @param negate iff {@code true} all documents with no terms in the
-   * given field are accepted.
+   * @param negate iff {@code true} all documents with no terms in the given
+   * field are accepted.
    */
   @SuppressWarnings("BooleanParameter")
   public EmptyFieldFilter(final String field, final boolean negate) {
@@ -114,23 +114,19 @@ public final class EmptyFieldFilter
     @Nullable final Terms terms = reader.terms(this.field);
     if (terms != null) {
       final int termsDocCount = terms.getDocCount();
-
-      if (termsDocCount != 0) {
-        if (termsDocCount == maxDoc) {
+      if (termsDocCount > 0) {
+        if (termsDocCount == maxDoc - 1) {
           // all matching
           finalBits = checkBits;
         } else {
-          @Nullable final Terms t = reader.terms(this.field);
-          if (t != null) {
-            PostingsEnum pe = null;
-            final TermsEnum te = t.iterator(null);
-            int docId;
-            while (te.next() != null) {
-              pe = te.postings(checkBits, pe, (int) PostingsEnum.NONE);
-              while ((docId = pe.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                if (checkBits.getAndClear(docId)) {
-                  finalBits.set(docId);
-                }
+          PostingsEnum pe = null;
+          final TermsEnum te = terms.iterator(null);
+          int docId;
+          while (te.next() != null) {
+            pe = te.postings(checkBits, pe, (int) PostingsEnum.NONE);
+            while ((docId = pe.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+              if (checkBits.getAndClear(docId)) {
+                finalBits.set(docId);
               }
             }
           }
