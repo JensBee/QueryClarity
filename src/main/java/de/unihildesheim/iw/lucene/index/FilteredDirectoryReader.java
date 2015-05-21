@@ -425,8 +425,14 @@ public final class FilteredDirectoryReader
         throws IOException {
       final int preFilter = ctxDocBits.cardinality();
 
-      ctxDocBits.and(aFilter.getDocIdSet(
-          this.in.getContext(), ctxDocBits).iterator());
+      final DocIdSetIterator disi = aFilter.getDocIdSet(
+          this.in.getContext(), ctxDocBits).iterator();
+      if (disi == null) {
+        // all docs are hidden
+        ctxDocBits.clear(0, ctxDocBits.length());
+      } else {
+        ctxDocBits.and(disi);
+      }
 
       // provide a status message
       LOG.info("Applying document-filter on index-segment ({} -> {})",
