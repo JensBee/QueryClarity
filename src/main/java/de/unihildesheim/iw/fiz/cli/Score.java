@@ -17,7 +17,7 @@
 
 package de.unihildesheim.iw.fiz.cli;
 
-import de.unihildesheim.iw.Buildable.BuildableException;
+import de.unihildesheim.iw.util.Buildable.BuildableException;
 import de.unihildesheim.iw.util.Tuple;
 import de.unihildesheim.iw.util.Tuple.Tuple2;
 import de.unihildesheim.iw.cli.CliBase;

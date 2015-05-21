@@ -17,7 +17,7 @@
 
 package de.unihildesheim.iw.lucene.query;
 
-import de.unihildesheim.iw.Buildable;
+import de.unihildesheim.iw.util.Buildable;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.lucene.analysis.Analyzer;

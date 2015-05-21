@@ -17,7 +17,7 @@
 
 package de.unihildesheim.iw.cli;
 
-import de.unihildesheim.iw.Buildable.BuildException;
+import de.unihildesheim.iw.util.Buildable.BuildException;
 import de.unihildesheim.iw.data.IPCCode;
 import de.unihildesheim.iw.data.IPCCode.Parser;
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader;

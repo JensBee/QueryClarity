@@ -16,9 +16,9 @@
  */
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
-import de.unihildesheim.iw.Buildable.BuildableException;
-import de.unihildesheim.iw.GlobalConfiguration;
-import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
+import de.unihildesheim.iw.util.Buildable.BuildableException;
+import de.unihildesheim.iw.util.GlobalConfiguration;
+import de.unihildesheim.iw.util.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;

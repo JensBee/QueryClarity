@@ -17,7 +17,7 @@
 
 package de.unihildesheim.iw.lucene.index;
 
-import de.unihildesheim.iw.Buildable;
+import de.unihildesheim.iw.util.Buildable;
 import de.unihildesheim.iw.lucene.index.TermFilter.AcceptAll;
 import de.unihildesheim.iw.lucene.search.EmptyFieldFilter;
 import de.unihildesheim.iw.lucene.util.BitsUtils;

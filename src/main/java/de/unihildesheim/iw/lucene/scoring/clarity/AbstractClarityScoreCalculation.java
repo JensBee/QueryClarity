@@ -17,8 +17,8 @@
 
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
-import de.unihildesheim.iw.Buildable.BuildableException;
-import de.unihildesheim.iw.Buildable.ConfigurationException;
+import de.unihildesheim.iw.util.Buildable.BuildableException;
+import de.unihildesheim.iw.util.Buildable.ConfigurationException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.scoring.data.DefaultFeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.DefaultVocabularyProvider;

@@ -15,9 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw;
-
-import de.unihildesheim.iw.util.ConfigurationFile;
+package de.unihildesheim.iw.util;
 
 import java.io.IOException;
 import java.math.MathContext;

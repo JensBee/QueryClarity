@@ -17,7 +17,7 @@
 
 package de.unihildesheim.iw.data;
 
-import de.unihildesheim.iw.Buildable;
+import de.unihildesheim.iw.util.Buildable;
 import de.unihildesheim.iw.data.IPCCode.IPCRecord.Field;
 import de.unihildesheim.iw.util.StringUtils;
 import org.apache.lucene.search.RegexpQuery;

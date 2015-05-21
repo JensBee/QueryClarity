@@ -16,8 +16,8 @@
  */
 package de.unihildesheim.iw.lucene.index;
 
-import de.unihildesheim.iw.GlobalConfiguration;
-import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
+import de.unihildesheim.iw.util.GlobalConfiguration;
+import de.unihildesheim.iw.util.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader
     .FilteredLeafReader;
 import de.unihildesheim.iw.lucene.search.FDRDefaultSimilarity;

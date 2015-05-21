@@ -16,8 +16,7 @@
  */
 package de.unihildesheim.iw.util;
 
-import de.unihildesheim.iw.GlobalConfiguration;
-import de.unihildesheim.iw.GlobalConfiguration.DefaultKeys;
+import de.unihildesheim.iw.util.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation.ScoreTupleHighPrecision;
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation.ScoreTupleLowPrecision;
 import de.unihildesheim.iw.util.concurrent.AtomicBigDecimal;

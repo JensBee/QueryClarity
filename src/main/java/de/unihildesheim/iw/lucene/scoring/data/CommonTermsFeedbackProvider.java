@@ -17,7 +17,7 @@
 
 package de.unihildesheim.iw.lucene.scoring.data;
 
-import de.unihildesheim.iw.Buildable.BuildableException;
+import de.unihildesheim.iw.util.Buildable.BuildableException;
 import de.unihildesheim.iw.lucene.document.FeedbackQuery;
 import de.unihildesheim.iw.lucene.index.IndexUtils;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;

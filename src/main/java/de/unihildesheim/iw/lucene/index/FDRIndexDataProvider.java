@@ -17,7 +17,7 @@
 
 package de.unihildesheim.iw.lucene.index;
 
-import de.unihildesheim.iw.Buildable;
+import de.unihildesheim.iw.util.Buildable;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils.MergingBytesRefHash;
 import de.unihildesheim.iw.lucene.util.StreamUtils;

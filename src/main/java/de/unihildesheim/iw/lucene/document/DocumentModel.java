@@ -16,7 +16,7 @@
  */
 package de.unihildesheim.iw.lucene.document;
 
-import de.unihildesheim.iw.Buildable;
+import de.unihildesheim.iw.util.Buildable;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.ByteBlockPool.DirectAllocator;

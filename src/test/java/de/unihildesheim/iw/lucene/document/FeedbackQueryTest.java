@@ -17,7 +17,7 @@
 
 package de.unihildesheim.iw.lucene.document;
 
-import de.unihildesheim.iw.Buildable;
+import de.unihildesheim.iw.util.Buildable;
 import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.lucene.VecTextField;
 import de.unihildesheim.iw.lucene.document.FeedbackQueryTest.TestIndex.IndexType;
