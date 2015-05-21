@@ -28,6 +28,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
@@ -65,7 +66,7 @@ public class RxTryExactTermsQueryTest
 
     for (int i = 4; i > 0; i--) {
       Assert.assertEquals("Number of terms mismatch.",
-          i, teq.getQueryObj().getMinimumNumberShouldMatch());
+          i, ((BooleanQuery) teq.getQueryObj()).getMinimumNumberShouldMatch());
       teq.relax();
     }
   }
@@ -73,11 +74,11 @@ public class RxTryExactTermsQueryTest
   @Test
   public void testGetQueryObj()
       throws Exception {
-    final BooleanQuery bq= new RxTryExactTermsQuery(
+    final Query q= new RxTryExactTermsQuery(
         new WhiteSpaceAnalyzer(),
         "foo bar baz bam",
         "foo").getQueryObj();
-    Assert.assertNotNull("Query object was null.", bq);
+    Assert.assertNotNull("Query object was null.", q);
   }
 
   @SuppressWarnings("ImplicitNumericConversion")

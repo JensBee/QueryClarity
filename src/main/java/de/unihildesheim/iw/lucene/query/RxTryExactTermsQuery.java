@@ -19,6 +19,7 @@ package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
@@ -26,6 +27,8 @@ import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRefArray;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -59,7 +62,7 @@ public final class RxTryExactTermsQuery
   /**
    * Final query object.
    */
-  private final BooleanQuery query;
+  private final Query query;
 
   /**
    * List of terms contained in the query (stopped, analyzed).
@@ -93,19 +96,26 @@ public final class RxTryExactTermsQuery
 
     this.queryTerms = new ArrayList<>(queryTerms.size());
     this.queryTerms.addAll(queryTerms);
-
-    final QueryParser qParser = new MultiFieldQueryParser(fields, analyzer);
-
-    this.query = new BooleanQuery();
     this.uniqueQueryTerms = new HashSet<>(this.queryTerms);
-    for (final String term : this.uniqueQueryTerms) {
-      @SuppressWarnings("ObjectAllocationInLoop")
-      final BooleanClause bc = new BooleanClause(
-          qParser.parse(QueryParserBase.escape(term)),
-          Occur.SHOULD);
-      this.query.add(bc);
+
+    if (this.uniqueQueryTerms.size() == 1 && fields.length == 1) {
+      this.query = new TermQuery(new Term(fields[0], this.uniqueQueryTerms
+          .iterator().next()));
+    } else {
+      final QueryParser qParser = new MultiFieldQueryParser(fields, analyzer);
+      final BooleanQuery bQuery = new BooleanQuery();
+
+      for (final String term : this.uniqueQueryTerms) {
+        @SuppressWarnings("ObjectAllocationInLoop")
+        final BooleanClause bc = new BooleanClause(
+            qParser.parse(QueryParserBase.escape(term)),
+            Occur.SHOULD);
+        bQuery.add(bc);
+      }
+      bQuery.setMinimumNumberShouldMatch(this.uniqueQueryTerms.size());
+
+      this.query = bQuery;
     }
-    this.query.setMinimumNumberShouldMatch(this.uniqueQueryTerms.size());
     if (LOG.isDebugEnabled()) {
       LOG.debug("TEQ {} uQt={}", this.query, this.uniqueQueryTerms);
     }
@@ -152,16 +162,20 @@ public final class RxTryExactTermsQuery
    */
   @Override
   public boolean relax() {
-    final int matchCount = this.query.getMinimumNumberShouldMatch();
-    if (matchCount > 1) {
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("Relax to {}/{}", matchCount - 1,
-            this.uniqueQueryTerms.size());
+    boolean relaxed = false;
+    if (BooleanQuery.class.isInstance(this.query)) {
+      final int matchCount =
+          ((BooleanQuery) this.query).getMinimumNumberShouldMatch();
+      if (matchCount > 1) {
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Relax to {}/{}", matchCount - 1,
+              this.uniqueQueryTerms.size());
+        }
+        ((BooleanQuery) this.query).setMinimumNumberShouldMatch(matchCount - 1);
+        relaxed = true;
       }
-      this.query.setMinimumNumberShouldMatch(matchCount - 1);
-      return true;
     }
-    return false;
+    return relaxed;
   }
 
   /**
@@ -173,7 +187,7 @@ public final class RxTryExactTermsQuery
    */
   @NotNull
   @Override
-  public BooleanQuery getQueryObj() {
+  public Query getQueryObj() {
     return this.query;
   }
 
