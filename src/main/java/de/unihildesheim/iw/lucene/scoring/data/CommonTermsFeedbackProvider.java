@@ -20,9 +20,9 @@ package de.unihildesheim.iw.lucene.scoring.data;
 import de.unihildesheim.iw.Buildable.BuildableException;
 import de.unihildesheim.iw.lucene.document.FeedbackQuery;
 import de.unihildesheim.iw.lucene.index.IndexUtils;
+import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import de.unihildesheim.iw.lucene.query.RxCommonTermsQuery;
 import de.unihildesheim.iw.lucene.query.RxCommonTermsQuery.Builder;
-import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.IndexSearcher;
@@ -75,8 +75,12 @@ public final class CommonTermsFeedbackProvider
         .fields(getDocumentFields())
         .reader(Objects.requireNonNull(this.reader,
             "IndexReader not set."))
-        .query(Objects.requireNonNull(this.queryStr, "Empty query."))
+        // set all values - implementation will pick the best one
+        .query(this.queryStr)
+        .query(this.queryTerms)
+        .query(this.queryTermsArr)
         .build();
+
     if (this.useFixedAmount) {
       if (LOG.isDebugEnabled()) {
         LOG.debug("using Fixed feedback amount={}", this.fixedAmount);
