@@ -168,6 +168,8 @@ public final class SampleTerms
         if (includeIPC) {
           preCheckSQL += " and " + TermsTable.FieldsOptional.IPC + " like '" +
               ipcName + "%'";
+        } else {
+          preCheckSQL += " and " + TermsTable.FieldsOptional.IPC + " is null";
         }
         if (LOG.isDebugEnabled()) {
           LOG.debug("PreCheckSQL: {}", preCheckSQL);
@@ -202,14 +204,14 @@ public final class SampleTerms
           finalBinSize = this.cliParams.binSize;
         }
 
-        // fields queries from source table
+        // fields queried from source table
         final String fields =
             TermsTable.Fields.TERM.toString() + ',' +
                 TermsTable.Fields.LANG + ',' +
                 TermsTable.Fields.DOCFREQ_REL + ',' +
                 TermsTable.Fields.DOCFREQ_ABS + ',' +
-                TermsTable.Fields.FIELD +
-                (includeIPC ? "," + TermsTable.FieldsOptional.IPC : "");
+                TermsTable.Fields.FIELD + ',' +
+                TermsTable.FieldsOptional.IPC;
 
         // prepared statement to query terms from source table
         final String querySQL =
@@ -220,9 +222,10 @@ public final class SampleTerms
                     " and " + TermsTable.Fields.DOCFREQ_REL +
                         " >= " + this.cliParams.threshold : "") +
                 " and " + TermsTable.Fields.FIELD + "='" + fieldName + '\'' +
+                " and " + TermsTable.FieldsOptional.IPC +
                 (includeIPC ?
-                    " and " + TermsTable.FieldsOptional.IPC + " like '" +
-                        ipcName + "%'" : "") +
+                    " like '" + ipcName + "%'" : // filter by ipc
+                    " is null") + // ipc must not be present
                 " order by " + TermsTable.Fields.DOCFREQ_REL +
                 " limit " + binWidth + " offset ?";
         if (LOG.isDebugEnabled()) {
