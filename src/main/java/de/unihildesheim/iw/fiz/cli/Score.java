@@ -17,6 +17,11 @@
 
 package de.unihildesheim.iw.fiz.cli;
 
+import de.unihildesheim.iw.data.IPCCode;
+import de.unihildesheim.iw.lucene.query.IPCClassQuery;
+import de.unihildesheim.iw.lucene.search.IPCFieldFilter;
+import de.unihildesheim.iw.lucene.search.IPCFieldFilterFunctions;
+import de.unihildesheim.iw.storage.sql.termData.TermsTable;
 import de.unihildesheim.iw.util.Buildable.BuildableException;
 import de.unihildesheim.iw.util.Tuple;
 import de.unihildesheim.iw.util.Tuple.Tuple2;
@@ -58,6 +63,9 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.jetbrains.annotations.NotNull;
@@ -80,6 +88,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
@@ -192,10 +201,50 @@ public class Score
     LOG.info("Initializing IndexDataProvider. lang={} fields={}",
         this.cliParams.language, this.cliParams.docFields);
 
-    final FilteredDirectoryReader idxReader = new FilteredDirectoryReader
+    // init filtered reader
+    final FilteredDirectoryReader.Builder
+        idxReaderBuilder = new FilteredDirectoryReader
         .Builder(this.cliParams.idxReader)
-        .fields(this.cliParams.docFields)
-        .build();
+        .fields(this.cliParams.docFields);
+
+    // check, if we should filter by ipc
+    if (this.cliParams.ipc != null) {
+      final IPCCode.Parser ipcParser = new IPCCode.Parser();
+      ipcParser.separatorChar(this.cliParams.sep);
+      ipcParser.allowZeroPad(this.cliParams.zeroPad);
+
+      this.cliParams.ipcRec = ipcParser.parse(this.cliParams.ipc);
+      final BooleanQuery bq = new BooleanQuery();
+      final Pattern rx_ipc = Pattern.compile(
+          this.cliParams.ipcRec.toRegExpString(this.cliParams.sep));
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("IPC regExp: rx={} pat={}",
+            this.cliParams.ipcRec.toRegExpString(this.cliParams.sep),
+            rx_ipc);
+      }
+
+      bq.add(new QueryWrapperFilter(
+              IPCClassQuery.get(this.cliParams.ipcRec, this.cliParams.sep)),
+          BooleanClause.Occur.MUST);
+      bq.add(new QueryWrapperFilter(
+          new IPCFieldFilter(
+              new IPCFieldFilterFunctions.SloppyMatch(this.cliParams.ipcRec),
+              ipcParser)), BooleanClause.Occur.MUST);
+      idxReaderBuilder.queryFilter(new QueryWrapperFilter(bq));
+    }
+
+    // finally build the reader
+    final FilteredDirectoryReader idxReader = idxReaderBuilder.build();
+
+    // Should we include IPC-data?
+    final boolean includeIPC = this.cliParams.ipcRec != null;
+
+    final String ipcName;
+    if (includeIPC) {
+      ipcName = this.cliParams.ipcRec.toFormattedString(this.cliParams.sep);
+    } else {
+      ipcName = "";
+    }
 
     try (final FDRIndexDataProvider dataProv = new FDRIndexDataProvider
         .Builder()
@@ -223,6 +272,8 @@ public class Score
 
       // normalize some parameters
       final String langName = this.cliParams.language.toString();
+      // fields being queried
+      final String qFields = StringUtils.join(this.cliParams.docFields, ",");
 
       ClarityScoreResult result;
       String querySQL;
@@ -266,7 +317,13 @@ public class Score
                 "on (s." + SentenceScoringTable.Fields.TERM_REF +
                 "= t." + TermScoringTable.Fields.ID + ") " +
                 "where t." + TermScoringTable.Fields.LANG + "='" +
-                langName + "';";
+                langName + "' and t." + TermsTable.FieldsOptional.IPC +
+                (includeIPC ?
+                    " like '" + ipcName + "%'" : // filter by ipc
+                    " is null;"); // ipc must not be present
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("querySQL: {}", querySQL);
+            }
             stmt.execute(querySQL);
             final ResultSet rs = stmt.getResultSet();
 
@@ -297,6 +354,12 @@ public class Score
                     result.isEmpty());
                 tfc.setValue(SentenceScoringResultTable.Fields.SCORE,
                     result.getScore());
+                tfc.setValue(SentenceScoringResultTable.Fields.Q_FIELDS,
+                    qFields);
+                if (includeIPC) {
+                  tfc.setValue(SentenceScoringResultTable.Fields.Q_IPC,
+                      ipcName);
+                }
                 // get empty reason, if any
                 if (result.isEmpty()) {
                   final Optional<String> msg = result.getEmptyReason();
@@ -340,7 +403,13 @@ public class Score
                 TermScoringTable.Fields.TERM +
                 " from " + TermScoringTable.TABLE_NAME +
                 " where " + TermScoringTable.Fields.LANG + "='" + langName +
-                "';";
+                "' and " + TermsTable.FieldsOptional.IPC +
+                (includeIPC ?
+                    " like '" + ipcName + "%'" : // filter by ipc
+                    " is null;"); // ipc must not be present
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("querySQL: {}", querySQL);
+            }
             stmt.execute(querySQL);
             final ResultSet rs = stmt.getResultSet();
 
@@ -522,6 +591,31 @@ public class Score
     @Option(name = "-scorer", metaVar = "scorerName", required = false,
         usage = "Process only using the defined scorer.")
     String scorer;
+
+    /**
+     * IPC code.
+     */
+    @Nullable
+    @Option(name = "-ipc", metaVar = "IPC", required = false,
+        usage = "IPC-code (fragment) to filter returned codes.")
+    String ipc = null;
+    @Nullable
+    IPCCode.IPCRecord ipcRec = null;
+
+    /**
+     * Default separator char.
+     */
+    @Option(name = "-grpsep", metaVar = "[separator char]",
+        required = false,
+        usage = "Char to use for separating main- and sub-group.")
+    char sep = IPCCode.Parser.DEFAULT_SEPARATOR;
+
+    /**
+     * Allow zero padding.
+     */
+    @Option(name = "-zeropad", required = false,
+        usage = "Allows padding of missing information with zeros.")
+    boolean zeroPad = false;
 
     /**
      * Concrete instance of the provided {@link #scorer}. Only set, if {@link
