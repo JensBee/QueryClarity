@@ -55,13 +55,13 @@ import java.util.stream.IntStream;
  *
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public final class ExtractTerms
+public final class SampleTerms
     extends CliBase {
   /**
    * Logger instance for this class.
    */
   private static final Logger LOG =
-      LoggerFactory.getLogger(ExtractTerms.class);
+      LoggerFactory.getLogger(SampleTerms.class);
   /**
    * Object wrapping commandline options.
    */
@@ -70,7 +70,7 @@ public final class ExtractTerms
   /**
    * Default private constructor passing a description to {@link CliBase}.
    */
-  private ExtractTerms() {
+  private SampleTerms() {
     super("Extract terms from term-dump for scoring.",
         "Extract terms from a term-dump database and prepare a scoring " +
             "database.");
@@ -86,7 +86,7 @@ public final class ExtractTerms
    */
   public static void main(@NotNull final String... args)
       throws SQLException, ClassNotFoundException {
-    new ExtractTerms().runMain(args);
+    new SampleTerms().runMain(args);
     Runtime.getRuntime().exit(0); // required to trigger shutdown-hooks
   }
 
