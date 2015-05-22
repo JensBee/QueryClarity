@@ -23,165 +23,62 @@
  */
 ext.workingDirectory = new File('data')
 
-ext.conf = [:]
-/**
- * Target directories.
- */
-ext.conf.targets = [
-        index                 : '/data/clef/Clarity/work/fiz/index/',
-        ipcDump               : workingDirectory.absolutePath + '/ipcStats',
-        plots                 : workingDirectory.absolutePath + '/plots',
-        scoring               : workingDirectory.absolutePath + '/scoring',
-        termDump              : workingDirectory.absolutePath + '/termDump',
-        termDumpSample        : workingDirectory.absolutePath +
-                '/termDumpSample',
-        termDumpSampleSentence: workingDirectory.absolutePath +
-                '/termDumpSampleSentence'
+ext.log = [
+        warn: '[WARN] ',
+        info: '[INFO] ',
+        stat: '[STAT] ',
+        err : '[ERROR] ',
 ]
 
-/**
- * GNU R configuration.
- */
-ext.conf.r = [
-        scriptPath: 'rscripts'
+ext.conf = [
+        // GNU R configuration
+        r        : [scriptPath: 'rscripts'],
+
+        // IPC-related data
+        ipc      : [
+                /**
+                 * List of all known IPC-section identifiers.
+                 */
+                sections    : ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'],
+                /**
+                 * Char to use for separating main- and sub-group.
+                 */
+                grpSeparator: '-'
+        ],
+
+        // Java runtime configuration
+        java     : [
+                //Default Java package
+                package  : 'de.unihildesheim.iw.',
+                // Java ClassPath to use
+                classPath: files('target/QueryClarity.jar')
+        ],
+
+        // Scoring configuration
+        scoring  : [
+                /**
+                 * Languages available for scoring.
+                 */
+                languages: ['de', 'en', 'fr'],
+                /**
+                 * Lucene fields available for scoring.
+                 */
+                fields   : ['claims', 'detd']
+        ],
+
+        // Stopwords configuration
+        stopwords: [
+                // Location of stopword files
+                pathPattern: new File('stop/stop/').absolutePath,
+                // Default stopwords file format
+                format     : 'snowball'
+        ],
+
+        // Target directories
+        targets  : [
+                index: '/data/clef/Clarity/work/fiz/index/'
+        ]
 ]
-
-/**
- * Java runtime configuration.
- */
-ext.conf.java = [
-        /**
-         * Default Java package.
-         */
-        package  : 'de.unihildesheim.iw.',
-        /**
-         * Java ClassPath to use.
-         */
-        classPath: files('target/QueryClarity.jar')
-]
-
-/**
- * Stopwords configuration.
- */
-ext.conf.stopwords = [
-        /**
-         * Location of stopword files.
-         */
-        pathPattern: new File('stop/stop/').absolutePath,
-        /**
-         * Default stopwords file format.
-         */
-        format     : 'snowball'
-]
-
-/**
- * Scoring configuration.
- */
-ext.conf.scoring = [
-        /**
-         * Languages available for scoring.
-         */
-        languages: ['de', 'en', 'fr'],
-        /**
-         * Lucene fields available for scoring.
-         */
-        fields   : ['claims', 'detd']
-]
-
-ext.conf.ipc = [
-        /**
-         * List of all known IPC-section identifiers.
-         */
-        sections    : ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'],
-        /**
-         * Char to use for separating main- and sub-group.
-         */
-        grpSeparator: '-'
-]
-
-ext.TaskConf = [:]
-
-/*******************************************************************************
- * Internal configuration.
- */
-/**
- * Pre-defined task group-names.
- */
-ext.groupNames = [
-        intern         : 'Internal',
-        termDump       : 'Term-frequency data dumps: ' +
-                "Base data (${conf.targets.termDump})",
-        termDumpIpc    : 'Term frequency data dumps: ' +
-                "Filtered by IPC-section (${conf.targets.termDump})",
-        extractTerms   : 'Sample terms from term-frequency data dumps: ' +
-                "Base data (${conf.targets.termDumpSample})",
-        extractTermsIpc: 'Sample terms from term-frequency data dumps: ' +
-                "Filtered by IPC-section (${conf.targets.termDumpSample})",
-        index          : 'Lucene index related tasks',
-        dumpIpcStats   : "Dump IPC-Data statistics (${conf.targets.ipcDump})",
-        plot           : "Data plotting (${conf.targets.plots})",
-        getSentences   : "Get sentences from TermFreq dump terms " +
-                "(${conf.targets.termDumpSampleSentence})"
-]
-
-/*******************************************************************************
- * Utilities
- */
-ext.Validate = [
-        requireFile    : { f ->
-            if (!f.exists()) {
-                logger.error("Check for file ${f} - failed.")
-                throw new IllegalStateException(
-                        "Required file ${f} does not exist.")
-            }
-            logger.info("Check for file ${f} - Ok.")
-        },
-
-        deleteIfPresent: { f ->
-            if (f.exists()) {
-                logger.info("Delete ${f} - since it's out of date.")
-                f.delete()
-            }
-        }
-]
-
-/**
- * Parse the set of parameters passed to pattern based tasks.
- * @param dataString Parameter string
- * @return Parsed values from parameter string
- */
-def parseDataSuffix(dataString) {
-    if (dataString.startsWith('-')) {
-        dataString = dataString - '-'
-    }
-
-    def params = [:]
-    if (dataString.length() > 0) {
-        params._list = dataString.split('-')
-        if (params._list.length >= 1) {
-            params.language = params._list[0].toLowerCase()
-            if (!conf.scoring.languages.contains(params.language)) {
-                throw new IllegalArgumentException(
-                        "Unknown language '${params.language}'.")
-            }
-        }
-        if (params._list.length >= 2) {
-            params.field = params._list[1].toLowerCase()
-            if (!conf.scoring.fields.contains(params.field)) {
-                throw new IllegalArgumentException(
-                        "Unknown field '${params.field}'.")
-            }
-        }
-        if (params._list.length >= 3) {
-            params.ipcSec = params._list[2].toUpperCase()
-            if (!conf.ipc.sections.contains(params.ipcSec)) {
-                throw new IllegalArgumentException(
-                        "Unknown IPC-Section '${params.ipcSec}'.")
-            }
-        }
-    }
-    params
-}
 
 /*******************************************************************************
  * Internal tasks.
@@ -191,7 +88,6 @@ def parseDataSuffix(dataString) {
  */
 task('wrapper', type: Wrapper) {
     description 'Create gradle wrapper for distribution.'
-    group groupNames.intern
     gradleVersion = '2.3'
 }
 
@@ -202,27 +98,10 @@ task('prepareOutput') {
     workingDirectory.mkdirs()
 }
 
-// include sub-tasks
-apply from: 'gradle/task_termDump.gradle'
-apply from: 'gradle/task_termDumpSample.gradle'
-apply from: 'gradle/task_getSentences.gradle'
-apply from: 'gradle/task_ipcStats.gradle'
-apply from: 'gradle/task_plot.gradle'
-apply from: 'gradle/task_score.gradle'
-
-task(all) {
-    description 'Run all tasks'
-    dependsOn 'buildIndex-de', 'buildIndex-en', 'buildIndex-fr',
-            TaskConf.TermDump.taskPrefix,
-            TaskConf.TermDumpSample.taskPrefix,
-            TaskConf.GetSentences.taskPrefix,
-            TaskConf.Score.taskPrefix,
-            TaskConf.IpcStats.taskPrefix,
-            TaskConf.Plots.taskPrefix
-}
+//apply from: 'gradle/task_score.gradle'
 
 /*******************************************************************************
- * Index building tasks.
+ * Index building.
  */
 for (lang in conf.scoring.languages) {
     task("buildIndex-${lang}") {
@@ -240,13 +119,12 @@ for (lang in conf.scoring.languages) {
          */
         def mainClass = conf.java.package + 'fiz.cli.BuildIndex'
 
-        group groupNames.index
         description "Create index. lang=${lang}."
         dependsOn prepareOutput
         outputs.files conf.targets.index + lang + '/'
 
         doLast {
-            logger.info("Building index for language=${lang}")
+            logger.info(log.stat + "Building index for language=${lang}")
 
             javaexec {
                 args = cmdArgs
@@ -263,7 +141,461 @@ task('buildIndex') {
         depTasks.add(tasks["buildIndex-${lang}"])
     }
 
-    group groupNames.index
-    description 'Batch create index. lang=*.'
+    description 'Build Lucene indices for all languages.'
     dependsOn depTasks
+}
+
+/*******************************************************************************
+ * Term dumping.
+ */
+task('termDump') {
+    description 'Dump term-frequency data for all languages.'
+
+    /**
+     * Default arguments for the main class.
+     */
+    ext.defaultCmdArgs = [
+            '-grpsep', conf.ipc.grpSeparator,
+            '-stop', conf.stopwords.pathPattern,
+            '-stop-format', conf.stopwords.format,
+            '-threshold', 0d,
+            '-zeropad']
+    /**
+     * Output file pattern.
+     */
+    ext.filePattern = { lang ->
+        return "${workingDirectory.absolutePath}/termDump-${lang}.sqlite"
+    }
+
+    dependsOn {
+        def depTasks = ['prepareOutput']
+        for (lang in conf.scoring.languages) {
+            depTasks.add("buildIndex-${lang}")
+        }
+        depTasks
+    }
+
+    outputs.files {
+        def outFiles = []
+        for (lang in conf.scoring.languages) {
+            outFiles.add(filePattern(lang))
+        }
+        outFiles
+    }
+
+    doLast {
+        /**
+         * Main class to execute.
+         */
+        ext.mainClass = conf.java.package + 'cli.DumpTermData'
+        ext.cmdArgs = []
+
+        for (lang in conf.scoring.languages) {
+            /**
+             * Command-line arguments for the main class.
+             */
+            cmdArgs = defaultCmdArgs + [
+                    '-idx', conf.targets.index + lang,
+                    '-lang', lang,
+                    '-dbfile', filePattern(lang)]
+
+            // check, if target already exists
+            if (file(filePattern(lang)).exists()) {
+                logger.warn(log.warn +
+                        "TermDump for language '${lang}' exists. " +
+                        "Skipping language=${lang}")
+            } else {
+                // dump for language + field
+                for (field in conf.scoring.fields) {
+                    logger.info(log.stat + "Dumping terms for " +
+                            "language=${lang} field=${field}")
+                    javaexec {
+                        args = cmdArgs + ['-field', field]
+                        classpath = conf.java.classPath
+                        main = mainClass
+                    }
+
+                    // dump for language + field + ipc
+                    for (ipcSec in conf.ipc.sections) {
+                        logger.info(log.stat + "Dumping terms for " +
+                                "language=${lang} field=${field} ipc=${ipcSec}")
+                        javaexec {
+                            args = cmdArgs + [
+                                    '-field', field,
+                                    '-ipc', ipcSec
+                            ]
+                            classpath = conf.java.classPath
+                            main = mainClass
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/*******************************************************************************
+ * Term dump sampling.
+ */
+task('termDumpSample') {
+    description 'Extract sample terms from term-frequency dumps.'
+
+    /**
+     * Default arguments for the main class.
+     */
+    ext.defaultCmdArgs = [
+            '-threshold', 0, //0.01,
+            '-bins', 6,
+            '-binsize', 50,
+            '-picks', '1 3 5',
+            '-grpsep', conf.ipc.grpSeparator]
+    /**
+     * Output file pattern.
+     */
+    ext.tgtTimestamp = new Date().format("yyyy-MM-dd_HH:mm:ss")
+    ext.tgtDir = "${workingDirectory.absolutePath}/termDumpSamples"
+    ext.tgtFilePattern = { lang ->
+        return "${tgtDir}/termDumpSample-${lang}-${tgtTimestamp}.sqlite"
+    }
+    /**
+     * Source file pattern.
+     */
+    ext.srcFilePattern = { lang ->
+        return "${workingDirectory.absolutePath}/termDump-${lang}.sqlite"
+    }
+
+    dependsOn 'termDump'
+
+    // task will always run
+    outputs.upToDateWhen {
+        return false
+    }
+
+    doLast {
+        // create target
+        file(tgtDir).mkdirs()
+
+        /**
+         * Main class to execute.
+         */
+        ext.mainClass = conf.java.package + 'cli.SampleTerms'
+        ext.cmdArgs = []
+
+        for (lang in conf.scoring.languages) {
+            /**
+             * Command-line arguments for the main class.
+             */
+            cmdArgs = defaultCmdArgs + [
+                    '-dumpdb', srcFilePattern(lang),
+                    '-scoredb', tgtFilePattern(lang),
+                    '-lang', lang]
+
+            // sample for language + field
+            for (field in conf.scoring.fields) {
+                logger.info(log.stat + "Sampling terms for " +
+                        "language=${lang} field=${field}")
+                javaexec {
+                    args = cmdArgs + ['-field', field]
+                    classpath = conf.java.classPath
+                    main = mainClass
+                }
+
+                // sample for language + field + ipc
+                for (ipcSec in conf.ipc.sections) {
+                    logger.info(log.stat + "Sampling terms for " +
+                            "language=${lang} field=${field} ipc=${ipcSec}")
+                    javaexec {
+                        args = cmdArgs + [
+                                '-field', field,
+                                '-ipc', ipcSec
+                        ]
+                        classpath = conf.java.classPath
+                        main = mainClass
+                    }
+                }
+            }
+        }
+    }
+}
+
+/*******************************************************************************
+ * Term dump sample sentence extraction.
+ */
+task('termDumpSampleSentences') {
+    description 'Add sentences for all terms sampled from ' +
+            'term-frequency dumps.'
+
+    /**
+     * Output file pattern.
+     */
+    ext.tgtDir = "${workingDirectory.absolutePath}/termDumpSampleSentences"
+    ext.tgtFilePattern = { file -> return "${tgtDir}/${file}" }
+    /**
+     * Source file pattern.
+     */
+    ext.srcDir = "${workingDirectory.absolutePath}/termDumpSamples"
+    ext.srcFiles = { lang ->
+        return fileTree(
+                dir: srcDir,
+                include: "**/termDumpSample-${lang}*.sqlite")
+    }
+
+    // task will always run
+    outputs.upToDateWhen {
+        return false
+    }
+
+    doLast {
+        /**
+         * Main class to execute.
+         */
+        ext.mainClass = conf.java.package +
+                'fiz.cli.ScoringTermSentenceExtractor'
+        ext.cmdArgs = []
+
+        logger.info(log.stat +
+                "Getting sentences for term-dumps in '${srcDir}'")
+
+        for (lang in conf.scoring.languages) {
+            /**
+             * Command-line arguments for the main class.
+             */
+            cmdArgs = [
+                    '-idx', conf.targets.index + lang,
+                    '-lang', lang]
+
+            // get all termDump files for the current language
+            srcFiles(lang).visit { entry ->
+                logger.info(log.stat +
+                        "Getting sentences for '${entry.name}'")
+
+                ext.targetFile = tgtFilePattern(entry.name)
+
+                // check, if target already exists
+                if (file(targetFile).exists()) {
+                    logger.warn(log.warn + 'Sentences for dump \'' +
+                            targetFile + ' exists. Skipping file.')
+                } else {
+                    // copy file
+                    copy {
+                        from entry.file
+                        into tgtDir
+                        include entry.name
+                    }
+
+                    // run java
+                    javaexec {
+                        args = cmdArgs + ['-scoredb', targetFile]
+                        classpath = conf.java.classPath
+                        main = mainClass
+                    }
+                }
+            }
+        }
+    }
+}
+
+/*******************************************************************************
+ * Collect IPC-Code statistics.
+ */
+task('ipcStats') {
+    description 'Collect IPC-code related statistics.'
+
+    /**
+     * Default arguments for the main class.
+     */
+    ext.defaultCmdArgs = [
+            '-grpsep', conf.ipc.grpSeparator,
+            '-zeropad']
+
+    /**
+     * Output file pattern.
+     */
+    ext.filePattern = { lang ->
+        return "${workingDirectory.absolutePath}/ipcStats-${lang}.sqlite"
+    }
+
+    dependsOn {
+        def depTasks = ['prepareOutput']
+        for (lang in conf.scoring.languages) {
+            depTasks.add("buildIndex-${lang}")
+        }
+        depTasks
+    }
+
+    outputs.files {
+        def outFiles = []
+        for (lang in conf.scoring.languages) {
+            outFiles.add(filePattern(lang))
+        }
+        outFiles
+    }
+
+    doLast {
+        /**
+         * Main class to execute.
+         */
+        ext.mainClass = conf.java.package + 'cli.DumpIPCStats'
+
+        for (lang in conf.scoring.languages) {
+            /**
+             * Command-line arguments for the main class.
+             */
+            ext.cmdArgs = defaultCmdArgs + [
+                    '-out', filePattern(lang),
+                    '-idx', conf.targets.index + lang]
+
+            // check, if target already exists
+            if (file(filePattern(lang)).exists()) {
+                logger.warn(log.warn +
+                        "IPC-statistics for language '${lang}' exists. " +
+                        "Skipping language=${lang}")
+            } else {
+                // run java
+                javaexec {
+                    args = cmdArgs
+                    classpath = conf.java.classPath
+                    main = mainClass
+                }
+            }
+        }
+    }
+}
+
+/*******************************************************************************
+ * Plot graphs.
+ */
+task('plot') {
+    description 'Create various plots using R.'
+
+    /**
+     * Output directory.
+     */
+    ext.targetDir = "${workingDirectory.absolutePath}/plots"
+
+    /**
+     * Default arguments for running R.
+     */
+    ext.defaultCmdArgs = ['-t', targetDir]
+
+    dependsOn 'ipcStats'
+
+    outputs.files {
+        def t = targetDir + '/'
+        return files(
+                // IPC-stats
+                t + 'ipcStats-section_dist.pdf',
+                t + 'ipcStats-section_divcount.pdf'
+        )
+    }
+
+    doLast {
+        // create target directory
+        file(targetDir).mkdirs()
+
+        // IPC-stats
+        ext.cmdArgs = [
+                "${conf.r.scriptPath}/plotIPCStats.r",
+                '-s', workingDirectory.absolutePath] + defaultCmdArgs
+
+        exec {
+            executable 'Rscript'
+            args cmdArgs
+        }
+    }
+}
+
+/*******************************************************************************
+ * Clarity scoring.
+ */
+task('score') {
+    description 'Calculate Clarity scores.'
+
+    /**
+     * Output file pattern.
+     */
+    ext.tgtDir = "${workingDirectory.absolutePath}/scoring"
+    ext.tgtFilePattern = { file -> return "${tgtDir}/${file}" }
+    /**
+     * Source file pattern.
+     */
+    ext.srcDir = "${workingDirectory.absolutePath}/termDumpSampleSentences"
+    ext.srcFiles = { lang ->
+        return fileTree(
+                dir: srcDir,
+                include: "**/termDumpSample-${lang}*.sqlite")
+    }
+
+    doLast {
+        /**
+         * Main class to execute from the generated tasks.
+         */
+        ext.mainClass = conf.java.package + 'fiz.cli.Score'
+        ext.cmdArgs = []
+
+        logger.info(log.stat +
+                "Scorng terms & sentences for dumps in '${srcDir}'")
+
+        for (lang in conf.scoring.languages) {
+            /**
+             * Command-line arguments for the main class.
+             */
+            cmdArgs = [
+                    '-idx', conf.targets.index + lang,
+                    '-lang', lang,
+                    '-grpsep', conf.ipc.grpSeparator,
+                    '-zeropad']
+
+            // get all termDump files for the current language
+            srcFiles(lang).visit { entry ->
+                logger.info(log.stat +
+                        "Getting terms & sentences for '${entry.name}'")
+
+                ext.targetFile = tgtFilePattern(entry.name)
+                cmdArgs += ['-scoredb', targetFile]
+
+                // check, if target already exists
+                if (file(targetFile).exists()) {
+                    logger.warn(log.warn + 'Scoring for dump \'' +
+                            targetFile + ' exists. Skipping file.')
+                } else {
+                    // copy file
+                    copy {
+                        from entry.file
+                        into tgtDir
+                        include entry.name
+                    }
+
+                    // score for language + field
+                    for (field in conf.scoring.fields) {
+                        logger.info(log.stat + "Scoring language=${lang} " +
+                                "field=${field}")
+
+                        // run java
+                        javaexec {
+                            args = cmdArgs + ['-fields', field]
+                            classpath = conf.java.classPath
+                            main = mainClass
+                        }
+
+                        // score for language + field + ipc
+                        for (ipcSec in conf.ipc.sections) {
+                            logger.info(log.stat + "Scoring language=${lang} " +
+                                    "field=${field} ipc=${ipcSec}")
+
+                            // run java
+                            javaexec {
+                                args = cmdArgs + [
+                                        '-fields', field,
+                                        '-ipc', ipcSec
+                                ]
+                                classpath = conf.java.classPath
+                                main = mainClass
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
