@@ -263,7 +263,7 @@ public final class ScoringTermSentenceExtractor
 
       long rowCount = scoringDb
           .getNumberOfRows(SentenceScoringTable.TABLE_NAME);
-      long newRowCount = 0l;
+      long newRowCount;
 
       Statement insertStmt;
       SQLWarning insertWarn;
@@ -287,8 +287,10 @@ public final class ScoringTermSentenceExtractor
           throw new IllegalStateException("Empty sentence.");
         }
 
-        LOG.debug("SENTENCE: {}\n  CP:{} t:{}", sentence,
-            sentence.codePointCount(0, sentence.length()), term);
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("SENTENCE: {}\n  CP:{} t:{}", sentence,
+              sentence.codePointCount(0, sentence.length()), term);
+        }
 
         @SuppressWarnings("ObjectAllocationInLoop")
         final TableFieldContent tfc = new TableFieldContent(sentenceTable);
@@ -438,16 +440,17 @@ public final class ScoringTermSentenceExtractor
                   jHits.getAsJsonArray(ES_CONF.FLD_DESC));
             }
           } else {
-            LOG.error("Required field {} not found.", fld);
+            LOG.error("Required field {} not found. patRef={}", fld, ref);
           }
         } else {
-          LOG.error("No hit fields returned.");
+          LOG.error("No hit fields returned. patRef={}", ref);
         }
       } else {
-        LOG.error("Expected 1 hit, got {}.", hits.size());
+        LOG.error("Expected 1 hit, got {}. patRef={}", hits.size(), ref);
       }
     } else {
-      LOG.error("Initial request failed. {}", result.getErrorMessage());
+      LOG.error("Initial request failed. patRef={} {}",
+          ref, result.getErrorMessage());
     }
 
     if (sentence.isEmpty()) {
