@@ -17,6 +17,7 @@
 
 package de.unihildesheim.iw.storage.sql.scoringData;
 
+import de.unihildesheim.iw.data.IPCCode.IPCRecord;
 import de.unihildesheim.iw.storage.sql.AbstractTable;
 import de.unihildesheim.iw.storage.sql.Table;
 import de.unihildesheim.iw.storage.sql.TableField;
@@ -71,6 +72,14 @@ public final class SentenceScoringResultTable
      * If a result is empty this may contain a hint for the reason.
      */
     EMPTY_REASON("empty_reason text"),
+    /**
+     * Fields visible while scoring.
+     */
+    Q_FIELDS("q_fields text"),
+    /**
+     * IPC-filter set while scoring.
+     */
+    Q_IPC("q_ipc text(" + IPCRecord.MAX_LENGTH + ')'),
     /**
      * Scoring result value.
      */
