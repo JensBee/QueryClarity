@@ -75,10 +75,7 @@ public final class CommonTermsFeedbackProvider
         .fields(getDocumentFields())
         .reader(Objects.requireNonNull(this.reader,
             "IndexReader not set."))
-        // set all values - implementation will pick the best one
-        .query(this.queryStr)
-        .query(this.queryTerms)
-        .query(this.queryTermsArr)
+        .query(getUniqueQueryTerms())
         .build();
 
     if (this.useFixedAmount) {
