@@ -16,9 +16,6 @@
  */
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
-import de.unihildesheim.iw.util.Buildable.BuildableException;
-import de.unihildesheim.iw.util.GlobalConfiguration;
-import de.unihildesheim.iw.util.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
@@ -26,10 +23,14 @@ import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
 import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
 import de.unihildesheim.iw.lucene.util.StreamUtils;
+import de.unihildesheim.iw.util.Buildable.BuildableException;
+import de.unihildesheim.iw.util.GlobalConfiguration;
+import de.unihildesheim.iw.util.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.search.BooleanQuery.TooManyClauses;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
@@ -389,7 +390,8 @@ public final class DefaultClarityScore
 
   /**
    * Calculate the clarity score. This method does only pre-checks. The real
-   * calculation is done in {@link #calculateClarity(BytesRefArray, DocIdSet)}.
+   * calculation is done in {@link #calculateClarity(Result, BytesRefArray,
+   * DocIdSet)}.
    *
    * @param query Query used for term extraction
    * @return Clarity score result
@@ -419,6 +421,8 @@ public final class DefaultClarityScore
       return result;
     }
 
+    Result result = new Result();
+    boolean resultNotEmpty = true;
     DocIdSet feedbackDocIds;
     int fbDocCount;
     try {
@@ -431,47 +435,64 @@ public final class DefaultClarityScore
       if (LOG.isDebugEnabled()) {
         LOG.debug("Feedback size: {} documents.", fbDocCount);
       }
+    } catch (final TooManyClauses e) {
+      resultNotEmpty = false;
+      feedbackDocIds = EMPTY_DOCIDSET;
+      fbDocCount = 0;
+      result.setEmpty("Boolean query too large.");
     } catch (final Exception e) {
       final String msg = "Caught exception while getting feedback documents.";
       LOG.error(msg, e);
       throw new ClarityScoreCalculationException(msg, e);
     }
 
-    if (fbDocCount == 0) {
-      final Result result = new Result();
-      result.setEmpty("No feedback documents.");
-      return result;
+    if (resultNotEmpty) {
+      if (fbDocCount == 0) {
+        resultNotEmpty = false;
+        result.setEmpty("No feedback documents.");
+      } else {
+        try {
+          result = calculateClarity(result, queryTerms, feedbackDocIds);
+        } catch (final IOException e) {
+          throw new ClarityScoreCalculationException("Calculation failed.", e);
+        }
+      }
     }
 
-    final Result r;
-    try {
-      r = calculateClarity(queryTerms, feedbackDocIds);
-    } catch (final IOException e) {
-      throw new ClarityScoreCalculationException("Calculation failed.", e);
-    }
     if (LOG.isDebugEnabled()) {
       assert timeMeasure != null;
-      LOG.debug("Calculating default clarity score for query '{}' "
-              + "with {} document models took {}. score={}",
-          query, fbDocCount, timeMeasure.stop().getTimeString(), r.getScore());
+      if (resultNotEmpty) {
+        LOG.debug("Calculating default clarity score for query '{}' "
+                + "with {} document models took {}. score={}",
+            query, fbDocCount, timeMeasure.stop().getTimeString(),
+            result.getScore());
+      } else {
+        String msg = "Calculating default clarity score for query '{}' "
+            + "with {} document models took {}. Result is empty.";
+        if (result.getEmptyReason().isPresent()) {
+          msg += " reason=" + result.getEmptyReason().get();
+        }
+        LOG.debug(msg, query, fbDocCount, timeMeasure.stop().getTimeString());
+      }
     }
-    return r;
+    return result;
   }
 
   /**
    * Calculate the clarity score. Calculation is based on a set of feedback
    * documents and a list of query terms.
    *
+   * @param result Result object
    * @param queryTerms Query terms
    * @param feedbackDocIds Feedback document ids to use
    * @return Result of the calculation
    * @throws IOException Thrown on low-level I/O-errors
    */
   private Result calculateClarity(
+      @NotNull final Result result,
       @NotNull final BytesRefArray queryTerms,
       @NotNull final DocIdSet feedbackDocIds)
       throws IOException {
-    final Result result = new Result();
     result.setConf(this.conf);
     result.setFeedbackDocIds(feedbackDocIds);
     result.setQueryTerms(queryTerms);

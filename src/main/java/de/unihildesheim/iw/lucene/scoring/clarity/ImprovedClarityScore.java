@@ -16,9 +16,6 @@
  */
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
-import de.unihildesheim.iw.util.Buildable.BuildableException;
-import de.unihildesheim.iw.util.GlobalConfiguration;
-import de.unihildesheim.iw.util.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
@@ -26,11 +23,15 @@ import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
 import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
 import de.unihildesheim.iw.lucene.util.StreamUtils;
+import de.unihildesheim.iw.util.Buildable.BuildableException;
+import de.unihildesheim.iw.util.GlobalConfiguration;
+import de.unihildesheim.iw.util.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.search.BooleanQuery.TooManyClauses;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
@@ -263,9 +264,16 @@ public final class ImprovedClarityScore
           this.dataProv.getRelativeTermFrequency(term));
 
       // smoothed document-term model
-      final BigDecimal smoothing = BigDecimal.valueOf(docModel.tf(term))
-          .add(this.dmParams[0].multiply(cModel), MATH_CONTEXT)
-          .divide(this.staticSmoothingParts.get(docModel.id), MATH_CONTEXT);
+      final BigDecimal smoothingPart = this.staticSmoothingParts
+          .get(docModel.id);
+      final BigDecimal smoothing;
+      if (smoothingPart.compareTo(BigDecimal.ZERO) == 0) {
+        smoothing = BigDecimal.ZERO;
+      } else {
+        smoothing = BigDecimal.valueOf(docModel.tf(term))
+            .add(this.dmParams[0].multiply(cModel), MATH_CONTEXT)
+            .divide(this.staticSmoothingParts.get(docModel.id), MATH_CONTEXT);
+      }
 
       // final model calculation
       return this.dmParams[2]
@@ -375,8 +383,14 @@ public final class ImprovedClarityScore
       final double cModel = this.dataProv.getRelativeTermFrequency(term);
 
       // smoothed document-term model
-      final double smoothing = ((double) docModel.tf(term) + (this.dmParams[0] *
-          cModel)) / this.staticSmoothingParts.get(docModel.id);
+      final double smoothingPart = this.staticSmoothingParts.get(docModel.id);
+      final double smoothing;
+      if (smoothingPart == 0d) {
+        smoothing = 0;
+      } else {
+        smoothing = ((double) docModel.tf(term) + (this.dmParams[0] *
+            cModel)) / this.staticSmoothingParts.get(docModel.id);
+      }
 
       // final model calculation
       return (this.dmParams[2] * ((this.dmParams[1] * smoothing) +
@@ -455,7 +469,8 @@ public final class ImprovedClarityScore
     }
 
     // result object
-    final Result result = new Result(this.getClass());
+    final Result result = new Result();
+    boolean resultNotEmpty = true;
 
     // get a normalized unique list of query terms
     // skips stopwords and removes unknown terms (not visible in current
@@ -476,8 +491,8 @@ public final class ImprovedClarityScore
     final TimeMeasure timeMeasure = new TimeMeasure().start();
 
     // set of feedback documents to use for calculation.
-    final DocIdSet feedbackDocIds;
-    final int fbDocCount;
+    DocIdSet feedbackDocIds;
+    int fbDocCount;
     try {
       feedbackDocIds = this.fbProvider
           .query(queryTerms)
@@ -487,89 +502,109 @@ public final class ImprovedClarityScore
               this.conf.getMaxFeedbackDocumentsCount())
           .get();
       fbDocCount = DocIdSetUtils.cardinality(feedbackDocIds);
+    } catch (final TooManyClauses e) {
+      resultNotEmpty = false;
+      feedbackDocIds = EMPTY_DOCIDSET;
+      fbDocCount = 0;
+      result.setEmpty("Boolean query too large.");
     } catch (final Exception e) {
       final String msg = "Caught exception while getting feedback documents.";
       LOG.error(msg, e);
       throw new ClarityScoreCalculationException(msg, e);
     }
 
-    if (fbDocCount == 0) {
-      result.setEmpty("No feedback documents.");
-      return result;
-    }
-    if (fbDocCount < this.conf
-        .getMinFeedbackDocumentsCount()) {
-      result.setEmpty("Not enough feedback documents. " +
-          this.conf.getMinFeedbackDocumentsCount() +
-          " requested, " + fbDocCount + " retrieved.");
-      return result;
-    }
-    result.setFeedbackDocIds(feedbackDocIds);
-
-    // get document frequency threshold - allowed terms must be in bounds
-    final double minFreq = this.conf
-        .getMinFeedbackTermSelectionThreshold();
-    final double maxFreq = this.conf
-        .getMaxFeedbackTermSelectionThreshold();
-    if (LOG.isDebugEnabled()) {
-      LOG.debug("Feedback term Document frequency threshold: {}%-{}%",
-          minFreq * 100d, maxFreq * 100d);
-    }
-
-    // feedback terms stream used for calculation
-    final Stream<BytesRef> fbTermStream = this.vocProvider
-        .documentIds(feedbackDocIds)
-        .get()
-        // filter common terms
-        .filter(t -> {
-          final double relDf = this.dataProv.getRelativeDocumentFrequency(t);
-          return relDf >= minFreq && relDf <= maxFreq;
-        });
-
-    try {
-      if (MATH_LOW_PRECISION) {
-        final ModelLowPrecision model = new ModelLowPrecision(
-            this.dataProv, queryTerms, feedbackDocIds,
-            this.conf.getDocumentModelSmoothingParameter(),
-            this.conf.getDocumentModelParamBeta(),
-            this.conf.getDocumentModelParamLambda());
-
-        LOG.info("Calculating query models using feedback vocabulary. " +
-            "(low precision)");
-        final ScoreTupleLowPrecision[] dataSets = fbTermStream
-            .map(term -> new ScoreTupleLowPrecision(
-                model.query(term), this.dataProv.getRelativeTermFrequency(term)))
-            .toArray(ScoreTupleLowPrecision[]::new);
-
-        LOG.info("Calculating final score.");
-        result.setScore(MathUtils.klDivergence(dataSets));
-      } else {
-        final ModelHighPrecision model = new ModelHighPrecision(
-            this.dataProv, queryTerms, feedbackDocIds,
-            this.conf.getDocumentModelSmoothingParameter(),
-            this.conf.getDocumentModelParamBeta(),
-            this.conf.getDocumentModelParamLambda());
-
-        LOG.info("Calculating query models using feedback vocabulary. " +
-            "(high precision)");
-        final ScoreTupleHighPrecision[] dataSets = fbTermStream
-            .map(term -> new ScoreTupleHighPrecision(
-                model.query(term), BigDecimal.valueOf(
-                this.dataProv.getRelativeTermFrequency(term))))
-            .toArray(ScoreTupleHighPrecision[]::new);
-
-        LOG.info("Calculating final score.");
-        result.setScore(MathUtils.klDivergence(dataSets).doubleValue());
+    if (resultNotEmpty) {
+      if (fbDocCount == 0) {
+        resultNotEmpty = false;
+        result.setEmpty("No feedback documents.");
       }
-    } catch (final IOException e) {
-      throw new UncheckedIOException(e);
+      if (fbDocCount < this.conf
+          .getMinFeedbackDocumentsCount()) {
+        resultNotEmpty = false;
+        result.setEmpty("Not enough feedback documents. " +
+            this.conf.getMinFeedbackDocumentsCount() +
+            " requested, " + fbDocCount + " retrieved.");
+      }
+    }
+
+    if (resultNotEmpty) {
+      result.setFeedbackDocIds(feedbackDocIds);
+
+      // get document frequency threshold - allowed terms must be in bounds
+      final double minFreq = this.conf
+          .getMinFeedbackTermSelectionThreshold();
+      final double maxFreq = this.conf
+          .getMaxFeedbackTermSelectionThreshold();
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Feedback term Document frequency threshold: {}%-{}%",
+            minFreq * 100d, maxFreq * 100d);
+      }
+
+      // feedback terms stream used for calculation
+      final Stream<BytesRef> fbTermStream = this.vocProvider
+          .documentIds(feedbackDocIds)
+          .get()
+              // filter common terms
+          .filter(t -> {
+            final double relDf = this.dataProv.getRelativeDocumentFrequency(t);
+            return relDf >= minFreq && relDf <= maxFreq;
+          });
+
+      try {
+        if (MATH_LOW_PRECISION) {
+          final ModelLowPrecision model = new ModelLowPrecision(
+              this.dataProv, queryTerms, feedbackDocIds,
+              this.conf.getDocumentModelSmoothingParameter(),
+              this.conf.getDocumentModelParamBeta(),
+              this.conf.getDocumentModelParamLambda());
+
+          LOG.info("Calculating query models using feedback vocabulary. " +
+              "(low precision)");
+          final ScoreTupleLowPrecision[] dataSets = fbTermStream
+              .map(term -> new ScoreTupleLowPrecision(
+                  model.query(term),
+                  this.dataProv.getRelativeTermFrequency(term)))
+              .toArray(ScoreTupleLowPrecision[]::new);
+
+          LOG.info("Calculating final score.");
+          result.setScore(MathUtils.klDivergence(dataSets));
+        } else {
+          final ModelHighPrecision model = new ModelHighPrecision(
+              this.dataProv, queryTerms, feedbackDocIds,
+              this.conf.getDocumentModelSmoothingParameter(),
+              this.conf.getDocumentModelParamBeta(),
+              this.conf.getDocumentModelParamLambda());
+
+          LOG.info("Calculating query models using feedback vocabulary. " +
+              "(high precision)");
+          final ScoreTupleHighPrecision[] dataSets = fbTermStream
+              .map(term -> new ScoreTupleHighPrecision(
+                  model.query(term), BigDecimal.valueOf(
+                  this.dataProv.getRelativeTermFrequency(term))))
+              .toArray(ScoreTupleHighPrecision[]::new);
+
+          LOG.info("Calculating final score.");
+          result.setScore(MathUtils.klDivergence(dataSets).doubleValue());
+        }
+      } catch (final IOException e) {
+        throw new UncheckedIOException(e);
+      }
     }
 
     if (LOG.isDebugEnabled()) {
-      LOG.debug("Calculating improved clarity score for query {} "
-              + "with {} document models took {}. score={}",
-          query, fbDocCount,
-          timeMeasure.stop().getTimeString(), result.getScore());
+      if (resultNotEmpty) {
+        LOG.debug("Calculating default clarity score for query '{}' "
+                + "with {} document models took {}. score={}",
+            query, fbDocCount, timeMeasure.stop().getTimeString(),
+            result.getScore());
+      } else {
+        String msg ="Calculating improved clarity score for query {} "
+            + "with {} document models took {}. Result is empty.";
+        if (result.getEmptyReason().isPresent()) {
+          msg += " reason=" + result.getEmptyReason().get();
+        }
+        LOG.debug(msg, query, fbDocCount, timeMeasure.stop().getTimeString());
+      }
     }
 
     return result;
@@ -595,11 +630,9 @@ public final class ImprovedClarityScore
 
     /**
      * Creates an object wrapping the result with meta information.
-     *
-     * @param cscType Type of the calculation class
      */
-    public Result(final Class<? extends ClarityScoreCalculation> cscType) {
-      super(cscType);
+    public Result() {
+      super(ImprovedClarityScore.class);
     }
 
     /**
