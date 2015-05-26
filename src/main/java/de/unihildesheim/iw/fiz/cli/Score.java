@@ -439,6 +439,12 @@ public class Score
                     result.isEmpty());
                 tfc.setValue(TermScoringResultTable.Fields.SCORE,
                     result.getScore());
+                tfc.setValue(SentenceScoringResultTable.Fields.Q_FIELDS,
+                    qFields);
+                if (includeIPC) {
+                  tfc.setValue(SentenceScoringResultTable.Fields.Q_IPC,
+                      ipcName);
+                }
                 // get empty reason, if any
                 if (result.isEmpty()) {
                   final Optional<String> msg = result.getEmptyReason();
