@@ -229,9 +229,6 @@ public abstract class AbstractFeedbackProvider
       if (queryTerms.isEmpty()) {
         throw new IllegalArgumentException("Query is empty.");
       }
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("Query terms: {}", queryTerms.size());
-      }
       this.queryParser = new RxTryExactTermsQuery(
           this.analyzer, queryTerms, getDocumentFields());
     }
@@ -253,6 +250,7 @@ public abstract class AbstractFeedbackProvider
   protected Collection<String> getUniqueQueryTerms()
       throws IOException {
     final Set<String> queryTerms;
+    assert this.analyzer != null;
     if (this.queryTerms != null && !this.queryTerms.isEmpty()) {
       queryTerms = new HashSet<>(this.queryTerms);
     } else if (this.queryTermsArr != null && this.queryTermsArr.size() >0) {
@@ -260,10 +258,14 @@ public abstract class AbstractFeedbackProvider
           BytesRefUtils.arrayToCollection(this.queryTermsArr));
     } else if (this.queryStr != null && !this.queryStr.trim().isEmpty()) {
       queryTerms = new HashSet<>(
-          QueryUtils.tokenizeQueryString(this.queryStr, this.analyzer)
+          QueryUtils.tokenizeQueryString(this.queryStr, this.analyzer,
+              this.dataProv)
       );
     } else {
       queryTerms = Collections.emptySet();
+    }
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Unique query terms: {}", queryTerms.size());
     }
     return queryTerms;
   }
