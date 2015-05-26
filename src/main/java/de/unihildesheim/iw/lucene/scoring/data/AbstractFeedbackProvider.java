@@ -18,8 +18,10 @@
 package de.unihildesheim.iw.lucene.scoring.data;
 
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
+import de.unihildesheim.iw.lucene.query.QueryUtils;
 import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import de.unihildesheim.iw.lucene.query.RxTryExactTermsQuery;
+import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
@@ -28,10 +30,15 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.util.BytesRefArray;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.StreamSupport;
 
 /**
@@ -44,7 +51,11 @@ import java.util.stream.StreamSupport;
 public abstract class AbstractFeedbackProvider
     <I extends AbstractFeedbackProvider<I>>
     implements FeedbackProvider {
-
+  /**
+   * Logger instance for this class.
+   */
+  private static final Logger LOG = LoggerFactory.getLogger(
+      AbstractFeedbackProvider.class);
   /**
    * Number of documents to get, if a fixed amount is requested.
    */
@@ -171,7 +182,7 @@ public abstract class AbstractFeedbackProvider
   }
 
   @Override
-  public I queryParser(@NotNull RelaxableQuery rtq) {
+  public I queryParser(@NotNull final RelaxableQuery rtq) {
     this.queryParser = rtq;
     return getThis();
   }
@@ -208,23 +219,21 @@ public abstract class AbstractFeedbackProvider
    *
    * @return New instance
    * @throws IOException Thrown on low-level i/o-errors
+   * @throws ParseException Thrown on errors parsing the query
    */
   final RelaxableQuery getQueryParserInstance()
       throws ParseException, IOException {
     if (this.queryParser == null) {
       Objects.requireNonNull(this.analyzer, "Analyzer not set.");
-      if (this.queryTerms != null && !this.queryTerms.isEmpty()) {
-        this.queryParser = new RxTryExactTermsQuery(
-            this.analyzer, this.queryTerms, getDocumentFields());
-      } else if (this.queryTermsArr != null && this.queryTermsArr.size() >0) {
-        this.queryParser = new RxTryExactTermsQuery(
-            this.analyzer, this.queryTermsArr, getDocumentFields());
-      } else if (this.queryStr != null && !this.queryStr.trim().isEmpty()) {
-        this.queryParser = new RxTryExactTermsQuery(
-            this.analyzer, this.queryStr, getDocumentFields());
-      } else {
-       throw new IllegalArgumentException("Query is empty.");
+      final Collection<String> queryTerms = getUniqueQueryTerms();
+      if (queryTerms.isEmpty()) {
+        throw new IllegalArgumentException("Query is empty.");
       }
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Query terms: {}", queryTerms.size());
+      }
+      this.queryParser = new RxTryExactTermsQuery(
+          this.analyzer, queryTerms, getDocumentFields());
     }
     return this.queryParser;
   }
@@ -235,4 +244,27 @@ public abstract class AbstractFeedbackProvider
    * @return Self reference
    */
   protected abstract I getThis();
+
+  /**
+   * Get alist of unique query terms.
+   * @return List of unique query terms
+   * @throws IOException Thrown on low-level i/o-errors
+   */
+  protected Collection<String> getUniqueQueryTerms()
+      throws IOException {
+    final Set<String> queryTerms;
+    if (this.queryTerms != null && !this.queryTerms.isEmpty()) {
+      queryTerms = new HashSet<>(this.queryTerms);
+    } else if (this.queryTermsArr != null && this.queryTermsArr.size() >0) {
+      queryTerms = new HashSet<>(
+          BytesRefUtils.arrayToCollection(this.queryTermsArr));
+    } else if (this.queryStr != null && !this.queryStr.trim().isEmpty()) {
+      queryTerms = new HashSet<>(
+          QueryUtils.tokenizeQueryString(this.queryStr, this.analyzer)
+      );
+    } else {
+      queryTerms = Collections.emptySet();
+    }
+    return queryTerms;
+  }
 }
