@@ -17,6 +17,7 @@
 
 package de.unihildesheim.iw.storage.sql.scoringData;
 
+import de.unihildesheim.iw.data.IPCCode;
 import de.unihildesheim.iw.storage.sql.AbstractTable;
 import de.unihildesheim.iw.storage.sql.Table;
 import de.unihildesheim.iw.storage.sql.TableField;
@@ -70,6 +71,14 @@ public final class TermScoringResultTable extends AbstractTable {
      * If a result is empty this may contain a hint for the reason.
      */
     EMPTY_REASON("empty_reason text"),
+    /**
+     * Fields visible while scoring.
+     */
+    Q_FIELDS("q_fields text"),
+    /**
+     * IPC-filter set while scoring.
+     */
+    Q_IPC("q_ipc text(" + IPCCode.IPCRecord.MAX_LENGTH + ')'),
     /**
      * Scoring result value.
      */
@@ -159,6 +168,8 @@ public final class TermScoringResultTable extends AbstractTable {
   public void addDefaultFieldsToUnique() {
     this.uniqueFields.add(Fields.IMPL.toString());
     this.uniqueFields.add(Fields.TERM_REF.toString());
+    this.uniqueFields.add(Fields.Q_FIELDS.toString());
+    this.uniqueFields.add(Fields.Q_IPC.toString());
   }
 
   @Override
