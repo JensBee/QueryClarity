@@ -23,6 +23,7 @@ import de.unihildesheim.iw.lucene.search.IPCFieldFilter;
 import de.unihildesheim.iw.lucene.search.IPCFieldFilterFunctions;
 import de.unihildesheim.iw.storage.sql.termData.TermsTable;
 import de.unihildesheim.iw.util.Buildable.BuildableException;
+import de.unihildesheim.iw.util.GlobalConfiguration;
 import de.unihildesheim.iw.util.Tuple;
 import de.unihildesheim.iw.util.Tuple.Tuple2;
 import de.unihildesheim.iw.cli.CliBase;
@@ -141,6 +142,11 @@ public class Score
 
     // check, if files and directories are sane
     this.cliParams.check();
+
+    final int maxBoolClauses = GlobalConfiguration.conf().getAndAddInteger(
+        GlobalConfiguration.DefaultKeys.MAX_BOOL_CLAUSES.toString(), 2048);
+    LOG.info("Raising boolean max clause count to {}.", maxBoolClauses);
+    BooleanQuery.setMaxClauseCount(maxBoolClauses);
 
     try (final ScoringDataDB scoringDb =
              new ScoringDataDB(this.cliParams.dbScoring)) {

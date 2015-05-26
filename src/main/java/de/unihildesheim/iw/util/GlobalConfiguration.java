@@ -97,6 +97,10 @@ public final class GlobalConfiguration
     /**
      * Maximum number of parallel threads to use.
      */
-    MAX_THREADS
+    MAX_THREADS,
+    /**
+     * Maximum number of boolean clauses allowed for queries.
+     */
+    MAX_BOOL_CLAUSES,
   }
 }
