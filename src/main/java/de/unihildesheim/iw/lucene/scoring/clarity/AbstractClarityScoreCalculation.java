@@ -17,16 +17,18 @@
 
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
-import de.unihildesheim.iw.util.Buildable.BuildableException;
-import de.unihildesheim.iw.util.Buildable.ConfigurationException;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.scoring.data.DefaultFeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.DefaultVocabularyProvider;
 import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
+import de.unihildesheim.iw.util.Buildable.BuildableException;
+import de.unihildesheim.iw.util.Buildable.ConfigurationException;
 import de.unihildesheim.iw.util.Configuration;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -42,6 +44,21 @@ public abstract class AbstractClarityScoreCalculation
    * Scoring identifier.
    */
   private final String id;
+  /**
+   * Empty {@link DocIdSet}.
+   */
+  public static final DocIdSet EMPTY_DOCIDSET = new DocIdSet() {
+    @Nullable
+    @Override
+    public DocIdSetIterator iterator() {
+      return null;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+      return 0L;
+    }
+  };
 
   /**
    * Create a new instance using an identifier.
