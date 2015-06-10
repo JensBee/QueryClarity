@@ -95,10 +95,6 @@ public final class GlobalConfiguration
      */
     MATH_LOW_PRECISION,
     /**
-     * Maximum number of parallel threads to use.
-     */
-    MAX_THREADS,
-    /**
      * Maximum number of boolean clauses allowed for queries.
      */
     MAX_BOOL_CLAUSES,
