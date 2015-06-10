@@ -554,46 +554,57 @@ task('score') {
                 ext.targetFile = tgtFilePattern(entry.name)
                 cmdArgs += ['-scoredb', targetFile]
 
-                // check, if target already exists
-                if (file(targetFile).exists()) {
-                    logger.warn(log.warn + 'Scoring for dump \'' +
-                            targetFile + ' exists. Skipping file.')
-                } else {
+                if (!file(targetFile).exists()) {
+                    logger.info(log.stat +
+                            "Starting from new file '${entry.name}'")
                     // copy file
                     copy {
                         from entry.file
                         into tgtDir
                         include entry.name
                     }
+                }
 
-                    // score for language + field
-                    for (field in conf.scoring.fields) {
+                // check, if target already exists
+                if (file(targetFile).exists()) {
+                    logger.warn(log.warn + 'Scoring for dump \'' +
+                            targetFile + ' exists. Skipping file.')
+                } else {
+                 copy file
+                copy {
+                    from entry.file
+                    into tgtDir
+                    include entry.name
+                }
+
+                // score for language + field
+                for (field in conf.scoring.fields) {
+                    logger.info(log.stat + "Scoring language=${lang} " +
+                            "field=${field}")
+
+                    // run java
+                    javaexec {
+                        args = cmdArgs + ['-fields', field]
+                        classpath = conf.java.classPath
+                        main = mainClass
+                    }
+
+                    // score for language + field + ipc
+                    for (ipcSec in conf.ipc.sections) {
                         logger.info(log.stat + "Scoring language=${lang} " +
-                                "field=${field}")
+                                "field=${field} ipc=${ipcSec}")
 
                         // run java
                         javaexec {
-                            args = cmdArgs + ['-fields', field]
+                            args = cmdArgs + [
+                                    '-fields', field,
+                                    '-ipc', ipcSec
+                            ]
                             classpath = conf.java.classPath
                             main = mainClass
                         }
-
-                        // score for language + field + ipc
-                        for (ipcSec in conf.ipc.sections) {
-                            logger.info(log.stat + "Scoring language=${lang} " +
-                                    "field=${field} ipc=${ipcSec}")
-
-                            // run java
-                            javaexec {
-                                args = cmdArgs + [
-                                        '-fields', field,
-                                        '-ipc', ipcSec
-                                ]
-                                classpath = conf.java.classPath
-                                main = mainClass
-                            }
-                        }
                     }
+                }
                 }
             }
         }
