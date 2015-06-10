@@ -50,6 +50,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 /**
@@ -517,9 +518,7 @@ public final class ImprovedClarityScore
       if (fbDocCount == 0) {
         resultNotEmpty = false;
         result.setEmpty("No feedback documents.");
-      }
-      if (fbDocCount < this.conf
-          .getMinFeedbackDocumentsCount()) {
+      } else if (fbDocCount < this.conf.getMinFeedbackDocumentsCount()) {
         resultNotEmpty = false;
         result.setEmpty("Not enough feedback documents. " +
             this.conf.getMinFeedbackDocumentsCount() +
@@ -551,6 +550,7 @@ public final class ImprovedClarityScore
           });
 
       try {
+        final AtomicBoolean hasTerms = new AtomicBoolean(false);
         if (MATH_LOW_PRECISION) {
           final ModelLowPrecision model = new ModelLowPrecision(
               this.dataProv, queryTerms, feedbackDocIds,
@@ -561,13 +561,20 @@ public final class ImprovedClarityScore
           LOG.info("Calculating query models using feedback vocabulary. " +
               "(low precision)");
           final ScoreTupleLowPrecision[] dataSets = fbTermStream
+              .peek(term -> hasTerms.set(true))
               .map(term -> new ScoreTupleLowPrecision(
                   model.query(term),
                   this.dataProv.getRelativeTermFrequency(term)))
               .toArray(ScoreTupleLowPrecision[]::new);
 
-          LOG.info("Calculating final score.");
-          result.setScore(MathUtils.klDivergence(dataSets));
+          if (hasTerms.get()) {
+            LOG.info("Calculating final score.");
+            result.setScore(MathUtils.klDivergence(dataSets));
+          } else {
+            LOG.info("No terms available after reducing by threshold.");
+            resultNotEmpty = false;
+            result.setEmpty("No terms available after reducing by threshold.");
+          }
         } else {
           final ModelHighPrecision model = new ModelHighPrecision(
               this.dataProv, queryTerms, feedbackDocIds,
@@ -578,13 +585,20 @@ public final class ImprovedClarityScore
           LOG.info("Calculating query models using feedback vocabulary. " +
               "(high precision)");
           final ScoreTupleHighPrecision[] dataSets = fbTermStream
+              .peek(term -> hasTerms.set(true))
               .map(term -> new ScoreTupleHighPrecision(
                   model.query(term), BigDecimal.valueOf(
                   this.dataProv.getRelativeTermFrequency(term))))
               .toArray(ScoreTupleHighPrecision[]::new);
 
-          LOG.info("Calculating final score.");
-          result.setScore(MathUtils.klDivergence(dataSets).doubleValue());
+          if (hasTerms.get()) {
+            LOG.info("Calculating final score.");
+            result.setScore(MathUtils.klDivergence(dataSets).doubleValue());
+          } else {
+            LOG.info("No terms available after reducing by threshold.");
+            resultNotEmpty = false;
+            result.setEmpty("No terms available after reducing by threshold.");
+          }
         }
       } catch (final IOException e) {
         throw new UncheckedIOException(e);
