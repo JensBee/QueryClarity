@@ -16,11 +16,9 @@
  */
 package de.unihildesheim.iw.lucene.index;
 
-import de.unihildesheim.iw.util.GlobalConfiguration;
-import de.unihildesheim.iw.util.GlobalConfiguration.DefaultKeys;
-import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader
-    .FilteredLeafReader;
+import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader.FilteredLeafReader;
 import de.unihildesheim.iw.lucene.search.FDRDefaultSimilarity;
+import de.unihildesheim.iw.util.GlobalConfiguration;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.search.IndexSearcher;
@@ -53,7 +51,7 @@ public final class IndexUtils {
 
   static {
     final int threads = GlobalConfiguration.conf().getInteger(
-        DefaultKeys.MAX_THREADS.toString(),
+        "indexsearcher_threadpool_size",
         Runtime.getRuntime().availableProcessors());
     if (LOG.isDebugEnabled()) {
       LOG.debug("IndexSearcher thread-pool size: {}", threads);
