@@ -17,22 +17,15 @@
 
 package de.unihildesheim.iw.fiz.cli;
 
-import de.unihildesheim.iw.data.IPCCode;
-import de.unihildesheim.iw.lucene.query.IPCClassQuery;
-import de.unihildesheim.iw.lucene.search.IPCFieldFilter;
-import de.unihildesheim.iw.lucene.search.IPCFieldFilterFunctions;
-import de.unihildesheim.iw.storage.sql.termData.TermsTable;
-import de.unihildesheim.iw.util.Buildable.BuildableException;
-import de.unihildesheim.iw.util.GlobalConfiguration;
-import de.unihildesheim.iw.util.Tuple;
-import de.unihildesheim.iw.util.Tuple.Tuple2;
 import de.unihildesheim.iw.cli.CliBase;
 import de.unihildesheim.iw.cli.CliParams;
+import de.unihildesheim.iw.data.IPCCode;
 import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers;
 import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers.Language;
 import de.unihildesheim.iw.lucene.index.FDRIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
+import de.unihildesheim.iw.lucene.query.IPCClassQuery;
 import de.unihildesheim.iw.lucene.scoring.clarity
     .AbstractClarityScoreCalculation.AbstractCSCBuilder;
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation;
@@ -49,6 +42,8 @@ import de.unihildesheim.iw.lucene.scoring.clarity.ScorerType;
 import de.unihildesheim.iw.lucene.scoring.clarity.SimplifiedClarityScore;
 import de.unihildesheim.iw.lucene.scoring.data.CommonTermsFeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
+import de.unihildesheim.iw.lucene.search.IPCFieldFilter;
+import de.unihildesheim.iw.lucene.search.IPCFieldFilterFunctions;
 import de.unihildesheim.iw.storage.sql.MetaTable;
 import de.unihildesheim.iw.storage.sql.TableFieldContent;
 import de.unihildesheim.iw.storage.sql.scoringData.ScoringDataDB;
@@ -56,10 +51,15 @@ import de.unihildesheim.iw.storage.sql.scoringData.SentenceScoringResultTable;
 import de.unihildesheim.iw.storage.sql.scoringData.SentenceScoringTable;
 import de.unihildesheim.iw.storage.sql.scoringData.TermScoringResultTable;
 import de.unihildesheim.iw.storage.sql.scoringData.TermScoringTable;
+import de.unihildesheim.iw.storage.sql.termData.TermsTable;
+import de.unihildesheim.iw.util.Buildable.BuildableException;
 import de.unihildesheim.iw.util.Configuration;
+import de.unihildesheim.iw.util.GlobalConfiguration;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TaskObserver;
 import de.unihildesheim.iw.util.TimeMeasure;
+import de.unihildesheim.iw.util.Tuple;
+import de.unihildesheim.iw.util.Tuple.Tuple2;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.index.DirectoryReader;
@@ -81,7 +81,6 @@ import java.io.File;
 import java.io.IOException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -284,9 +283,6 @@ public class Score
       ClarityScoreResult result;
       String querySQL;
       final Statement stmt = scoringDb.getConnection().createStatement();
-      long newRowCount;
-      Statement insertStmt;
-      SQLWarning insertWarn;
 
       final String[] stateMsg = {"none", "none"};
       final AtomicInteger currentItemCount = new AtomicInteger(0);
@@ -295,9 +291,11 @@ public class Score
           new TaskObserver.TaskObserverMessage() {
             @Override
             public void call(@NotNull final TimeMeasure tm) {
-              LOG.info("Scorer {} is scoring {} ({} scored) (runtime: {}).",
+              LOG.info("Scorer {} is scoring {} ({} scored) (runtime: {}). " +
+                      "lang={} ipc={} field={}",
                   stateMsg[0], stateMsg[1], currentItemCount.get(),
-                  tm.getTimeString());
+                  tm.getTimeString(),
+                  langName, ipcName, cliParams.docFields);
             }
           })) {
         obs.start();
@@ -333,9 +331,6 @@ public class Score
             stmt.execute(querySQL);
             final ResultSet rs = stmt.getResultSet();
 
-            long rowCount = scoringDb.getNumberOfRows(
-                SentenceScoringResultTable.TABLE_NAME);
-
             try (final SentenceScoringResultTable.Writer sentenceWriter =
                      sentenceTable.getWriter(scoringDb.getConnection())) {
               currentItemCount.set(0);
@@ -347,51 +342,41 @@ public class Score
                   throw new IllegalStateException("Sentence was null.");
                 }
 
-                currentItemCount.incrementAndGet();
-                result = csc.calculateClarity(sent);
-
                 @SuppressWarnings("ObjectAllocationInLoop")
                 final TableFieldContent tfc =
                     new TableFieldContent(sentenceTable);
                 tfc.setValue(SentenceScoringResultTable.Fields.SENT_REF,
                     sentId);
                 tfc.setValue(SentenceScoringResultTable.Fields.IMPL, impl);
-                tfc.setValue(SentenceScoringResultTable.Fields.IS_EMPTY,
-                    result.isEmpty());
-                tfc.setValue(SentenceScoringResultTable.Fields.SCORE,
-                    result.getScore());
                 tfc.setValue(SentenceScoringResultTable.Fields.Q_FIELDS,
                     qFields);
                 if (includeIPC) {
                   tfc.setValue(SentenceScoringResultTable.Fields.Q_IPC,
                       ipcName);
                 }
+
+                currentItemCount.incrementAndGet();
+
+                result = csc.calculateClarity(sent);
+
+
+                tfc.setValue(SentenceScoringResultTable.Fields.IS_EMPTY,
+                    result.isEmpty());
+                tfc.setValue(SentenceScoringResultTable.Fields.SCORE,
+                    result.getScore());
+
                 // get empty reason, if any
                 if (result.isEmpty()) {
                   final Optional<String> msg = result.getEmptyReason();
                   if (msg.isPresent()) {
-                    tfc.setValue(SentenceScoringResultTable.Fields.EMPTY_REASON,
+                    tfc.setValue(
+                        SentenceScoringResultTable.Fields.EMPTY_REASON,
                         msg.get());
                   }
                 }
 
                 // write result
-                insertStmt = sentenceWriter.addContent(tfc, false);
-                insertWarn = insertStmt.getWarnings();
-
-                newRowCount = scoringDb.getNumberOfRows(
-                    SentenceScoringResultTable.TABLE_NAME);
-                if (newRowCount <= rowCount) {
-                  if (insertWarn != null) {
-                    SQLWarning sqlWarn;
-                    while ((sqlWarn = insertWarn.getNextWarning()) != null) {
-                      LOG.error("SQL-warning: {}", sqlWarn.getMessage());
-                    }
-                  }
-                  throw new IllegalStateException("Sentence row not written.");
-                } else {
-                  rowCount = newRowCount;
-                }
+                sentenceWriter.addContent(tfc, false);
 
                 if (LOG.isDebugEnabled()) {
                   LOG.debug("Committing result");
@@ -419,9 +404,6 @@ public class Score
             stmt.execute(querySQL);
             final ResultSet rs = stmt.getResultSet();
 
-            long rowCount = scoringDb.getNumberOfRows(
-                TermScoringResultTable.TABLE_NAME);
-
             try (final TermScoringResultTable.Writer termWriter =
                      termTable.getWriter(scoringDb.getConnection())) {
               currentItemCount.set(0);
@@ -433,24 +415,25 @@ public class Score
                   throw new IllegalStateException("Term was null.");
                 }
 
-                currentItemCount.incrementAndGet();
-                result = csc.calculateClarity(term);
-
                 @SuppressWarnings("ObjectAllocationInLoop")
                 final TableFieldContent tfc =
                     new TableFieldContent(termTable);
+
                 tfc.setValue(TermScoringResultTable.Fields.TERM_REF, termId);
                 tfc.setValue(TermScoringResultTable.Fields.IMPL, impl);
+                tfc.setValue(TermScoringResultTable.Fields.Q_FIELDS, qFields);
+                if (includeIPC) {
+                  tfc.setValue(TermScoringResultTable.Fields.Q_IPC, ipcName);
+                }
+
+                currentItemCount.incrementAndGet();
+
+                result = csc.calculateClarity(term);
+
                 tfc.setValue(TermScoringResultTable.Fields.IS_EMPTY,
                     result.isEmpty());
                 tfc.setValue(TermScoringResultTable.Fields.SCORE,
                     result.getScore());
-                tfc.setValue(SentenceScoringResultTable.Fields.Q_FIELDS,
-                    qFields);
-                if (includeIPC) {
-                  tfc.setValue(SentenceScoringResultTable.Fields.Q_IPC,
-                      ipcName);
-                }
                 // get empty reason, if any
                 if (result.isEmpty()) {
                   final Optional<String> msg = result.getEmptyReason();
@@ -461,21 +444,11 @@ public class Score
                 }
 
                 // write result
-                insertStmt = termWriter.addContent(tfc, false);
-                insertWarn = insertStmt.getWarnings();
+                termWriter.addContent(tfc, false);
 
-                newRowCount = scoringDb.getNumberOfRows(
-                    TermScoringResultTable.TABLE_NAME);
-                if (newRowCount <= rowCount) {
-                  if (insertWarn != null) {
-                    SQLWarning sqlWarn;
-                    while ((sqlWarn = insertWarn.getNextWarning()) != null) {
-                      LOG.error("SQL-warning: {}", sqlWarn.getMessage());
-                    }
-                  }
-                  throw new IllegalStateException("Sentence row not written.");
-                } else {
-                  rowCount = newRowCount;
+                if (LOG.isDebugEnabled()) {
+                  LOG.debug("Committing result");
+                  termWriter.commit();
                 }
               }
             }
