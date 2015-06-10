@@ -21,10 +21,13 @@ import org.jetbrains.annotations.NotNull;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.Statement;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -174,6 +177,14 @@ public final class MetaTable
         @NotNull final Table tbl)
         throws SQLException {
       super(con, tbl);
+    }
+
+    @Override
+    public Statement addContent(final TableFieldContent tfContent)
+        throws SQLException {
+      tfContent.setValue(MetaTable.Fields.TIMESTAMP,
+          new SimpleDateFormat("dd-MM-yyyy HH:mm:ss").format(new Date()));
+      return super.addContent(tfContent);
     }
   }
 }
