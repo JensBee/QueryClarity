@@ -24,12 +24,14 @@ import org.slf4j.LoggerFactory;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
@@ -65,6 +67,27 @@ public class TableFieldContent {
     }
     this.content.put(fieldName.toString(), value.toString());
     return this;
+  }
+
+  public boolean isContentStored(@NotNull final Connection con)
+      throws SQLException {
+    final StringBuilder finalSql = new StringBuilder(
+        "select count(*) from \"").append(this.tbl.getName())
+        .append("\" where ");
+
+    String fldPrefix = "";
+    for (final Entry<String, String> e : this.content.entrySet()) {
+      if (e.getValue() != null) {
+        finalSql.append(fldPrefix)
+            .append('"').append(e.getKey()).append("\"='")
+            .append(e.getValue()).append('\'');
+        fldPrefix = " and ";
+      }
+    }
+
+    final Statement stmt = con.createStatement();
+    stmt.execute(finalSql.toString());
+    return stmt.getResultSet().getLong(1) > 0L;
   }
 
   public PreparedStatement prepareInsert(
