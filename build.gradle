@@ -98,8 +98,6 @@ task('prepareOutput') {
     workingDirectory.mkdirs()
 }
 
-//apply from: 'gradle/task_score.gradle'
-
 /*******************************************************************************
  * Index building.
  */
@@ -409,10 +407,15 @@ task('ipcStats') {
             '-zeropad']
 
     /**
+     * Target directory.
+     */
+    ext.tgtDir = "${workingDirectory.absolutePath}/ipcStats"
+
+    /**
      * Output file pattern.
      */
     ext.filePattern = { lang ->
-        return "${workingDirectory.absolutePath}/ipcStats-${lang}.sqlite"
+        return "${tgtDir}/ipcStats-${lang}.sqlite"
     }
 
     dependsOn {
@@ -432,6 +435,9 @@ task('ipcStats') {
     }
 
     doLast {
+        // create target
+        file(tgtDir).mkdirs()
+
         /**
          * Main class to execute.
          */
@@ -478,17 +484,6 @@ task('plot') {
      */
     ext.defaultCmdArgs = ['-t', targetDir]
 
-    dependsOn 'ipcStats'
-
-    outputs.files {
-        def t = targetDir + '/'
-        return files(
-                // IPC-stats
-                t + 'ipcStats-section_dist.pdf',
-                t + 'ipcStats-section_divcount.pdf'
-        )
-    }
-
     doLast {
         // create target directory
         file(targetDir).mkdirs()
@@ -496,8 +491,18 @@ task('plot') {
         // IPC-stats
         ext.cmdArgs = [
                 "${conf.r.scriptPath}/plotIPCStats.r",
-                '-s', workingDirectory.absolutePath] + defaultCmdArgs
+                '-s', "${workingDirectory.absolutePath}/ipcStats"] +
+                defaultCmdArgs
+        exec {
+            executable 'Rscript'
+            args cmdArgs
+        }
 
+        // scoring results
+        ext.cmdArgs = [
+                "${conf.r.scriptPath}/plotScoringResults.r",
+                '-s', "${workingDirectory.absolutePath}/scoring"] +
+                defaultCmdArgs
         exec {
             executable 'Rscript'
             args cmdArgs
@@ -570,41 +575,109 @@ task('score') {
                     logger.warn(log.warn + 'Scoring for dump \'' +
                             targetFile + ' exists. Skipping file.')
                 } else {
-                 copy file
-                copy {
-                    from entry.file
-                    into tgtDir
-                    include entry.name
-                }
-
-                // score for language + field
-                for (field in conf.scoring.fields) {
-                    logger.info(log.stat + "Scoring language=${lang} " +
-                            "field=${field}")
-
-                    // run java
-                    javaexec {
-                        args = cmdArgs + ['-fields', field]
-                        classpath = conf.java.classPath
-                        main = mainClass
+                    copy file
+                    copy {
+                        from entry.file
+                        into tgtDir
+                        include entry.name
                     }
 
-                    // score for language + field + ipc
-                    for (ipcSec in conf.ipc.sections) {
+                    // score for language + field
+                    for (field in conf.scoring.fields) {
                         logger.info(log.stat + "Scoring language=${lang} " +
-                                "field=${field} ipc=${ipcSec}")
+                                "field=${field}")
 
                         // run java
                         javaexec {
-                            args = cmdArgs + [
-                                    '-fields', field,
-                                    '-ipc', ipcSec
-                            ]
+                            args = cmdArgs + ['-fields', field]
                             classpath = conf.java.classPath
                             main = mainClass
                         }
+
+                        // score for language + field + ipc
+                        for (ipcSec in conf.ipc.sections) {
+                            logger.info(log.stat + "Scoring language=${lang} " +
+                                    "field=${field} ipc=${ipcSec}")
+
+                            // run java
+                            javaexec {
+                                args = cmdArgs + [
+                                        '-fields', field,
+                                        '-ipc', ipcSec
+                                ]
+                                classpath = conf.java.classPath
+                                main = mainClass
+                            }
+                        }
                     }
                 }
+            }
+        }
+    }
+}
+
+/*******************************************************************************
+ * Collect Lucene-index statistics.
+ */
+task('idxStats') {
+    description 'Collect Lucene-index related statistics.'
+
+    /**
+     * Target directory.
+     */
+    ext.tgtDir = "${workingDirectory.absolutePath}/idxStats"
+
+    /**
+     * Output file pattern.
+     */
+    ext.filePattern = { lang ->
+        return "${tgtDir}/idxStats-${lang}.sqlite"
+    }
+
+    dependsOn {
+        def depTasks = ['prepareOutput']
+        for (lang in conf.scoring.languages) {
+            depTasks.add("buildIndex-${lang}")
+        }
+        depTasks
+    }
+
+    outputs.files {
+        def outFiles = []
+        for (lang in conf.scoring.languages) {
+            outFiles.add(filePattern(lang))
+        }
+        outFiles
+    }
+
+    doLast {
+        // create target
+        file(tgtDir).mkdirs()
+
+        /**
+         * Main class to execute.
+         */
+        ext.mainClass = conf.java.package + 'cli.DumpIdxStats'
+
+        for (lang in conf.scoring.languages) {
+            /**
+             * Command-line arguments for the main class.
+             */
+            ext.cmdArgs = [
+                    '-out', filePattern(lang),
+                    '-idx', conf.targets.index + lang]
+
+            // check, if target already exists
+            if (file(filePattern(lang)).exists()) {
+                logger.warn(log.warn +
+                        "Index-statistics for language '${lang}' exists. " +
+                        "Skipping language=${lang}")
+            } else {
+                // run java
+                javaexec {
+                    args = cmdArgs
+                    classpath = conf.java.classPath
+                    main = mainClass
                 }
             }
         }
