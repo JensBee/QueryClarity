@@ -4,6 +4,11 @@ library(sqldf)
 library(scales)
 library(optparse)
 
+# configuration
+cfg = new.env()
+# languages indexed
+cfg$lang <- list("de", "en", "fr")
+
 cmdOpts <- list(
   make_option(c("-s", "--source"), action="store", metavar="<PATH>",
               type="character", default=".",
@@ -30,9 +35,9 @@ plotDistributionPerSection <- function() {
   }
 
   df <- data.frame()
-  df <- rbind(df, loadDataByLang("de"))
-  df <- rbind(df, loadDataByLang("en"))
-  df <- rbind(df, loadDataByLang("fr"))
+  for (lang in cfg$lang) {
+    df <- rbind(df, loadDataByLang(lang))
+  }
 
   df.m <- melt(df, id.vars=c("section", "lang", "perc"))
 
@@ -61,9 +66,9 @@ plotNumberOfSections <- function() {
   }
   
   df <- data.frame()
-  df <- rbind(df, loadDataByLang("de"))
-  df <- rbind(df, loadDataByLang("en"))
-  df <- rbind(df, loadDataByLang("fr"))
+  for (lang in cfg$lang) {
+    df <- rbind(df, loadDataByLang(lang))
+  }
   
   df.m <- melt(df, id.vars=c("sections", "lang", "perc"))
   
@@ -79,11 +84,24 @@ plotNumberOfSections <- function() {
 }
 
 main <- function() {
-  print("Plotting distribution per IPC-Section..")
-  plotDistributionPerSection()
+  filesPresent <- TRUE
+  for (lang in cfg$lang) {
+    if (filesPresent == TRUE) {
+      fileName <- paste0(opt$source, "/ipcStats-", lang, ".sqlite")
+      filesPresent <- file.exists(fileName)
+      if (!filesPresent) {
+        print(paste0("File '", fileName,"' missing. Cannot plot IPC-statistics."))
+      }
+    }
+  }
   
-  print("Plotting number of IPC-Sections per document..")
-  plotNumberOfSections()
+  if (filesPresent) {
+    print("Plotting distribution per IPC-Section..")
+    plotDistributionPerSection()
+    
+    print("Plotting number of IPC-Sections per document..")
+    plotNumberOfSections()
+  }
 }
 
 main()
