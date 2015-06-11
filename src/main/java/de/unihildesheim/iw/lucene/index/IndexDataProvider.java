@@ -22,6 +22,7 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.util.BytesRef;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Optional;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -42,6 +43,13 @@ public interface IndexDataProvider
    * @return The frequency of all terms in the index
    */
   long getTermFrequency();
+
+  /**
+   * Get the number of unique terms in the index.
+   *
+   * @return Number of all terms in the index
+   */
+  Optional<Long> getUniqueTermCount();
 
   /**
    * Get the term frequency of a single term in the index.

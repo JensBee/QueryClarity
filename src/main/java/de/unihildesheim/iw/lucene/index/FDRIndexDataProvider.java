@@ -17,10 +17,10 @@
 
 package de.unihildesheim.iw.lucene.index;
 
-import de.unihildesheim.iw.util.Buildable;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.util.BytesRefUtils.MergingBytesRefHash;
 import de.unihildesheim.iw.lucene.util.StreamUtils;
+import de.unihildesheim.iw.util.Buildable;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.commons.collections4.map.LRUMap;
 import org.apache.lucene.index.Fields;
@@ -52,6 +52,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -138,6 +139,11 @@ public final class FDRIndexDataProvider
   @Override
   public long getTermFrequency() {
     return this.index.ttf;
+  }
+
+  @Override
+  public Optional<Long> getUniqueTermCount() {
+    return Optional.of(this.index.uniqueTerms);
   }
 
   @SuppressFBWarnings("EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS")
