@@ -1,4 +1,5 @@
 library(ggplot2)
+library(grid)
 library(sqldf)
 library(reshape2)
 library(optparse)
@@ -32,7 +33,6 @@ opt <- parse_args(OptionParser(option_list=cmdOpts))
 score_scale <- function(df) {
   # add scaled score column
   df <- transform(df, sscore=rescale(score, to=c(0, 1)))
-  
   df
 }
 
@@ -50,7 +50,6 @@ load_finalize <- function(df, # loaded data
       df[i, "ipc"] <- "*"
     }
   }
-  
   df
 }
 
@@ -82,7 +81,6 @@ sentences_load <- function(dbFile, # database file name
   # load data
   df <- load_finalize(sqldf(query, dbname=dbFile),
                       sField, tField, ipc)
-  
   df
 }
 
@@ -97,7 +95,6 @@ sentences_load_all <- function(dbFile, # database file name
       df <- rbind(df, sentences_load(dbFile, scorer, f1, f2, ipc))
     }
   }
-  
   df
 }
 
@@ -128,7 +125,6 @@ terms_load <- function(dbFile, # database file name
   # load data
   df <- load_finalize(sqldf(query, dbname=dbFile),
                       sField, tField, ipc)
-  
   df
 }
 
@@ -143,7 +139,6 @@ terms_load_all <- function(dbFile, # database file name
       df <- rbind(df, terms_load(dbFile, scorer, f1, f2, ipc))
     }
   }
-  
   df
 }
 
@@ -161,51 +156,65 @@ plot_by_ipc_box <- function(df # data.frame with scaled score
   p <- p + 
     scale_y_continuous(breaks=seq(0, 1, 0.5), name="Score (normalisiert)") +
     scale_x_discrete(name="Quellsegment")
-
+  
+  # theme customizing
+  p <- p + theme_bw() +
+    theme(
+      panel.grid.major=element_line(colour="#cccccc"),
+      panel.grid.minor=element_line(colour="#bbbbbb", linetype="dotted"),
+      strip.background=element_rect(fill="#eeeeee"),
+      plot.margin = unit(c(0, 0, 0, 0), "lines")
+      )
   p
 }
 
-# iterate through all database files
-for (dbFile in list.files(path=opt$source, pattern=cfg$srcFilePattern)) {
-  dbFile <- paste0(opt$source, "/", dbFile)
-  # get the plain file name
-  dbFileName <- basename(dbFile)
-  filePrefix <- gsub("\\.sqlite$", "", dbFileName)
-  
-  print(paste0("Open '", dbFile, "'.."))
-  
-  # assume that every scorer is present in db
-  for (scorer in cfg$scorer) {
-    print(paste0("[", dbFileName, "] scorer=", scorer, " ipc=all"))
-          
-    ### TERMS
-    # gather scoring results for all ipc-sections
-    df <- score_scale(terms_load_all(dbFile, scorer))
-    # gather scoring result for every single ipc-section
-    for (ipc in cfg$ipc) {
-      print(paste0("[", dbFileName, "] type=terms scorer=", scorer, " ipc=", ipc))
-      df <- rbind(df, score_scale(terms_load_all(dbFile, scorer, ipc)))
+plot_by_scorer <- function() {
+  print("-- Result by scorer plot --")
+  # iterate through all database files
+  for (dbFile in list.files(path=opt$source, pattern=cfg$srcFilePattern)) {
+    dbFile <- paste0(opt$source, "/", dbFile)
+    # get the plain file name
+    dbFileName <- basename(dbFile)
+    filePrefix <- gsub("\\.sqlite$", "", dbFileName)
+    
+    print(paste0("Open '", dbFile, "'.."))
+    
+    # assume that every scorer is present in db
+    for (scorer in cfg$scorer) {
+      print(paste0("[", dbFileName, "] scorer=", scorer, " ipc=all"))
+            
+      ### TERMS
+      # gather scoring results for all ipc-sections
+      df <- score_scale(terms_load_all(dbFile, scorer))
+      # gather scoring result for every single ipc-section
+      for (ipc in cfg$ipc) {
+        print(paste0("[", dbFileName, "] type=terms scorer=", scorer, " ipc=", ipc))
+        df <- rbind(df, score_scale(terms_load_all(dbFile, scorer, ipc)))
+      }
+      
+      p <- plot_by_ipc_box(df)
+      outFileName <- paste0("/", filePrefix, "-plot-terms-", scorer,".pdf")
+      print(paste0("[", dbFileName, "] scorer=", scorer, " -> ", outFileName))
+      print(p)
+      ggsave(p, scale=1.5,
+             file=paste0(opt$target, outFileName))
+      
+      ### SENTENCES
+      # gather scoring results for all ipc-sections
+      df <- score_scale(sentences_load_all(dbFile, scorer))
+      # gather scoring result for every single ipc-section
+      for (ipc in cfg$ipc) {
+        print(paste0("[", dbFileName, "] type=sentences scorer=", scorer, " ipc=", ipc))
+        df <- rbind(df, score_scale(sentences_load_all(dbFile, scorer, ipc)))
+      }
+      
+      p <- plot_by_ipc_box(df)
+      outFileName <- paste0("/", filePrefix, "-plot-sentences-", scorer,".pdf")
+      print(paste0("[", dbFileName, "] scorer=", scorer, " -> ", outFileName))
+      ggsave(p, scale=1.5,
+             file=paste0(opt$target, outFileName))
     }
-    
-    p <- plot_by_ipc_box(df)
-    outFileName <- paste0("/", filePrefix, "-plot-terms-", scorer,".pdf")
-    print(paste0("[", dbFileName, "] scorer=", scorer, " -> ", outFileName))
-    ggsave(p, scale=1.5,
-           file=paste0(opt$target, outFileName))
-    
-    ### SENTENCES
-    # gather scoring results for all ipc-sections
-    df <- score_scale(sentences_load_all(dbFile, scorer))
-    # gather scoring result for every single ipc-section
-    for (ipc in cfg$ipc) {
-      print(paste0("[", dbFileName, "] type=sentences scorer=", scorer, " ipc=", ipc))
-      df <- rbind(df, score_scale(sentences_load_all(dbFile, scorer, ipc)))
-    }
-    
-    p <- plot_by_ipc_box(df)
-    outFileName <- paste0("/", filePrefix, "-plot-sentences-", scorer,".pdf")
-    print(paste0("[", dbFileName, "] scorer=", scorer, " -> ", outFileName))
-    ggsave(p, scale=1.5,
-           file=paste0(opt$target, outFileName))
   }
 }
+
+plot_by_scorer()
