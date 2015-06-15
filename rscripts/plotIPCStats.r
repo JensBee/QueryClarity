@@ -47,7 +47,9 @@ plotDistributionPerSection <- function() {
   p <- p + xlab("IPC-Sektion") + ylab("Häufigkeit") +
     scale_fill_discrete(name="Sprache",
                         labels=c("deutsch", "englisch", "französisch"))
-  ggsave(p, file=paste0(opt$target, "/ipcStats-section_dist.pdf"))
+  p <- p + theme_bw()
+  ggsave(p, scale=1.5,
+         file=paste0(opt$target, "/ipcStats-section_dist.pdf"))
 }
 
 # Number of IPC-Sections assigned per document
