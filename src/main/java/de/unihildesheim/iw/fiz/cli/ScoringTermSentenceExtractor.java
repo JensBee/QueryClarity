@@ -428,7 +428,11 @@ public final class ScoringTermSentenceExtractor
           .getAsJsonObject("hits")
           .getAsJsonArray("hits");
 
-      if (hits.size() == 1) {
+      if (hits.size() >= 1) {
+        if (hits.size() != 1) {
+          LOG.error("Expected 1 hit, got {}. Picking the first hit. " +
+                  "patRef={}", hits.size(), ref);
+        }
         final JsonObject json = hits.get(0).getAsJsonObject();
         if (json.has("fields")) {
           final JsonObject jHits = json.getAsJsonObject("fields");
