@@ -19,6 +19,8 @@ package de.unihildesheim.iw.lucene.scoring.clarity;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
+import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreResult
+    .EmptyReason;
 import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
 import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
@@ -480,7 +482,7 @@ public final class ImprovedClarityScore
         this.analyzer, this.dataProv);
     // check query term extraction result
     if (queryTerms.size() == 0) {
-      result.setEmpty("No query terms.");
+      result.setEmpty(EmptyReason.NO_QUERY_TERMS);
       return result;
     }
 
@@ -507,7 +509,7 @@ public final class ImprovedClarityScore
       resultNotEmpty = false;
       feedbackDocIds = EMPTY_DOCIDSET;
       fbDocCount = 0;
-      result.setEmpty("Boolean query too large.");
+      result.setEmpty(EmptyReason.TOO_MANY_BOOLCLAUSES);
     } catch (final Exception e) {
       final String msg = "Caught exception while getting feedback documents.";
       LOG.error(msg, e);
@@ -517,7 +519,7 @@ public final class ImprovedClarityScore
     if (resultNotEmpty) {
       if (fbDocCount == 0) {
         resultNotEmpty = false;
-        result.setEmpty("No feedback documents.");
+        result.setEmpty(EmptyReason.NO_FEEDBACK);
       } else if (fbDocCount < this.conf.getMinFeedbackDocumentsCount()) {
         resultNotEmpty = false;
         result.setEmpty("Not enough feedback documents. " +
@@ -681,12 +683,6 @@ public final class ImprovedClarityScore
     public ImprovedClarityScoreConfiguration getConfiguration() {
       return this.conf;
     }
-
-    /**
-     * Configuration prefix.
-     */
-    private static final String CONF_PREFIX = IDENTIFIER + "-result";
-
   }
 
   /**

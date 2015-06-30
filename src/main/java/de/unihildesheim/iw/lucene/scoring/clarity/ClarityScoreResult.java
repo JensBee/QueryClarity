@@ -57,6 +57,23 @@ public abstract class ClarityScoreResult
    */
   private boolean isEmpty;
 
+  public enum EmptyReason {
+    NO_QUERY_TERMS("No query terms"),
+    TOO_MANY_BOOLCLAUSES("Boolean query too large."),
+    NO_FEEDBACK("No feedback documents.");
+
+    private final String msg;
+
+    EmptyReason(final String msg) {
+      this.msg = msg;
+    }
+
+    @Override
+    public String toString() {
+      return this.msg;
+    }
+  }
+
   /**
    * Create a new calculation result of the given type with no result.
    *
@@ -88,6 +105,10 @@ public abstract class ClarityScoreResult
     this.isEmpty = true;
     setScore(0d);
     LOG.warn("Score will be empty. reason={}", message);
+  }
+
+  public final void setEmpty(final EmptyReason msg) {
+    setEmpty(msg.toString());
   }
 
   /**
