@@ -245,7 +245,7 @@ task('termDumpSample') {
             '-threshold', 0, //0.01,
             '-bins', 6,
             '-binsize', 50,
-            '-picks', '1 3 5',
+            '-picks', '2 4 6',
             '-grpsep', conf.ipc.grpSeparator]
     /**
      * Output file pattern.
@@ -559,23 +559,14 @@ task('score') {
                 ext.targetFile = tgtFilePattern(entry.name)
                 cmdArgs += ['-scoredb', targetFile]
 
-                if (!file(targetFile).exists()) {
-                    logger.info(log.stat +
-                            "Starting from new file '${entry.name}'")
-                    // copy file
-                    copy {
-                        from entry.file
-                        into tgtDir
-                        include entry.name
-                    }
-                }
-
                 // check, if target already exists
                 if (file(targetFile).exists()) {
                     logger.warn(log.warn + 'Scoring for dump \'' +
                             targetFile + ' exists. Skipping file.')
                 } else {
-                    copy file
+                    logger.info(log.stat +
+                            "Starting from new file '${entry.name}'")
+                    // copy file
                     copy {
                         from entry.file
                         into tgtDir
