@@ -45,6 +45,7 @@ public class ScoringDataDB
   private static final Collection<Class<? extends Table>> ACCEPTED_TABLES =
       Collections.unmodifiableList(Arrays.asList(
           MetaTable.class,
+          TermSegmentsTable.class,
           TermScoringTable.class,
           TermScoringResultTable.class,
           SentenceScoringTable.class,
