@@ -36,6 +36,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.FixedBitSet;
@@ -228,6 +229,12 @@ public final class FDRIndexDataProvider
   @NotNull
   public IntStream getDocumentIds() {
     return StreamUtils.stream(this.index.docIds);
+  }
+
+  @Override
+  @NotNull
+  public DocIdSet getDocumentIdSet() {
+    return new BitDocIdSet(this.index.docIds.clone());
   }
 
   @SuppressFBWarnings("RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE")

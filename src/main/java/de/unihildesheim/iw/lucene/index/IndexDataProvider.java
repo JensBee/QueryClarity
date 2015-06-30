@@ -95,12 +95,20 @@ public interface IndexDataProvider
   }
 
   /**
-   * Get an all known document-ids.
+   * Get all known document-ids.
    *
    * @return Stream of document-ids
    */
   @NotNull
   IntStream getDocumentIds();
+
+  /**
+   * Get all known document-ids.
+   *
+   * @return Stream of document-ids
+   */
+  @NotNull
+  DocIdSet getDocumentIdSet();
 
   /**
    * Get a {@link DocumentModel} instance for the document with the given id.
