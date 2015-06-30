@@ -24,6 +24,7 @@ import de.unihildesheim.iw.storage.sql.Table;
 import de.unihildesheim.iw.storage.sql.TableFieldContent;
 import de.unihildesheim.iw.storage.sql.scoringData.ScoringDataDB;
 import de.unihildesheim.iw.storage.sql.scoringData.TermScoringTable;
+import de.unihildesheim.iw.storage.sql.scoringData.TermSegmentsTable;
 import de.unihildesheim.iw.storage.sql.termData.TermDataDB;
 import de.unihildesheim.iw.storage.sql.termData.TermsTable;
 import de.unihildesheim.iw.storage.sql.termData.TermsTable.FieldsOptional;
@@ -41,13 +42,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
-import java.util.stream.IntStream;
 
 /**
  * Commandline utility to extract terms from term dumps created with {@link
@@ -155,8 +152,9 @@ public final class SampleTerms
         final boolean includeIPC = checkIPC(termDb) &&
             (this.cliParams.ipcRec != null);
 
+        final Statement stmt = termDb.getConnection().createStatement();
+
         // number of all terms in table
-        final Statement preCheckStmt = termDb.getConnection().createStatement();
         String preCheckSQL =
             "select count(*) from " + TermsTable.TABLE_NAME +
                 " where " + TermsTable.Fields.LANG + "='" + langName +
@@ -176,9 +174,9 @@ public final class SampleTerms
         }
 
         // pre-check, if there are any terms we can process
-        long termCount = 0;
-        if (preCheckStmt.execute(preCheckSQL)) {
-          final ResultSet rsPreCheck = preCheckStmt.getResultSet();
+        Long termCount = 0L;
+        if (stmt.execute(preCheckSQL)) {
+          final ResultSet rsPreCheck = stmt.getResultSet();
           if (rsPreCheck.next()) {
             termCount = rsPreCheck.getLong(1);
           }
@@ -186,22 +184,6 @@ public final class SampleTerms
 
         if (termCount <= 0L) {
           LOG.warn("No results returned from database.");
-        }
-
-        // number of terms per bin
-        final long binWidth = Math.floorDiv(termCount, this.cliParams.bins);
-
-        // check, if there are enough terms to sample per bin
-        final int finalBinSize;
-        if (binWidth < (long) this.cliParams.binSize) {
-          // reduce the number of terms to sample to the number of total
-          // terms available per bin
-          finalBinSize = (int) binWidth;
-          LOG.warn("Not enough terms to create {} samples per bin. " +
-                  "Number of samples reduced to {} samples per bin.",
-              this.cliParams.binSize, finalBinSize);
-        } else {
-          finalBinSize = this.cliParams.binSize;
         }
 
         // fields queried from source table
@@ -213,42 +195,72 @@ public final class SampleTerms
                 TermsTable.Fields.FIELD + ',' +
                 TermsTable.FieldsOptional.IPC;
 
-        // prepared statement to query terms from source table
-        final String querySQL =
-            "SELECT " + fields +
-                " from " + TermsTable.TABLE_NAME +
-                " where " + TermsTable.Fields.LANG + "='" + langName + '\'' +
-                (useThreshold ?
-                    " and " + TermsTable.Fields.DOCFREQ_REL +
-                        " >= " + this.cliParams.threshold : "") +
-                " and " + TermsTable.Fields.FIELD + "='" + fieldName + '\'' +
-                " and " + TermsTable.FieldsOptional.IPC +
-                (includeIPC ?
-                    " like '" + ipcName + "%'" : // filter by ipc
-                    " is null") + // ipc must not be present
-                " order by " + TermsTable.Fields.DOCFREQ_REL +
-                " limit " + binWidth + " offset ?";
+        final String minMaxQuery = "SELECT " +
+            "min(" + TermsTable.Fields.DOCFREQ_REL + ") as min, " +
+            "max(" + TermsTable.Fields.DOCFREQ_REL + ") as max " +
+            "from " + TermsTable.TABLE_NAME + " where " +
+            TermsTable.Fields.FIELD + "='" + fieldName + "' and " +
+            TermsTable.FieldsOptional.IPC +
+            (includeIPC ?
+                " like '" + ipcName + "%'" : // filter by ipc
+                " is null") + // ipc must not be present
+            (useThreshold ?
+                " and " + TermsTable.Fields.DOCFREQ_REL +
+                    " >= " + this.cliParams.threshold : "");
+
+        double dfMin = -1d;
+        double dfMax = -1d;
+        if (stmt.execute(minMaxQuery)) {
+          final ResultSet rsMinMax = stmt.getResultSet();
+          if (rsMinMax.next()) {
+            dfMin = rsMinMax.getDouble(1);
+            dfMax = rsMinMax.getDouble(2);
+          }
+        }
+        if (dfMin < 0d || dfMax <= 0d) {
+          throw new IllegalStateException("Error esitmating " +
+              "document-frequency bounds. dfMin=" + dfMin + " dfMax" + dfMax);
+        }
+
+        final double dfRange = dfMax - dfMin;
+        final double binSize = dfRange / this.cliParams.bins;
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("dfMin={} dfMax={} dfRange={}", dfMin, dfMax, dfRange);
+        }
+
+        final String querySQL = "select " + fields +
+            " from " + TermsTable.TABLE_NAME +
+            " where " + TermsTable.Fields.FIELD + "='" + fieldName + "' and " +
+            TermsTable.FieldsOptional.IPC +
+            (includeIPC ?
+                " like '" + ipcName + "%'" : // filter by ipc
+                " is null") + // ipc must not be present
+            (useThreshold ?
+                " and " + TermsTable.Fields.DOCFREQ_REL +
+                    " >= " + this.cliParams.threshold : "") +
+            " order by abs(" + TermsTable.Fields.DOCFREQ_REL +
+            " -?) limit " + this.cliParams.binSize;
+
         if (LOG.isDebugEnabled()) {
           LOG.debug("querySQL: {}", querySQL);
         }
         final PreparedStatement pickStmt = termDb.getConnection()
             .prepareStatement(querySQL);
 
-        if (LOG.isDebugEnabled()) {
-          LOG.debug("terms={} bins={} binsize={}",
-              termCount, this.cliParams.bins, binWidth);
-        }
-
         // table manager instance: Target database with scoring data
         try (final ScoringDataDB scoringDb =
                  new ScoringDataDB(this.cliParams.dbTarget)) {
+          // segment info table
+          final TermSegmentsTable termSegTable = new TermSegmentsTable();
+          final TermSegmentsTable.Writer termSegWriter = termSegTable
+              .getWriter(scoringDb.getConnection());
           // data table, always including ipc
           final TermScoringTable scoringTable = new TermScoringTable(
               TermScoringTable.FieldsOptional.IPC);
           // meta table
           final Table metaTable = new MetaTable();
 
-          scoringDb.createTables(scoringTable, metaTable);
+          scoringDb.createTables(termSegTable, scoringTable, metaTable);
 
           // write meta-data
           try (final MetaTable.Writer metaWriter =
@@ -259,79 +271,55 @@ public final class SampleTerms
           }
 
           if (termCount > 0L) {
-            LOG.info("Generating sample seed.");
-            // range of numbers (0 to binWidth) to sample from
-            final List<Integer> sampleRange = Arrays.asList(
-                IntStream.range(0, (int) binWidth)
-                    .boxed().toArray(Integer[]::new));
-
             // write term scoring data
             try (final TermScoringTable.Writer scoringWriter =
                      new TermScoringTable.Writer(scoringDb.getConnection())) {
               // number of bins picked for scoring (and storing to target db)
               final int pickAmount = this.cliParams.picks.length;
+              TableFieldContent tfc;
               for (int pickIdx = 0; pickIdx < pickAmount; pickIdx++) {
-                final int binNo = this.cliParams.picks[pickIdx] - 1;
-                LOG.info("Bin-pick {}: bin={}({}) row {}-{}",
-                    pickIdx, binNo + 1, binNo, binWidth * (long) binNo,
-                    (binWidth * (long) binNo) + binWidth);
-
-                pickStmt.setLong(1, binWidth * (long) binNo);
-                final ResultSet rs = pickStmt.executeQuery();
-
-                Collections.shuffle(sampleRange);
-                final List<Integer> samples = new ArrayList<>(finalBinSize);
-                for (int i = 0; i < finalBinSize; i++) {
-                  samples.add(sampleRange.get(i));
-                }
-                Collections.sort(samples);
+                final Integer binNo = this.cliParams.picks[pickIdx];
+                final Double binMax = dfMax - (binSize * ((double) binNo - 1d));
+                final Double binMin = dfMax - (binSize * (double) binNo);
+                final double binMid = ((binMax - binMin) / (double) 2) + binMin;
 
                 if (LOG.isDebugEnabled()) {
-                  LOG.debug("Pick-idx {}", samples);
+                  LOG.debug("Pick {}: binMin={} binMax={} binMid={} picks={}",
+                      binNo, binMin, binMax, binMid, this.cliParams.binSize);
                 }
 
-                LOG.info("Picking {} from bin {}.", samples.size(), binNo + 1);
+                tfc = new TableFieldContent(termSegTable)
+                    .setValue(TermSegmentsTable.Fields.FIELD, fieldName)
+                    .setValue(TermSegmentsTable.Fields.LANG, langName)
+                    .setValue(TermSegmentsTable.Fields.SEGMENT, binNo)
+                    .setValue(TermSegmentsTable.Fields.DOCFREQ_REL_MIN, binMin)
+                    .setValue(TermSegmentsTable.Fields.DOCFREQ_REL_MAX, binMax)
+                    .setValue(TermSegmentsTable.Fields.TERM_COUNT, termCount);
+                if (includeIPC) {
+                  tfc.setValue(TermSegmentsTable.Fields.SECTION,
+                      this.cliParams.ipcRec.get(IPCRecord.Field.SECTION));
+                }
+                termSegWriter.addContent(tfc, false);
 
-                Integer count = 0;
-                while (!samples.isEmpty() && rs.next()) {
-                  if (samples.contains(count)) {
-                    if (LOG.isTraceEnabled()) {
-                      LOG.trace("pick {}",
-                          (binWidth * (long) binNo) + (long) count);
-                    }
-                    // columns are defined in fields variable
-                    final TableFieldContent tfc =
-                        new TableFieldContent(scoringTable)
-                            .setValue(TermScoringTable.Fields.TERM,
-                                rs.getString(1))
-                            .setValue(TermScoringTable.Fields.LANG,
-                                rs.getString(2))
-                            .setValue(
-                                TermScoringTable.Fields.DOCFREQ_REL,
-                                rs.getString(3))
-                            .setValue(
-                                TermScoringTable.Fields.DOCFREQ_ABS,
-                                rs.getString(4))
-                            .setValue(
-                                TermScoringTable.Fields.BIN,
-                                binNo + 1)
-                            .setValue(
-                                TermScoringTable.Fields.FIELD,
-                                rs.getString(5));
-                    if (includeIPC) {
-                      tfc.setValue(TermScoringTable.FieldsOptional.IPC,
-                          rs.getString(6));
-                    }
-                    scoringWriter.addContent(tfc, false);
-                    samples.remove(count);
+                pickStmt.setDouble(1, binMid);
+                final ResultSet rs = pickStmt.executeQuery();
+
+                while (rs.next()) {
+                  // columns are defined in fields variable
+                  tfc = new TableFieldContent(scoringTable)
+                      .setValue(TermScoringTable.Fields.TERM, rs.getString(1))
+                      .setValue(TermScoringTable.Fields.LANG, rs.getString(2))
+                      .setValue(TermScoringTable.Fields.DOCFREQ_REL,
+                          rs.getString(3))
+                      .setValue(TermScoringTable.Fields.DOCFREQ_ABS,
+                          rs.getString(4))
+                      .setValue(TermScoringTable.Fields.BIN, binNo)
+                      .setValue(TermScoringTable.Fields.FIELD, rs.getString(5));
+                  if (includeIPC && rs.getString(6) != null) {
+                    tfc.setValue(TermScoringTable.FieldsOptional.IPC,
+                        rs.getString(6));
                   }
-                  count++;
-                }
-                if (!samples.isEmpty()) {
-                  final String msg = "Not all samples retrieved. "
-                      + samples.size() + " remaining unresolved.";
-                  LOG.error(msg);
-                  throw new IllegalStateException(msg);
+                  scoringWriter.addContent(tfc, false);
                 }
               }
             }
@@ -389,8 +377,8 @@ public final class SampleTerms
      */
     @Option(name = "-picks", metaVar = "<1-[bins]>", required = false,
         handler = StringArrayOptionHandler.class,
-        usage = "Ranges to pick terms from. Default: 1 3 5.")
-    String[] pickList = {"1", "3", "5"};
+        usage = "Ranges to pick terms from. Default: 2 4 6.")
+    String[] pickList;// = {"2", "4", "6"};
     /**
      * Final validated picks, parsed to int from input string.
      */
