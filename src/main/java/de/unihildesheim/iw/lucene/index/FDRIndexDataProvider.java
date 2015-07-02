@@ -50,7 +50,6 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -84,13 +83,15 @@ public final class FDRIndexDataProvider
       "CloneableClassWithoutClone", "serial"})
   private final Map<Integer, DocumentModel> cache_docmod =
       Collections.synchronizedMap(
-          new LinkedHashMap<Integer, DocumentModel>(
-              CACHE_DOCMOD_SIZE + 1, .75F, true) {
-            @Override
-            public boolean removeEldestEntry(final Map.Entry eldest) {
-              return size() > CACHE_DOCMOD_SIZE;
-            }
-          });
+          new LRUMap<>(CACHE_DOCMOD_SIZE + 1, 0.75f)
+//          new LinkedHashMap<Integer, DocumentModel>(
+//              CACHE_DOCMOD_SIZE + 1, .75F, true) {
+//            @Override
+//            public boolean removeEldestEntry(final Map.Entry eldest) {
+//              return size() > CACHE_DOCMOD_SIZE;
+//            }
+//          }
+      );
   /**
    * Size of the term-frequency LRU cache.
    */
