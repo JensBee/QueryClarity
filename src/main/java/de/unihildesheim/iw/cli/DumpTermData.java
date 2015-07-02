@@ -17,11 +17,11 @@
 
 package de.unihildesheim.iw.cli;
 
-import de.unihildesheim.iw.util.Buildable.BuildException;
 import de.unihildesheim.iw.data.IPCCode;
 import de.unihildesheim.iw.data.IPCCode.Parser;
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader;
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader.Builder;
+import de.unihildesheim.iw.lucene.index.builder.IndexBuilder.LUCENE_CONF;
 import de.unihildesheim.iw.lucene.query.IPCClassQuery;
 import de.unihildesheim.iw.lucene.search.IPCFieldFilter;
 import de.unihildesheim.iw.lucene.search.IPCFieldFilterFunctions.SloppyMatch;
@@ -30,6 +30,8 @@ import de.unihildesheim.iw.storage.sql.Table;
 import de.unihildesheim.iw.storage.sql.TableFieldContent;
 import de.unihildesheim.iw.storage.sql.termData.TermDataDB;
 import de.unihildesheim.iw.storage.sql.termData.TermsTable;
+import de.unihildesheim.iw.util.Buildable;
+import de.unihildesheim.iw.util.Buildable.BuildException;
 import de.unihildesheim.iw.util.StopwordsFileReader;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TaskObserver;
@@ -58,6 +60,7 @@ import java.io.File;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.text.NumberFormat;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -100,7 +103,7 @@ public final class DumpTermData
    */
   public static void main(final String... args)
       throws IOException, SQLException, ClassNotFoundException,
-             BuildException {
+             BuildException, Buildable.ConfigurationException {
     new DumpTermData().runMain(args);
     Runtime.getRuntime().exit(0); // required to trigger shutdown-hooks
   }
@@ -118,7 +121,7 @@ public final class DumpTermData
   @SuppressWarnings("UnnecessarilyQualifiedInnerClassAccess")
   private void runMain(final String... args)
       throws IOException, SQLException, ClassNotFoundException,
-             BuildException {
+             BuildException, Buildable.ConfigurationException {
     new CmdLineParser(this.cliParams);
     parseWithHelp(this.cliParams, args);
 
@@ -154,44 +157,42 @@ public final class DumpTermData
           sWords = Collections.emptySet();
         }
 
-        final int maxDoc = this.cliParams.idxReader.maxDoc();
-        if (maxDoc == 0) {
+        final int numDocs = this.cliParams.idxReader.numDocs();
+        if (numDocs == 0) {
           LOG.error("Empty index.");
           return;
         }
 
-        final Terms terms = MultiFields.getTerms(this.cliParams.idxReader,
-            this.cliParams.field);
-        TermsEnum termsEnum = TermsEnum.EMPTY;
-        BytesRef term;
+        final AtomicLong count = new AtomicLong(0L);
 
-        if (terms != null) {
-          termsEnum = terms.iterator(termsEnum);
-          term = termsEnum.next();
-          final AtomicLong count = new AtomicLong(0L);
+        try (TaskObserver obs = new TaskObserver(
+            new TaskObserverMessage() {
+              @Override
+              public void call(@NotNull final TimeMeasure tm) {
+                LOG.info("Collected {} terms after {}.",
+                    NumberFormat.getIntegerInstance().format(count.get()),
+                    tm.getTimeString());
+              }
+            }).start()) {
+          // normalize some parameters
+          final String langName =
+              StringUtils.lowerCase(this.cliParams.lang);
+          final String fieldName = this.cliParams.field;
+          final Terms terms = MultiFields.getTerms(
+              this.cliParams.idxReader, this.cliParams.field);
 
-          try (TaskObserver obs = new TaskObserver(
-              new TaskObserverMessage() {
-                @Override
-                public void call(@NotNull final TimeMeasure tm) {
-                  LOG.info("Collected {} terms after {}.",
-                      NumberFormat.getIntegerInstance().format(count.get()),
-                      tm.getTimeString());
-                }
-              }).start()) {
-
-            // normalize some parameters
-            final String fieldName =
-                StringUtils.lowerCase(this.cliParams.field);
-            final String langName =
-                StringUtils.lowerCase(this.cliParams.lang);
+          TermsEnum termsEnum = TermsEnum.EMPTY;
+          BytesRef term;
+          if (terms != null) {
+            termsEnum = terms.iterator(termsEnum);
+            term = termsEnum.next();
 
             while (term != null) {
               final String termStr = term.utf8ToString();
               if (!sWords.contains(termStr.toLowerCase())) {
                 final double docFreq = (double) termsEnum.docFreq();
                 if (docFreq > 0d) {
-                  final double relDocFreq = docFreq / (double) maxDoc;
+                  final double relDocFreq = docFreq / (double) numDocs;
 
                   if (relDocFreq > this.cliParams.threshold) {
                     @SuppressWarnings("ObjectAllocationInLoop")
@@ -214,11 +215,11 @@ public final class DumpTermData
               }
               term = termsEnum.next();
             }
-            obs.stop();
           }
-          LOG.info("Total of {} terms collected.",
-              NumberFormat.getIntegerInstance().format(count));
+          obs.stop();
         }
+        LOG.info("Total of {} terms collected.",
+            NumberFormat.getIntegerInstance().format(count));
       }
     }
   }
@@ -289,14 +290,16 @@ public final class DumpTermData
     /**
      * {@link IndexReader} to use for accessing the Lucene index.
      */
-    IndexReader idxReader;
+    FilteredDirectoryReader idxReader;
 
     /**
      * Document-field to query.
      */
-    @Option(name = "-field", metaVar = "field name", required = true,
+    @Option(name = "-field", metaVar = "field name", required = false,
         handler = StringArrayOptionHandler.class,
-        usage = "Document field to query.")
+        usage = "Document field to query. If not specified both '" +
+            LUCENE_CONF.FLD_CLAIMS + "' and '" +
+            LUCENE_CONF.FLD_DETD + "' will be queried.")
     String field;
 
     /**
@@ -354,19 +357,27 @@ public final class DumpTermData
               this.idxDir.getCanonicalPath() + "'.");
         }
 
-        final DirectoryReader reader = DirectoryReader.open(
-            this.luceneDir);
+        final Builder idxReaderBuilder = new Builder(DirectoryReader.open(
+            this.luceneDir));
 
-        if (this.ipc == null) {
-          // no IPC-code query
-          this.idxReader = reader;
+        // create field filter
+        if (this.field == null) {
+          this.field = LUCENE_CONF.FLD_CLAIMS + ", " + LUCENE_CONF.FLD_DETD;
+          LOG.debug("No fields specified. Using defaults: {}.", this.field);
+          idxReaderBuilder.fields(Arrays.asList(
+              LUCENE_CONF.FLD_CLAIMS,
+              LUCENE_CONF.FLD_DETD));
         } else {
+          this.field = StringUtils.lowerCase(this.field);
+          idxReaderBuilder.fields(Collections.singleton(this.field));
+        }
+
+        if (this.ipc != null) {
+          // create ipc query filter
           final Parser ipcParser = new Parser();
           ipcParser.separatorChar(this.sep);
           ipcParser.allowZeroPad(this.zeroPad);
 
-          final Builder
-              idxReaderBuilder = new Builder(reader);
           this.ipcRec = ipcParser.parse(this.ipc);
           final BooleanQuery bq = new BooleanQuery();
           final Pattern rx_ipc = Pattern.compile(
@@ -384,8 +395,40 @@ public final class DumpTermData
                   new SloppyMatch(this.ipcRec), ipcParser
               )), Occur.MUST);
           idxReaderBuilder.queryFilter(new QueryWrapperFilter(bq));
-          this.idxReader = idxReaderBuilder.build();
         }
+
+        this.idxReader = idxReaderBuilder.build();
+
+//        if (this.ipc == null) {
+//          if (this.field == null) {
+//            this.idxReader = reader;
+//          }
+//        } else {
+//          final Parser ipcParser = new Parser();
+//          ipcParser.separatorChar(this.sep);
+//          ipcParser.allowZeroPad(this.zeroPad);
+//
+//          final Builder
+//              idxReaderBuilder = new Builder(reader);
+//          this.ipcRec = ipcParser.parse(this.ipc);
+//          final BooleanQuery bq = new BooleanQuery();
+//          final Pattern rx_ipc = Pattern.compile(
+//              this.ipcRec.toRegExpString(this.sep));
+//          if (LOG.isDebugEnabled()) {
+//            LOG.debug("IPC regExp: rx={} pat={}",
+//                this.ipcRec.toRegExpString(this.sep),
+//                rx_ipc);
+//          }
+//
+//          bq.add(new QueryWrapperFilter(
+//              IPCClassQuery.get(this.ipcRec, this.sep)), Occur.MUST);
+//          bq.add(new QueryWrapperFilter(
+//              new IPCFieldFilter(
+//                  new SloppyMatch(this.ipcRec), ipcParser
+//              )), Occur.MUST);
+//          idxReaderBuilder.queryFilter(new QueryWrapperFilter(bq));
+//          this.idxReader = idxReaderBuilder.build();
+//        }
       } else {
         LOG.error("Index directory '{}' does not exist.", this.idxDir);
         Runtime.getRuntime().exit(-1);
