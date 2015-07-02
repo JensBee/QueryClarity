@@ -48,7 +48,8 @@ public class IPCStatsDB
           AllIPCTable.class,
           IPCDistributionTable.class,
           IPCSectionsTable.class,
-          IPCPerDocumentTable.class));
+          IPCPerDocumentTable.class,
+          IPCDocFieldCountTable.class));
 
   /**
    * New instance.
