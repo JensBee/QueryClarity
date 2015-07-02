@@ -67,6 +67,8 @@ import java.util.stream.Stream;
  */
 public final class ImprovedClarityScore
     extends AbstractClarityScoreCalculation {
+  private static final String MSG_NO_THRESHOLDED_FEEDBACK_TERMS =
+      "No feedback terms available after reducing by threshold.";
   /**
    * Prefix to use to store calculated term-data values in cache and access
    * properties stored in the {@link de.unihildesheim.iw.lucene.index
@@ -573,9 +575,9 @@ public final class ImprovedClarityScore
             LOG.info("Calculating final score.");
             result.setScore(MathUtils.klDivergence(dataSets));
           } else {
-            LOG.info("No terms available after reducing by threshold.");
+            LOG.info(MSG_NO_THRESHOLDED_FEEDBACK_TERMS);
             resultNotEmpty = false;
-            result.setEmpty("No terms available after reducing by threshold.");
+            result.setEmpty(MSG_NO_THRESHOLDED_FEEDBACK_TERMS);
           }
         } else {
           final ModelHighPrecision model = new ModelHighPrecision(
@@ -597,9 +599,9 @@ public final class ImprovedClarityScore
             LOG.info("Calculating final score.");
             result.setScore(MathUtils.klDivergence(dataSets).doubleValue());
           } else {
-            LOG.info("No terms available after reducing by threshold.");
+            LOG.info(MSG_NO_THRESHOLDED_FEEDBACK_TERMS);
             resultNotEmpty = false;
-            result.setEmpty("No terms available after reducing by threshold.");
+            result.setEmpty(MSG_NO_THRESHOLDED_FEEDBACK_TERMS);
           }
         }
       } catch (final IOException e) {
