@@ -49,7 +49,8 @@ public class ScoringDataDB
           TermScoringTable.class,
           TermScoringResultTable.class,
           SentenceScoringTable.class,
-          SentenceScoringResultTable.class));
+          SentenceScoringResultTable.class,
+          ICSConfTable.class));
 
   /**
    * New instance.

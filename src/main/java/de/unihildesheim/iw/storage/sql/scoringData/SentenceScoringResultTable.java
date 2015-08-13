@@ -126,6 +126,49 @@ public final class SentenceScoringResultTable
   }
 
   /**
+   * Optional fields in this table.
+   */
+  @SuppressWarnings("PublicInnerClass")
+  public enum FieldsOptional {
+    /**
+     * Term reference.
+     */
+    ICSCONF_REF("icsconf_ref integer not null"),
+    /**
+     * Term reference foreign key.
+     */
+    ICSCONF_REF_FK("foreign key (" + ICSCONF_REF + ") references " +
+        ICSConfTable.TABLE_NAME + '(' + ICSConfTable.Fields.ID + ')');
+
+    /**
+     * SQL code to create this field.
+     */
+    private final String sqlStr;
+
+    /**
+     * Create a new field instance with the given SQL code to create the
+     * field in the database.
+     * @param sql SQL code to create this field.
+     */
+    FieldsOptional(@NotNull final String sql) {
+      this.sqlStr = sql;
+    }
+
+    @Override
+    public String toString() {
+      return this.name().toLowerCase();
+    }
+
+    /**
+     * Get the current field as {@link TableField} instance.
+     * @return {@link TableField} instance for the current field
+     */
+    public TableField getAsTableField() {
+      return new TableField(toString(), this.sqlStr);
+    }
+  }
+
+  /**
    * Create a new instance using the default fields.
    */
   public SentenceScoringResultTable() {
@@ -135,6 +178,21 @@ public final class SentenceScoringResultTable
         .filter(f -> !f.toString().toLowerCase().endsWith("_fk"))
         .map(Fields::getAsTableField).collect(Collectors.toList());
     addDefaultFieldsToUnique();
+  }
+
+  /**
+   * Create a new instance and add the given optional fields to the table.
+   * @param optFields Optional fields to add to the {@link Fields default}
+   * list of fields
+   */
+  public SentenceScoringResultTable(@NotNull final FieldsOptional... optFields) {
+    this();
+    for (final FieldsOptional fld : optFields) {
+      if (!fld.toString().toLowerCase().endsWith("_fk")) {
+        this.contentFields.add(fld.getAsTableField());
+      }
+      this.fields.add(fld.getAsTableField());
+    }
   }
 
   @NotNull
