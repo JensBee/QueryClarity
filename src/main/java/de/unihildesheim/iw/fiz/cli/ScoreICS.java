@@ -82,7 +82,7 @@ import java.util.regex.Pattern;
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class ScoreICS
+public final class ScoreICS
     extends CliBase {
   /**
    * Logger instance for this class.
@@ -254,13 +254,13 @@ public class ScoreICS
               .setValue(MetaTable.Fields.CMD, StringUtils.join(args, " ")));
         }
         metaWriter.commit();
-
-        // lucene analyzer
-        this.analyzer = LanguageBasedAnalyzers.createInstance(
-            this.cliParams.language, CharArraySet.EMPTY_SET);
-
-        runScoring(scoringDb, icsConfId, termTable, sentenceTable);
       }
+
+      // lucene analyzer
+      this.analyzer = LanguageBasedAnalyzers.createInstance(
+          this.cliParams.language, CharArraySet.EMPTY_SET);
+
+      runScoring(scoringDb, icsConfId, termTable, sentenceTable);
     }
   }
 
