@@ -128,7 +128,7 @@ public abstract class AbstractDB
   }
 
   /**
-   * Create all required tables, if the do not exist already.
+   * Create all required tables, if the table do not exist already.
    *
    * @param force If true, deletes any table that already exists before creating
    * it
