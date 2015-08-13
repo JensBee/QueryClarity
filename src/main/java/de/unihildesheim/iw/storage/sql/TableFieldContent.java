@@ -110,6 +110,8 @@ public class TableFieldContent {
 
     finalSql.append(") values ").append(valueStr).append(')');
 
+    LOG.debug("insertSQL: {}", finalSql);
+
     final PreparedStatement prep = con.prepareStatement(finalSql.toString());
 
     final int fieldCount = fieldNames.size();
