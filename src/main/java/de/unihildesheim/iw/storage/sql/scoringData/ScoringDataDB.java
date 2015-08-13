@@ -48,8 +48,10 @@ public class ScoringDataDB
           TermSegmentsTable.class,
           TermScoringTable.class,
           TermScoringResultTable.class,
+          BM25TermScoringResultTable.class,
           SentenceScoringTable.class,
           SentenceScoringResultTable.class,
+          BM25SentenceScoringResultTable.class,
           ICSConfTable.class));
 
   /**
