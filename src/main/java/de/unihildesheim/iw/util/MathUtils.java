@@ -34,6 +34,10 @@ import java.util.Arrays;
  */
 public final class MathUtils {
   /**
+   * Logger instance for this class.
+   */
+  private static final Logger LOG = LoggerFactory.getLogger(MathUtils.class);
+  /**
    * Constant value of log10.
    */
   public static final double LOG10 = Math.log(10d);
@@ -286,6 +290,10 @@ public final class MathUtils {
       @NotNull final ScoreTupleHighPrecision... dataSet) {
     final AtomicBigDecimal qModSum = new AtomicBigDecimal(0d);
     final AtomicBigDecimal cModSum = new AtomicBigDecimal(0d);
+
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Calculating klDivergence for {} values.", dataSet.length);
+    }
 
     // pre-check and estimate domain values
     Arrays.stream(dataSet)
