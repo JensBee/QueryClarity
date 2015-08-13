@@ -39,6 +39,21 @@ import java.util.regex.Pattern;
  * @author Jens Bertram (code@jens-bertram.net)
  */
 public final class IPCCode {
+  public static class InvalidIPCCodeException extends Exception {
+    /**
+     * Plain constructor without descriptional message.
+     */
+    public InvalidIPCCodeException() {}
+
+    /**
+     * Constructor accepting a message to infor about the error cause.
+     * @param message Error cause or similar message
+     */
+    public InvalidIPCCodeException(final String message) {
+      super(message);
+    }
+  }
+
   /**
    * Single IPC code data record.
    */
@@ -538,7 +553,8 @@ public final class IPCCode {
      * @param sep Non-digit separator char
      * @return Self reference
      */
-    public Parser separatorChar(final char sep) {
+    public Parser separatorChar(final char sep)
+        throws InvalidIPCCodeException {
       checkSeparator(sep);
       this.separator = sep;
       return this;
@@ -549,9 +565,10 @@ public final class IPCCode {
      *
      * @param sep Separator char
      */
-    private static void checkSeparator(final char sep) {
+    private static void checkSeparator(final char sep)
+        throws InvalidIPCCodeException {
       if (RX_INVALID_SEPARATOR.matcher(Character.toString(sep)).matches()) {
-        throw new IllegalArgumentException("Invalid separator character " +
+        throw new InvalidIPCCodeException("Invalid separator character " +
             '\'' + sep + "'.");
       }
     }
@@ -579,8 +596,10 @@ public final class IPCCode {
      * from the input string
      * @see #parse(CharSequence, char, boolean)
      * @see #separatorChar(char)
+     * @throws InvalidIPCCodeException Thrown, if the given IPC-code is invalid
      */
-    public IPCRecord parse(@NotNull final CharSequence codeStr) {
+    public IPCRecord parse(@NotNull final CharSequence codeStr)
+        throws InvalidIPCCodeException {
       return parse(codeStr, this.separator, this.allowZeroPad);
     }
 
@@ -595,9 +614,12 @@ public final class IPCCode {
      * @see #parse(CharSequence)
      * @see #parse(CharSequence, char, boolean)
      * @see #separatorChar(char)
+     * @throws InvalidIPCCodeException Thrown, if an invalid separator-char
+     * was given
      */
     static IPCRecord parse(
-        @NotNull final CharSequence codeStr, final char sep) {
+        @NotNull final CharSequence codeStr, final char sep)
+        throws InvalidIPCCodeException {
       return parse(codeStr, sep, false);
     }
 
@@ -612,11 +634,14 @@ public final class IPCCode {
      * from the input string
      * @see #parse(CharSequence)
      * @see #separatorChar(char)
+     * @throws InvalidIPCCodeException Thrown, if the given IPC-code is
+     * invalid or the given separator-char is invalid
      */
     @SuppressWarnings("ReuseOfLocalVariable")
     static IPCRecord parse(
         @NotNull final CharSequence codeStr,
-        final char sep, final boolean allowZeroPad) {
+        final char sep, final boolean allowZeroPad)
+        throws InvalidIPCCodeException {
       checkSeparator(sep);
 
       // fold spaces
@@ -736,8 +761,10 @@ public final class IPCCode {
    * @param code IPC code
    * @return IPC data record extracted from the given string
    * @see Parser#parse(CharSequence, char)
+   * @throws InvalidIPCCodeException Thrown, if the given IPC-code is invalid
    */
-  public static IPCRecord parse(@NotNull final CharSequence code) {
+  public static IPCRecord parse(@NotNull final CharSequence code)
+      throws InvalidIPCCodeException {
     return Parser.parse(code, Parser.DEFAULT_SEPARATOR);
   }
 
@@ -752,10 +779,12 @@ public final class IPCCode {
    * @return IPC code record object with all symbols set that could be parsed
    * from the input string
    * @see Parser#parse(CharSequence, char)
+   * @throws InvalidIPCCodeException Thrown, if the given IPC-code is invalid
    */
   public static IPCRecord parse(
       @NotNull final CharSequence code,
-      final char separator) {
+      final char separator)
+      throws InvalidIPCCodeException {
     return Parser.parse(code, separator);
   }
 
@@ -787,8 +816,10 @@ public final class IPCCode {
      * @param cls Any object whose value can be parsed to an int between >=1 and
      * <= 99
      * @return Self reference
+     * @throws InvalidIPCCodeException Thrown, if the given IPC-class is invalid
      */
-    public Builder setClass(@NotNull final Object cls) {
+    public Builder setClass(@NotNull final Object cls)
+        throws InvalidIPCCodeException {
       return Number.class.isInstance(cls) ?
           setClass(((Number) cls).intValue()) :
           setClass(Integer.parseInt(cls.toString()));
@@ -799,10 +830,12 @@ public final class IPCCode {
      *
      * @param cls Number >=1 and <= 99
      * @return Self reference
+     * @throws InvalidIPCCodeException Thrown, if the given IPC-class is invalid
      */
-    public Builder setClass(final int cls) {
+    public Builder setClass(final int cls)
+        throws InvalidIPCCodeException {
       if (cls < 1 || cls > 99) {
-        throw new IllegalArgumentException(
+        throw new InvalidIPCCodeException(
             "Class identifier must be >=1 and <= 99.");
       }
       this.rec.set(Field.CLASS, cls);
@@ -814,10 +847,13 @@ public final class IPCCode {
      *
      * @param mg Number >=1 and <= 9999
      * @return Self reference
+     * @throws InvalidIPCCodeException Thrown, if the given maingroup-code is
+     * invalid
      */
-    public Builder setMainGroup(final int mg) {
+    public Builder setMainGroup(final int mg)
+        throws InvalidIPCCodeException {
       if (mg < 1 || mg > 9999) {
-        throw new IllegalArgumentException(
+        throw new InvalidIPCCodeException(
             "Main-group identifier must be >=1 and <= 9999. Got " + mg + '.');
       }
       this.rec.set(Field.MAINGROUP, mg);
@@ -830,8 +866,11 @@ public final class IPCCode {
      * @param mg Any object whose value can be parsed to an int between >=1 and
      * <= 9999
      * @return Self reference
+     * @throws InvalidIPCCodeException Thrown, if the given maingroup-code is
+     * invalid
      */
-    public Builder setMainGroup(@NotNull final Object mg) {
+    public Builder setMainGroup(@NotNull final Object mg)
+        throws InvalidIPCCodeException {
       return Number.class.isInstance(mg) ?
           setMainGroup(((Number) mg).intValue()) :
           setMainGroup(Integer.parseInt(mg.toString()));
@@ -842,8 +881,11 @@ public final class IPCCode {
      *
      * @param sec Any object whose value can be parsed to an char between a-h.
      * @return Self reference
+     * @throws InvalidIPCCodeException Thrown, if the given section-code is
+     * invalid
      */
-    public Builder setSection(@NotNull final Object sec) {
+    public Builder setSection(@NotNull final Object sec)
+        throws InvalidIPCCodeException {
       return setSection(sec.toString().charAt(0));
     }
 
@@ -852,11 +894,14 @@ public final class IPCCode {
      *
      * @param sec Char between a-h
      * @return Self reference
+     * @throws InvalidIPCCodeException Thrown, if the given section-code is
+     * invalid
      */
-    public Builder setSection(final char sec) {
+    public Builder setSection(final char sec)
+        throws InvalidIPCCodeException {
       final String secStr = String.valueOf(sec);
       if (!Parser.RX_SECTION.matcher(secStr).matches()) {
-        throw new IllegalArgumentException(
+        throw new InvalidIPCCodeException(
             "Section identifier must be between a-h. Got " + sec + '.');
       }
       this.rec.set(Field.SECTION, secStr);
@@ -868,8 +913,11 @@ public final class IPCCode {
      *
      * @param scls Any object whose value can be parsed to an char between a-z.
      * @return Self reference
+     * @throws InvalidIPCCodeException Thrown, if the given subclass-code is
+     * invalid
      */
-    public Builder setSubclass(@NotNull final Object scls) {
+    public Builder setSubclass(@NotNull final Object scls)
+        throws InvalidIPCCodeException {
       return setSubclass(scls.toString().charAt(0));
     }
 
@@ -878,11 +926,14 @@ public final class IPCCode {
      *
      * @param scls Char between a-h
      * @return Self reference
+     * @throws InvalidIPCCodeException Thrown, if the given subclass-code is
+     * invalid
      */
-    public Builder setSubclass(final char scls) {
+    public Builder setSubclass(final char scls)
+        throws InvalidIPCCodeException {
       final String sclsStr = String.valueOf(scls);
       if (!Parser.RX_SUBCLASS.matcher(sclsStr).matches()) {
-        throw new IllegalArgumentException(
+        throw new InvalidIPCCodeException(
             "Subclass identifier must be between a-z. Got " + scls + '.');
       }
       this.rec.set(Field.SUBCLASS, sclsStr);
@@ -894,10 +945,13 @@ public final class IPCCode {
      *
      * @param sg Number >=0 and <= 999999
      * @return Self reference
+     * @throws InvalidIPCCodeException Thrown, if the given subgroup-code is
+     * invalid
      */
-    public Builder setSubGroup(final int sg) {
+    public Builder setSubGroup(final int sg)
+        throws InvalidIPCCodeException {
       if (sg < 0 || sg > 999999) {
-        throw new IllegalArgumentException(
+        throw new InvalidIPCCodeException(
             "Sub-group identifier must be >=0 and <= 999999. Got " + sg + '.');
       }
       this.rec.set(Field.SUBGROUP, sg);
@@ -905,13 +959,16 @@ public final class IPCCode {
     }
 
     /**
-     * Set the main-group identifier.
+     * Set the sub-group identifier.
      *
      * @param sg Any object whose value can be parsed to an int between >=0 and
      * <= 999999
      * @return Self reference
+     * @throws InvalidIPCCodeException Thrown, if the given subgroup-code is
+     * invalid
      */
-    public Builder setSubGroup(@NotNull final Object sg) {
+    public Builder setSubGroup(@NotNull final Object sg)
+        throws InvalidIPCCodeException {
       return Number.class.isInstance(sg) ?
           setSubGroup(((Number) sg).intValue()) :
           setSubGroup(Integer.parseInt(sg.toString()));
