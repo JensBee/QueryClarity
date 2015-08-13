@@ -19,6 +19,7 @@ package de.unihildesheim.iw.lucene.query;
 
 import de.unihildesheim.iw.data.IPCCode;
 import de.unihildesheim.iw.data.IPCCode.IPCRecord;
+import de.unihildesheim.iw.data.IPCCode.InvalidIPCCodeException;
 import de.unihildesheim.iw.data.IPCCode.Parser;
 import de.unihildesheim.iw.lucene.index.builder.IndexBuilder.LUCENE_CONF;
 import org.apache.lucene.index.Term;
@@ -69,7 +70,7 @@ public final class IPCClassQuery {
     final IPCRecord record;
     try {
       record = IPCCode.parse(ipc, separator);
-    } catch (final IllegalArgumentException e) {
+    } catch (final InvalidIPCCodeException e) {
       throw new IllegalArgumentException(
           "Cannot create a valid IPC code from '" + ipc + '.');
     }

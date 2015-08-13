@@ -17,13 +17,14 @@
 
 package de.unihildesheim.iw.cli;
 
-import de.unihildesheim.iw.util.Buildable.BuildException;
+import de.unihildesheim.iw.data.IPCCode.InvalidIPCCodeException;
 import de.unihildesheim.iw.data.IPCCode.Parser;
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader.Builder;
 import de.unihildesheim.iw.lucene.index.builder.IndexBuilder.LUCENE_CONF;
 import de.unihildesheim.iw.lucene.query.IPCClassQuery;
 import de.unihildesheim.iw.lucene.search.IPCFieldFilter;
-import de.unihildesheim.iw.lucene.search.IPCFieldFilterFunctions;
+import de.unihildesheim.iw.lucene.search.IPCFieldFilterFunctions.SloppyMatch;
+import de.unihildesheim.iw.util.Buildable.BuildException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
@@ -73,12 +74,12 @@ public class DumpIPCs
   }
 
   public static void main(final String... args)
-      throws IOException, BuildException {
+      throws IOException, BuildException, InvalidIPCCodeException {
     new DumpIPCs().runMain(args);
   }
 
   private void runMain(final String... args)
-      throws IOException, BuildException {
+      throws IOException, BuildException, InvalidIPCCodeException {
     new CmdLineParser(this.cliParams);
     parseWithHelp(this.cliParams, args);
 
@@ -116,7 +117,7 @@ public class DumpIPCs
           IPCClassQuery.get(ipc, this.cliParams.sep)), Occur.MUST);
       bq.add(new QueryWrapperFilter(
           new IPCFieldFilter(
-              new IPCFieldFilterFunctions.SloppyMatch(ipc), ipcParser
+              new SloppyMatch(ipc), ipcParser
           )), Occur.MUST);
       idxReaderBuilder.queryFilter(new QueryWrapperFilter(bq));
     }
@@ -136,13 +137,13 @@ public class DumpIPCs
         while (term != null) {
           final String code = term.utf8ToString();
           if (rx_ipc == null || (rx_ipc.matcher(code).matches())) {
-            final IPCRecord record = ipcParser.parse(code);
             try {
+              final IPCRecord record = ipcParser.parse(code);
               System.out.println(
                   code + ' ' + record +
                       " (" + record.toFormattedString() + ") " +
                       '[' + record.toRegExpString('-') + ']');
-            } catch (final IllegalArgumentException e) {
+            } catch (final InvalidIPCCodeException e) {
               System.out.println(code + ' ' + "INVALID (" + code + ')');
             }
             count[0]++;

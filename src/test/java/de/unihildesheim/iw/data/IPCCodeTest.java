@@ -20,6 +20,7 @@ package de.unihildesheim.iw.data;
 import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.data.IPCCode.IPCRecord;
 import de.unihildesheim.iw.data.IPCCode.IPCRecord.Field;
+import de.unihildesheim.iw.data.IPCCode.InvalidIPCCodeException;
 import de.unihildesheim.iw.data.IPCCode.Parser;
 import org.junit.Assert;
 import org.junit.Test;
@@ -65,12 +66,17 @@ public class IPCCodeTest
                     .forEach(sgrp -> {
                       final String sgrpStr =
                           sgrp < 10 ? "0" + sgrp : String.valueOf(sgrp);
-                      final IPCRecord ipcRec = IPCCode.parse(
-                          String.valueOf(sec) + clsStr + scls + grp +
-                              IPCCode.Parser.DEFAULT_SEPARATOR + sgrpStr);
-                      Assert.assertEquals(
-                          "Code expected to be valid (" + ipcRec + ").",
-                          ipcRec.getSetFields().size(), expectedFieldsCount);
+                      final IPCRecord ipcRec;
+                      try {
+                        ipcRec = IPCCode.parse(
+                            String.valueOf(sec) + clsStr + scls + grp +
+                                Parser.DEFAULT_SEPARATOR + sgrpStr);
+                        Assert.assertEquals(
+                            "Code expected to be valid (" + ipcRec + ").",
+                            ipcRec.getSetFields().size(), expectedFieldsCount);
+                      } catch (final InvalidIPCCodeException e) {
+                        Assert.fail("Caught exception! " + e);
+                      }
                     });
               });
         });
@@ -80,7 +86,8 @@ public class IPCCodeTest
 
   @SuppressWarnings("ImplicitNumericConversion")
   @Test
-  public void testParse_customSeparator() {
+  public void testParse_customSeparator()
+      throws InvalidIPCCodeException {
     final int expectedFieldsCount = Field.values().length;
     final IPCRecord ipc = IPCCode.parse("A61K0031-4166", '-');
     Assert.assertEquals(
@@ -90,7 +97,8 @@ public class IPCCodeTest
 
   @SuppressWarnings("ImplicitNumericConversion")
   @Test
-  public void testParse_zeroPad() {
+  public void testParse_zeroPad()
+      throws InvalidIPCCodeException {
     final Parser ipcParser = new Parser();
     ipcParser.allowZeroPad(true);
     ipcParser.separatorChar('-');

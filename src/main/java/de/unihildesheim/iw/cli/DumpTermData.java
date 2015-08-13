@@ -32,6 +32,7 @@ import de.unihildesheim.iw.storage.sql.termData.TermDataDB;
 import de.unihildesheim.iw.storage.sql.termData.TermsTable;
 import de.unihildesheim.iw.util.Buildable;
 import de.unihildesheim.iw.util.Buildable.BuildException;
+import de.unihildesheim.iw.util.Buildable.ConfigurationException;
 import de.unihildesheim.iw.util.StopwordsFileReader;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TaskObserver;
@@ -103,7 +104,8 @@ public final class DumpTermData
    */
   public static void main(final String... args)
       throws IOException, SQLException, ClassNotFoundException,
-             BuildException, Buildable.ConfigurationException {
+             BuildException, ConfigurationException,
+             IPCCode.InvalidIPCCodeException {
     new DumpTermData().runMain(args);
     Runtime.getRuntime().exit(0); // required to trigger shutdown-hooks
   }
@@ -121,7 +123,8 @@ public final class DumpTermData
   @SuppressWarnings("UnnecessarilyQualifiedInnerClassAccess")
   private void runMain(final String... args)
       throws IOException, SQLException, ClassNotFoundException,
-             BuildException, Buildable.ConfigurationException {
+             BuildException, Buildable.ConfigurationException,
+             IPCCode.InvalidIPCCodeException {
     new CmdLineParser(this.cliParams);
     parseWithHelp(this.cliParams, args);
 
@@ -343,7 +346,7 @@ public final class DumpTermData
      * failed to be build
      */
     void check()
-        throws IOException, BuildException {
+        throws IOException, BuildException, IPCCode.InvalidIPCCodeException {
       if (this.idxDir.exists()) {
         // check, if path is a directory
         if (!this.idxDir.isDirectory()) {

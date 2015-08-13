@@ -101,7 +101,7 @@ public final class DumpIPCStats
 
   public static void main(final String... args)
       throws IOException, SQLException, ClassNotFoundException,
-             Buildable.BuildException {
+             Buildable.BuildException, IPCCode.InvalidIPCCodeException {
     new DumpIPCStats().runMain(args);
   }
 
@@ -109,7 +109,7 @@ public final class DumpIPCStats
       "UnnecessarilyQualifiedInnerClassAccess"})
   private void runMain(final String... args)
       throws IOException, SQLException, ClassNotFoundException,
-             Buildable.BuildException {
+             Buildable.BuildException, IPCCode.InvalidIPCCodeException {
     new CmdLineParser(this.cliParams);
     parseWithHelp(this.cliParams, args);
 
@@ -178,9 +178,18 @@ public final class DumpIPCStats
             }
           })
           .forEach(doc -> {
-            final List<IPCRecord> records =
-                Arrays.stream(doc.getValues(LUCENE_CONF.FLD_IPC))
-                    .map(ipcParser::parse).collect(Collectors.toList());
+            final List<IPCRecord> records = Arrays.stream(
+                doc.getValues(LUCENE_CONF.FLD_IPC))
+                .map(ipc -> {
+                  try {
+                    ipcParser.parse(ipc);
+                  } catch (final IPCCode.InvalidIPCCodeException e) {
+                    e.printStackTrace();
+                  }
+                  return (IPCRecord) null;
+                })
+                .filter(ipcRec -> ipcRec != null)
+                .collect(Collectors.toList());
 
             // store/in counter for number of IPC-codes assigned
             numberOfIpcsPerDoc.compute(
@@ -207,39 +216,43 @@ public final class DumpIPCStats
           final Collection<IPCRecord> recs = new HashSet<>(5);
           final StringBuilder code = new StringBuilder(IPCRecord.MAX_LENGTH);
 
-          // section
-          final String sec = e.getKey().get(Field.SECTION);
-          if (!sec.isEmpty()) {
-            code.append(sec);
-            recs.add(IPCCode.parse(code));
-
-            // class
-            final String cls = e.getKey().get(Field.CLASS);
-            if (!cls.isEmpty()) {
-              code.append(cls);
+          try {
+            // section
+            final String sec = e.getKey().get(Field.SECTION);
+            if (!sec.isEmpty()) {
+              code.append(sec);
               recs.add(IPCCode.parse(code));
 
-              // subclass
-              final String sCls = e.getKey().get(Field.SUBCLASS);
-              if (!sCls.isEmpty()) {
-                code.append(sCls);
+              // class
+              final String cls = e.getKey().get(Field.CLASS);
+              if (!cls.isEmpty()) {
+                code.append(cls);
                 recs.add(IPCCode.parse(code));
 
-                // main-group
-                final String mGrp = e.getKey().get(Field.MAINGROUP);
-                if (!mGrp.isEmpty()) {
-                  code.append(mGrp);
+                // subclass
+                final String sCls = e.getKey().get(Field.SUBCLASS);
+                if (!sCls.isEmpty()) {
+                  code.append(sCls);
                   recs.add(IPCCode.parse(code));
 
-                  // sub-group
-                  final String sGrp = e.getKey().get(Field.SUBGROUP);
-                  if (!sGrp.isEmpty()) {
-                    code.append(Parser.DEFAULT_SEPARATOR).append(sGrp);
+                  // main-group
+                  final String mGrp = e.getKey().get(Field.MAINGROUP);
+                  if (!mGrp.isEmpty()) {
+                    code.append(mGrp);
                     recs.add(IPCCode.parse(code));
+
+                    // sub-group
+                    final String sGrp = e.getKey().get(Field.SUBGROUP);
+                    if (!sGrp.isEmpty()) {
+                      code.append(Parser.DEFAULT_SEPARATOR).append(sGrp);
+                      recs.add(IPCCode.parse(code));
+                    }
                   }
                 }
               }
             }
+          } catch (final IPCCode.InvalidIPCCodeException ex) {
+            LOG.error("Invalid IPC-code: '{}'. Skipping.", e.getKey());
           }
 
           recs.forEach(rec -> {
@@ -280,187 +293,190 @@ public final class DumpIPCStats
               Integer.compare(o1.getKey(), o2.getKey()))
           .forEach(e -> System.out.println(
               "ipc-sections=" + e.getKey() + " count=" + e.getValue()));
-    } else try (final IPCStatsDB db = new IPCStatsDB(this.cliParams.targetDb)) {
-      final Table metaTable = new MetaTable();
-      final Table ipcAll = new AllIPCTable();
-      final Table ipcSecs = new IPCSectionsTable();
-      final Table ipcDist = new IPCDistributionTable();
-      final Table ipcPerDoc = new IPCPerDocumentTable();
-      final Table ipcDocFieldCount = new IPCDocFieldCountTable();
+    } else {
+      try (final IPCStatsDB db = new IPCStatsDB(this.cliParams.targetDb)) {
+        final Table metaTable = new MetaTable();
+        final Table ipcAll = new AllIPCTable();
+        final Table ipcSecs = new IPCSectionsTable();
+        final Table ipcDist = new IPCDistributionTable();
+        final Table ipcPerDoc = new IPCPerDocumentTable();
+        final Table ipcDocFieldCount = new IPCDocFieldCountTable();
 
-      db.createTables(metaTable,
-          ipcAll, ipcSecs, ipcDist, ipcPerDoc, ipcDocFieldCount);
+        db.createTables(metaTable,
+            ipcAll, ipcSecs, ipcDist, ipcPerDoc, ipcDocFieldCount);
 
-      // write meta-data
-      try (final MetaTable.Writer metaWriter =
-               new MetaTable.Writer(db.getConnection())) {
-        metaWriter.addContent(new TableFieldContent(metaTable)
-            .setValue(MetaTable.Fields.TABLE_NAME, "ipc-stats")
-            .setValue(MetaTable.Fields.CMD,
-                StringUtils.join(args, " ")));
-      }
+        // write meta-data
+        try (final MetaTable.Writer metaWriter =
+                 new MetaTable.Writer(db.getConnection())) {
+          metaWriter.addContent(new TableFieldContent(metaTable)
+              .setValue(MetaTable.Fields.TABLE_NAME, "ipc-stats")
+              .setValue(MetaTable.Fields.CMD,
+                  StringUtils.join(args, " ")));
+        }
 
-      // all IPC table
-      try (final AllIPCTable.Writer dataWriter =
-               new AllIPCTable.Writer(db.getConnection())) {
-        ipcCodeStats.entrySet().stream()
-            .forEach(e -> {
-              final IPCRecord rec = e.getKey();
-              final TableFieldContent tfc = new TableFieldContent(ipcAll);
-              tfc.setValue(AllIPCTable.Fields.CODE,
-                  rec.toFormattedString());
-              tfc.setValue(AllIPCTable.Fields.COUNT, e.getValue());
+        // all IPC table
+        try (final AllIPCTable.Writer dataWriter =
+                 new AllIPCTable.Writer(db.getConnection())) {
+          ipcCodeStats.entrySet().stream()
+              .forEach(e -> {
+                final IPCRecord rec = e.getKey();
+                final TableFieldContent tfc = new TableFieldContent(ipcAll);
+                tfc.setValue(AllIPCTable.Fields.CODE,
+                    rec.toFormattedString());
+                tfc.setValue(AllIPCTable.Fields.COUNT, e.getValue());
 
-              if (!rec.get(Field.SECTION).isEmpty()) {
-                tfc.setValue(AllIPCTable.Fields.SECTION,
-                    rec.get(Field.SECTION));
+                if (!rec.get(Field.SECTION).isEmpty()) {
+                  tfc.setValue(AllIPCTable.Fields.SECTION,
+                      rec.get(Field.SECTION));
 
-                if (!rec.get(Field.CLASS).isEmpty()) {
-                  tfc.setValue(AllIPCTable.Fields.CLASS,
-                      rec.get(Field.CLASS));
+                  if (!rec.get(Field.CLASS).isEmpty()) {
+                    tfc.setValue(AllIPCTable.Fields.CLASS,
+                        rec.get(Field.CLASS));
 
-                  if (!rec.get(Field.SUBCLASS).isEmpty()) {
-                    tfc.setValue(AllIPCTable.Fields.SUBCLASS,
-                        rec.get(Field.SUBCLASS));
+                    if (!rec.get(Field.SUBCLASS).isEmpty()) {
+                      tfc.setValue(AllIPCTable.Fields.SUBCLASS,
+                          rec.get(Field.SUBCLASS));
 
-                    if (!rec.get(Field.MAINGROUP).isEmpty()) {
-                      tfc.setValue(AllIPCTable.Fields.MAINGROUP,
-                          rec.get(Field.MAINGROUP));
+                      if (!rec.get(Field.MAINGROUP).isEmpty()) {
+                        tfc.setValue(AllIPCTable.Fields.MAINGROUP,
+                            rec.get(Field.MAINGROUP));
 
-                      if (!rec.get(Field.SUBGROUP).isEmpty()) {
-                        tfc.setValue(AllIPCTable.Fields.SUBGROUP,
-                            rec.get(Field.SUBGROUP));
+                        if (!rec.get(Field.SUBGROUP).isEmpty()) {
+                          tfc.setValue(AllIPCTable.Fields.SUBGROUP,
+                              rec.get(Field.SUBGROUP));
+                        }
                       }
                     }
                   }
                 }
-              }
 
-              try {
-                dataWriter.addContent(tfc);
-              } catch (final SQLException ex) {
-                throw new RuntimeException(ex);
-              }
-            });
-      }
+                try {
+                  dataWriter.addContent(tfc);
+                } catch (final SQLException ex) {
+                  throw new RuntimeException(ex);
+                }
+              });
+        }
 
-      // distinct IPC sections table
-      try (final IPCSectionsTable.Writer dataWriter =
-               new IPCSectionsTable.Writer(db.getConnection())) {
-        numberOfIpcSectionsPerDoc.entrySet().stream()
-            .forEach(e -> {
-              final TableFieldContent tfc = new TableFieldContent(ipcSecs);
-              tfc.setValue(IPCSectionsTable.Fields.SECTIONS, e.getKey());
-              tfc.setValue(IPCSectionsTable.Fields.COUNT, e.getValue());
+        // distinct IPC sections table
+        try (final IPCSectionsTable.Writer dataWriter =
+                 new IPCSectionsTable.Writer(db.getConnection())) {
+          numberOfIpcSectionsPerDoc.entrySet().stream()
+              .forEach(e -> {
+                final TableFieldContent tfc = new TableFieldContent(ipcSecs);
+                tfc.setValue(IPCSectionsTable.Fields.SECTIONS, e.getKey());
+                tfc.setValue(IPCSectionsTable.Fields.COUNT, e.getValue());
 
-              try {
-                dataWriter.addContent(tfc);
-              } catch (final SQLException ex) {
-                throw new RuntimeException(ex);
-              }
-            });
-      }
+                try {
+                  dataWriter.addContent(tfc);
+                } catch (final SQLException ex) {
+                  throw new RuntimeException(ex);
+                }
+              });
+        }
 
-      // IPC codes distribution table
-      try (final IPCDistributionTable.Writer dataWriter =
-               new IPCDistributionTable.Writer(db.getConnection())) {
-        ipcCodeStatsDetailed.entrySet().stream()
-            .forEach(e -> {
-              final TableFieldContent tfc = new TableFieldContent(ipcDist);
-              final IPCRecord rec = e.getKey();
-              tfc.setValue(IPCDistributionTable.Fields.CODE,
-                  e.getKey().toFormattedString());
-              tfc.setValue(AllIPCTable.Fields.COUNT, e.getValue());
+        // IPC codes distribution table
+        try (final IPCDistributionTable.Writer dataWriter =
+                 new IPCDistributionTable.Writer(db.getConnection())) {
+          ipcCodeStatsDetailed.entrySet().stream()
+              .forEach(e -> {
+                final TableFieldContent tfc = new TableFieldContent(ipcDist);
+                final IPCRecord rec = e.getKey();
+                tfc.setValue(IPCDistributionTable.Fields.CODE,
+                    e.getKey().toFormattedString());
+                tfc.setValue(AllIPCTable.Fields.COUNT, e.getValue());
 
-              if (!rec.get(Field.SECTION).isEmpty()) {
-                tfc.setValue(AllIPCTable.Fields.SECTION,
-                    rec.get(Field.SECTION));
+                if (!rec.get(Field.SECTION).isEmpty()) {
+                  tfc.setValue(AllIPCTable.Fields.SECTION,
+                      rec.get(Field.SECTION));
 
-                if (!rec.get(Field.CLASS).isEmpty()) {
-                  tfc.setValue(AllIPCTable.Fields.CLASS,
-                      rec.get(Field.CLASS));
+                  if (!rec.get(Field.CLASS).isEmpty()) {
+                    tfc.setValue(AllIPCTable.Fields.CLASS,
+                        rec.get(Field.CLASS));
 
-                  if (!rec.get(Field.SUBCLASS).isEmpty()) {
-                    tfc.setValue(AllIPCTable.Fields.SUBCLASS,
-                        rec.get(Field.SUBCLASS));
+                    if (!rec.get(Field.SUBCLASS).isEmpty()) {
+                      tfc.setValue(AllIPCTable.Fields.SUBCLASS,
+                          rec.get(Field.SUBCLASS));
 
-                    if (!rec.get(Field.MAINGROUP).isEmpty()) {
-                      tfc.setValue(AllIPCTable.Fields.MAINGROUP,
-                          rec.get(Field.MAINGROUP));
+                      if (!rec.get(Field.MAINGROUP).isEmpty()) {
+                        tfc.setValue(AllIPCTable.Fields.MAINGROUP,
+                            rec.get(Field.MAINGROUP));
 
-                      if (!rec.get(Field.SUBGROUP).isEmpty()) {
-                        tfc.setValue(AllIPCTable.Fields.SUBGROUP,
-                            rec.get(Field.SUBGROUP));
+                        if (!rec.get(Field.SUBGROUP).isEmpty()) {
+                          tfc.setValue(AllIPCTable.Fields.SUBGROUP,
+                              rec.get(Field.SUBGROUP));
+                        }
                       }
                     }
                   }
                 }
+
+                try {
+                  dataWriter.addContent(tfc);
+                } catch (final SQLException ex) {
+                  throw new RuntimeException(ex);
+                }
+              });
+        }
+
+        // IPC count per document table
+        try (final IPCPerDocumentTable.Writer dataWriter =
+                 new IPCPerDocumentTable.Writer(db.getConnection())) {
+          numberOfIpcsPerDoc.entrySet().stream()
+              .forEach(e -> {
+                final TableFieldContent tfc = new TableFieldContent(ipcPerDoc);
+
+                tfc.setValue(IPCPerDocumentTable.Fields.CODES, e.getKey());
+                tfc.setValue(IPCPerDocumentTable.Fields.COUNT, e.getValue());
+
+                try {
+                  dataWriter.addContent(tfc);
+                } catch (final SQLException ex) {
+                  throw new RuntimeException(ex);
+                }
+              });
+        }
+
+        // documents by IPC and field ipcDocFieldCount
+        try (final IPCDocFieldCountTable.Writer dataWriter =
+                 new IPCDocFieldCountTable.Writer(db.getConnection())) {
+          final String[] docFields = {
+              LUCENE_CONF.FLD_CLAIMS, LUCENE_CONF.FLD_DETD};
+          final String[] docCodes = {"A", "B", "C", "D", "E", "F", "G", "H"};
+
+          for (final String field : docFields) {
+            for (final String code : docCodes) {
+              final IPCRecord ipcRec = ipcParser.parse(code);
+              final BooleanQuery bq = new BooleanQuery();
+              final Pattern rx_ipc = Pattern.compile(
+                  ipcRec.toRegExpString(this.cliParams.sep));
+              if (LOG.isDebugEnabled()) {
+                LOG.debug("IPC regExp: rx={} pat={}",
+                    ipcRec.toRegExpString(this.cliParams.sep),
+                    rx_ipc);
               }
+              bq.add(new QueryWrapperFilter(
+                      IPCClassQuery.get(ipcRec, this.cliParams.sep)),
+                  BooleanClause.Occur.MUST);
+              bq.add(new QueryWrapperFilter(
+                  new IPCFieldFilter(
+                      new IPCFieldFilterFunctions.SloppyMatch(ipcRec),
+                      ipcParser)), BooleanClause.Occur.MUST);
 
-              try {
-                dataWriter.addContent(tfc);
-              } catch (final SQLException ex) {
-                throw new RuntimeException(ex);
-              }
-            });
-      }
+              final FilteredDirectoryReader fdr =
+                  new FilteredDirectoryReader.Builder(this.cliParams.idxReader)
+                      .fields(Collections.singleton(field))
+                      .queryFilter(new QueryWrapperFilter(bq))
+                      .build();
 
-      // IPC count per document table
-      try (final IPCPerDocumentTable.Writer dataWriter =
-               new IPCPerDocumentTable.Writer(db.getConnection())) {
-        numberOfIpcsPerDoc.entrySet().stream()
-            .forEach(e -> {
-              final TableFieldContent tfc = new TableFieldContent(ipcPerDoc);
-
-              tfc.setValue(IPCPerDocumentTable.Fields.CODES, e.getKey());
-              tfc.setValue(IPCPerDocumentTable.Fields.COUNT, e.getValue());
-
-              try {
-                dataWriter.addContent(tfc);
-              } catch (final SQLException ex) {
-                throw new RuntimeException(ex);
-              }
-            });
-      }
-
-      // documents by IPC and field ipcDocFieldCount
-      try (final IPCDocFieldCountTable.Writer dataWriter =
-               new IPCDocFieldCountTable.Writer(db.getConnection())) {
-        final String[] docFields = {
-            LUCENE_CONF.FLD_CLAIMS, LUCENE_CONF.FLD_DETD};
-        final String[] docCodes = {"A", "B", "C", "D", "E", "F", "G", "H"};
-
-        for (final String field : docFields) {
-          for (final String code : docCodes) {
-            final IPCRecord ipcRec = ipcParser.parse(code);
-            final BooleanQuery bq = new BooleanQuery();
-            final Pattern rx_ipc = Pattern.compile(
-                ipcRec.toRegExpString(this.cliParams.sep));
-            if (LOG.isDebugEnabled()) {
-              LOG.debug("IPC regExp: rx={} pat={}",
-                  ipcRec.toRegExpString(this.cliParams.sep),
-                  rx_ipc);
+              final TableFieldContent tfc =
+                  new TableFieldContent(ipcDocFieldCount);
+              tfc.setValue(IPCDocFieldCountTable.Fields.FIELD, field);
+              tfc.setValue(IPCDocFieldCountTable.Fields.COUNT, fdr.numDocs());
+              tfc.setValue(IPCDocFieldCountTable.Fields.SECTION,
+                  ipcRec.get(Field.SECTION));
+              dataWriter.addContent(tfc);
             }
-            bq.add(new QueryWrapperFilter(
-                IPCClassQuery.get(ipcRec, this.cliParams.sep)),
-                BooleanClause.Occur.MUST);
-            bq.add(new QueryWrapperFilter(
-                new IPCFieldFilter(
-                    new IPCFieldFilterFunctions.SloppyMatch(ipcRec),
-                    ipcParser)), BooleanClause.Occur.MUST);
-
-            final FilteredDirectoryReader fdr =
-                new FilteredDirectoryReader.Builder(this.cliParams.idxReader)
-                .fields(Collections.singleton(field))
-                .queryFilter(new QueryWrapperFilter(bq))
-                .build();
-
-            final TableFieldContent tfc = new TableFieldContent(ipcDocFieldCount);
-            tfc.setValue(IPCDocFieldCountTable.Fields.FIELD, field);
-            tfc.setValue(IPCDocFieldCountTable.Fields.COUNT, fdr.numDocs());
-            tfc.setValue(IPCDocFieldCountTable.Fields.SECTION,
-                ipcRec.get(Field.SECTION));
-            dataWriter.addContent(tfc);
           }
         }
       }

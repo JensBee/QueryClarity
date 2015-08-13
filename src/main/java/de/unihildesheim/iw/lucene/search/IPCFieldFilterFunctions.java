@@ -20,6 +20,7 @@ package de.unihildesheim.iw.lucene.search;
 import de.unihildesheim.iw.data.IPCCode;
 import de.unihildesheim.iw.data.IPCCode.IPCRecord;
 import de.unihildesheim.iw.data.IPCCode.IPCRecord.Field;
+import de.unihildesheim.iw.data.IPCCode.InvalidIPCCodeException;
 import de.unihildesheim.iw.data.IPCCode.Parser;
 import de.unihildesheim.iw.lucene.search.IPCFieldFilter.IPCFieldFilterFunc;
 import org.apache.lucene.index.IndexReader;
@@ -58,19 +59,23 @@ public final class IPCFieldFilterFunctions {
     final Collection<Character> secs = new HashSet<>(codes.length);
 
     for (final String c : codes) {
-      final String sec = ipcParser.parse(c).get(Field.SECTION);
-      if (sec.length() >= 1) {
-        secs.add(sec.charAt(0));
-      } else if (LOG.isDebugEnabled()) {
-        LOG.debug("No section information for code {}", c);
+      try {
+        final String sec = ipcParser.parse(c).get(Field.SECTION);
+        if (sec.length() >= 1) {
+          secs.add(sec.charAt(0));
+        } else if (LOG.isDebugEnabled()) {
+          LOG.debug("No section information for code {}", c);
+        }
+      } catch (final InvalidIPCCodeException e) {
+        LOG.error("Invalid IPC-code: '{}'. Skipping.", c);
       }
     }
     return secs;
   }
 
   /**
-   * Filter that matches a list of {@link Field IPC-Record fields}
-   * against a base record. Note: Unset fields are interpretet as match.
+   * Filter that matches a list of {@link Field IPC-Record fields} against a
+   * base record. Note: Unset fields are interpretet as match.
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class IPCFieldMatcher
@@ -142,26 +147,30 @@ public final class IPCFieldFilterFunctions {
     boolean isAccepted(@NotNull final IndexReader reader, final int docId,
         @NotNull final Parser ipcParser)
         throws IOException {
-
       boolean hasMatch = false;
       for (final String c : getCodes(reader, docId)) {
-        final IPCRecord r = ipcParser.parse(c);
-        for (final Field f : this.requiredFields) {
-          if (r.get(f) == null || this.rec.get(f).equalsIgnoreCase(r.get(f))) {
-            // match, skip to next code, or return if single match is enough
-            if (this.matchSingle) {
-              return true;
+        try {
+          final IPCRecord r = ipcParser.parse(c);
+          for (final Field f : this.requiredFields) {
+            if (r.get(f) == null ||
+                this.rec.get(f).equalsIgnoreCase(r.get(f))) {
+              // match, skip to next code, or return if single match is enough
+              if (this.matchSingle) {
+                return true;
+              }
+              hasMatch = true;
+              break;
+            } else if (!this.matchSingle) {
+              // non-match, skip document
+              if (LOG.isTraceEnabled()) {
+                LOG.trace("Non-matching IPC={} f={} {} != {}-> skip doc={}",
+                    c, f, this.rec.get(f), r.get(f), docId);
+              }
+              return false;
             }
-            hasMatch = true;
-            break;
-          } else if (!this.matchSingle) {
-            // non-match, skip document
-            if (LOG.isTraceEnabled()) {
-              LOG.trace("Non-matching IPC={} f={} {} != {}-> skip doc={}",
-                  c, f, this.rec.get(f), r.get(f), docId);
-            }
-            return false;
           }
+        } catch (final InvalidIPCCodeException e) {
+          LOG.error("Invalid IPC-code: '{}'. Skipping.", c);
         }
       }
       return hasMatch;
@@ -181,8 +190,8 @@ public final class IPCFieldFilterFunctions {
    * base record. Fields are parsed in the {@link IPCCode
    * .IPCRecord#FIELDS_ORDER order} they are used when printed out. An IPC-Code
    * is accepted when comparing fields generates the first match. Similar an
-   * IPC-Code gets rejected if a non-match was generated before a match.
-   * Note: Unset fields are interpreted as match.
+   * IPC-Code gets rejected if a non-match was generated before a match. Note:
+   * Unset fields are interpreted as match.
    */
   @SuppressWarnings("PublicInnerClass")
   public static final class SloppyMatch
@@ -233,23 +242,29 @@ public final class IPCFieldFilterFunctions {
         throws IOException {
       boolean hasMatch = false;
       for (final String c : getCodes(reader, docId)) {
-        final IPCRecord r = ipcParser.parse(c);
-        for (final Field f : this.availableFields) {
-          if (r.get(f) == null || this.rec.get(f).equalsIgnoreCase(r.get(f))) {
-            // match, skip to next code, or return if single match is enough
-            if (this.matchSingle) {
-              return true;
+        final IPCRecord r;
+        try {
+          r = ipcParser.parse(c);
+          for (final Field f : this.availableFields) {
+            if (r.get(f) == null ||
+                this.rec.get(f).equalsIgnoreCase(r.get(f))) {
+              // match, skip to next code, or return if single match is enough
+              if (this.matchSingle) {
+                return true;
+              }
+              hasMatch = true;
+              break;
+            } else if (!this.matchSingle) {
+              // non-match, skip document
+              if (LOG.isTraceEnabled()) {
+                LOG.trace("Non-matching IPC={} f={} {} != {}-> skip doc={}",
+                    c, f, this.rec.get(f), r.get(f), docId);
+              }
+              return false;
             }
-            hasMatch = true;
-            break;
-          } else if (!this.matchSingle) {
-            // non-match, skip document
-            if (LOG.isTraceEnabled()) {
-              LOG.trace("Non-matching IPC={} f={} {} != {}-> skip doc={}",
-                  c, f, this.rec.get(f), r.get(f), docId);
-            }
-            return false;
           }
+        } catch (final InvalidIPCCodeException e) {
+          LOG.error("Invalid IPC-code: '{}'. Skipping.", c);
         }
       }
       return hasMatch;

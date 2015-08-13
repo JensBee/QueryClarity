@@ -17,6 +17,8 @@
 
 package de.unihildesheim.iw.lucene.search;
 
+import de.unihildesheim.iw.data.IPCCode;
+import de.unihildesheim.iw.data.IPCCode.InvalidIPCCodeException;
 import de.unihildesheim.iw.data.IPCCode.Parser;
 import de.unihildesheim.iw.lucene.index.builder.IndexBuilder.LUCENE_CONF;
 import de.unihildesheim.iw.lucene.util.BitsUtils;
@@ -72,7 +74,8 @@ public final class IPCFieldFilter
    */
   public IPCFieldFilter(
       final char separator,
-      @NotNull final IPCFieldFilterFunc fFunc) {
+      @NotNull final IPCFieldFilterFunc fFunc)
+      throws IPCCode.InvalidIPCCodeException {
     this.filterFunc = fFunc;
     this.ipcParser = new Parser();
     this.ipcParser.separatorChar(separator);
@@ -85,7 +88,8 @@ public final class IPCFieldFilter
    *
    * @param fFunc Filter function to use
    */
-  public IPCFieldFilter(@NotNull final IPCFieldFilterFunc fFunc) {
+  public IPCFieldFilter(@NotNull final IPCFieldFilterFunc fFunc)
+      throws IPCCode.InvalidIPCCodeException {
     this(Parser.DEFAULT_SEPARATOR, fFunc);
   }
 
@@ -116,8 +120,12 @@ public final class IPCFieldFilter
     if (acceptDocs == null) {
       // check all
       for (int i = 0; i < maxDoc; i++) {
-        if (this.filterFunc.isAccepted(reader, i, this.ipcParser)) {
-          finalBits.set(i);
+        try {
+          if (this.filterFunc.isAccepted(reader, i, this.ipcParser)) {
+            finalBits.set(i);
+          }
+        } catch (final InvalidIPCCodeException e) {
+          LOG.error("Invalid IPC-code from document: '{}'. Skipping.", i);
         }
       }
     } else {
@@ -125,8 +133,12 @@ public final class IPCFieldFilter
       final DocIdSetIterator disi = new BitDocIdSet(checkBits).iterator();
       int docId;
       while ((docId = disi.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-        if (this.filterFunc.isAccepted(reader, docId, this.ipcParser)) {
-          finalBits.set(docId);
+        try {
+          if (this.filterFunc.isAccepted(reader, docId, this.ipcParser)) {
+            finalBits.set(docId);
+          }
+        } catch (final InvalidIPCCodeException e) {
+          LOG.error("Invalid IPC-code from document: '{}'. Skipping.", docId);
         }
       }
     }
@@ -195,7 +207,7 @@ public final class IPCFieldFilter
     abstract boolean isAccepted(
         @NotNull final IndexReader reader, final int docId,
         @NotNull final Parser ipcParser)
-        throws IOException;
+        throws IOException, IPCCode.InvalidIPCCodeException;
 
     @Override
     public abstract String toString();
@@ -252,8 +264,12 @@ public final class IPCFieldFilter
         @NotNull final Parser ipcParser)
         throws IOException {
       for (final IPCFieldFilterFunc f : this.filters) {
-        if (!f.isAccepted(reader, docId, ipcParser)) {
-          return false;
+        try {
+          if (!f.isAccepted(reader, docId, ipcParser)) {
+            return false;
+          }
+        } catch (final InvalidIPCCodeException e) {
+          LOG.error("Invalid IPC-code from document: '{}'. Skipping.", docId);
         }
       }
       return true;

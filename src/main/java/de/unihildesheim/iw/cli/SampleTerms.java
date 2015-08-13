@@ -17,6 +17,7 @@
 
 package de.unihildesheim.iw.cli;
 
+import de.unihildesheim.iw.data.IPCCode;
 import de.unihildesheim.iw.data.IPCCode.IPCRecord;
 import de.unihildesheim.iw.data.IPCCode.Parser;
 import de.unihildesheim.iw.storage.sql.MetaTable;
@@ -82,7 +83,8 @@ public final class SampleTerms
    * FilteredDirectoryReader} instance has failed
    */
   public static void main(@NotNull final String... args)
-      throws SQLException, ClassNotFoundException {
+      throws SQLException, ClassNotFoundException,
+             IPCCode.InvalidIPCCodeException {
     new SampleTerms().runMain(args);
     Runtime.getRuntime().exit(0); // required to trigger shutdown-hooks
   }
@@ -121,7 +123,8 @@ public final class SampleTerms
   @SuppressWarnings({"UnnecessarilyQualifiedInnerClassAccess",
       "ObjectAllocationInLoop"})
   private void runMain(final String... args)
-      throws SQLException, ClassNotFoundException {
+      throws SQLException, ClassNotFoundException,
+             IPCCode.InvalidIPCCodeException {
     new CmdLineParser(this.cliParams);
     parseWithHelp(this.cliParams, args);
 
@@ -429,7 +432,8 @@ public final class SampleTerms
     /**
      * Check commandline parameters.
      */
-    void check() {
+    void check()
+        throws IPCCode.InvalidIPCCodeException {
       if (this.binSize <= 0) {
         throw new IllegalArgumentException(
             "Number of samples per bins must be >0.");

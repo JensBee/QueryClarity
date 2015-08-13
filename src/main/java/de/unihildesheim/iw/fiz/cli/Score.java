@@ -201,7 +201,7 @@ public class Score
       @Nullable final TermScoringResultTable termTable,
       @Nullable final SentenceScoringResultTable sentenceTable)
       throws BuildableException, SQLException,
-             ClarityScoreCalculationException {
+             ClarityScoreCalculationException, IPCCode.InvalidIPCCodeException {
     // create the IndexDataProvider
     LOG.info("Initializing IndexDataProvider. lang={} fields={}",
         this.cliParams.language, this.cliParams.docFields);
