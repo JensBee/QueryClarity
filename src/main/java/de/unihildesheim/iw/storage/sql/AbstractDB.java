@@ -27,6 +27,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Collection;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Abstract database class as basis for specifc implementations.
@@ -154,11 +155,34 @@ public abstract class AbstractDB
           "create table if not exists ")
           .append(tbl.getName()).append(" (");
 
+      final String staticPrefix = ",";
+      final AtomicBoolean usePrefix = new AtomicBoolean(false);
+      // normal fields
+      tbl.getFields().stream()
+          .filter(f -> !f.getName().toLowerCase().endsWith("_fk"))
+          .forEach(f -> {
+            if (usePrefix.get()) {
+              tblSql.append(staticPrefix);
+            }
+            tblSql.append(f.getSql());
+            usePrefix.set(true);
+          });
+      // foreign keys
+      tbl.getFields().stream()
+          .filter(f -> f.getName().toLowerCase().endsWith("_fk"))
+          .forEach(f -> {
+            if (usePrefix.get()) {
+              tblSql.append(staticPrefix);
+            }
+            tblSql.append(f.getSql());
+            usePrefix.set(true);
+          });
+
       String prefix = "";
-      for (final TableField f : tbl.getFields()) {
-        tblSql.append(prefix).append(f.getSql());
-        prefix = ",";
-      }
+//      for (final TableField f : tbl.getFields()) {
+//        tblSql.append(prefix).append(f.getSql());
+//        prefix = ",";
+//      }
 
       if (!tbl.getUniqueColumns().isEmpty()) {
         tblSql.append(", unique(");
