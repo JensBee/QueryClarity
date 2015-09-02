@@ -19,7 +19,7 @@ package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.lucene.VecTextField;
-import de.unihildesheim.iw.lucene.index.TermFilter.CommonTerms;
+import de.unihildesheim.iw.lucene.index.termfilter.CommonTermsFilter;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.document.Document;
@@ -42,7 +42,7 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Test for {@link CommonTerms}.
+ * Test for {@link CommonTermsFilter}.
  *
  * @author Jens Bertram
  */
@@ -58,8 +58,8 @@ public class CommonTermsTermFilterTest
       throws Exception {
     try (TestIndex idx = new TestIndex()) {
       final IndexReader r = idx.getReader();
-      CommonTerms ctf;
-      ctf = new CommonTerms(0.99);
+      CommonTermsFilter ctf;
+      ctf = new CommonTermsFilter(0.99);
       ctf.setTopReader(r);
 
       Assert.assertFalse("Term was accepted.",
@@ -67,14 +67,14 @@ public class CommonTermsTermFilterTest
       Assert.assertTrue("Term was not accepted.",
           ctf.isAccepted(null, new BytesRef("document1")));
 
-      ctf = new CommonTerms(0.34);
+      ctf = new CommonTermsFilter(0.34);
       ctf.setTopReader(r);
       Assert.assertFalse("Term was accepted.",
           ctf.isAccepted(null, new BytesRef("value")));
       Assert.assertTrue("Term was not accepted.",
           ctf.isAccepted(null, new BytesRef("document1")));
 
-      ctf = new CommonTerms(1d);
+      ctf = new CommonTermsFilter(1d);
       ctf.setTopReader(r);
       Assert.assertTrue("Term was not accepted.",
           ctf.isAccepted(null, new BytesRef("document1")));

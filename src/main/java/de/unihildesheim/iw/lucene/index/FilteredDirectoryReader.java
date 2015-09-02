@@ -17,8 +17,9 @@
 
 package de.unihildesheim.iw.lucene.index;
 
+import de.unihildesheim.iw.lucene.index.termfilter.TermFilter;
 import de.unihildesheim.iw.util.Buildable;
-import de.unihildesheim.iw.lucene.index.TermFilter.AcceptAll;
+import de.unihildesheim.iw.lucene.index.termfilter.AcceptAllTermsFilter;
 import de.unihildesheim.iw.lucene.search.EmptyFieldFilter;
 import de.unihildesheim.iw.lucene.util.BitsUtils;
 import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
@@ -149,7 +150,7 @@ public final class FilteredDirectoryReader
       if (qFilter != null) {
         fInfo.append(" query-filter ");
       }
-      if (!AcceptAll.class.isInstance(tFilter)) {
+      if (!AcceptAllTermsFilter.class.isInstance(tFilter)) {
         fInfo.append(" term-filter ");
       }
       LOG.debug(fInfo.append(']').toString());
@@ -289,7 +290,7 @@ public final class FilteredDirectoryReader
       this.in = wrap;
 
       if (vFields.isEmpty() && qFilter == null &&
-          AcceptAll.class.isInstance(tFilter)) {
+          AcceptAllTermsFilter.class.isInstance(tFilter)) {
         LOG.warn("No filters specified. " +
             "You should use a plain IndexReader to get better performance.");
       }
@@ -382,17 +383,17 @@ public final class FilteredDirectoryReader
           final DocIdSet docsWithField = new EmptyFieldFilter(fieldsIt.next())
               .getDocIdSet(this.in.getContext(), ctxDocBits);
 
-          boolean fieldIsEmpty = true;
+//          boolean fieldIsEmpty = true;
           int docId;
           final DocIdSetIterator disi = docsWithField.iterator();
           while ((docId = disi.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
             docsWithAField.set(docId);
-            fieldIsEmpty = false;
+//            fieldIsEmpty = false;
           }
 
-          if (fieldIsEmpty) {
+          /*if (fieldIsEmpty) {
             fieldsIt.remove();
-          }
+          }*/
         }
         ctxDocBits.and(docsWithAField);
       }
@@ -750,7 +751,7 @@ public final class FilteredDirectoryReader
     public FilteredDirectoryReader build()
         throws BuildException {
       if (this.termFilter == null) {
-        this.termFilter = new AcceptAll();
+        this.termFilter = new AcceptAllTermsFilter();
       }
       if (this.visibleFields == null) {
         this.visibleFields = Collections.emptySet();
@@ -785,7 +786,7 @@ public final class FilteredDirectoryReader
    * Wrapper for a {@link Fields} instance providing filtering.
    */
   @SuppressWarnings("PackageVisibleInnerClass")
-  static final class FilteredFields
+  public static final class FilteredFields
       extends Fields {
     /**
      * Fields collected from all visible documents.
@@ -875,13 +876,14 @@ public final class FilteredDirectoryReader
     @Nullable
     public Terms terms(final String field)
         throws IOException {
-      final Terms teIn = this.in.terms(field);
-      if (teIn != null && this.fields.contains(field)) {
-        return new FilteredTerms(this.ctx, this.fieldValues.get(field),
-            this.tetcMap, teIn, field);
-      } else {
-        return null;
+      if (this.fields.contains(field)) {
+        final Terms teIn = this.in.terms(field);
+        if (teIn != null) {
+          return new FilteredTerms(this.ctx, this.fieldValues.get(field),
+              this.tetcMap, teIn, field);
+        }
       }
+      return null;
     }
 
     @Override
@@ -1040,8 +1042,9 @@ public final class FilteredDirectoryReader
       }
 
       if (termContext.vis == TermsEnumTermContext.VisState.UNDEFINED) {
-        if (isSeekedTo && hasDoc() &&
-            this.ctx.termFilter.isAccepted(this.in, term)) {
+//        if (isSeekedTo && hasDoc() &&
+//        this.ctx.termFilter.isAccepted(this.in, term)) {
+        if (isSeekedTo && this.ctx.termFilter.isAccepted(this.in, term)) {
           termContext.vis = TermsEnumTermContext.VisState.VISIBLE;
         } else {
           termContext.vis = TermsEnumTermContext.VisState.HIDDEN;
@@ -1069,7 +1072,8 @@ public final class FilteredDirectoryReader
           // or term is contained in any visible document
           while (status != SeekStatus.END) {
             final BytesRef currTerm = this.in.term();
-            if (hasDoc() && this.ctx.termFilter.isAccepted(this.in, currTerm)) {
+//            if (hasDoc() && this.ctx.termFilter.isAccepted(this.in, currTerm)) {
+            if (this.ctx.termFilter.isAccepted(this.in, currTerm)) {
               this.tetcMap.getContext(this.field, term).vis =
                   TermsEnumTermContext.VisState.VISIBLE;
               break;
@@ -1091,19 +1095,19 @@ public final class FilteredDirectoryReader
       return status;
     }
 
-    /**
-     * Check, if the current term is contained in any visible document.
-     *
-     * @return True, if any visible document contains this term
-     * @throws IOException thrown on low-level I/O-errors
-     */
-    private boolean hasDoc()
-        throws IOException {
-      // check, if term is contained in any visible document
-      return DocIdSetIterator.NO_MORE_DOCS != this.in
-          .postings(this.ctx.getDocBitsOrNull(), null, (int) PostingsEnum.NONE)
-          .nextDoc();
-    }
+//    /**
+//     * Check, if the current term is contained in any visible document.
+//     *
+//     * @return True, if any visible document contains this term
+//     * @throws IOException thrown on low-level I/O-errors
+//     */
+//    private boolean hasDoc()
+//        throws IOException {
+//      // check, if term is contained in any visible document
+//      return DocIdSetIterator.NO_MORE_DOCS != this.in
+//          .postings(this.ctx.getDocBitsOrNull(), null, (int) PostingsEnum.NONE)
+//          .nextDoc();
+//    }
 
     /**
      * Returns the next term, if any, excluding terms not currently in the
@@ -1123,12 +1127,17 @@ public final class FilteredDirectoryReader
       while ((term = this.in.next()) != null) {
         final TermsEnumTermContext termContext =
             this.tetcMap.getContext(this.field, term);
-        if (termContext.vis == TermsEnumTermContext.VisState.VISIBLE) {
-          break;
-        } else if (hasDoc() && this.ctx.termFilter.isAccepted(this.in, term)) {
-          termContext.vis = TermsEnumTermContext.VisState.VISIBLE;
-          break;
-        } else {
+        if (termContext.vis != TermsEnumTermContext.VisState.HIDDEN) {
+          if (termContext.vis == TermsEnumTermContext.VisState.VISIBLE) {
+            break;
+//          } else if (hasDoc() &&
+//              this.ctx.termFilter.isAccepted(this.in, term)) {
+          } else if (this.ctx.termFilter.isAccepted(this.in, term)) {
+            termContext.vis = TermsEnumTermContext.VisState.VISIBLE;
+            break;
+          }
+          LOG.warn("Term {} not in any visible document or filtered out.",
+              term.utf8ToString());
           termContext.vis = TermsEnumTermContext.VisState.HIDDEN;
         }
       }

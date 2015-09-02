@@ -18,14 +18,14 @@
 package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.TestCase;
-import de.unihildesheim.iw.lucene.index.TermFilter.AcceptAll;
+import de.unihildesheim.iw.lucene.index.termfilter.AcceptAllTermsFilter;
 import org.apache.lucene.util.BytesRef;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.LoggerFactory;
 
 /**
- * Test for {@link TermFilter.AcceptAll}.
+ * Test for {@link AcceptAllTermsFilter}.
  *
  * @author Jens Bertram
  */
@@ -39,7 +39,7 @@ public class AcceptAllTermFilterTest
   @Test
   public void testIsAccepted()
       throws Exception {
-    final AcceptAll aaTf = new AcceptAll();
+    final AcceptAllTermsFilter aaTf = new AcceptAllTermsFilter();
 
     Assert.assertTrue("Term not accepted.",
         aaTf.isAccepted(null, new BytesRef("foo")));
