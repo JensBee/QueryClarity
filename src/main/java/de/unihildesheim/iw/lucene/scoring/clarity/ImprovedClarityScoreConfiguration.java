@@ -82,7 +82,7 @@ public final class ImprovedClarityScoreConfiguration
    * in the index. If it's not the case it will be ignored.
    * <br>
    * Hauff, Murdock & Baeza-Yates evaluated n with 1% (0.01), 10% (0.1),
-   * 100% (1).
+   * any (disables threshold) (1).
    */
   @SuppressWarnings("ConstantNamingConvention")
   private static final double DEFAULT_TERM_SELECTION_THRESHOLD_MAX = 0.1;
