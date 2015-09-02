@@ -66,6 +66,10 @@ public class CliBase {
     this.defaultCliParams = new DefaultCliParams();
   }
 
+  protected CliBase(@NotNull final String newHeader) {
+    this(newHeader, newHeader);
+  }
+
   /**
    * Parse the commandline and print the help message.
    *
