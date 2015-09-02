@@ -307,13 +307,16 @@ public final class FDRIndexDataProvider
     }
 
     if (fields == null) {
+      LOG.warn("No fields or TermVectors! docId={}", docId);
       return Stream.empty();
     }
 
     final BytesRefHash terms = new BytesRefHash();
     StreamSupport.stream(fields.spliterator(), false)
+//        .peek(fn -> LOG.info("@field {}", fn))
         // filter for required fields
         .filter(fn -> Arrays.binarySearch(field, fn) >= 0)
+//        .peek(fn -> LOG.info("@field {}, get terms", fn))
         .map(fn -> {
           try {
             return fields.terms(fn);
@@ -321,12 +324,15 @@ public final class FDRIndexDataProvider
             throw new UncheckedIOException(e);
           }
         })
+//        .peek(t -> LOG.info("@terms not null? {}", t != null))
         .filter(t -> t != null)
         .forEach(t -> {
           try {
+//            LOG.info("@terms - iterating ({})", t.size());
             final TermsEnum te = t.iterator(null);
             BytesRef term;
             while ((term = te.next()) != null) {
+//              LOG.info("@terms, found term {}", term.utf8ToString());
               terms.add(term);
             }
           } catch (final IOException e) {
