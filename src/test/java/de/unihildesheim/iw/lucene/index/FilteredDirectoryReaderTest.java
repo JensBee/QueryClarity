@@ -19,9 +19,12 @@ package de.unihildesheim.iw.lucene.index;
 
 import de.unihildesheim.iw.TestCase;
 import de.unihildesheim.iw.lucene.VecTextField;
+import de.unihildesheim.iw.lucene.document.FeedbackQuery;
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader.Builder;
-import de.unihildesheim.iw.lucene.index.FilteredDirectoryReaderTest
-    .TestMemIndex.Index;
+import de.unihildesheim.iw.lucene.index.FilteredDirectoryReaderTest.TestMemIndex.Index;
+
+import de.unihildesheim.iw.lucene.index.termfilter.TermFilter;
+import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.document.Document;
@@ -31,10 +34,13 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermQuery;
@@ -67,6 +73,26 @@ public class FilteredDirectoryReaderTest
     super(LoggerFactory.getLogger(FilteredDirectoryReaderTest.class));
   }
 
+  private static void checkForHiddenTerms(
+      @NotNull final FilteredDirectoryReader fReader,
+      @NotNull final List<String> hiddenTerms)
+      throws Exception {
+    for (final String field : fReader.getFields()) {
+      final Terms terms = MultiFields.getTerms(fReader, field);
+      Assert.assertNotNull("Field instance was NULL", terms);
+      final TermsEnum termsEnum = terms.iterator(null);
+      BytesRef term = termsEnum.next();
+      while (term != null) {
+        final String termStr = term.utf8ToString();
+        if (hiddenTerms.contains(termStr)) {
+          Assert.fail(
+              "Hidden term '" + termStr + "' found in field '" + field + '\'');
+        }
+        term = termsEnum.next();
+      }
+    }
+  }
+
   /**
    * Test the plain builder.
    *
@@ -96,6 +122,9 @@ public class FilteredDirectoryReaderTest
       final FilteredDirectoryReader fReader = new Builder(reader)
           .fields(Collections.singleton("f2"))
           .build();
+
+      final List<String> hiddenTerms = Arrays.asList("field1", "first");
+      checkForHiddenTerms(fReader, hiddenTerms);
 
       new LeafReaderInstanceTest() {
 
@@ -222,6 +251,9 @@ public class FilteredDirectoryReaderTest
       final FilteredDirectoryReader fReader = new Builder(reader)
           .fields(Collections.singleton("f2"), true) // f2 is hidden
           .build();
+
+      final List<String> hiddenTerms = Arrays.asList("field2", "second");
+      checkForHiddenTerms(fReader, hiddenTerms);
 
       new LeafReaderInstanceTest() {
 
@@ -354,6 +386,12 @@ public class FilteredDirectoryReaderTest
       final FilteredDirectoryReader fReader = new Builder(reader)
           .fields(idx.flds, true)
           .build();
+
+      final List<String> hiddenTerms = Arrays.asList(
+          "field1", "first",
+          "field2", "second",
+          "field3", "third");
+      checkForHiddenTerms(fReader, hiddenTerms);
 
       new LeafReaderInstanceTest() {
 
@@ -592,6 +630,9 @@ public class FilteredDirectoryReaderTest
       Assert.assertEquals("Field count mismatch.",
           2, fReader.getFields().size());
 
+      final List<String> hiddenTerms = Arrays.asList("field2", "second");
+      checkForHiddenTerms(fReader, hiddenTerms);
+
       new LeafReaderInstanceTest() {
 
         @Override
@@ -723,6 +764,11 @@ public class FilteredDirectoryReaderTest
       final FilteredDirectoryReader fReader = new Builder(reader)
           .fields(Arrays.asList("f1", "f3"), true)
           .build();
+
+      final List<String> hiddenTerms = Arrays.asList(
+          "field1", "first",
+          "field3", "third");
+      checkForHiddenTerms(fReader, hiddenTerms);
 
       new LeafReaderInstanceTest() {
 
@@ -862,6 +908,9 @@ public class FilteredDirectoryReaderTest
           })
           .build();
 
+      final List<String> hiddenTerms = Collections.singletonList(skipTerm);
+      checkForHiddenTerms(fReader, hiddenTerms);
+
       new LeafReaderInstanceTest() {
 
         @Override
@@ -982,6 +1031,12 @@ public class FilteredDirectoryReaderTest
             }
           })
           .build();
+
+      final List<String> hiddenTerms = Arrays.asList(
+          "field1", "first",
+          "field2", "second",
+          "field3", "third");
+      checkForHiddenTerms(fReader, hiddenTerms);
 
       new LeafReaderInstanceTest() {
 
@@ -1210,6 +1265,11 @@ public class FilteredDirectoryReaderTest
           .fields(Collections.singleton("f2"))
           .build();
 
+      final List<String> hiddenTerms = Arrays.asList(
+          "field1", "first",
+          "field3", "third");
+      checkForHiddenTerms(fReader, hiddenTerms);
+
       new LeafReaderInstanceTest() {
 
         @Override
@@ -1322,6 +1382,9 @@ public class FilteredDirectoryReaderTest
           .queryFilter(f)
           .fields(Collections.singleton("f2"), true)
           .build();
+
+      final List<String> hiddenTerms = Arrays.asList("field2", "second");
+      checkForHiddenTerms(fReader, hiddenTerms);
 
       new LeafReaderInstanceTest() {
         @Override
@@ -1616,6 +1679,57 @@ public class FilteredDirectoryReaderTest
 
       Assert.assertFalse("Unwrap failed.",
           FilteredDirectoryReader.class.isInstance(fReader.unwrap()));
+    }
+  }
+
+  @Test
+  public void testNoTV()
+      throws Exception {
+    try (TestMemIndex idx = new TestMemIndex(Index.NO_TVECTORS)) {
+      final DirectoryReader reader = DirectoryReader.open(idx.dir);
+      final FilteredDirectoryReader fReader = new Builder(reader).build();
+    }
+  }
+
+  @Test
+  public void testSearchPlain()
+      throws Exception {
+    try (TestMemIndex idx = new TestMemIndex(Index.ALL_FIELDS)) {
+      final DirectoryReader reader = DirectoryReader.open(idx.dir);
+      final FilteredDirectoryReader fReader = new Builder(reader).build();
+      final IndexSearcher searcher = IndexUtils.getSearcher(fReader);
+      final Query query = new TermQuery(new Term("f1", "field1"));
+      final DocIdSet dis = FeedbackQuery.getMax(
+          searcher, query, fReader.numDocs());
+      Assert.assertEquals("Expected number of search results mismatch.",
+          (long) fReader.numDocs(), (long) DocIdSetUtils.cardinality(dis));
+    }
+  }
+
+  @SuppressWarnings("AnonymousInnerClassMayBeStatic")
+  @Test
+  public void testSearch_termFiltered()
+      throws Exception {
+    try (TestMemIndex idx = new TestMemIndex(Index.ALL_FIELDS)) {
+      final DirectoryReader reader = DirectoryReader.open(idx.dir);
+      final TermFilter tFilter = new TermFilter() {
+        @Override
+        public boolean isAccepted(@Nullable final TermsEnum termsEnum,
+            @NotNull final BytesRef term) {
+          return !"field1".equalsIgnoreCase(term.utf8ToString());
+        }
+      };
+      final FilteredDirectoryReader fReader = new Builder(reader)
+          .termFilter(tFilter)
+          .build();
+
+      final IndexSearcher searcher = IndexUtils.getSearcher(fReader);
+      final Query query = new TermQuery(new Term("f1", "field1"));
+      final DocIdSet dis = FeedbackQuery.getMax(
+          searcher, query, fReader.numDocs());
+
+      Assert.assertEquals("Expected number of search results mismatch.",
+          0L, (long) DocIdSetUtils.cardinality(dis));
     }
   }
 
