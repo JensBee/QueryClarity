@@ -1136,8 +1136,8 @@ public final class FilteredDirectoryReader
             termContext.vis = TermsEnumTermContext.VisState.VISIBLE;
             break;
           }
-          LOG.warn("Term {} not in any visible document or filtered out.",
-              term.utf8ToString());
+//          LOG.warn("Term {} not in any visible document or filtered out.",
+//              term.utf8ToString());
           termContext.vis = TermsEnumTermContext.VisState.HIDDEN;
         }
       }
