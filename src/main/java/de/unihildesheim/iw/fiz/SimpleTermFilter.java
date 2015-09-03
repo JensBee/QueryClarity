@@ -17,6 +17,16 @@
 
 package de.unihildesheim.iw.fiz;
 
+import de.unihildesheim.iw.lucene.index.termfilter.HeuristicTermFilter.AlphaCount;
+import de.unihildesheim.iw.lucene.index.termfilter.HeuristicTermFilter.ContainsGreek;
+import de.unihildesheim.iw.lucene.index.termfilter.HeuristicTermFilter.DigitThreshold;
+import de.unihildesheim.iw.lucene.index.termfilter.HeuristicTermFilter.NonASCIIThreshold;
+import de.unihildesheim.iw.lucene.index.termfilter.HeuristicTermFilter.NumberWithUnit;
+import de.unihildesheim.iw.lucene.index.termfilter.HeuristicTermFilter.Repetition;
+import de.unihildesheim.iw.lucene.index.termfilter.HeuristicTermFilter.StartsWith;
+
+import de.unihildesheim.iw.lucene.index.termfilter.HeuristicTermFilter
+    .StartsWith.Type;
 import de.unihildesheim.iw.lucene.index.termfilter.TermFilter;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
@@ -26,7 +36,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.regex.Pattern;
+import java.util.Arrays;
+import java.util.Collection;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
@@ -39,29 +50,31 @@ public class SimpleTermFilter
   private static final Logger LOG =
       LoggerFactory.getLogger(SimpleTermFilter.class);
 
-  final Pattern matchPattern;
+//  final Pattern matchPattern;
+  final Collection<TermFilter> tFilters;
 
   public SimpleTermFilter() {
-    this.matchPattern = Pattern.compile(
-        "^\\p{Digit}+(:?[\\p{Punct}\\p{InGreek}\\p{Alpha}º]{1,2}\\p{Digit}+)*" +
-            "(:?[\\p{Punct}\\p{InGreek}\\p{Alpha}]{1,2}|mol|[µcdkmn]" +
-            "(?:hz|pa|m[23]??)|º[c|f])??$",
-        Pattern.CASE_INSENSITIVE);
+    this.tFilters = Arrays.asList(
+        new StartsWith(Type.DIGIT),
+        new StartsWith(Type.PUNCT),
+        new AlphaCount(3),
+        new Repetition(3),
+        new DigitThreshold(0.5, true),
+        new ContainsGreek(),
+        new NonASCIIThreshold(0.3),
+        new NumberWithUnit(0.2, true)
+    );
   }
 
   @Override
   public boolean isAccepted(@Nullable final TermsEnum termsEnum,
       @NotNull final BytesRef term)
       throws IOException {
-    if (LOG.isDebugEnabled()) {
-      final String termStr = term.utf8ToString();
-      if (this.matchPattern.matcher(termStr).matches()) {
-        LOG.debug("Removing term: '{}'", termStr);
+    for (final TermFilter t : this.tFilters) {
+      if (!t.isAccepted(termsEnum, term)) {
         return false;
       }
-      return true;
-    } else {
-      return !this.matchPattern.matcher(term.utf8ToString()).matches();
     }
+    return true;
   }
 }
