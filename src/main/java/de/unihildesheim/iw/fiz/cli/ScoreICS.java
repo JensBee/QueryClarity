@@ -20,6 +20,7 @@ package de.unihildesheim.iw.fiz.cli;
 import de.unihildesheim.iw.cli.CliBase;
 import de.unihildesheim.iw.cli.CliParams;
 import de.unihildesheim.iw.data.IPCCode;
+import de.unihildesheim.iw.fiz.SimpleTermFilter;
 import de.unihildesheim.iw.lucene.analyzer.LanguageBasedAnalyzers;
 import de.unihildesheim.iw.lucene.index.FDRIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader;
@@ -303,6 +304,11 @@ public final class ScoreICS
       idxReaderBuilder.queryFilter(new QueryWrapperFilter(bq));
     }
 
+    if (this.cliParams.termFilter) {
+      LOG.info("Using SimpleTermFilter instance!");
+      idxReaderBuilder.termFilter(new SimpleTermFilter());
+    }
+
     // finally build the reader
     final FilteredDirectoryReader idxReader = idxReaderBuilder.build();
 
@@ -362,7 +368,7 @@ public final class ScoreICS
         //final Configuration cscConf = scorerT2.b;
         final String impl = ics.getIdentifier();
 
-        if (sentenceTable != null) {
+        if (sentenceTable != null && !this.cliParams.noSents) {
           scoringType[0] = "sentences";
           // query for data
           final String querySQL = "select " +
@@ -441,7 +447,7 @@ public final class ScoreICS
           }
         }
 
-        if (termTable != null) {
+        if (termTable != null && !this.cliParams.noTerms) {
           scoringType[0] = "terms";
           // query for data
           final String querySQL = "select " +
@@ -560,6 +566,22 @@ public final class ScoreICS
      */
     private Directory luceneDir;
 
+
+    /**
+     * Use term-filter?
+     */
+    @Option(name = "-termfilter", required = false,
+        usage = "Use the SimpleTermFilter.")
+    boolean termFilter = false;
+
+    @Option(name = "-noterms", required = false,
+        usage = "Do not score terms.")
+    boolean noTerms = false;
+
+    @Option(name = "-nosentences", required = false,
+        usage = "Do not score sentences.")
+    boolean noSents = false;
+
     /**
      * Document-fields to query.
      */
@@ -629,6 +651,17 @@ public final class ScoreICS
      */
     void check()
         throws IOException {
+      if (this.noTerms && this.noSents) {
+        throw new IllegalArgumentException("Nothing to score.");
+      }
+
+      if (this.noTerms) {
+        LOG.info("Skipping scoring of terms.");
+      }
+      if (this.noSents) {
+        LOG.info("Skipping scoring of sentences.");
+      }
+
       // check for database
       if (!this.dbScoring.exists() || !this.dbScoring.isFile()) {
         throw new IllegalStateException(
