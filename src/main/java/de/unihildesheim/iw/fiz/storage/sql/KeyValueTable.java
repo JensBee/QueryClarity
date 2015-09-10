@@ -15,19 +15,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.storage.sql.scoringData;
+package de.unihildesheim.iw.fiz.storage.sql;
 
-import de.unihildesheim.iw.storage.sql.AbstractTable;
-import de.unihildesheim.iw.storage.sql.Table;
-import de.unihildesheim.iw.storage.sql.TableField;
-import de.unihildesheim.iw.storage.sql.TableWriter;
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -35,24 +30,15 @@ import java.util.stream.Collectors;
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public final class SentenceScoringTable
-    extends AbstractTable {
+public class KeyValueTable extends AbstractTable {
   /**
    * Fields belonging to this table.
    */
   private final List<TableField> fields;
   /**
-   * Content fields belonging to this table.
-   */
-  private final List<TableField> contentFields;
-  /**
-   * Collection of fields that are required to contain unique values.
-   */
-  final Set<String> uniqueFields = new HashSet<>(Fields.values().length);
-  /**
    * Table name.
    */
-  public static final String TABLE_NAME = "scoring_sentences";
+  public static final String TABLE_NAME = "_keyval";
 
   /**
    * Fields in this table.
@@ -60,22 +46,17 @@ public final class SentenceScoringTable
   @SuppressWarnings("PublicInnerClass")
   public enum Fields {
     /**
-     * Auto-generated id.
+     * Key.
      */
-    ID("id integer primary key not null"),
+    KEY("key text"),
     /**
-     * Term as string.
+     * Value.
      */
-    SENTENCE("sentence text not null"),
+    VALUE("value text"),
     /**
-     * Term reference.
+     * Timestamp table was created.
      */
-    TERM_REF("term_ref integer not null"),
-    /**
-     * Term reference foreign key.
-     */
-    TERM_REF_FK("foreign key (" + TERM_REF + ") references " +
-        TermScoringTable.TABLE_NAME + '(' + TermScoringTable.Fields.ID + ')');
+    TIMESTAMP("timestamp datetime default current_timestamp");
 
     /**
      * SQL code to create this field.
@@ -110,13 +91,9 @@ public final class SentenceScoringTable
   /**
    * Create a new instance using the default fields.
    */
-  public SentenceScoringTable() {
+  public KeyValueTable() {
     this.fields = Arrays.stream(Fields.values())
         .map(Fields::getAsTableField).collect(Collectors.toList());
-    this.contentFields = Arrays.stream(Fields.values())
-        .filter(f -> !f.toString().toLowerCase().endsWith("_fk"))
-        .map(Fields::getAsTableField).collect(Collectors.toList());
-    addDefaultFieldsToUnique();
   }
 
   @NotNull
@@ -127,30 +104,23 @@ public final class SentenceScoringTable
 
   @NotNull
   @Override
-  public List<TableField> getContentFields() {
-    return Collections.unmodifiableList(this.contentFields);
-  }
-
-  @NotNull
-  @Override
   public String getName() {
     return TABLE_NAME;
   }
 
   @Override
   public Set<String> getUniqueColumns() {
-    return Collections.unmodifiableSet(this.uniqueFields);
+    return Collections.emptySet();
   }
 
   @Override
   public void addFieldToUnique(@NotNull final Object fld) {
-    checkFieldIsValid(fld);
-    this.uniqueFields.add(fld.toString());
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public void addDefaultFieldsToUnique() {
-    this.uniqueFields.add(Fields.TERM_REF.toString());
+    throw new UnsupportedOperationException();
   }
 
   @Override
@@ -174,7 +144,7 @@ public final class SentenceScoringTable
      */
     public Writer(@NotNull final Connection con)
         throws SQLException {
-      super(con, new SentenceScoringTable());
+      super(con, new KeyValueTable());
     }
 
     /**

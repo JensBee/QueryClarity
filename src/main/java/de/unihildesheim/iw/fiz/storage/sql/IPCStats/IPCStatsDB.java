@@ -15,11 +15,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.storage.sql.idxStats;
+package de.unihildesheim.iw.fiz.storage.sql.IPCStats;
 
-import de.unihildesheim.iw.storage.sql.AbstractDB;
-import de.unihildesheim.iw.storage.sql.MetaTable;
-import de.unihildesheim.iw.storage.sql.Table;
+import de.unihildesheim.iw.fiz.storage.sql.AbstractDB;
+import de.unihildesheim.iw.fiz.storage.sql.MetaTable;
+import de.unihildesheim.iw.fiz.storage.sql.Table;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
@@ -33,7 +33,8 @@ import java.util.Collections;
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class IdxStatsDB extends AbstractDB {
+public class IPCStatsDB
+    extends AbstractDB {
   /**
    * Database connection.
    */
@@ -44,17 +45,21 @@ public class IdxStatsDB extends AbstractDB {
   private static final Collection<Class<? extends Table>> ACCEPTED_TABLES =
       Collections.unmodifiableList(Arrays.asList(
           MetaTable.class,
-          StatsTable.class));
+          AllIPCTable.class,
+          IPCDistributionTable.class,
+          IPCSectionsTable.class,
+          IPCPerDocumentTable.class,
+          IPCDocFieldCountTable.class));
 
   /**
    * New instance.
    *
    * @param dbFile SQLite database file
-   * @throws ClassNotFoundException Thrown, if the {@code org.sqlite.JDBC} JDBC
-   * driver could not be loaded.
+   * @throws ClassNotFoundException Thrown, if the {@code org.sqlite.JDBC}
+   * JDBC driver could not be loaded.
    * @throws SQLException Thrown, if connection to the database has failed
    */
-  public IdxStatsDB(@NotNull final File dbFile)
+  public IPCStatsDB(@NotNull final File dbFile)
       throws ClassNotFoundException, SQLException {
     Class.forName("org.sqlite.JDBC");
     this.connection = DriverManager.getConnection("jdbc:sqlite:" + dbFile);

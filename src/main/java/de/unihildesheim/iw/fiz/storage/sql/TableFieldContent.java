@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.storage.sql;
+package de.unihildesheim.iw.fiz.storage.sql;
 
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -110,7 +110,9 @@ public class TableFieldContent {
 
     finalSql.append(") values ").append(valueStr).append(')');
 
-    LOG.debug("insertSQL: {}", finalSql);
+    if (LOG.isTraceEnabled()) {
+      LOG.trace("insertSQL: {}", finalSql);
+    }
 
     final PreparedStatement prep = con.prepareStatement(finalSql.toString());
 

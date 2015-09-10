@@ -15,11 +15,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.storage.sql.termData;
+package de.unihildesheim.iw.fiz.storage.sql.scoringData;
 
-import de.unihildesheim.iw.storage.sql.AbstractDB;
-import de.unihildesheim.iw.storage.sql.MetaTable;
-import de.unihildesheim.iw.storage.sql.Table;
+import de.unihildesheim.iw.fiz.storage.sql.AbstractDB;
+import de.unihildesheim.iw.fiz.storage.sql.MetaTable;
+import de.unihildesheim.iw.fiz.storage.sql.Table;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
@@ -33,7 +33,7 @@ import java.util.Collections;
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public class TermDataDB
+public class ScoringDataDB
     extends AbstractDB {
   /**
    * Database connection.
@@ -44,7 +44,15 @@ public class TermDataDB
    */
   private static final Collection<Class<? extends Table>> ACCEPTED_TABLES =
       Collections.unmodifiableList(Arrays.asList(
-          MetaTable.class, TermsTable.class));
+          MetaTable.class,
+          TermSegmentsTable.class,
+          TermScoringTable.class,
+          TermScoringResultTable.class,
+          BM25TermScoringResultTable.class,
+          SentenceScoringTable.class,
+          SentenceScoringResultTable.class,
+          BM25SentenceScoringResultTable.class,
+          ICSConfTable.class));
 
   /**
    * New instance.
@@ -54,10 +62,9 @@ public class TermDataDB
    * driver could not be loaded.
    * @throws SQLException Thrown, if connection to the database has failed
    */
-  public TermDataDB(@NotNull final File dbFile)
+  public ScoringDataDB(@NotNull final File dbFile)
       throws ClassNotFoundException, SQLException {
     Class.forName("org.sqlite.JDBC");
-
     this.connection = DriverManager.getConnection("jdbc:sqlite:" + dbFile);
   }
 
@@ -70,34 +77,5 @@ public class TermDataDB
   @Override
   protected Collection<Class<? extends Table>> getAcceptedTables() {
     return ACCEPTED_TABLES;
-  }
-
-  /**
-   * Check, if there are any terms stored in the database.
-   *
-   * @return True, if there are terms
-   * @throws SQLException Thrown on low-level database errors
-   */
-  public boolean hasTerms()
-      throws SQLException {
-    if (hasTable(TermsTable.TABLE_NAME)) {
-      return getNumberOfTerms() > 0L;
-    }
-    return false;
-  }
-
-  /**
-   * Get the number of terms stored.
-   *
-   * @return Number of terms. Returns {@code 0} if the table does not exist.
-   * @throws SQLException Thrown on low-level database errors
-   */
-  public long getNumberOfTerms()
-      throws SQLException {
-    if (hasTable(TermsTable.TABLE_NAME)) {
-      return getNumberOfRows(TermsTable.TABLE_NAME);
-    } else {
-      return 0L;
-    }
   }
 }

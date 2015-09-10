@@ -15,32 +15,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.storage.sql;
+package de.unihildesheim.iw.fiz.storage.sql.scoringData;
 
+import de.unihildesheim.iw.data.IPCCode;
+import de.unihildesheim.iw.fiz.storage.sql.AbstractTable;
+import de.unihildesheim.iw.fiz.storage.sql.Table;
+import de.unihildesheim.iw.fiz.storage.sql.TableField;
+import de.unihildesheim.iw.fiz.storage.sql.TableWriter;
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.sql.Statement;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public final class MetaTable
-    implements Table {
+public final class BM25SentenceScoringResultTable extends AbstractTable {
   /**
    * Fields belonging to this table.
    */
   private final List<TableField> fields;
+  /**
+   * Content fields belonging to this table.
+   */
+  private final List<TableField> contentFields;
   /**
    * Collection of fields that are required to contain unique values.
    */
@@ -48,7 +52,7 @@ public final class MetaTable
   /**
    * Table name.
    */
-  public static final String TABLE_NAME = "_QC_META";
+  public static final String TABLE_NAME = "scoring_sentence_results_bm25";
 
   /**
    * Fields in this table.
@@ -56,62 +60,84 @@ public final class MetaTable
   @SuppressWarnings("PublicInnerClass")
   public enum Fields {
     /**
-     * Referenced table name.
+     * Lucene document id of the document that was scored.
      */
-    TABLE_NAME,
+    DOC_ID("doc_id integer not null"),
     /**
-     * Command used to create the table.
+     * Fields visible while scoring.
      */
-    CMD,
+    Q_FIELDS("q_fields text"),
     /**
-     * Timestamp table was created.
+     * IPC-filter set while scoring.
      */
-    TIMESTAMP;
+    Q_IPC("q_ipc text(" + IPCCode.IPCRecord.MAX_LENGTH + ')'),
+    /**
+     * Scoring result value.
+     */
+    SCORE("score real not null"),
+    /**
+     * Term reference.
+     */
+    SENT_REF("sent_ref integer not null"),
+    /**
+     * Term reference foreign key.
+     */
+    SENT_REF_FK("foreign key (" + SENT_REF + ") references " +
+        SentenceScoringTable.TABLE_NAME +
+        '(' + SentenceScoringTable.Fields.ID + ')');
+
+    /**
+     * SQL code to create this field.
+     */
+    private final String sqlStr;
+
+    /**
+     * Create a new field instance with the given SQL code to create the field
+     * in the database.
+     *
+     * @param sql SQL code to create this field.
+     */
+    Fields(@NotNull final String sql) {
+      this.sqlStr = sql;
+    }
 
     @Override
-    public String
-
-    toString() {
+    public String toString() {
       return this.name().toLowerCase();
+    }
+
+    /**
+     * Get the current field as {@link TableField} instance.
+     *
+     * @return {@link TableField} instance for the current field
+     */
+    public TableField getAsTableField() {
+      return new TableField(toString(), this.sqlStr);
     }
   }
 
   /**
-   * Default fields for this table.
-   */
-  @SuppressWarnings("PublicStaticCollectionField")
-  public static final List<TableField> DEFAULT_FIELDS =
-      Collections.unmodifiableList(Arrays.asList(
-          new TableField(Fields.TABLE_NAME.toString(), Fields.TABLE_NAME +
-              " text not null"),
-          new TableField(Fields.CMD.toString(), Fields.CMD +
-              " text not null"),
-          new TableField(Fields.TIMESTAMP.toString(), Fields.TIMESTAMP +
-              " datetime default current_timestamp")));
-
-  /**
    * Create a new instance using the default fields.
    */
-  public MetaTable() {
-    this(DEFAULT_FIELDS);
+  public BM25SentenceScoringResultTable() {
+    this.fields = Arrays.stream(Fields.values())
+        .map(Fields::getAsTableField).collect(Collectors.toList());
+    this.contentFields = Arrays.stream(Fields.values())
+        .filter(f -> !f.toString().toLowerCase().endsWith("_fk"))
+        .map(Fields::getAsTableField).collect(Collectors.toList());
     addDefaultFieldsToUnique();
-  }
-
-  /**
-   * Create a new instance using the specified fields.
-   *
-   * @param newFields Fields to use
-   */
-  public MetaTable(
-      @NotNull final Collection<TableField> newFields) {
-    this.fields = new ArrayList<>(newFields.size());
-    this.fields.addAll(newFields);
   }
 
   @NotNull
   @Override
   public List<TableField> getFields() {
     return Collections.unmodifiableList(this.fields);
+  }
+
+  @NotNull
+  @Override
+  public List<TableField> getContentFields() {
+    return Collections.unmodifiableList(this.contentFields);
   }
 
   @NotNull
@@ -127,18 +153,16 @@ public final class MetaTable
 
   @Override
   public void addFieldToUnique(@NotNull final Object fld) {
-    final boolean invalidField = !this.fields.stream()
-        .filter(f -> f.getName().equals(fld.toString())).findFirst()
-        .isPresent();
-    if (invalidField) {
-      throw new IllegalArgumentException("Unknown field '" + fld + '\'');
-    }
+    checkFieldIsValid(fld);
     this.uniqueFields.add(fld.toString());
   }
 
   @Override
   public void addDefaultFieldsToUnique() {
-    // no unique fields
+    this.uniqueFields.add(Fields.DOC_ID.toString());
+    this.uniqueFields.add(Fields.SENT_REF.toString());
+    this.uniqueFields.add(Fields.Q_FIELDS.toString());
+    this.uniqueFields.add(Fields.Q_IPC.toString());
   }
 
   @Override
@@ -162,7 +186,7 @@ public final class MetaTable
      */
     public Writer(@NotNull final Connection con)
         throws SQLException {
-      super(con, new MetaTable());
+      super(con, new BM25SentenceScoringResultTable());
     }
 
     /**
@@ -177,14 +201,6 @@ public final class MetaTable
         @NotNull final Table tbl)
         throws SQLException {
       super(con, tbl);
-    }
-
-    @Override
-    public Statement addContent(final TableFieldContent tfContent)
-        throws SQLException {
-      tfContent.setValue(MetaTable.Fields.TIMESTAMP,
-          new SimpleDateFormat("dd-MM-yyyy HH:mm:ss").format(new Date()));
-      return super.addContent(tfContent);
     }
   }
 }

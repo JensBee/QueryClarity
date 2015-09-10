@@ -15,27 +15,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.storage.sql.IPCStats;
+package de.unihildesheim.iw.fiz.storage.sql;
 
-import de.unihildesheim.iw.storage.sql.AbstractTable;
-import de.unihildesheim.iw.storage.sql.Table;
-import de.unihildesheim.iw.storage.sql.TableField;
-import de.unihildesheim.iw.storage.sql.TableWriter;
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public final class IPCPerDocumentTable extends AbstractTable {
+public final class MetaTable
+    implements Table {
   /**
    * Fields belonging to this table.
    */
@@ -47,7 +45,7 @@ public final class IPCPerDocumentTable extends AbstractTable {
   /**
    * Table name.
    */
-  public static final String TABLE_NAME = "ipc_perdocument";
+  public static final String TABLE_NAME = "_QC_META";
 
   /**
    * Fields in this table.
@@ -55,51 +53,56 @@ public final class IPCPerDocumentTable extends AbstractTable {
   @SuppressWarnings("PublicInnerClass")
   public enum Fields {
     /**
-     * Distinct IPC-Codes per document count.
+     * Referenced table name.
      */
-    CODES("codes integer not null"),
+    TABLE_NAME,
     /**
-     * Counter value.
+     * Command used to create the table.
      */
-    COUNT("count integer not null");
-
+    CMD,
     /**
-     * SQL code to create this field.
+     * Timestamp table was created.
      */
-    private final String sqlStr;
-
-    /**
-     * Create a new field instance with the given SQL code to create the field
-     * in the database.
-     *
-     * @param sql SQL code to create this field.
-     */
-    Fields(@NotNull final String sql) {
-      this.sqlStr = sql;
-    }
+    TIMESTAMP;
 
     @Override
-    public String toString() {
-      return this.name().toLowerCase();
-    }
+    public String
 
-    /**
-     * Get the current field as {@link TableField} instance.
-     *
-     * @return {@link TableField} instance for the current field
-     */
-    public TableField getAsTableField() {
-      return new TableField(toString(), this.sqlStr);
+    toString() {
+      return this.name().toLowerCase();
     }
   }
 
   /**
+   * Default fields for this table.
+   */
+  @SuppressWarnings("PublicStaticCollectionField")
+  public static final List<TableField> DEFAULT_FIELDS =
+      Collections.unmodifiableList(Arrays.asList(
+          new TableField(Fields.TABLE_NAME.toString(), Fields.TABLE_NAME +
+              " text not null"),
+          new TableField(Fields.CMD.toString(), Fields.CMD +
+              " text not null"),
+          new TableField(Fields.TIMESTAMP.toString(), Fields.TIMESTAMP +
+              " datetime default CURRENT_TIMESTAMP")));
+
+  /**
    * Create a new instance using the default fields.
    */
-  public IPCPerDocumentTable() {
-    this.fields = Arrays.stream(Fields.values())
-        .map(Fields::getAsTableField).collect(Collectors.toList());
+  public MetaTable() {
+    this(DEFAULT_FIELDS);
     addDefaultFieldsToUnique();
+  }
+
+  /**
+   * Create a new instance using the specified fields.
+   *
+   * @param newFields Fields to use
+   */
+  public MetaTable(
+      @NotNull final Collection<TableField> newFields) {
+    this.fields = new ArrayList<>(newFields.size());
+    this.fields.addAll(newFields);
   }
 
   @NotNull
@@ -121,13 +124,18 @@ public final class IPCPerDocumentTable extends AbstractTable {
 
   @Override
   public void addFieldToUnique(@NotNull final Object fld) {
-    checkFieldIsValid(fld);
+    final boolean invalidField = !this.fields.stream()
+        .filter(f -> f.getName().equals(fld.toString())).findFirst()
+        .isPresent();
+    if (invalidField) {
+      throw new IllegalArgumentException("Unknown field '" + fld + '\'');
+    }
     this.uniqueFields.add(fld.toString());
   }
 
   @Override
   public void addDefaultFieldsToUnique() {
-    this.uniqueFields.add(Fields.CODES.toString());
+    // no unique fields
   }
 
   @Override
@@ -151,7 +159,7 @@ public final class IPCPerDocumentTable extends AbstractTable {
      */
     public Writer(@NotNull final Connection con)
         throws SQLException {
-      super(con, new IPCPerDocumentTable());
+      super(con, new MetaTable());
     }
 
     /**

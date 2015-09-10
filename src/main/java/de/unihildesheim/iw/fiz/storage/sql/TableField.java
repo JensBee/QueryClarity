@@ -15,26 +15,48 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.storage.sql;
+package de.unihildesheim.iw.fiz.storage.sql;
 
 import org.jetbrains.annotations.NotNull;
 
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public abstract class AbstractTable
-    implements Table {
+public final class TableField {
   /**
-   * Check, if a field is present in the current tables fields list. Throws a
-   * {@link IllegalArgumentException} if the field is not known (i.e. invalid).
-   *
-   * @param fld Field to check (toString will be called on the object)
+   * Field name.
    */
-  protected void checkFieldIsValid(@NotNull final Object fld) {
-    if (!getFields().stream()
-        .filter(f -> f.getName().equalsIgnoreCase(fld.toString()))
-        .findFirst().isPresent()) {
-      throw new IllegalArgumentException("Unknown field '" + fld + '\'');
-    }
+  private final String name;
+  /**
+   * SQL statement to create the field.
+   */
+  private final String sql;
+
+  /**
+   *
+   * @param fieldName Field name
+   * @param sql SQL statement to create the field
+   */
+  public TableField(
+      @NotNull final String fieldName,
+      @NotNull final String sql) {
+    this.name = fieldName;
+    this.sql = sql;
+  }
+
+  /**
+   * Get the SQL statement to create the field.
+   * @return SQL statement to create the field
+   */
+  public String getSql() {
+    return this.sql;
+  }
+
+  /**
+   * Get the field name.
+   * @return Field name
+   */
+  public String getName() {
+    return this.name;
   }
 }

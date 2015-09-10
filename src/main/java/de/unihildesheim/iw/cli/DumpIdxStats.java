@@ -19,10 +19,10 @@ package de.unihildesheim.iw.cli;
 
 import de.unihildesheim.iw.lucene.index.FDRIndexDataProvider;
 import de.unihildesheim.iw.lucene.index.FilteredDirectoryReader;
-import de.unihildesheim.iw.storage.sql.MetaTable;
-import de.unihildesheim.iw.storage.sql.TableFieldContent;
-import de.unihildesheim.iw.storage.sql.idxStats.IdxStatsDB;
-import de.unihildesheim.iw.storage.sql.idxStats.StatsTable;
+import de.unihildesheim.iw.fiz.storage.sql.MetaTable;
+import de.unihildesheim.iw.fiz.storage.sql.TableFieldContent;
+import de.unihildesheim.iw.fiz.storage.sql.idxStats.IdxStatsDB;
+import de.unihildesheim.iw.fiz.storage.sql.idxStats.StatsTable;
 import de.unihildesheim.iw.util.Buildable;
 import de.unihildesheim.iw.util.Buildable.BuildException;
 import de.unihildesheim.iw.util.Buildable.ConfigurationException;

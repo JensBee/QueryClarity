@@ -15,12 +15,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.storage.sql.IPCStats;
+package de.unihildesheim.iw.fiz.storage.sql.idxStats;
 
-import de.unihildesheim.iw.storage.sql.AbstractTable;
-import de.unihildesheim.iw.storage.sql.Table;
-import de.unihildesheim.iw.storage.sql.TableField;
-import de.unihildesheim.iw.storage.sql.TableWriter;
+import de.unihildesheim.iw.fiz.storage.sql.AbstractTable;
+import de.unihildesheim.iw.fiz.storage.sql.Table;
+import de.unihildesheim.iw.fiz.storage.sql.TableField;
+import de.unihildesheim.iw.fiz.storage.sql.TableWriter;
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.Connection;
@@ -35,7 +35,8 @@ import java.util.stream.Collectors;
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public final class IPCDocFieldCountTable extends AbstractTable {
+public final class StatsTable
+    extends AbstractTable {
   /**
    * Fields belonging to this table.
    */
@@ -47,7 +48,7 @@ public final class IPCDocFieldCountTable extends AbstractTable {
   /**
    * Table name.
    */
-  public static final String TABLE_NAME = "ipc_docfieldcount";
+  public static final String TABLE_NAME = "idx_stats";
 
   /**
    * Fields in this table.
@@ -55,17 +56,22 @@ public final class IPCDocFieldCountTable extends AbstractTable {
   @SuppressWarnings("PublicInnerClass")
   public enum Fields {
     /**
-     * IPC-Section code.
-     */
-    SECTION("section char(1) not null"),
-    /**
-     * IPC-Class code.
+     * Lucene document field name the statistics belong to. If {@code null}
+     * all (content) fields are enabled.
      */
     FIELD("field text"),
     /**
-     * Counter value.
+     * Frequency of all terms in the index.
      */
-    COUNT("count integer not null");
+    TTF("ttf integer not null"),
+    /**
+     * Number of unique terms in the index.
+     */
+    UTF("utf integer not null"),
+    /**
+     * Number of documents in the index.
+     */
+    DOCS("docs integer not null");
 
     /**
      * SQL code to create this field.
@@ -73,7 +79,8 @@ public final class IPCDocFieldCountTable extends AbstractTable {
     private final String sqlStr;
 
     /**
-     * Create a new field instance with the given SQL code to create the field
+     * Create a new field instance with the given SQL code to create the
+     * field
      * in the database.
      *
      * @param sql SQL code to create this field.
@@ -100,7 +107,7 @@ public final class IPCDocFieldCountTable extends AbstractTable {
   /**
    * Create a new instance using the default fields.
    */
-  public IPCDocFieldCountTable() {
+  public StatsTable() {
     this.fields = Arrays.stream(Fields.values())
         .map(Fields::getAsTableField).collect(Collectors.toList());
     addDefaultFieldsToUnique();
@@ -132,7 +139,6 @@ public final class IPCDocFieldCountTable extends AbstractTable {
   @Override
   public void addDefaultFieldsToUnique() {
     this.uniqueFields.add(Fields.FIELD.toString());
-    this.uniqueFields.add(Fields.SECTION.toString());
   }
 
   @Override
@@ -156,7 +162,7 @@ public final class IPCDocFieldCountTable extends AbstractTable {
      */
     public Writer(@NotNull final Connection con)
         throws SQLException {
-      super(con, new IPCDocFieldCountTable());
+      super(con, new StatsTable());
     }
 
     /**

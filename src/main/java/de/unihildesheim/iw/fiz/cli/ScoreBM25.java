@@ -31,15 +31,15 @@ import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.search.IPCFieldFilter;
 import de.unihildesheim.iw.lucene.search.IPCFieldFilterFunctions;
 import de.unihildesheim.iw.lucene.util.StreamUtils;
-import de.unihildesheim.iw.storage.sql.MetaTable;
-import de.unihildesheim.iw.storage.sql.TableFieldContent;
-import de.unihildesheim.iw.storage.sql.scoringData
+import de.unihildesheim.iw.fiz.storage.sql.MetaTable;
+import de.unihildesheim.iw.fiz.storage.sql.TableFieldContent;
+import de.unihildesheim.iw.fiz.storage.sql.scoringData
     .BM25SentenceScoringResultTable;
-import de.unihildesheim.iw.storage.sql.scoringData.BM25TermScoringResultTable;
-import de.unihildesheim.iw.storage.sql.scoringData.ScoringDataDB;
-import de.unihildesheim.iw.storage.sql.scoringData.SentenceScoringTable;
-import de.unihildesheim.iw.storage.sql.scoringData.TermScoringTable;
-import de.unihildesheim.iw.storage.sql.termData.TermsTable;
+import de.unihildesheim.iw.fiz.storage.sql.scoringData.BM25TermScoringResultTable;
+import de.unihildesheim.iw.fiz.storage.sql.scoringData.ScoringDataDB;
+import de.unihildesheim.iw.fiz.storage.sql.scoringData.SentenceScoringTable;
+import de.unihildesheim.iw.fiz.storage.sql.scoringData.TermScoringTable;
+import de.unihildesheim.iw.fiz.storage.sql.termData.TermsTable;
 import de.unihildesheim.iw.util.GlobalConfiguration;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TaskObserver;

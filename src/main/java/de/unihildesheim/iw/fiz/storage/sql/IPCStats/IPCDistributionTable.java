@@ -15,13 +15,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.storage.sql.IPCStats;
+package de.unihildesheim.iw.fiz.storage.sql.IPCStats;
 
 import de.unihildesheim.iw.data.IPCCode.IPCRecord;
-import de.unihildesheim.iw.storage.sql.AbstractTable;
-import de.unihildesheim.iw.storage.sql.Table;
-import de.unihildesheim.iw.storage.sql.TableField;
-import de.unihildesheim.iw.storage.sql.TableWriter;
+import de.unihildesheim.iw.fiz.storage.sql.AbstractTable;
+import de.unihildesheim.iw.fiz.storage.sql.Table;
+import de.unihildesheim.iw.fiz.storage.sql.TableField;
+import de.unihildesheim.iw.fiz.storage.sql.TableWriter;
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.Connection;
@@ -36,8 +36,7 @@ import java.util.stream.Collectors;
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public final class AllIPCTable
-    extends AbstractTable {
+public final class IPCDistributionTable extends AbstractTable {
   /**
    * Fields belonging to this table.
    */
@@ -49,7 +48,7 @@ public final class AllIPCTable
   /**
    * Table name.
    */
-  public static final String TABLE_NAME = "ipc_all";
+  public static final String TABLE_NAME = "ipc_distribution";
 
   /**
    * Fields in this table.
@@ -118,7 +117,7 @@ public final class AllIPCTable
   /**
    * Create a new instance using the default fields.
    */
-  public AllIPCTable() {
+  public IPCDistributionTable() {
     this.fields = Arrays.stream(Fields.values())
         .map(Fields::getAsTableField).collect(Collectors.toList());
     addDefaultFieldsToUnique();
@@ -152,6 +151,12 @@ public final class AllIPCTable
     this.uniqueFields.add(Fields.CODE.toString());
   }
 
+  @Override
+  public Writer getWriter(@NotNull final Connection con)
+      throws SQLException {
+    return new Writer(con);
+  }
+
   /**
    * Provides write access to the table.
    */
@@ -167,7 +172,7 @@ public final class AllIPCTable
      */
     public Writer(@NotNull final Connection con)
         throws SQLException {
-      super(con, new AllIPCTable());
+      super(con, new IPCDistributionTable());
     }
 
     /**

@@ -15,13 +15,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.storage.sql.scoringData;
+package de.unihildesheim.iw.fiz.storage.sql.scoringData;
 
 import de.unihildesheim.iw.data.IPCCode;
-import de.unihildesheim.iw.storage.sql.AbstractTable;
-import de.unihildesheim.iw.storage.sql.Table;
-import de.unihildesheim.iw.storage.sql.TableField;
-import de.unihildesheim.iw.storage.sql.TableWriter;
+import de.unihildesheim.iw.fiz.storage.sql.AbstractTable;
+import de.unihildesheim.iw.fiz.storage.sql.Table;
+import de.unihildesheim.iw.fiz.storage.sql.TableField;
+import de.unihildesheim.iw.lucene.scoring.clarity
+    .ImprovedClarityScoreConfiguration;
+import de.unihildesheim.iw.fiz.storage.sql.TableWriter;
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.Connection;
@@ -36,8 +38,7 @@ import java.util.stream.Collectors;
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public final class TermScoringTable
-    extends AbstractTable {
+public final class ICSConfTable extends AbstractTable {
   /**
    * Fields belonging to this table.
    */
@@ -49,7 +50,7 @@ public final class TermScoringTable
   /**
    * Table name.
    */
-  public static final String TABLE_NAME = "scoring_terms";
+  public static final String TABLE_NAME = "ics_conf";
 
   /**
    * Fields in this table.
@@ -61,29 +62,39 @@ public final class TermScoringTable
      */
     ID("id integer primary key not null"),
     /**
-     * Term as string.
+     * Timestamp configuration was stored.
      */
-    TERM("term text not null"),
+    TIMESTAMP("timestamp default current_timestamp"),
     /**
-     * Language the entry belongs to.
+     * Document model smoothing parameter. See
+     * {@link ImprovedClarityScoreConfiguration#DEFAULT_DOCMODEL_SMOOTHING}.
      */
-    LANG("lang char(2) not null"),
+    DOCMOD_SMOOTHING("docmod_smoothing integer not null"),
     /**
-     * Source field of this term.
+     * Maximum number of feedback documents. See
+     * {@link ImprovedClarityScoreConfiguration#DEFAULT_FB_DOCS_MAX}.
      */
-    FIELD("field text not null"),
+    FB_MAX("fb_max integer not null"),
     /**
-     * Relative document frequency value.
+     * Threshold to select terms from feedback documents. See
+     * {@link ImprovedClarityScoreConfiguration
+     * #DEFAULT_TERM_SELECTION_THRESHOLD_MIN}.
      */
-    DOCFREQ_REL("docfreq_rel real not null"),
+    FB_TERM_TS_MIN("fb_term_ts_min real not null"),
     /**
-     * Absolute document frequency value.
+     * Threshold to select terms from feedback documents. See
+     * {@link ImprovedClarityScoreConfiguration
+     * #DEFAULT_TERM_SELECTION_THRESHOLD_MAX}.
      */
-    DOCFREQ_ABS("docfreq_abs real not null"),
+    FB_TERM_TS_MAX("fb_term_ts_max real not null"),
     /**
-     * Bin (section/segment) the term was taken from.
+     * Fields visible while scoring.
      */
-    BIN("bin integer not null");
+    Q_FIELDS("q_fields text"),
+    /**
+     * IPC-filter set while scoring.
+     */
+    Q_IPC("q_ipc text(" + IPCCode.IPCRecord.MAX_LENGTH + ')');
 
     /**
      * SQL code to create this field.
@@ -114,65 +125,12 @@ public final class TermScoringTable
   }
 
   /**
-   * Optional fields in this table.
-   */
-  @SuppressWarnings("PublicInnerClass")
-  public enum FieldsOptional {
-    /**
-     * IPC code, if selection was restricted to any code.
-     */
-    IPC("ipc char(" + IPCCode.IPCRecord.MAX_LENGTH + ')');
-
-    /**
-     * SQL code to create this field.
-     */
-    private final String sqlStr;
-
-    /**
-     * Create a new field instance with the given SQL code to create the
-     * field in the database.
-     * @param sql SQL code to create this field.
-     */
-    FieldsOptional(@NotNull final String sql) {
-      this.sqlStr = sql;
-    }
-
-    @Override
-    public String toString() {
-      return this.name().toLowerCase();
-    }
-
-    /**
-     * Get the current field as {@link TableField} instance.
-     * @return {@link TableField} instance for the current field
-     */
-    public TableField getAsTableField() {
-      return new TableField(toString(), this.sqlStr);
-    }
-  }
-
-  /**
    * Create a new instance using the default fields.
    */
-  public TermScoringTable() {
+  public ICSConfTable() {
     this.fields = Arrays.stream(Fields.values())
         .map(Fields::getAsTableField).collect(Collectors.toList());
     addDefaultFieldsToUnique();
-  }
-
-  /**
-   * Create a new instance and add the given optional fields to the table.
-   * @param optFields Optional fields to add to the {@link Fields default}
-   * list of fields
-   */
-  public TermScoringTable(@NotNull final FieldsOptional... optFields) {
-    this();
-    for (final FieldsOptional fld : optFields) {
-      if (fld == FieldsOptional.IPC) {
-        this.uniqueFields.add(FieldsOptional.IPC.toString());
-        this.fields.add(FieldsOptional.IPC.getAsTableField());
-      }
-    }
   }
 
   @NotNull
@@ -200,10 +158,12 @@ public final class TermScoringTable
 
   @Override
   public void addDefaultFieldsToUnique() {
-    this.uniqueFields.add(Fields.TERM.toString());
-    this.uniqueFields.add(Fields.FIELD.toString());
-    this.uniqueFields.add(Fields.LANG.toString());
-    this.uniqueFields.add(Fields.BIN.toString());
+    this.uniqueFields.add(Fields.DOCMOD_SMOOTHING.toString());
+    this.uniqueFields.add(Fields.FB_MAX.toString());
+    this.uniqueFields.add(Fields.FB_TERM_TS_MAX.toString());
+    this.uniqueFields.add(Fields.FB_TERM_TS_MIN.toString());
+    this.uniqueFields.add(Fields.Q_FIELDS.toString());
+    this.uniqueFields.add(Fields.Q_IPC.toString());
   }
 
   @Override
@@ -227,7 +187,7 @@ public final class TermScoringTable
      */
     public Writer(@NotNull final Connection con)
         throws SQLException {
-      super(con, new TermScoringTable());
+      super(con, new ICSConfTable());
     }
 
     /**

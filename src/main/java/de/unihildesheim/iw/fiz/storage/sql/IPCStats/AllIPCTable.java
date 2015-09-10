@@ -15,12 +15,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package de.unihildesheim.iw.storage.sql.idxStats;
+package de.unihildesheim.iw.fiz.storage.sql.IPCStats;
 
-import de.unihildesheim.iw.storage.sql.AbstractTable;
-import de.unihildesheim.iw.storage.sql.Table;
-import de.unihildesheim.iw.storage.sql.TableField;
-import de.unihildesheim.iw.storage.sql.TableWriter;
+import de.unihildesheim.iw.data.IPCCode.IPCRecord;
+import de.unihildesheim.iw.fiz.storage.sql.AbstractTable;
+import de.unihildesheim.iw.fiz.storage.sql.Table;
+import de.unihildesheim.iw.fiz.storage.sql.TableField;
+import de.unihildesheim.iw.fiz.storage.sql.TableWriter;
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.Connection;
@@ -35,7 +36,7 @@ import java.util.stream.Collectors;
 /**
  * @author Jens Bertram (code@jens-bertram.net)
  */
-public final class StatsTable
+public final class AllIPCTable
     extends AbstractTable {
   /**
    * Fields belonging to this table.
@@ -48,7 +49,7 @@ public final class StatsTable
   /**
    * Table name.
    */
-  public static final String TABLE_NAME = "idx_stats";
+  public static final String TABLE_NAME = "ipc_all";
 
   /**
    * Fields in this table.
@@ -56,22 +57,33 @@ public final class StatsTable
   @SuppressWarnings("PublicInnerClass")
   public enum Fields {
     /**
-     * Lucene document field name the statistics belong to. If {@code null}
-     * all (content) fields are enabled.
+     * Full IPC-code.
      */
-    FIELD("field text"),
+    CODE("code text(" + IPCRecord.MAX_LENGTH + ") not null"),
     /**
-     * Frequency of all terms in the index.
+     * IPC-Section code.
      */
-    TTF("ttf integer not null"),
+    SECTION("section char(1) not null"),
     /**
-     * Number of unique terms in the index.
+     * IPC-Class code.
      */
-    UTF("utf integer not null"),
+    CLASS("class integer"),
     /**
-     * Number of documents in the index.
+     * IPC-Subclass code.
      */
-    DOCS("docs integer not null");
+    SUBCLASS("subclass char(1)"),
+    /**
+     * IPC-Maingroup code.
+     */
+    MAINGROUP("maingroup integer"),
+    /**
+     * IPC-Subgroup code.
+     */
+    SUBGROUP("subgroup integer"),
+    /**
+     * Counter value.
+     */
+    COUNT("count integer not null");
 
     /**
      * SQL code to create this field.
@@ -79,8 +91,7 @@ public final class StatsTable
     private final String sqlStr;
 
     /**
-     * Create a new field instance with the given SQL code to create the
-     * field
+     * Create a new field instance with the given SQL code to create the field
      * in the database.
      *
      * @param sql SQL code to create this field.
@@ -107,7 +118,7 @@ public final class StatsTable
   /**
    * Create a new instance using the default fields.
    */
-  public StatsTable() {
+  public AllIPCTable() {
     this.fields = Arrays.stream(Fields.values())
         .map(Fields::getAsTableField).collect(Collectors.toList());
     addDefaultFieldsToUnique();
@@ -138,13 +149,7 @@ public final class StatsTable
 
   @Override
   public void addDefaultFieldsToUnique() {
-    this.uniqueFields.add(Fields.FIELD.toString());
-  }
-
-  @Override
-  public Writer getWriter(@NotNull final Connection con)
-      throws SQLException {
-    return new Writer(con);
+    this.uniqueFields.add(Fields.CODE.toString());
   }
 
   /**
@@ -162,7 +167,7 @@ public final class StatsTable
      */
     public Writer(@NotNull final Connection con)
         throws SQLException {
-      super(con, new StatsTable());
+      super(con, new AllIPCTable());
     }
 
     /**
