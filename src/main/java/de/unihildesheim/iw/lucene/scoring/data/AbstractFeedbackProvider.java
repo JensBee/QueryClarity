@@ -72,6 +72,10 @@ public abstract class AbstractFeedbackProvider
    * True, if a fixed amount of documents should be tried to retrieve.
    */
   boolean useFixedAmount;
+  /**
+   * True, if all matching documents should be retrieved.
+   */
+  boolean useUnboundAmount;
 
   /**
    * Reader to access the index.
@@ -152,6 +156,20 @@ public abstract class AbstractFeedbackProvider
   public I amount(final int fixed) {
     this.fixedAmount = fixed;
     this.useFixedAmount = true;
+    return getThis();
+  }
+
+  @Override
+  public I unboundAmount() {
+    this.minAmount = 1;
+    this.useUnboundAmount = true;
+    return getThis();
+  }
+
+  @Override
+  public I unboundAmount(final int min) {
+    this.minAmount = min;
+    this.useUnboundAmount = true;
     return getThis();
   }
 

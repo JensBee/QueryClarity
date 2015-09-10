@@ -87,6 +87,20 @@ public interface FeedbackProvider {
   FeedbackProvider amount(final int fixed);
 
   /**
+   * Activate an unbounded amount (all matching) of feedback documents.
+   * Minimum match count should be set to 1.
+   * @return Self reference
+   */
+  FeedbackProvider unboundAmount();
+
+  /**
+   * Activate an unbounded amount (all matching) of feedback documents.
+   * @param min Minimum number to get
+   * @return Self reference
+   */
+  FeedbackProvider unboundAmount(final int min);
+
+  /**
    * Set the {@link IndexReader} that may be used to retrieve feedback documents
    * from the Lucene index.
    *

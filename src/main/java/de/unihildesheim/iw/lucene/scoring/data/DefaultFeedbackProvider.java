@@ -23,22 +23,31 @@ import de.unihildesheim.iw.lucene.query.RelaxableQuery;
 import de.unihildesheim.iw.lucene.query.RxTryExactTermsQuery;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
  * Default implementation of a {@link FeedbackProvider} using the {@link
- * RxTryExactTermsQuery} for retrieval, if no other Query type gets specified.
+ * RxTryExactTermsQuery} for retrieval.
  *
  * @author Jens Bertram
  */
 public final class DefaultFeedbackProvider
     extends AbstractFeedbackProvider<DefaultFeedbackProvider> {
+  /**
+   * Logger instance for this class.
+   */
+  private static final Logger LOG = LoggerFactory.getLogger(
+      DefaultFeedbackProvider.class);
   /**
    * Reusable {@link IndexSearcher} instance.
    */
@@ -59,6 +68,11 @@ public final class DefaultFeedbackProvider
   }
 
   @Override
+  public DefaultFeedbackProvider queryParser(@NotNull final RelaxableQuery rtq) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
   public DocIdSet get()
       throws IOException, ParseException {
     final RelaxableQuery qObj = getQueryParserInstance();
@@ -68,6 +82,23 @@ public final class DefaultFeedbackProvider
               "IndexReader (Searcher) not set."),
           Objects.requireNonNull(this.dataProv, "IndexDataProvider not set."),
           qObj, this.fixedAmount, getDocumentFields());
+    } else if (this.useUnboundAmount) {
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("using unbound feedback amount");
+      }
+      final Query queryObj = qObj.getQueryObj();
+      // single term query or boolean type - depends on number of terms
+      if (BooleanQuery.class.isInstance(queryObj)) {
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Reset number of required query terms that must match to " +
+              "1.");
+        }
+        ((BooleanQuery) queryObj).setMinimumNumberShouldMatch(1);
+      }
+      return FeedbackQuery.getMax(
+          Objects.requireNonNull(this.searcher,
+              "IndexReader (Searcher) not set."),
+          queryObj, Integer.MAX_VALUE);
     }
     return FeedbackQuery.getMinMax(
         Objects.requireNonNull(this.searcher,

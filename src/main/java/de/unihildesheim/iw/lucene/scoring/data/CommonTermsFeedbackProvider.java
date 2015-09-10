@@ -87,7 +87,16 @@ public final class CommonTermsFeedbackProvider
               "IndexReader (Searcher) not set."),
           Objects.requireNonNull(this.dataProv, "IndexDataProvider not set."),
           qObj, this.fixedAmount, getDocumentFields());
+    } else if (this.useUnboundAmount) {
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("using unbound feedback amount");
+      }
+      return FeedbackQuery.getMax(
+          Objects.requireNonNull(this.searcher,
+              "IndexReader (Searcher) not set."),
+          qObj.getQueryObj(), Integer.MAX_VALUE);
     }
+
     if (LOG.isDebugEnabled()) {
       LOG.debug("using MinMax feedback min={} max={}",
           this.minAmount, this.maxAmount);
