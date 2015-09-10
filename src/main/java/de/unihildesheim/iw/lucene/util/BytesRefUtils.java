@@ -140,6 +140,26 @@ public final class BytesRefUtils {
   }
 
   /**
+   * Convert a {@link BytesRefArray} to a {@link BytesRefHash}.
+   *
+   * @param bra Array
+   * @return Hash
+   */
+  public static BytesRefHash arrayToHash(@NotNull final BytesRefArray bra)
+      throws IOException {
+    final BytesRefIterator bri = bra.iterator();
+    BytesRef br = bri.next();
+    final BytesRefHash brh = new BytesRefHash();
+
+    while (br != null) {
+      brh.add(br);
+      br = bri.next();
+    }
+
+    return brh;
+  }
+
+  /**
    * Convert a {@link BytesRefArray} to a String Collection.
    * @param ba Array
    * @return Collection of Strings contained in the given array
