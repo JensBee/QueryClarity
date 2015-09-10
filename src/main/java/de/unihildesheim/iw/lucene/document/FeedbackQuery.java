@@ -76,9 +76,9 @@ public final class FeedbackQuery {
       final int docCount) {
     final int maxRetDocs; // maximum number of documents that can be returned
     if (docCount == Integer.MAX_VALUE) {
-      return reader.maxDoc();
+      return reader.numDocs();
     }
-    final int maxIdxDocs = reader.maxDoc();
+    final int maxIdxDocs = reader.numDocs();
     if (docCount > maxIdxDocs) {
       maxRetDocs = Math.min(maxIdxDocs, docCount);
       LOG.warn("Requested number of feedback documents ({}) "
