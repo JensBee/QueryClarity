@@ -19,10 +19,13 @@ package de.unihildesheim.iw.lucene.scoring.clarity;
 import de.unihildesheim.iw.lucene.document.DocumentModel;
 import de.unihildesheim.iw.lucene.index.IndexDataProvider;
 import de.unihildesheim.iw.lucene.query.QueryUtils;
+import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreCalculation
+    .ScoreTuple.TupleType;
 import de.unihildesheim.iw.lucene.scoring.clarity.ClarityScoreResult
     .EmptyReason;
 import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.VocabularyProvider;
+import de.unihildesheim.iw.lucene.util.BytesRefUtils;
 import de.unihildesheim.iw.lucene.util.DocIdSetUtils;
 import de.unihildesheim.iw.lucene.util.StreamUtils;
 import de.unihildesheim.iw.util.Buildable.BuildableException;
@@ -31,14 +34,20 @@ import de.unihildesheim.iw.util.GlobalConfiguration.DefaultKeys;
 import de.unihildesheim.iw.util.MathUtils;
 import de.unihildesheim.iw.util.StringUtils;
 import de.unihildesheim.iw.util.TimeMeasure;
+import de.unihildesheim.iw.util.Tuple;
+import de.unihildesheim.iw.util.Tuple.Tuple2;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.BooleanQuery.TooManyClauses;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
+import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.Counter;
+import org.apache.lucene.util.FixedBitSet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -48,9 +57,14 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.math.MathContext;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
@@ -502,9 +516,10 @@ public final class ImprovedClarityScore
       feedbackDocIds = this.fbProvider
           .query(queryTerms)
           .fields(this.dataProv.getDocumentFields())
-          .amount(
-              this.conf.getMinFeedbackDocumentsCount(),
-              this.conf.getMaxFeedbackDocumentsCount())
+          .unboundAmount()
+//          .amount(
+//              this.conf.getMinFeedbackDocumentsCount(),
+//              this.conf.getMaxFeedbackDocumentsCount())
           .get();
       fbDocCount = DocIdSetUtils.cardinality(feedbackDocIds);
     } catch (final TooManyClauses e) {
@@ -531,8 +546,70 @@ public final class ImprovedClarityScore
     }
 
     if (resultNotEmpty) {
-      result.setFeedbackDocIds(feedbackDocIds);
+      LOG.info("Parsing feedback documents");
+      final ArrayList<Integer> matched = new ArrayList<>(
+          this.conf.getMaxFeedbackDocumentsCount());
+      try {
+        final Map<Long, ArrayList<Integer>> reduced = reduceFeedbackDocuments(
+            collectFeedbackDocuments(queryTerms, feedbackDocIds));
 
+        // check, if we need more documents to get the lowest required amount
+        if (!reduced.isEmpty()) {
+          final List<Long> matchOrder = new ArrayList<>(reduced.keySet());
+          Collections.sort(matchOrder); // sort by match count (asc)
+          Collections.reverse(matchOrder); // reverse to desc order
+
+          // step down by number of matched terms
+          long current;
+          while (!matchOrder.isEmpty() &&
+              matched.size() < this.conf.getMinFeedbackDocumentsCount()) {
+            current = matchOrder.get(0); // pop top element (highest)
+            matched.addAll(reduced.get(current));
+
+            // store current value
+            result.setMatchingTermsCount(current);
+
+            // remove those results we've added
+            matchOrder.remove(0);
+          }
+        }
+      } catch (final IOException e) {
+        final String msg = "Caught exception while reducing feedback " +
+            "documents.";
+        LOG.error(msg, e);
+        throw new ClarityScoreCalculationException(msg, e);
+      }
+
+      int newFbDocCount = 0;
+      if (!matched.isEmpty()) {
+        newFbDocCount = matched.size();
+        // reduce feedback amount, if we gathered too much
+        if (matched.size() > this.conf.getMaxFeedbackDocumentsCount()) {
+          matched
+              .subList(this.conf.getMaxFeedbackDocumentsCount(), newFbDocCount)
+              .clear();
+          newFbDocCount = matched.size();
+        }
+
+        // store results
+        final BitSet fbDocBits = new FixedBitSet(Collections.max(matched) + 1);
+        matched.stream().forEach(fbDocBits::set);
+        feedbackDocIds = new BitDocIdSet(fbDocBits);
+        result.setFeedbackDocIds(feedbackDocIds);
+
+        LOG.info("Number of feedback documents reduced from {} to {}.",
+            fbDocCount, newFbDocCount);
+      }
+
+      if (newFbDocCount < this.conf.getMinFeedbackDocumentsCount()) {
+        resultNotEmpty = false;
+        result.setEmpty("Not enough feedback documents. " +
+            this.conf.getMinFeedbackDocumentsCount() +
+            " requested, " + newFbDocCount + " retrieved and reduced.");
+      }
+    }
+
+    if (resultNotEmpty) {
       // get document frequency threshold - allowed terms must be in bounds
       final double minFreq = this.conf
           .getMinFeedbackTermSelectionThreshold();
@@ -568,11 +645,12 @@ public final class ImprovedClarityScore
               .peek(term -> hasTerms.set(true))
               .map(term -> new ScoreTupleLowPrecision(
                   model.query(term),
-                  this.dataProv.getRelativeTermFrequency(term)))
+                  this.dataProv.getRelativeTermFrequency(term), term))
               .toArray(ScoreTupleLowPrecision[]::new);
 
           if (hasTerms.get()) {
             LOG.info("Calculating final score.");
+            result.setScoringTuple(dataSets);
             result.setScore(MathUtils.klDivergence(dataSets));
           } else {
             LOG.info(MSG_NO_THRESHOLDED_FEEDBACK_TERMS);
@@ -592,11 +670,12 @@ public final class ImprovedClarityScore
               .peek(term -> hasTerms.set(true))
               .map(term -> new ScoreTupleHighPrecision(
                   model.query(term), BigDecimal.valueOf(
-                  this.dataProv.getRelativeTermFrequency(term))))
+                  this.dataProv.getRelativeTermFrequency(term)), term))
               .toArray(ScoreTupleHighPrecision[]::new);
 
           if (hasTerms.get()) {
             LOG.info("Calculating final score.");
+            result.setScoringTuple(dataSets);
             result.setScore(MathUtils.klDivergence(dataSets).doubleValue());
           } else {
             LOG.info(MSG_NO_THRESHOLDED_FEEDBACK_TERMS);
@@ -616,7 +695,7 @@ public final class ImprovedClarityScore
             query, fbDocCount, timeMeasure.stop().getTimeString(),
             result.getScore());
       } else {
-        String msg ="Calculating improved clarity score for query {} "
+        String msg = "Calculating improved clarity score for query {} "
             + "with {} document models took {}. Result is empty.";
         if (result.getEmptyReason().isPresent()) {
           msg += " reason=" + result.getEmptyReason().get();
@@ -626,6 +705,188 @@ public final class ImprovedClarityScore
     }
 
     return result;
+  }
+
+  private Map<Long, ArrayList<Integer>> reduceFeedbackDocuments(
+      @NotNull final FeedbackDocumentCollector fdc) {
+    final Map<Long, ArrayList<Integer>> reduced = new HashMap<>(
+        this.conf.getMaxFeedbackDocumentsCount());
+
+    for (Tuple2<Integer, Long> t2 : fdc.getOrderedCollection()) {
+      if (reduced.containsKey(t2.b)) {
+        reduced.get(t2.b).add(t2.a);
+      } else {
+        final ArrayList<Integer> docIds =
+            new ArrayList<>(this.conf.getMaxFeedbackDocumentsCount() / 10);
+        docIds.add(t2.a);
+        reduced.put(t2.b, docIds);
+      }
+    }
+
+    return reduced;
+  }
+
+  private FeedbackDocumentCollector collectFeedbackDocuments(
+      @NotNull final BytesRefArray queryTerms,
+      @NotNull final DocIdSet fbDocsIds)
+      throws IOException {
+    // number of query terms
+    final BytesRefHash qtHash = BytesRefUtils.arrayToHash(queryTerms);
+    final int queryLength = qtHash.size();
+
+    final FeedbackDocumentCollector fbdCollector =
+        new FeedbackDocumentCollector(this.conf.getMaxFeedbackDocumentsCount());
+
+    final DocIdSetIterator disi = fbDocsIds.iterator();
+    int docId = disi.nextDoc();
+
+    if (queryLength == 1) {
+      // special case for single term queries: take first documents that have
+      // the required term and skip the rest.
+      final BytesRef queryTerm = queryTerms.iterator().next();
+
+      // check all feedback documents..
+      while (docId != DocIdSetIterator.NO_MORE_DOCS) {
+        // .. using their model ..
+        final DocumentModel docMod = this.dataProv.getDocumentModel(docId);
+
+        if (docMod.tf(queryTerm) > 0L) {
+          // term found!
+          fbdCollector.addDocument(docMod.id, 1L);
+        }
+
+        // collect up to the maximum
+        if (fbdCollector.numEntries ==
+            this.conf.getMaxFeedbackDocumentsCount()) {
+          break;
+        }
+        docId = disi.nextDoc();
+      }
+    } else {
+      // check all feedback documents..
+      while (docId != DocIdSetIterator.NO_MORE_DOCS) {
+        // .. using their model ..
+        final DocumentModel docMod = this.dataProv.getDocumentModel(docId);
+
+        // only check, if there are enough terms in document
+        if ((long) docMod.termCount() > fbdCollector.lowerBound) {
+          final int matchingTerms =
+              // .. how many query terms the contain
+              StreamUtils.stream(qtHash)
+                  // term frequency == 0 means term not found
+                  .mapToLong(docMod::tf)
+                      // count only matches, not their value
+                  .mapToInt(tf -> tf == 0L ? 0 : 1)
+                  .sum();
+
+          fbdCollector.addDocument(docMod.id, (long) matchingTerms);
+
+          if (fbdCollector.isFull() &&
+              fbdCollector.lowerBound == (long) queryLength) {
+            // all collected documents matching all query terms .. it can't get
+            // any better, so we stop here
+            break;
+          }
+        }
+
+        docId = disi.nextDoc();
+      }
+    }
+
+    return fbdCollector;
+  }
+
+  /**
+   * Collect feedback documents based on the number of matching terms.
+   */
+  private static final class FeedbackDocumentCollector {
+    /**
+     * Lowest number of matching terms currently stored
+     */
+    long lowerBound;
+    /**
+     * Highest number of matching terms currently stored.
+     */
+    long upperBound;
+    /**
+     * Maximum number of elements to store.
+     */
+    final int maxEntries;
+    /**
+     * Current number of elements in store.
+     */
+    int numEntries;
+
+    /**
+     * Collected document ids. Array index refers to matches array.
+     */
+    final ArrayList<Integer> docIds;
+    /**
+     * Collected number of matches. Array index refers to docIds array.
+     */
+    final ArrayList<Long> matches;
+
+    /**
+     *
+     * @param size Maximum number of documents to collect
+     */
+    FeedbackDocumentCollector(final int size) {
+      this.maxEntries = size;
+      this.docIds = new ArrayList<>(size);
+      this.matches = new ArrayList<>(size);
+    }
+
+    private void updateState() {
+      this.numEntries = this.docIds.size();
+      this.lowerBound = Collections.min(this.matches);
+      this.upperBound = Collections.min(this.matches);
+    }
+
+    /**
+     * Check current fill state.
+     * @return true, if all slots are filled with values
+     */
+    boolean isFull() {
+      return this.numEntries == this.maxEntries;
+    }
+
+    ArrayList<Tuple2<Integer, Long>> getOrderedCollection() {
+      final ArrayList<Tuple2<Integer, Long>> coll =
+          new ArrayList<>(this.numEntries);
+      for (int i = 0; i < this.numEntries; i++) {
+        coll.add(Tuple.tuple2(this.docIds.get(i), this.matches.get(i)));
+      }
+      return coll;
+    }
+
+    void addDocument(final int docId, final long matchingTerms) {
+      if (LOG.isTraceEnabled()) {
+        LOG.trace("Collect doc={} matches={} lBound={} uBound={}",
+            docId, matchingTerms, this.lowerBound, this.upperBound);
+      }
+
+      boolean addDoc = false;
+      if (matchingTerms <= this.lowerBound && !isFull()) {
+        // add low value, there's still space left
+        addDoc = true;
+      } else if (matchingTerms > this.lowerBound) {
+        // already full, only add bigger values
+        if (isFull()) {
+          // remove worst matching document
+          final int worseMatchIndex = this.matches.lastIndexOf(this.lowerBound);
+          this.matches.remove(worseMatchIndex);
+          this.docIds.remove(worseMatchIndex);
+        }
+        addDoc = true;
+      }
+
+      // push the new values
+      if (addDoc) {
+        this.docIds.add(docId);
+        this.matches.add(matchingTerms);
+        updateState();
+      }
+    }
   }
 
   /**
@@ -640,11 +901,12 @@ public final class ImprovedClarityScore
      */
     @Nullable
     private ImprovedClarityScoreConfiguration conf;
+
     /**
      * Ids of feedback documents used for calculation.
      */
-    @Nullable
-    private BitSet feedbackDocIds;
+    private Optional<BitSet> feedbackDocIds = Optional.empty();
+    private Long[] matchingTermsCount = {0L, 0L};
 
     /**
      * Creates an object wrapping the result with meta information.
@@ -654,6 +916,23 @@ public final class ImprovedClarityScore
     }
 
     /**
+     * Scoring tuple values for each feedback term. (High precision)
+     */
+    private Optional<ScoreTupleHighPrecision[]> stHighPrecision =
+        Optional.empty();
+
+    /**
+     * Scoring tuple values for each feedback term. (Low precision)
+     */
+    private Optional<ScoreTupleLowPrecision[]> stLowPrecision =
+        Optional.empty();
+
+    /**
+     * Map of document-id -> matching query terms in document count
+     */
+    private Optional<Map<Integer, Long>> feedbackDocMap = Optional.empty();
+
+    /**
      * Set the list of feedback documents used.
      *
      * @param fbDocIds List of feedback documents
@@ -661,9 +940,47 @@ public final class ImprovedClarityScore
     @SuppressFBWarnings("EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS")
     void setFeedbackDocIds(@NotNull final DocIdSet fbDocIds) {
       try {
-        this.feedbackDocIds = DocIdSetUtils.bits(fbDocIds);
+        this.feedbackDocIds = Optional.of(DocIdSetUtils.bits(fbDocIds));
       } catch (final IOException e) {
         throw new UncheckedIOException(e);
+      }
+    }
+
+    void setFeedbackDocMap(@NotNull Map<Integer, Long> fbMap) {
+      this.feedbackDocMap = Optional.of(fbMap);
+    }
+
+    Optional<Map<Integer, Long>> getFeedbackDocMap() {
+      return this.feedbackDocMap;
+    }
+
+    void setScoringTuple(final ScoreTupleHighPrecision[] stHigh) {
+      this.stHighPrecision = Optional.of(stHigh);
+    }
+
+    void setScoringTuple(final ScoreTupleLowPrecision[] stLow) {
+      this.stLowPrecision = Optional.of(stLow);
+    }
+
+    public Optional<BitSet> getFeedbackDocIds() {
+      return this.feedbackDocIds;
+    }
+
+    public Optional<ScoreTupleHighPrecision[]> getScoreTupleHighPrecision() {
+      return this.stHighPrecision;
+    }
+
+    public Optional<ScoreTupleLowPrecision[]> getScoreTupleLowPrecision() {
+      return this.stLowPrecision;
+    }
+
+    public Optional<TupleType> getScoreTuple() {
+      if (this.stHighPrecision.isPresent()) {
+        return Optional.of(TupleType.HIGH_PRECISION);
+      } else if (this.stLowPrecision.isPresent()) {
+        return Optional.of(TupleType.LOW_PRECISION);
+      } else {
+        return Optional.empty();
       }
     }
 
@@ -684,6 +1001,26 @@ public final class ImprovedClarityScore
     @Nullable
     public ImprovedClarityScoreConfiguration getConfiguration() {
       return this.conf;
+    }
+
+    public void setMatchingTermsCount(final long mtc) {
+      if (this.matchingTermsCount[0] == 0L &&
+          this.matchingTermsCount[0].compareTo(
+              this.matchingTermsCount[1]) == 0) {
+        // set initial value
+        this.matchingTermsCount[0] = mtc;
+        this.matchingTermsCount[1] = mtc;
+      } else {
+        if (mtc > this.matchingTermsCount[1]) {
+          this.matchingTermsCount[1] = mtc;
+        } else if (mtc < this.matchingTermsCount[0]) {
+          this.matchingTermsCount[0] = mtc;
+        }
+      }
+    }
+
+    public Long[] getMatchingTermsCounts() {
+      return this.matchingTermsCount;
     }
   }
 

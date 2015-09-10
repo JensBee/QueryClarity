@@ -54,7 +54,7 @@ public final class ImprovedClarityScoreConfiguration
    * terms, if this is not the case, the query should be relaxed to get at
    * least one match.
    */
-  private static final int DEFAULT_FB_DOCS_MIN = 1;
+  private static final int DEFAULT_FB_DOCS_MIN = 10;
   /**
    * Maximum number of feedback documents to use. A positive Integer or
    * {@code -1} to set this to all matching documents.

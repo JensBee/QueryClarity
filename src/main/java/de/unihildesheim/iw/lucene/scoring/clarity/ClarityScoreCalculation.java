@@ -16,10 +16,12 @@
  */
 package de.unihildesheim.iw.lucene.scoring.clarity;
 
+import org.apache.lucene.util.BytesRef;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 
 /**
  * Generic interface for various clarity score calculation implementations.
@@ -74,11 +76,35 @@ public interface ClarityScoreCalculation {
     }
   }
 
+  public abstract class ScoreTuple {
+    public enum TupleType {
+      HIGH_PRECISION,
+      LOW_PRECISION;
+    }
+
+    /**
+     * Scoring term.
+     */
+    public final Optional<BytesRef> term;
+
+    ScoreTuple(final BytesRef term) {
+      this.term = Optional.of(BytesRef.deepCopyOf(term));
+    }
+
+    ScoreTuple() {
+      this.term = Optional.empty();
+    }
+
+    public abstract Number getQueryModel();
+    public abstract Number getCollectionModel();
+    public abstract TupleType getType();
+  }
+
   /**
    * Store low-precision model calculation results.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static final class ScoreTupleLowPrecision {
+  public final class ScoreTupleLowPrecision extends ScoreTuple {
     /**
      * Query model value.
      */
@@ -97,13 +123,41 @@ public interface ClarityScoreCalculation {
       this.qModel = qModel;
       this.cModel = cModel;
     }
+
+    /**
+     * Store low-precision model calculation results.
+     * @param qModel Query model value
+     * @param cModel Collection model value
+     * @param term Scoring term
+     */
+    public ScoreTupleLowPrecision(final double qModel, final double cModel,
+        @NotNull final BytesRef term) {
+      super(term);
+      this.qModel = qModel;
+      this.cModel = cModel;
+    }
+
+    @Override
+    public Number getQueryModel() {
+      return this.qModel;
+    }
+
+    @Override
+    public Number getCollectionModel() {
+      return this.cModel;
+    }
+
+    @Override
+    public TupleType getType() {
+      return TupleType.LOW_PRECISION;
+    }
   }
 
   /**
    * Store high-precision model calculation results.
    */
   @SuppressWarnings("PublicInnerClass")
-  public static final class ScoreTupleHighPrecision {
+  final class ScoreTupleHighPrecision extends ScoreTuple {
     /**
      * Query model value.
      */
@@ -125,6 +179,36 @@ public interface ClarityScoreCalculation {
         @NotNull final BigDecimal cModel) {
       this.qModel = qModel;
       this.cModel = cModel;
+    }
+
+    /**
+     * Store high-precision model calculation results.
+     * @param qModel Query model value
+     * @param cModel Collection model value
+     * @param term Scoring term
+     */
+    public ScoreTupleHighPrecision(
+        @NotNull final BigDecimal qModel,
+        @NotNull final BigDecimal cModel,
+        @NotNull final BytesRef term) {
+      super(term);
+      this.qModel = qModel;
+      this.cModel = cModel;
+    }
+
+    @Override
+    public Number getQueryModel() {
+      return this.qModel;
+    }
+
+    @Override
+    public Number getCollectionModel() {
+      return this.cModel;
+    }
+
+    @Override
+    public TupleType getType() {
+      return TupleType.HIGH_PRECISION;
     }
   }
 }

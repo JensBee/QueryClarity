@@ -35,15 +35,16 @@ import de.unihildesheim.iw.lucene.scoring.data.CommonTermsFeedbackProvider;
 import de.unihildesheim.iw.lucene.scoring.data.FeedbackProvider;
 import de.unihildesheim.iw.lucene.search.IPCFieldFilter;
 import de.unihildesheim.iw.lucene.search.IPCFieldFilterFunctions;
-import de.unihildesheim.iw.storage.sql.MetaTable;
-import de.unihildesheim.iw.storage.sql.TableFieldContent;
-import de.unihildesheim.iw.storage.sql.scoringData.ICSConfTable;
-import de.unihildesheim.iw.storage.sql.scoringData.ScoringDataDB;
-import de.unihildesheim.iw.storage.sql.scoringData.SentenceScoringResultTable;
-import de.unihildesheim.iw.storage.sql.scoringData.SentenceScoringTable;
-import de.unihildesheim.iw.storage.sql.scoringData.TermScoringResultTable;
-import de.unihildesheim.iw.storage.sql.scoringData.TermScoringTable;
-import de.unihildesheim.iw.storage.sql.termData.TermsTable;
+import de.unihildesheim.iw.fiz.storage.sql.MetaTable;
+import de.unihildesheim.iw.fiz.storage.sql.TableFieldContent;
+import de.unihildesheim.iw.fiz.storage.sql.scoringData.ICSConfTable;
+import de.unihildesheim.iw.fiz.storage.sql.scoringData.ScoringDataDB;
+import de.unihildesheim.iw.fiz.storage.sql.scoringData
+    .SentenceScoringResultTable;
+import de.unihildesheim.iw.fiz.storage.sql.scoringData.SentenceScoringTable;
+import de.unihildesheim.iw.fiz.storage.sql.scoringData.TermScoringResultTable;
+import de.unihildesheim.iw.fiz.storage.sql.scoringData.TermScoringTable;
+import de.unihildesheim.iw.fiz.storage.sql.termData.TermsTable;
 import de.unihildesheim.iw.util.Buildable;
 import de.unihildesheim.iw.util.GlobalConfiguration;
 import de.unihildesheim.iw.util.StringUtils;
@@ -365,9 +366,95 @@ public final class ScoreICS
             .analyzer(this.analyzer)
             .build();
 
-        //final Configuration cscConf = scorerT2.b;
         final String impl = ics.getIdentifier();
 
+        // score terms
+        if (termTable != null && !this.cliParams.noTerms) {
+          scoringType[0] = "terms";
+          // query for data
+          final String querySQL = "select " +
+              TermScoringTable.Fields.ID + ", " +
+              TermScoringTable.Fields.TERM +
+              " from " + TermScoringTable.TABLE_NAME +
+              " where " + TermScoringTable.Fields.LANG + "='" + langName +
+              "' and " + TermsTable.FieldsOptional.IPC +
+              (includeIPC ?
+                  " like '" + ipcName + "%'" : // filter by ipc
+                  " is null;"); // ipc must not be present
+          if (LOG.isTraceEnabled()) {
+            LOG.trace("querySQL: {}", querySQL);
+          }
+          stmt.execute(querySQL);
+          final ResultSet rs = stmt.getResultSet();
+
+          try (final TermScoringResultTable.Writer termWriter =
+                   termTable.getWriter(scoringDb.getConnection())) {
+            currentItemCount.set(0);
+            while (rs.next()) {
+              final Integer termId = rs.getInt(1);
+              final String term = rs.getString(2);
+
+              if (term == null) {
+                throw new IllegalStateException("Term was null.");
+              }
+
+              @SuppressWarnings("ObjectAllocationInLoop")
+              final TableFieldContent tfc =
+                  new TableFieldContent(termTable);
+
+              tfc.setValue(TermScoringResultTable.FieldsOptional
+                  .ICSCONF_REF, icsConfId)
+                  .setValue(TermScoringResultTable.Fields.TERM_REF, termId)
+                  .setValue(TermScoringResultTable.Fields.IMPL, impl)
+                  .setValue(TermScoringResultTable.Fields.Q_FIELDS, qFields);
+
+              if (includeIPC) {
+                tfc.setValue(TermScoringResultTable.Fields.Q_IPC, ipcName);
+              }
+
+              currentItemCount.incrementAndGet();
+
+              final Result result = ics.calculateClarity(term);
+
+              tfc.setValue(TermScoringResultTable.Fields.IS_EMPTY,
+                  result.isEmpty())
+                  .setValue(TermScoringResultTable.Fields.SCORE,
+                      result.getScore());
+
+              // get empty reason, if any
+              if (result.isEmpty()) {
+                final Optional<String> msg = result.getEmptyReason();
+                if (msg.isPresent()) {
+                  tfc.setValue(TermScoringResultTable.Fields.EMPTY_REASON,
+                      msg.get());
+                }
+              } else {
+                // number of matching terms in feedback documents
+                final Long[] matchTermsCounts = result.getMatchingTermsCounts();
+                tfc.setValue(TermScoringResultTable.Fields.FB_TERMS_MIN,
+                    matchTermsCounts[0])
+                    .setValue(TermScoringResultTable.Fields.FB_TERMS_MAX,
+                        matchTermsCounts[1]);
+
+                // number of feedback documents used
+                if (result.getFeedbackDocIds().isPresent()) {
+                  tfc.setValue(TermScoringResultTable.Fields.FB_DOC_COUNT,
+                      result.getFeedbackDocIds().get().cardinality());
+                }
+              }
+
+              // write result
+              termWriter.addContent(tfc, false);
+
+              if (LOG.isTraceEnabled()) {
+                LOG.trace("Committing result");
+              }
+              termWriter.commit();
+            }
+          }
+        }
+
+        // score sentences
         if (sentenceTable != null && !this.cliParams.noSents) {
           scoringType[0] = "sentences";
           // query for data
@@ -385,8 +472,8 @@ public final class ScoreICS
               (includeIPC ?
                   " like '" + ipcName + "%'" : // filter by ipc
                   " is null;"); // ipc must not be present
-          if (LOG.isDebugEnabled()) {
-            LOG.debug("querySQL: {}", querySQL);
+          if (LOG.isTraceEnabled()) {
+            LOG.trace("querySQL: {}", querySQL);
           }
           stmt.execute(querySQL);
           final ResultSet rs = stmt.getResultSet();
@@ -434,87 +521,28 @@ public final class ScoreICS
                       SentenceScoringResultTable.Fields.EMPTY_REASON,
                       msg.get());
                 }
+              } else {
+                // number of matching terms in feedback documents
+                final Long[] matchTermsCounts = result.getMatchingTermsCounts();
+                tfc.setValue(TermScoringResultTable.Fields.FB_TERMS_MIN,
+                    matchTermsCounts[0])
+                    .setValue(TermScoringResultTable.Fields.FB_TERMS_MAX,
+                        matchTermsCounts[1]);
+
+                // number of feedback documents used
+                if (result.getFeedbackDocIds().isPresent()) {
+                  tfc.setValue(SentenceScoringResultTable.Fields.FB_DOC_COUNT,
+                      result.getFeedbackDocIds().get().cardinality());
+                }
               }
 
               // write result
               sentenceWriter.addContent(tfc, false);
 
-              //if (LOG.isDebugEnabled()) {
-              LOG.debug("Committing result");
+              if (LOG.isTraceEnabled()) {
+                LOG.trace("Committing result");
+              }
               sentenceWriter.commit();
-              //}
-            }
-          }
-        }
-
-        if (termTable != null && !this.cliParams.noTerms) {
-          scoringType[0] = "terms";
-          // query for data
-          final String querySQL = "select " +
-              TermScoringTable.Fields.ID + ", " +
-              TermScoringTable.Fields.TERM +
-              " from " + TermScoringTable.TABLE_NAME +
-              " where " + TermScoringTable.Fields.LANG + "='" + langName +
-              "' and " + TermsTable.FieldsOptional.IPC +
-              (includeIPC ?
-                  " like '" + ipcName + "%'" : // filter by ipc
-                  " is null;"); // ipc must not be present
-          if (LOG.isDebugEnabled()) {
-            LOG.debug("querySQL: {}", querySQL);
-          }
-          stmt.execute(querySQL);
-          final ResultSet rs = stmt.getResultSet();
-
-          try (final TermScoringResultTable.Writer termWriter =
-                   termTable.getWriter(scoringDb.getConnection())) {
-            currentItemCount.set(0);
-            while (rs.next()) {
-              final Integer termId = rs.getInt(1);
-              final String term = rs.getString(2);
-
-              if (term == null) {
-                throw new IllegalStateException("Term was null.");
-              }
-
-              @SuppressWarnings("ObjectAllocationInLoop")
-              final TableFieldContent tfc =
-                  new TableFieldContent(termTable);
-
-              tfc.setValue(TermScoringResultTable.FieldsOptional
-                  .ICSCONF_REF, icsConfId)
-                  .setValue(TermScoringResultTable.Fields.TERM_REF, termId)
-                  .setValue(TermScoringResultTable.Fields.IMPL, impl)
-                  .setValue(TermScoringResultTable.Fields.Q_FIELDS, qFields);
-
-              if (includeIPC) {
-                tfc.setValue(TermScoringResultTable.Fields.Q_IPC, ipcName);
-              }
-
-              currentItemCount.incrementAndGet();
-
-              final Result result = ics.calculateClarity(term);
-
-              tfc.setValue(TermScoringResultTable.Fields.IS_EMPTY,
-                  result.isEmpty())
-                  .setValue(TermScoringResultTable.Fields.SCORE,
-                      result.getScore());
-
-              // get empty reason, if any
-              if (result.isEmpty()) {
-                final Optional<String> msg = result.getEmptyReason();
-                if (msg.isPresent()) {
-                  tfc.setValue(TermScoringResultTable.Fields.EMPTY_REASON,
-                      msg.get());
-                }
-              }
-
-              // write result
-              termWriter.addContent(tfc, false);
-
-              //if (LOG.isDebugEnabled()) {
-              LOG.debug("Committing result");
-              termWriter.commit();
-              //}
             }
           }
         }
